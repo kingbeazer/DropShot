@@ -1,6 +1,7 @@
 ﻿@using System.ComponentModel.DataAnnotations
 @using DropShot.Models;
 @using DropShot.Data;
+@using Microsoft.EntityFrameworkCore
 
 @page "/weather"
 @rendermode InteractiveServer
@@ -34,6 +35,13 @@
     <button type="submit" class="btn btn-primary">Save</button>
 </EditForm>
 
+<ul>
+    @foreach (var msg in scores)
+    {
+        <li>@msg.ScoreID - @msg.Player1 - @msg.Player2</li>
+    }
+</ul>
+
 @if (isSaved)
 {
     <div class="alert alert-success mt-3">@newRatingA_ADV</div>
@@ -44,6 +52,8 @@
     private bool isSaved;
     private bool isClicked;
     double newRatingA_ADV;
+    private List<Score> scores = new();
+
 
     public class MyItem { public int Id { get; set; } public string Name { get; set; } }
 
@@ -55,9 +65,15 @@
         new MyItem{Id=2000, Name="Ron Beattie"},
     };
 
+
+    protected override async Task OnInitializedAsync()
+    {
+        scores = await DbContext.Score.ToListAsync();
+    }
+
     private async Task HandleValidSubmit()
     {
-        int gamesWonA = int.Parse( model.Player1), totalGames = int.Parse( model.Player2);
+        int gamesWonA = model.Player1, totalGames = model.Player2;
         double scoreA = (double)gamesWonA / totalGames; // 0.6
 
         double ratingA = 1500, ratingB = 1400;
@@ -79,6 +95,7 @@
             return;    
         }
         await DbContext.SaveChangesAsync();
+         scores = await DbContext.Score.ToListAsync();
         isSaved = true;
         model = new Score(); // Clear form
     }
