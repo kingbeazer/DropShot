@@ -1,0 +1,22 @@
+﻿.digit-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 10px;
+}
+
+.digit-row {
+    display: flex;
+    gap: 4px;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #333; /* Off state */
+}
+
+    .dot.active {
+        background-color: #00ff00; /* On state */
+    }

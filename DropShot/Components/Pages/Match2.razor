@@ -1,0 +1,245 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using DropShot.Models;
+@using DropShot.Data;
+@using Microsoft.EntityFrameworkCore
+@using System;
+@using System.Collections.Generic;
+
+
+@page "/match2"
+@rendermode InteractiveServer
+@inject MyDbContext DbContext
+
+
+
+<EditForm Model="model" FormName="SubmitScoreForm" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label>Field 1</label>
+        <InputSelect @bind-Value="model.Player1" class="form-control">
+            <option>***Select***</option>
+            @foreach (var item in Items)
+            {
+                <option value="@item.Id">@item.Name</option>
+            }
+        </InputSelect>
+    </div>
+    <div class="mb-3">
+        <label>Field 2</label>
+        <InputSelect @bind-Value="model.Player2" class="form-control">
+            <option>***Select***</option>
+
+            @foreach (var item in Items)
+            {
+                <option value="@item.Id">@item.Name</option>
+            }
+        </InputSelect>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+</EditForm>
+
+<ul>
+    @foreach (var msg in scores)
+    {
+        <li>@msg.ScoreID - @msg.Player1 - @msg.Player2</li>
+    }
+</ul>
+
+
+
+
+<h3>Tennis Match</h3>
+
+<p><strong>Sets:</strong> User @userSets - Opponent @opponentSets</p>
+<p><strong>Games in Current Set:</strong> User @userGames - Opponent @opponentGames</p>
+<p><strong>Current Game:</strong> @ScoreDisplay</p>
+
+<div class="mt-3">
+    <button class="btn btn-success" @onclick="UserWinsPoint">User Point</button>
+    <button class="btn btn-danger" @onclick="OpponentWinsPoint">Opponent Point</button>
+    <button class="btn btn-secondary" @onclick="UndoLastPoint" disabled="@(!history.Any())">Undo</button>
+</div>
+
+
+
+@if (isSaved)
+{
+    <div class="alert alert-success mt-3">@newRatingA_ADV</div>
+}
+ 
+@code {
+    private Score model = new();
+    private bool isSaved;
+    private bool isClicked;
+    double newRatingA_ADV;
+    private List<Score> scores = new();
+
+
+    public class MyItem { public int Id { get; set; } public string Name { get; set; } }
+
+    private List<MyItem> Items = new()
+    {
+        new MyItem{Id=1000, Name="Alan Beattie"},
+        new MyItem{Id=2000, Name="James Daniel"},
+        new MyItem{Id=2000, Name="Andrew Beattie"},
+        new MyItem{Id=2000, Name="Ron Beattie"},
+    };
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        scores = await DbContext.Score.ToListAsync();
+    }
+    
+
+    private int userPoints = 0;
+    private int opponentPoints = 0;
+    private int userGames = 0;
+    private int opponentGames = 0;
+    private int userSets = 0;
+    private int opponentSets = 0;
+
+    private Stack<(int userPts, int oppPts, int userG, int oppG, int userS, int oppS)> history = new();
+
+    private string ScoreDisplay
+    {
+        get
+        {
+            if (userPoints >= 3 && opponentPoints >= 3)
+            {
+                if (userPoints == opponentPoints)
+                    return (userPoints == 3) ? "40 - 40" : "Deuce";
+                if (userPoints == opponentPoints + 1) return "Advantage User";
+                if (opponentPoints == userPoints + 1) return "Advantage Opponent";
+            }
+            return $"{ConvertToTennisScore(userPoints)} - {ConvertToTennisScore(opponentPoints)}";
+        }
+    }
+
+    private void UserWinsPoint()
+    {
+        SaveHistory();
+        userPoints++;
+        CheckGame();
+    }
+
+    private void OpponentWinsPoint()
+    {
+        SaveHistory();
+        opponentPoints++;
+        CheckGame();
+    }
+
+    private void UndoLastPoint()
+    {
+        if (history.Any())
+        {
+            var last = history.Pop();
+            userPoints = last.userPts;
+            opponentPoints = last.oppPts;
+            userGames = last.userG;
+            opponentGames = last.oppG;
+            userSets = last.userS;
+            opponentSets = last.oppS;
+        }
+    }
+
+    private void SaveHistory() => history.Push((userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets));
+
+    private void CheckGame()
+    {
+        if (userPoints >= 4 || opponentPoints >= 4)
+        {
+            int diff = userPoints - opponentPoints;
+            if (diff >= 2)
+            {
+                userGames++;
+                ResetGame();
+                CheckSet();
+            }
+            else if (diff <= -2)
+            {
+                opponentGames++;
+                ResetGame();
+                CheckSet();
+            }
+        }
+    }
+
+    private void CheckSet()
+    {
+        if ((userGames >= 6 || opponentGames >= 6) && Math.Abs(userGames - opponentGames) >= 2)
+        {
+            if (userGames > opponentGames)
+                userSets++;
+            else
+                opponentSets++;
+
+            userGames = 0;
+            opponentGames = 0;
+
+            // Optional: Check match win condition
+            if (userSets == 2 || opponentSets == 2)
+            {
+                Console.WriteLine(userSets > opponentSets ? "User wins the match!" : "Opponent wins the match!");
+                ResetMatch();
+            }
+        }
+    }
+
+    private void ResetGame()
+    {
+        userPoints = 0;
+        opponentPoints = 0;
+    }
+
+    private void ResetMatch()
+    {
+        userPoints = opponentPoints = 0;
+        userGames = opponentGames = 0;
+        userSets = opponentSets = 0;
+        history.Clear();
+    }
+
+    private string ConvertToTennisScore(int points) => points switch
+    {
+        0 => "0",
+        1 => "15",
+        2 => "30",
+        3 => "40",
+        _ => "40"
+    };
+
+
+
+    private async Task HandleValidSubmit()
+    {
+        int gamesWonA = model.Player1, totalGames = model.Player2;
+        double scoreA = (double)gamesWonA / totalGames; // 0.6
+
+        double ratingA = 1500, ratingB = 1400;
+        double expectedA = EloCalculator.ExpectedScore(ratingA, ratingB);
+        double K = 30;
+
+        // Basic update
+        double newRatingA = EloCalculator.UpdateRating(ratingA, expectedA, scoreA, K);
+
+        // Advanced update with margin
+        double movm = EloCalculator.MarginOfVictoryMultiplier(3, 2, ratingA, ratingB);
+        newRatingA_ADV = EloCalculator.UpdateRating(ratingA, expectedA, scoreA, K, movm);
+
+        isClicked = true;
+        DbContext.Score.Add(model);
+        if (model.Player1 == null || model.Player2 == null)
+        {
+            isSaved = false;
+            return;    
+        }
+        await DbContext.SaveChangesAsync();
+         scores = await DbContext.Score.ToListAsync();
+        isSaved = true;
+        model = new Score(); // Clear form
+    }
+}
