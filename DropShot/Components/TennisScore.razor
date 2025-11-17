@@ -27,7 +27,12 @@
                 <span class="sets serve-indicator"></span>
             }
 
-            <span class="sets">@userSets</span> | <span class="sets">@userGames</span> | <span class="sets">@ScoreDisplayUser</span>
+            @foreach (var set in setScores)
+            {
+                <span class="sets">@set.userGames</span>
+            }
+
+            <span class="sets">@userGames</span><span class="sets">@ScoreDisplayUser</span>
         </div>
         <div class="score-row">
 
@@ -39,8 +44,26 @@
             {
                 <span class="sets serve-indicator"></span>
             }
-            <span class="sets">@opponentSets</span> | <span class="sets">@opponentGames</span> | <span class="sets">@ScoreDisplayOpp</span>
+
+              @foreach (var set in setScores)
+    {
+                <span class="sets">@set.opponentGames </span>
+    }
+
+            <span class="sets">@opponentGames</span><span class="sets">@ScoreDisplayOpp</span>
         </div>
+
+
+        <!-- Settings Button (Bottom Left) -->
+        <button class="settings-btn" @onclick="OpenSettings">
+            ⚙️
+        </button>
+
+        <!-- Undo Button (Bottom Right) -->
+        <button class="undo-btn" @onclick="UndoLastPoint">
+            ⤺
+        </button>
+
     </div>
 
 
@@ -50,26 +73,22 @@
         AB
     </button>
 </div>
-<button class="btn btn-secondary" @onclick="UndoLastPoint" disabled="@(!history.Any())">Undo</button>
+
+   <div>
+       <span></span></div>
 
 <div style="display: flex">
-
-    <DotDigit Number="@userSets" />
-    <DotDigit Number="@opponentSets" />
-    <DotDigit Number="@userGames" />
-    <DotDigit Number="@opponentGames" />
- 
-
+    @foreach (var set in setScores)
+    {
+        <DotDigit Number="@set.userGames" />
+    }
 </div>
 
 <div style="display: flex">
-
-    <DotDigit Number="@userSets" />
-    <DotDigit Number="@opponentSets" />
-    <DotDigit Number="@userGames" />
-    <DotDigit Number="@opponentGames" />
-
-
+    @foreach (var set in setScores)
+    {
+        <DotDigit Number="@set.opponentGames" />
+    }
 </div>
 
 @code {
@@ -82,13 +101,16 @@
     private bool isTieBreak = false;
     private int bestOf = 5;
     private int gamesFirstTo = 6;
-    private int maxDeuce = 0;
+    private int maxDeuce = 99999;
     private bool isUserServing = true; // Start with user serving
 
     private int deuceCount = 0;
     private bool isMatchEnded = false;
 
-    private Stack<(int userPts, int oppPts, int userG, int oppG, int userS, int oppS, bool tieBreak, int deuceCount, bool isUserServing)> history = new();
+    private Stack<(int userPts, int oppPts, int userG, int oppG, int userS, int oppS, bool tieBreak, int deuceCount, bool isUserServing, List<(int userGames, int opponentGames)> setScores)> history = new();
+
+    // Add this field to store set scores
+    private List<(int userGames, int opponentGames)> setScores = new();
 
     private string ScoreDisplayOpp
     {
@@ -100,9 +122,9 @@
             if (userPoints >= 3 && opponentPoints >= 3)
             {
                 if (userPoints == opponentPoints)
-                    return (userPoints == 3) ? "40 - 40" : "D";
-                if (userPoints == opponentPoints + 1) return "A - AB";
-                if (opponentPoints == userPoints + 1) return "A - CD";
+                    return (userPoints == 3) ? "40" : "D";
+                if (userPoints == opponentPoints + 1) return "";
+                if (opponentPoints == userPoints + 1) return $"A({deuceCount})";
             }
             return $"{ConvertToTennisScore(opponentPoints)}";
         }
@@ -118,9 +140,9 @@
             if (userPoints >= 3 && opponentPoints >= 3)
             {
                 if (userPoints == opponentPoints)
-                    return (userPoints == 3) ? "40 - 40" : "D";
-                if (userPoints == opponentPoints + 1) return "A - CD";
-                if (opponentPoints == userPoints + 1) return "A - AB";
+                    return (userPoints == 3) ? "40" : "D";
+                if (userPoints == opponentPoints + 1) return $"A({deuceCount})";
+                if (opponentPoints == userPoints + 1) return "";
             }
             return $"{ConvertToTennisScore(userPoints)}";
         }
@@ -155,15 +177,24 @@
             deuceCount = last.deuceCount;
             isMatchEnded = false;
             isUserServing = last.isUserServing;
+            setScores = last.setScores;
         }
+        if (userSets + opponentSets < setScores.Count)
+            setScores.RemoveAt(setScores.Count -1);
     }
 
     private void SaveHistory()
     {
-        history.Push((userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing));
+        history.Push((userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, setScores));
         var stackList = history.ToList();
         string json = JsonSerializer.Serialize(stackList);
     }
+
+    private void OpenSettings()
+    {
+        
+    }
+
 
     private void CheckGame()
     {
@@ -172,9 +203,15 @@
             if ((userPoints >= 7 || opponentPoints >= 7) && Math.Abs(userPoints - opponentPoints) >= 2)
             {
                 if (userPoints > opponentPoints)
+                {
+                    userGames++;
                     userSets++;
+                }
                 else
+                {
                     opponentSets++;
+                    opponentGames++;
+                }
                 EndSet();
             }
 
@@ -186,8 +223,6 @@
         }
 
         // Increment deuce count
-        if (userPoints >= 3 && opponentPoints >= 3 && userPoints == opponentPoints)
-            deuceCount += 1;
 
         if (userPoints >= 4 || opponentPoints >= 4)
         {
@@ -222,6 +257,8 @@
                 }
             }
         }
+        if (userPoints >= 3 && opponentPoints >= 3 && userPoints == opponentPoints)
+            deuceCount += 1;
     }
 
     private void CheckSet()
@@ -261,6 +298,7 @@
 
     private void EndSet()
     {
+        setScores.Add((userGames, opponentGames)); // Save completed set score
         userGames = opponentGames = 0;
         userPoints = opponentPoints = 0;
         isTieBreak = false;
@@ -284,6 +322,7 @@
         userPoints = 0;
         opponentPoints = 0;
         isUserServing = !isUserServing;
+        deuceCount = 0;
     }
 
     private void ResetMatch()
