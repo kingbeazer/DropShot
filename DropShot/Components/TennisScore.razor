@@ -1,13 +1,17 @@
 ﻿@using System.ComponentModel.DataAnnotations
 @using DropShot.Models;
 @using DropShot.Data;
+@using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.EntityFrameworkCore
 @using System;
-@using System.Collections.Generic;
+@using System.Collections.Generic
 @using System.Text.Json
+@using Newtonsoft.Json
 
 @page "/tennisscore"
 @rendermode InteractiveServer
+@inject MyDbContext DbContext
+@inject NavigationManager Navigation
 
 <div class="score-container">
     <!-- Top Player Button -->
@@ -29,7 +33,7 @@
 
             @foreach (var set in setScores)
             {
-                <span class="sets">@set.userGames</span>
+                <span class="sets">@set.UserGames</span>
             }
 
             <span class="sets">@userGames</span><span class="sets">@ScoreDisplayUser</span>
@@ -47,7 +51,7 @@
 
               @foreach (var set in setScores)
     {
-                <span class="sets">@set.opponentGames </span>
+                <span class="sets">@set.OpponentGames </span>
     }
 
             <span class="sets">@opponentGames</span><span class="sets">@ScoreDisplayOpp</span>
@@ -80,14 +84,14 @@
 <div style="display: flex">
     @foreach (var set in setScores)
     {
-        <DotDigit Number="@set.userGames" />
+        <DotDigit Number="@set.UserGames" />
     }
 </div>
 
 <div style="display: flex">
     @foreach (var set in setScores)
     {
-        <DotDigit Number="@set.opponentGames" />
+        <DotDigit Number="@set.OpponentGames" />
     }
 </div>
 
@@ -101,16 +105,54 @@
     private bool isTieBreak = false;
     private int bestOf = 5;
     private int gamesFirstTo = 6;
+    private bool gameScoring = true;
     private int maxDeuce = 99999;
     private bool isUserServing = true; // Start with user serving
+    private List<Score> scores = new();
+    private HubConnection? hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        scores = await DbContext.Score.ToListAsync();
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .Build();
+
+        hubConnection.On<string, string>( "ReceiveMessage", async (user, message) =>
+        {
+            scores = await DbContext.Score.ToListAsync();
+
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+    }
 
     private int deuceCount = 0;
     private bool isMatchEnded = false;
 
-    private Stack<(int userPts, int oppPts, int userG, int oppG, int userS, int oppS, bool tieBreak, int deuceCount, bool isUserServing, List<(int userGames, int opponentGames)> setScores)> history = new();
+    // Define a record to replace the tuple snapshot
+    public record GameState(
+        int UserPts,
+        int OppPts,
+        int UserG,
+        int OppG,
+        int UserS,
+        int OppS,
+        bool TieBreak,
+        int DeuceCount,
+        bool IsUserServing,
+        int UserGamesSnapshot,
+        int OpponentGamesSnapshot,
+        List<SetScore>? SetScores
+    );
+
+    // Initialize history with a GameState containing zeros and a null SetScores
+    private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>()) });
 
     // Add this field to store set scores
-    private List<(int userGames, int opponentGames)> setScores = new();
+    private List<SetScore> setScores = new();
 
     private string ScoreDisplayOpp
     {
@@ -148,53 +190,71 @@
         }
     }
 
+
+    public class SetScore
+    {
+        public int SetNumber { get; set; }
+        public int UserGames { get; set; }
+        public int OpponentGames { get; set; }
+    }
+
+
+
+    private void SaveHistory()
+    {
+        // Push a snapshot using the GameState record. Clone setScores to avoid shared references.
+        var setsClone = setScores is null ? null : new List<SetScore>(setScores);
+        history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, setsClone));
+
+        string json = JsonConvert.SerializeObject(history.Peek());
+
+        if (hubConnection is not null)
+        {
+            hubConnection.SendAsync("SendMessage", $"{json}", "");
+        }
+    }
+
     private void UserWinsPoint()
     {
-        SaveHistory();
         userPoints++;
         CheckGame();
+        SaveHistory();
     }
 
     private void OpponentWinsPoint()
     {
-        SaveHistory();
         opponentPoints++;
         CheckGame();
+        SaveHistory();
     }
 
     private void UndoLastPoint()
     {
         if (history.Any())
         {
-            var last = history.Pop();
-            userPoints = last.userPts;
-            opponentPoints = last.oppPts;
-            userGames = last.userG;
-            opponentGames = last.oppG;
-            userSets = last.userS;
-            opponentSets = last.oppS;
-            isTieBreak = last.tieBreak;
-            deuceCount = last.deuceCount;
-            isMatchEnded = false;
-            isUserServing = last.isUserServing;
-            setScores = last.setScores;
+            history.Pop();
         }
-        if (userSets + opponentSets < setScores.Count)
-            setScores.RemoveAt(setScores.Count -1);
-    }
-
-    private void SaveHistory()
-    {
-        history.Push((userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, setScores));
-        var stackList = history.ToList();
-        string json = JsonSerializer.Serialize(stackList);
+        if (history.Any())
+        {
+            var last = history.Peek();
+            userPoints = last.UserPts;
+            opponentPoints = last.OppPts;
+            userGames = last.UserG;
+            opponentGames = last.OppG;
+            userSets = last.UserS;
+            opponentSets = last.OppS;
+            isTieBreak = last.TieBreak;
+            deuceCount = last.DeuceCount;
+            isMatchEnded = false;
+            isUserServing = last.IsUserServing;
+            setScores = last.SetScores ?? new List<SetScore>();
+        }
     }
 
     private void OpenSettings()
     {
-        
-    }
 
+    }
 
     private void CheckGame()
     {
@@ -223,6 +283,18 @@
         }
 
         // Increment deuce count
+
+        if (gameScoring)
+        {
+            if (userPoints > 0)
+                userGames++;
+            else
+                opponentGames++;
+            ResetGame();
+            CheckSet();
+            return;
+        }
+
 
         if (userPoints >= 4 || opponentPoints >= 4)
         {
@@ -298,7 +370,7 @@
 
     private void EndSet()
     {
-        setScores.Add((userGames, opponentGames)); // Save completed set score
+        setScores.Add(new SetScore { SetNumber = setScores.Count() + 1, UserGames = userGames, OpponentGames = opponentGames }); // Save completed set score
         userGames = opponentGames = 0;
         userPoints = opponentPoints = 0;
         isTieBreak = false;
