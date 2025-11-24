@@ -1,17 +1,14 @@
-﻿using DropShot.Models;
+using DropShot.Models;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Xml.Linq;
 
 namespace DropShot.Data
 {
-    public class MyDbContext : DbContext
+    public class MyDbContext(DbContextOptions<MyDbContext> options) : IdentityDbContext<ApplicationUser>(options)
+     
     {
-        public MyDbContext(DbContextOptions<MyDbContext> options)
-            : base(options)
-        {
-        }
+        
+
 
         public DbSet<Score> Score { get; set; }
         public DbSet<AppSetting> AppSettings { get; set; }
