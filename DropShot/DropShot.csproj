@@ -6,11 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-DropShot-ffb5c9e5-dd8a-4f43-8296-4cc4f7015b29</UserSecretsId>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Remove="Components\Account\IdentityNoOpEmailSender.cs" />
-  </ItemGroup>
-
+ 
   <ItemGroup>
     <PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.22" />
