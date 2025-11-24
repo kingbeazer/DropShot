@@ -1,4 +1,4 @@
-﻿@page "/chat"
+﻿@page "/score"
 @rendermode InteractiveServer
 @using DropShot.Data
 @using DropShot.Models
@@ -6,20 +6,10 @@
 @using Microsoft.EntityFrameworkCore
 @using Newtonsoft.Json
 @inject NavigationManager Navigation
-<h3>Blazor + SignalR Chat</h3>
-    
-<input @bind="userInput" placeholder="Your name" />
-<input @bind="messageInput" placeholder="Type a message..." />
-<button @onclick="SendMessage">Send</button>
+  
+
 @inject MyDbContext DbContext
 
-
-<ul>
-    @foreach (var msg in messages)
-    {
-        <li>@msg</li>
-    }
-</ul>
 
 <div style="display: flex">
     @foreach (var set in currentScore.SetScores)
@@ -45,15 +35,36 @@
     }
 </div>
 
+@* <div class="container mt-4">
+    <h2 class="text-light mb-4">Dashboard</h2>
+    <div class="row">
+        @for (int i = 1; i <= 12; i++)
+        {
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-4">
+                <div class="card text-white bg-dark h-100 shadow-sm">
+                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                        <h5 class="card-title">Tile @i</h5>
+                        <p class="card-text">Content for tile @i</p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div> *@
+
 @code {
     private HubConnection? hubConnection;
     private string? userInput;
     private string? messageInput;
     private List<string> messages = new();
+    private List<Score> scores = new();
+    private Stack<GameState> history = new();
     GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>());
 
     protected override async Task OnInitializedAsync()
     {
+        scores = await DbContext.Score.ToListAsync();
+
         hubConnection = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
             .Build();
