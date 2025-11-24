@@ -1,6 +1,9 @@
 using DropShot.Components;
-using DropShot.Data;
+using DropShot.Components.Account;
 using DropShot.Models;
+using DropShot.Data;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,72 +11,54 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor();
-builder.Services.AddDbContext<MyDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Register ACS settings for DI
-builder.Services.Configure<AcsSettings>(builder.Configuration.GetSection("ACS"));
-builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<IdentityUserAccessor>();
+builder.Services.AddScoped<IdentityRedirectManager>();
+builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
-
-
-builder.Services.AddHttpClient();
-builder.Services.AddAuthorization();
-
-builder.Services.AddHttpContextAccessor();
-
-builder.Services.AddControllers();
-
-builder.Services.AddServerSideBlazor()
-    .AddCircuitOptions(options => options.DetailedErrors = true);
-
-using (var tempProvider = builder.Services.BuildServiceProvider())
-{
-    var db = tempProvider.GetRequiredService<MyDbContext>();
-    var settingsDict = db.AppSettings.ToDictionary(s => s.Setting, s => s.Value);
-
-    var appConfig = new AppConfig
+builder.Services.AddAuthentication(options =>
     {
-        Theme = settingsDict["Theme"],
-        PageSize = int.Parse(settingsDict["PageSize"]),
-        BaseURL = settingsDict["BaseURL"]
-    };
+        options.DefaultScheme = IdentityConstants.ApplicationScheme;
+        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+    })
+    .AddIdentityCookies();
 
-    // Register globally BEFORE Build()
-    builder.Services.AddSingleton(appConfig);
-}
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+builder.Services.AddDbContext<MyDbContext>(options =>
+    options.UseSqlServer(connectionString));
+builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddHttpClient();
+builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
+    .AddEntityFrameworkStores<MyDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseMigrationsEndPoint();
+}
+else
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseHsts();
+}
 
 app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 app.UseAntiforgery();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-//app.MapBlazorHub();
+// Add additional endpoints required by the Identity /Account Razor components.
+app.MapAdditionalIdentityEndpoints();
 app.MapHub<ChatHub>("/chathub");
-app.MapFallbackToFile("index.html");
-
 app.Run();
-
-public class AcsSettings
-{
-    public string ConnectionString { get; set; }
-    public string SenderAddress { get; set; }
-}
-
-
-public class AppConfig
-{
-    public string Theme { get; set; }
-    public int PageSize { get; set; }
-    public string RegistrationEmailTo { get; set; }
-    public string BaseURL { get; set; }
-    // Add more settings as needed
-}
