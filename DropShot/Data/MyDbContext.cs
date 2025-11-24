@@ -7,9 +7,6 @@ namespace DropShot.Data
     public class MyDbContext(DbContextOptions<MyDbContext> options) : IdentityDbContext<ApplicationUser>(options)
      
     {
-        
-
-
         public DbSet<Score> Score { get; set; }
         public DbSet<AppSetting> AppSettings { get; set; }
 
