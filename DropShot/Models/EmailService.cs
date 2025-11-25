@@ -16,7 +16,8 @@ public class EmailService
     {
         var emailContent = new EmailContent(subject)
         {
-            PlainText = body
+            PlainText = body,
+            Html = $"<html><body><p>{body}</p></body></html>"
         };
 
         var recipients = new EmailRecipients(new List<EmailAddress> { new EmailAddress(recipient) });
