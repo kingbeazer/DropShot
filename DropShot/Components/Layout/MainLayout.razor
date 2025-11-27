@@ -1,13 +1,13 @@
 ﻿@inherits LayoutComponentBase
-
+<MudProviders />
 <div class="page">
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
+        <MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
         
-
         <article class="content px-4">
             @Body
         </article>
@@ -19,3 +19,8 @@
     <a href="" class="reload">Reload</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    private MudTheme _theme = new();
+    private bool _isDarkMode = true;
+}

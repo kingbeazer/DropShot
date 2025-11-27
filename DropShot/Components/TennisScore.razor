@@ -7,95 +7,325 @@
 @using System.Collections.Generic
 @using System.Text.Json
 @using Newtonsoft.Json
+@using MudBlazor
+@using System.Threading
 
 @page "/tennisscore"
 @rendermode InteractiveServer
-@inject MyDbContext DbContext
+ 
+
 @inject NavigationManager Navigation
 
-<div class="score-container">
-    <!-- Top Player Button -->
-    <button name="btnUserWinsPoint" class="initial-circle" @onclick="UserWinsPoint" disabled="@isMatchEnded">
-        AB
-    </button>
-    <!-- Score Display -->
-    <div class="score-display">
-        <div class="score-row">
+@if (currentMatch == null)
+{
+     
+         
 
-            @if (isUserServing)
-            {
-                <span class="sets serve-indicator">🎾</span>
-            }
-            else
-            {
-                <span class="sets serve-indicator"></span>
-            }
+    <MudSwitch @bind-Value="Label_Switch1" Label="Doubles" Color="Color.Success" />
 
-            @foreach (var set in setScores)
-            {
-                <span class="sets">@set.UserGames</span>
-            }
 
-            <span class="sets">@userGames</span><span class="sets">@ScoreDisplayUser</span>
-        </div>
-        <div class="score-row">
-
-            @if (!isUserServing)
-            {
-                <span class="sets serve-indicator">🎾</span>
-            }
-            else
-            {
-                <span class="sets serve-indicator"></span>
-            }
-
-              @foreach (var set in setScores)
+    <MudAutocomplete @bind-Value="_value"
+                     Label="Player 1"
+                     SearchFunc="@Search1"
+                     ResetValueOnEmptyText="@resetValueOnEmptyText"
+                     Variant="Variant.Outlined"
+                     CoerceText="@coerceText"
+                     Margin="_margin"
+                     Dense="_dense"
+                     CoerceValue="true"
+                     Placeholder="@(_placeholder ? "Placeholder" : null)"
+                     SelectValueOnTab="@selectedOnTab"
+                     AdornmentColor="Color.Primary" />
+    @if (!Label_Switch1)
     {
-                <span class="sets">@set.OpponentGames </span>
+        <MudText Typo="Typo.h1">vs</MudText>
+    }
+    <MudAutocomplete @bind-Value="_value2"
+                     Label="Player 2"
+                     SearchFunc="@Search1"
+                     ResetValueOnEmptyText="@resetValueOnEmptyText"
+                     Variant="Variant.Outlined"
+                     CoerceText="@coerceText"
+                     Margin="_margin"
+                     Dense="_dense"
+                     CoerceValue="true"
+                     Placeholder="@(_placeholder ? "Placeholder" : null)"
+                     SelectValueOnTab="@selectedOnTab"
+                     AdornmentColor="Color.Primary" />
+
+    @if (Label_Switch1)
+    {
+        <MudText Typo="Typo.h1">vs</MudText>
     }
 
-            <span class="sets">@opponentGames</span><span class="sets">@ScoreDisplayOpp</span>
+    @if (Label_Switch1)
+    {
+        <MudAutocomplete @bind-Value="_value3"
+                         Label="Player 3"
+                         SearchFunc="@Search1"
+                         ResetValueOnEmptyText="@resetValueOnEmptyText"
+                         Variant="Variant.Outlined"
+                         CoerceText="@coerceText"
+                         Margin="_margin"
+                         Dense="_dense"
+                         CoerceValue="true"
+                         Placeholder="@(_placeholder ? "Placeholder" : null)"
+                         SelectValueOnTab="@selectedOnTab"
+                         AdornmentColor="Color.Primary" />
+
+        <MudAutocomplete @bind-Value="_value4"
+                         Label="Player 4"
+                         SearchFunc="@Search1"
+                         ResetValueOnEmptyText="@resetValueOnEmptyText"
+                         Variant="Variant.Outlined"
+                         CoerceText="@coerceText"
+                         Margin="_margin"
+                         Dense="_dense"
+                         CoerceValue="true"
+                         Placeholder="@(_placeholder ? "Placeholder" : null)"
+                         SelectValueOnTab="@selectedOnTab"
+                         AdornmentColor="Color.Primary" />
+    }
+
+
+
+    <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.PlayArrow" Style="margin: 10px;" OnClick="ButtonOnClick">Start Match</MudButton>
+          
+  
+
+}
+else
+{
+
+    <div class="score-container">
+        <!-- Top Player Button -->
+        <div style="display: flex">
+            <MudAvatar @onclick="UserWinsPoint" Style="border: solid 2px lightseagreen; width:100px; height: 100px;">
+                <MudImage Src="images/me.png" disabled="@isMatchEnded"></MudImage>
+                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                    color:white; font-size:14px; font-weight:bold;">
+                    @_value.GetInitials()
+                </div>
+            </MudAvatar>
+           
+            @if (Label_Switch1)
+            {
+                <MudAvatar @onclick="UserWinsPoint" Style="border: solid 2px lightseagreen; width:100px; height: 100px; margin-left: -15px;">
+                    <MudImage Src="images/me.png" @onclick="UserWinsPoint" disabled="@isMatchEnded"></MudImage>
+                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                            color:white; font-size:14px; font-weight:bold;">
+                        @_value2.GetInitials()
+                    </div>
+                </MudAvatar>
+            }
+        </div>
+        <!-- Score Display -->
+        <div class="score-display">
+            <div class="score-row">
+
+                @if (isUserServing)
+                {
+                    <span class="sets serve-indicator">🎾</span>
+                }
+                else
+                {
+                    <span class="sets serve-indicator"></span>
+                }
+
+                @foreach (var set in setScores)
+                {
+                    <span class="sets">@set.UserGames</span>
+                }
+                @if (!isMatchEnded)
+                {
+                    <span class="sets">@userGames</span>
+                }
+                @if (!gameScoring || isTieBreak)
+                {
+                    <span class="sets">@ScoreDisplayUser</span>
+                }
+            </div>
+            <div class="score-row">
+
+                @if (!isUserServing)
+                {
+                    <span class="sets serve-indicator">🎾</span>
+                }
+                else
+                {
+                    <span class="sets serve-indicator"></span>
+                }
+
+                @foreach (var set in setScores)
+                {
+                    <span class="sets">@set.OpponentGames </span>
+                }
+
+                @if (!isMatchEnded)
+                {
+                    <span class="sets">@opponentGames</span>
+                }
+
+                @if (!gameScoring || isTieBreak)
+                {
+                    <span class="sets">@ScoreDisplayOpp</span>
+                }
+            </div>
+
+
+            <!-- Settings Button (Bottom Left) -->
+            <button class="settings-btn" @onclick="OpenSettings">
+                ⚙️
+            </button>
+
+            <!-- Undo Button (Bottom Right) -->
+            <button class="undo-btn" @onclick="UndoLastPoint">
+                ⤺
+            </button>
+
         </div>
 
 
-        <!-- Settings Button (Bottom Left) -->
-        <button class="settings-btn" @onclick="OpenSettings">
-            ⚙️
-        </button>
 
-        <!-- Undo Button (Bottom Right) -->
-        <button class="undo-btn" @onclick="UndoLastPoint">
-            ⤺
-        </button>
+        <!-- Bottom Player Button -->
+        <div style="display: flex">
+            @if (Label_Switch1)
+            {
+                <MudAvatar Style="border: solid 2px orangered; width:100px; height: 100px;">
+                    <MudImage Src="images/me.png" @onclick="OpponentWinsPoint" disabled="@isMatchEnded"></MudImage>
+                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                color:white; font-size:14px; font-weight:bold;">
+                        @_value3.GetInitials()
+                    </div>
+                </MudAvatar>
+                <MudAvatar Style="border: solid 2px orangered; width:100px; height: 100px; margin-left: -15px;">
+                    <MudImage Src="images/me.png" @onclick="OpponentWinsPoint" disabled="@isMatchEnded"></MudImage>
+                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                color:white; font-size:14px; font-weight:bold;">
+                        @_value4.GetInitials()
+                    </div>
+                </MudAvatar>
+            }
+            else
+            {
+                <MudAvatar Style="border: solid 2px orangered; width:100px; height: 100px;">
+                    <MudImage Src="images/me.png" @onclick="OpponentWinsPoint" disabled="@isMatchEnded"></MudImage>
+                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                        color:white; font-size:14px; font-weight:bold;">
+                        @_value2.GetInitials()
+                    </div>
+                </MudAvatar>
 
+              @*   <button name="btnOppWinsPoint" class="initial-circle" style="color: lightseagreen; border-color: lightseagreen" >
+                    <MudImage Src="images/me.png" Alt="Mony the dog" ObjectFit="@ObjectFit.Contain" Elevation="25" Class="rounded-lg" />
+                </button> *@
+
+            }
+        </div>
     </div>
 
+    <div>
+        <span></span>
+    </div>
 
+    <div style="display: flex">
+        @foreach (var set in setScores)
+        {
+            <DotDigit Number="@set.UserGames" />
+        }
+    </div>
 
-    <!-- Bottom Player Button -->
-    <button name="btnOppWinsPoint" class="initial-circle" @onclick="OpponentWinsPoint" disabled="@isMatchEnded">
-        AB
-    </button>
-</div>
-
-   <div>
-       <span></span></div>
-
-<div style="display: flex">
-    @foreach (var set in setScores)
-    {
-        <DotDigit Number="@set.UserGames" />
-    }
-</div>
-
-<div style="display: flex">
-    @foreach (var set in setScores)
-    {
-        <DotDigit Number="@set.OpponentGames" />
-    }
-</div>
+    <div style="display: flex">
+        @foreach (var set in setScores)
+        {
+            <DotDigit Number="@set.OpponentGames" />
+        }
+    </div>
+}
 
 @code {
+
+
+
+    private string _value;
+    private string _value2;
+    private string _value3;
+    private string _value4;
+    private Margin _margin;
+    private bool _dense;
+    private bool _disabled;
+    private bool _readonly;
+    private bool _placeholder;
+    private bool _helperText;
+    private bool _helperTextOnFocus;
+    private bool _clearable;
+    private bool _modal = true;
+    private string Image = "images/me.png";
+
+
+    private bool resetValueOnEmptyText;
+    private bool coerceText;
+    private bool coerceValue;
+    private bool selectedOnTab;
+
+
+    private async Task<IEnumerable<string>> Search1(string value, CancellationToken token)
+    {
+        // In real life use an asynchronous function for fetching data from an api.
+        await Task.Delay(5, token);
+
+        // if text is null or empty, show complete list
+        if (string.IsNullOrEmpty(value))
+            return _states;
+        return _states.Where(x => x.Contains(value, StringComparison.InvariantCultureIgnoreCase));
+    }
+
+    private async Task<IEnumerable<string>> Search2(string value, CancellationToken token)
+    {
+        // In real life use an asynchronous function for fetching data from an api.
+        await Task.Delay(5, token);
+
+        // if text is null or empty, don't return values (drop-down will not open)
+        if (string.IsNullOrEmpty(value))
+            return new string[0];
+        return _states.Where(x => x.Contains(value, StringComparison.InvariantCultureIgnoreCase));
+    }
+
+
+    public bool Label_Switch1 { get; set; } = false;
+
+    void ButtonOnClick()
+    {
+        currentMatch = new Match
+        {
+            History = history,
+            Player1 = _value,
+            Player2 = _value2,
+            Player3 = _value3,
+            Player4 = _value4
+        };
+    }
+
+    private string[] _states =
+    {
+        "Alan Beattie", "Andrew Beattie", "Mark Buchner", "Kevin Beathie", "Ronald Beattie",
+        "Ian Kerr", "James Daniel"
+    };
+
+    private async Task<IEnumerable<string>> Search(string value, CancellationToken token)
+    {
+        // In real life use an asynchronous function for fetching data from an api.
+        await Task.Delay(5, token);
+
+        // if text is null or empty, show complete list
+        if (string.IsNullOrEmpty(value))
+        {
+            return new List<string>();
+        }
+
+        return _states.Where(x => x.Contains(value, StringComparison.InvariantCultureIgnoreCase));
+    }
+
     private int userPoints = 0;
     private int opponentPoints = 0;
     private int userGames = 0;
@@ -110,18 +340,51 @@
     private bool isUserServing = true; // Start with user serving
     private List<Score> scores = new();
     private HubConnection? hubConnection;
+    private bool matchGo = false;
+    private Match currentMatch;
 
     protected override async Task OnInitializedAsync()
     {
-        scores = await DbContext.Score.ToListAsync();
+
+        using var dbc = DbFactory.CreateDbContext();
+
+        var savedMatch = await dbc.SavedMatch.FirstOrDefaultAsync();
+
+        // Fix CS8602: Check for null before dereferencing savedMatch
+        if (savedMatch != null && !string.IsNullOrEmpty(savedMatch.MatchJson))
+        {
+            // Fix CS0266: Specify the type parameter for DeserializeObject
+            // Fix CS8601: Use null-forgiving operator if you are sure MatchJson is not null, or handle null
+            currentMatch = JsonConvert.DeserializeObject<Match>(savedMatch.MatchJson) ?? new Match();
+            history = currentMatch.History;
+
+            if (history.Any())
+            {
+                var last = history.Last();
+                userPoints = last.UserPts;
+                opponentPoints = last.OppPts;
+                userGames = last.UserG;
+                opponentGames = last.OppG;
+                userSets = last.UserS;
+                opponentSets = last.OppS;
+                isTieBreak = last.TieBreak;
+                deuceCount = last.DeuceCount;
+                isMatchEnded = false;
+                isUserServing = last.IsUserServing;
+                setScores = last.SetScores ?? new List<SetScore>();
+            }
+        }
+
+
+        scores = await dbc.Score.ToListAsync();
 
         hubConnection = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
             .Build();
 
-        hubConnection.On<string, string>( "ReceiveMessage", async (user, message) =>
+        hubConnection.On<string, string>("ReceiveMessage", async (user, message) =>
         {
-            scores = await DbContext.Score.ToListAsync();
+            scores = await dbc.Score.ToListAsync();
 
             await InvokeAsync(StateHasChanged);
         });
@@ -145,11 +408,12 @@
         bool IsUserServing,
         int UserGamesSnapshot,
         int OpponentGamesSnapshot,
-        List<SetScore>? SetScores
+        List<SetScore>? SetScores,
+        DateTime Timestamp
     );
 
     // Initialize history with a GameState containing zeros and a null SetScores
-    private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>()) });
+    private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now) });
 
     // Add this field to store set scores
     private List<SetScore> setScores = new();
@@ -198,13 +462,45 @@
         public int OpponentGames { get; set; }
     }
 
+    public class Match
+    {
+        public Stack<GameState> History { get; set; }
+        public string Player1 { get; set; }
+        public string Player2 { get; set; }
+        public string Player3 { get; set; }
+        public string Player4 { get; set; }
+    }
 
+    public class SavedMatch
+    {
+        public int SavedMatchId { get; set; }
+        public string MatchJson { get; set; }
 
-    private void SaveHistory()
+    }
+
+    [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; }
+    private bool isSaving;
+
+    private async void SaveHistory()
     {
         // Push a snapshot using the GameState record. Clone setScores to avoid shared references.
         var setsClone = setScores is null ? null : new List<SetScore>(setScores);
-        history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, setsClone));
+        history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, setsClone, DateTime.Now));
+
+        currentMatch.History = history;
+
+        using var dbc = DbFactory.CreateDbContext();
+
+        var matchToSave = await dbc.SavedMatch.FirstOrDefaultAsync();
+        if (matchToSave == null)
+        {
+            matchToSave = new SavedMatch();
+            dbc.SavedMatch.Add(matchToSave);
+        }
+        string currentMatchString = JsonConvert.SerializeObject(currentMatch);
+        matchToSave.MatchJson = currentMatchString;
+        await dbc.SaveChangesAsync();
+
 
         string json = JsonConvert.SerializeObject(history.Peek());
 
@@ -277,8 +573,8 @@
 
             var dsd = (userPoints + opponentPoints) % 2;
 
-            if  (dsd == 1)
-                isUserServing = !isUserServing; 
+            if (dsd == 1)
+                isUserServing = !isUserServing;
             return;
         }
 
