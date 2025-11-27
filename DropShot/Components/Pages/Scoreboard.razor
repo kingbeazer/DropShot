@@ -35,23 +35,23 @@
     }
 </div>
 
-@* <div class="container mt-4">
-    <h2 class="text-light mb-4">Dashboard</h2>
-    <div class="row">
-        @for (int i = 1; i <= 12; i++)
-        {
-            <div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-4">
-                <div class="card text-white bg-dark h-100 shadow-sm">
-                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                        <h5 class="card-title">Tile @i</h5>
-                        <p class="card-text">Content for tile @i</p>
-                    </div>
-                </div>
-            </div>
-        }
-    </div>
-</div> *@
-
+<MudCard>
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">The Story Book</MudText>
+        </CardHeaderContent>
+        <CardHeaderActions>
+            <MudIconButton Icon="@Icons.Material.Filled.Settings" Color="Color.Default" />
+        </CardHeaderActions>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudText>This day everything happened.</MudText>
+        <MudText Typo="Typo.body2">The quick, brown fox jumps over a lazy dog.</MudText>
+    </MudCardContent>
+    <MudCardActions>
+        <MudButton Variant="Variant.Text" Color="Color.Primary">Read more</MudButton>
+    </MudCardActions>
+</MudCard>
 @code {
     private HubConnection? hubConnection;
     private string? userInput;

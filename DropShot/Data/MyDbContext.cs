@@ -1,6 +1,7 @@
 using DropShot.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using static DropShot.Components.TennisScore;
 
 namespace DropShot.Data
 {
@@ -8,6 +9,7 @@ namespace DropShot.Data
      
     {
         public DbSet<Score> Score { get; set; }
+        public DbSet<SavedMatch> SavedMatch { get; set; }
         public DbSet<AppSetting> AppSettings { get; set; }
 
         // Add this property to fix CS1061
