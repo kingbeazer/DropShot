@@ -100,8 +100,8 @@ else
     <div class="score-container">
         <!-- Top Player Button -->
         <div style="display: flex">
-            <MudAvatar @onclick="UserWinsPoint" Style="border: solid 2px lightseagreen; width:100px; height: 100px;">
-                <MudImage Src="images/me.png" disabled="@isMatchEnded"></MudImage>
+            <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:100px; height: 100px;">
+                <MudImage Src="images/me.png"></MudImage>
                 <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                     color:white; font-size:14px; font-weight:bold;">
                     @_value.GetInitials()
@@ -110,8 +110,8 @@ else
            
             @if (Label_Switch1)
             {
-                <MudAvatar @onclick="UserWinsPoint" Style="border: solid 2px lightseagreen; width:100px; height: 100px; margin-left: -15px;">
-                    <MudImage Src="images/me.png" @onclick="UserWinsPoint" disabled="@isMatchEnded"></MudImage>
+                <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:100px; height: 100px; margin-left: -15px;">
+                    <MudImage Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                             color:white; font-size:14px; font-weight:bold;">
                         @_value2.GetInitials()
@@ -191,15 +191,15 @@ else
         <div style="display: flex">
             @if (Label_Switch1)
             {
-                <MudAvatar Style="border: solid 2px orangered; width:100px; height: 100px;">
-                    <MudImage Src="images/me.png" @onclick="OpponentWinsPoint" disabled="@isMatchEnded"></MudImage>
+                <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:100px; height: 100px;">
+                    <MudImage Src="images/me.png"></MudImage>
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                 color:white; font-size:14px; font-weight:bold;">
                         @_value3.GetInitials()
                     </div>
                 </MudAvatar>
-                <MudAvatar Style="border: solid 2px orangered; width:100px; height: 100px; margin-left: -15px;">
-                    <MudImage Src="images/me.png" @onclick="OpponentWinsPoint" disabled="@isMatchEnded"></MudImage>
+                <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:100px; height: 100px; margin-left: -15px;">
+                    <MudImage Src="images/me.png"></MudImage>
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                 color:white; font-size:14px; font-weight:bold;">
                         @_value4.GetInitials()
@@ -208,8 +208,8 @@ else
             }
             else
             {
-                <MudAvatar Style="border: solid 2px orangered; width:100px; height: 100px;">
-                    <MudImage Src="images/me.png" @onclick="OpponentWinsPoint" disabled="@isMatchEnded"></MudImage>
+                <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:100px; height: 100px;">
+                    <MudImage Src="images/me.png"></MudImage>
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                         color:white; font-size:14px; font-weight:bold;">
                         @_value2.GetInitials()
@@ -512,6 +512,8 @@ else
 
     private void UserWinsPoint()
     {
+        if (isMatchEnded)
+            return;
         userPoints++;
         CheckGame();
         SaveHistory();
@@ -519,6 +521,8 @@ else
 
     private void OpponentWinsPoint()
     {
+        if (isMatchEnded)
+            return;
         opponentPoints++;
         CheckGame();
         SaveHistory();
