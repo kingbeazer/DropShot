@@ -246,7 +246,7 @@
     {
         <MudAlert Style="margin-top: 10px;" Severity="Severity.Success">@_winner</MudAlert>
     }
-    <MudButton Style="margin-top: 10px;" FullWidth=true Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Girl" Color="Color.Secondary" Size="Size.Large" OnClick="@ReloadPage">Start New Match</MudButton>
+    <MudButton Style="margin-top: 10px;" FullWidth=true Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.FiberNew" Color="Color.Secondary" Size="Size.Large" OnClick="@ReloadPage">Start New Match</MudButton>
 }
 
 @code {
@@ -414,7 +414,7 @@
             loaded = true;
             return;
         }
- 
+
         var savedMatch = await DbContext.SavedMatch
             .FirstOrDefaultAsync(m => !m.Complete);
 
@@ -443,11 +443,11 @@
                 deuceCount = last.DeuceCount;
                 isMatchEnded = false;
                 isUserServing = last.IsUserServing;
-                setScores = last.SetScores ?? new List<SetScore>();
+                setScores = last.SetScores != null ? last.SetScores.Select(s => s.Clone()).ToList() : new List<SetScore>();
                 isMatchEnded = last.isComplete;
             }
         }
-     
+
         hubConnection = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
             .Build();
@@ -532,6 +532,16 @@
         public int SetNumber { get; set; }
         public int UserGames { get; set; }
         public int OpponentGames { get; set; }
+
+
+        public SetScore Clone()
+                => new SetScore
+                {
+                    UserGames = this.UserGames,
+                    OpponentGames = this.OpponentGames,
+                    SetNumber = this.SetNumber,
+                };
+
     }
 
     public class Match
@@ -560,8 +570,10 @@
     private async void SaveHistory()
     {
         // Push a snapshot using the GameState record. Clone setScores to avoid shared references.
-        var setsClone = setScores is null ? null : new List<SetScore>(setScores);
-        history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, setsClone, DateTime.Now, isMatchEnded));
+     
+        var snapshotList = setScores.Select(s => s.Clone()).ToList();
+
+        history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, snapshotList, DateTime.Now, isMatchEnded));
 
         CurrentMatch.History = history;
         CurrentMatch.HistoryList = history.ToList();
@@ -632,8 +644,11 @@
             deuceCount = last.DeuceCount;
             isMatchEnded = false;
             isUserServing = last.IsUserServing;
-            setScores = last.SetScores ?? new List<SetScore>();
+            setScores = last.SetScores != null ? last.SetScores.Select(s => s.Clone()).ToList() : new List<SetScore>();
+
         }
+        CurrentMatch.Complete = false;
+        isMatchEnded = false;
     }
 
     private void OpenSettings()
@@ -771,7 +786,7 @@
     private void EndMatch()
     {
         isMatchEnded = true;
-        SaveHistory();
+        // SaveHistory();
         CurrentMatch.Complete = true;
 
         if(userSets > opponentSets)
@@ -784,10 +799,10 @@
         }
         else
         {
-            _winner = CurrentMatch.Player3;
+            _winner = CurrentMatch.Player2;
             if (Label_Switch1)
             {
-                _winner += " & " + CurrentMatch.Player4;
+                _winner = CurrentMatch.Player3 + " & " + CurrentMatch.Player4;
             }
         };
         _winner = $"Congratulations {_winner}"; 
