@@ -1,15 +1,59 @@
-﻿.score-container {
+﻿
+:root {
+}
+
+
+.score-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: space-between;
-    height: 400px;
-    background: black;
     color: white;
     border-radius: 20px;
     padding: 20px;
     font-family: sans-serif;
 }
+
+
+.bg-tennis {
+/* Path to your non-repeating 1000×1000 image */
+--bg-image: url('images/background.png');
+/* Overlay color and intensity (alpha) */
+--overlay-color: 18, 18, 18; /* RGB triplet (no alpha) */
+--overlay-alpha: 0.85; /* 0 = transparent, 1 = solid */
+/* Fallback background behind the image */
+--bg-fallback: #121212;
+/* Background sizing/positioning */
+--bg-size: cover; /* cover | contain | <length> */
+--bg-position: center center;
+/* Layout */
+--content-max-width: 72rem;
+--content-padding: clamp(1.25rem, 3vw, 3rem);
+--text-color: #ffffff;
+    position: relative;
+    min-height: var(--section-min-height);
+    /* Background image (no repeat) */
+    background-color: var(--bg-fallback);
+    background-image: var(--bg-image);
+    background-repeat: no-repeat;
+    background-size: var(--bg-size);
+    background-position: var(--bg-position);
+    overflow: hidden; /* ensures ::before stays clipped to section */
+}
+
+    /* ========== Pseudo-element overlay ========== */
+    .bg-tennis::before {
+        content: "";
+        position: absolute;
+        inset: 0; /* top:0; right:0; bottom:0; left:0 */
+        z-index: 0; /* sits below the content */
+        background-color: rgba(var(--overlay-color), var(--overlay-alpha));
+        pointer-events: none; /* overlay doesn’t block clicks */
+    }
+
+  
+
+
 
 .player-btn {
     background: none;
@@ -69,7 +113,6 @@
     left: 50px;
     padding: 8px 12px;
     font-size: 16px;
-    background-color: #f0f0f0;
     border: none;
     border-radius: 6px;
     cursor: pointer;
@@ -81,7 +124,6 @@
     right: 50px;
     padding: 8px 12px;
     font-size: 16px;
-    background-color: #f0f0f0;
     border: none;
     border-radius: 6px;
     cursor: pointer;
