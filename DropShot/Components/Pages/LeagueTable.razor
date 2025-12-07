@@ -1,0 +1,57 @@
+﻿@page "/league"
+@rendermode InteractiveServer
+
+<h3>LeagueTable</h3>
+
+<MudTable Items="@Elements.Take(4)" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" LoadingProgressColor="Color.Info">
+    <HeaderContent>
+        <MudTh>Team Name</MudTh>
+        <MudTh>Played</MudTh>
+        <MudTh>Won</MudTh>
+        <MudTh>Lost</MudTh>
+        <MudTh>Drawn</MudTh>
+        <MudTh>Points</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="TeamName">@context.TeamName</MudTd>
+        <MudTd DataLabel="Played">@context.Played</MudTd>
+        <MudTd DataLabel="Won">@context.Won</MudTd>
+        <MudTd DataLabel="Lost" HideSmall="_hidePosition">@context.Lost</MudTd>
+        <MudTd DataLabel="Drawn">@context.Drawn</MudTd>
+        <MudTd DataLabel="Points">@context.Points</MudTd>
+    </RowTemplate>
+</MudTable>
+ 
+
+@code {
+    private bool _hidePosition;
+    private bool _loading;
+    private List<TeamRecord> Elements = new List<TeamRecord>();
+
+    private class TeamRecord
+    {
+        public TeamRecord(string teamName)
+        {
+            TeamName = teamName;
+        }
+
+        public string TeamName { get; set; }
+        public int Played { get; set; }
+        public int Won { get; set; }
+        public int Drawn { get; set; }
+        public int Lost { get; set; }
+        public int Points { get; set; }
+        public int Position { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Elements = new List<TeamRecord>();
+        Elements.Add(new TeamRecord("Team A") { Played = 10, Won = 6, Drawn = 2, Lost = 2, Points = 20, Position = 1 });
+        Elements.Add(new TeamRecord("Team B") { Played = 10, Won = 5, Drawn = 3, Lost = 2, Points = 18, Position = 2 });
+        Elements.Add(new TeamRecord("Team C") { Played = 10, Won = 4, Drawn = 4, Lost = 2, Points = 16, Position = 3 });
+        Elements.Add(new TeamRecord("Team D") { Played = 10, Won = 3, Drawn = 5, Lost = 2, Points = 14, Position = 4 });
+        Elements.Add(new TeamRecord("Team E") { Played = 10, Won = 2, Drawn = 6, Lost = 2, Points = 12, Position = 5 });
+
+    }
+}

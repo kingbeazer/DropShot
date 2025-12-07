@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using System;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -38,6 +39,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
     .AddEntityFrameworkStores<MyDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<UserState>();
 
 builder.Services.AddSingleton<EmailService>();
 

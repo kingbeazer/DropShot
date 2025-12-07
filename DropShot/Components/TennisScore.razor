@@ -13,16 +13,28 @@
 @page "/tennisscore"
 @rendermode InteractiveServer
  
-
+@inject MyDbContext DbContext
 @inject NavigationManager Navigation
+@inject UserState State
+@inject IDialogService Dialog
+@inject IDialogService DialogService
+@inject NavigationManager NavigationManager
 
-@if (currentMatch == null)
+<MudCollapse Expanded="_expanded" Style="margin-top: 10px;">
+    <MudPaper Class="pa-4">
+        <MudStack Spacing="2">
+            <MudText>Settings</MudText>
+            <MudDivider />
+            <MudSwitch @bind-Value="gameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
+            <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@OnExpandCollapseClick">Save</MudButton>
+            <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => OpenDialogAsync(_fullScreen))">End Match</MudButton>
+        </MudStack>
+    </MudPaper>
+</MudCollapse>
+
+@if (loaded && CurrentMatch == null)
 {
-     
-         
-
     <MudSwitch @bind-Value="Label_Switch1" Label="Doubles" Color="Color.Success" />
-
 
     <MudAutocomplete @bind-Value="_value"
                      Label="Player 1"
@@ -87,34 +99,35 @@
                          AdornmentColor="Color.Primary" />
     }
 
-
-
     <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.PlayArrow" Style="margin: 10px;" OnClick="ButtonOnClick">Start Match</MudButton>
-          
-  
-
 }
-else
-{
 
+@if(loaded && @CurrentMatch != null)
+{
+      <section class="bg-tennis overlay-dark">
     <div class="score-container">
         <!-- Top Player Button -->
         <div style="display: flex">
-            <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:100px; height: 100px;">
+            <MudAvatarGroup Max="3" Spacing="5" MaxColor="Color.Primary">
+                <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
                 <MudImage Src="images/me.png"></MudImage>
                 <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                     color:white; font-size:14px; font-weight:bold;">
-                    @_value.GetInitials()
+                        @CurrentMatch.Player1.GetInitials()
                 </div>
             </MudAvatar>
+                        <MudAvatar Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
+                        <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
+                        </MudAvatar>
+                </MudAvatarGroup>
            
             @if (Label_Switch1)
             {
-                <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:100px; height: 100px; margin-left: -15px;">
+                    <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:60px; height: 60px; margin-left: -15px;">
                     <MudImage Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                             color:white; font-size:14px; font-weight:bold;">
-                        @_value2.GetInitials()
+                            @CurrentMatch.Player2.GetInitials()
                     </div>
                 </MudAvatar>
             }
@@ -174,45 +187,43 @@ else
 
 
             <!-- Settings Button (Bottom Left) -->
-            <button class="settings-btn" @onclick="OpenSettings">
-                ⚙️
+                <button class="settings-btn" @onclick="@OnExpandCollapseClick">
+                <MudIcon Icon="@Icons.Material.Filled.Settings" Title="Favorite" Size="Size.Large" />  
             </button>
 
             <!-- Undo Button (Bottom Right) -->
             <button class="undo-btn" @onclick="UndoLastPoint">
-                ⤺
+                <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Favorite" Size="Size.Large" />
             </button>
 
         </div>
-
-
 
         <!-- Bottom Player Button -->
         <div style="display: flex">
             @if (Label_Switch1)
             {
-                <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:100px; height: 100px;">
+                    <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
                     <MudImage Src="images/me.png"></MudImage>
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                 color:white; font-size:14px; font-weight:bold;">
-                        @_value3.GetInitials()
+                            @CurrentMatch.Player3.GetInitials()
                     </div>
                 </MudAvatar>
-                <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:100px; height: 100px; margin-left: -15px;">
+                    <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px; margin-left: -15px;">
                     <MudImage Src="images/me.png"></MudImage>
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                 color:white; font-size:14px; font-weight:bold;">
-                        @_value4.GetInitials()
+                            @CurrentMatch.Player4.GetInitials()
                     </div>
                 </MudAvatar>
             }
             else
             {
-                <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:100px; height: 100px;">
+                    <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
                     <MudImage Src="images/me.png"></MudImage>
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                         color:white; font-size:14px; font-weight:bold;">
-                        @_value2.GetInitials()
+                            @CurrentMatch.Player2.GetInitials()
                     </div>
                 </MudAvatar>
 
@@ -223,34 +234,27 @@ else
             }
         </div>
     </div>
+    </section>
+   
+}
 
-    <div>
-        <span></span>
-    </div>
+<div style="margin: 10px;"></div>
 
-    <div style="display: flex">
-        @foreach (var set in setScores)
-        {
-            <DotDigit Number="@set.UserGames" />
-        }
-    </div>
-
-    <div style="display: flex">
-        @foreach (var set in setScores)
-        {
-            <DotDigit Number="@set.OpponentGames" />
-        }
-    </div>
+@if (@CurrentMatch != null && @CurrentMatch.Complete)
+{
+    if (!string.IsNullOrWhiteSpace(_winner) && !_winner.Equals("Congratulations "))
+    {
+        <MudAlert Style="margin-top: 10px;" Severity="Severity.Success">@_winner</MudAlert>
+    }
+    <MudButton Style="margin-top: 10px;" FullWidth=true Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Girl" Color="Color.Secondary" Size="Size.Large" OnClick="@ReloadPage">Start New Match</MudButton>
 }
 
 @code {
-
-
-
     private string _value;
     private string _value2;
     private string _value3;
     private string _value4;
+    private string _winner;
     private Margin _margin;
     private bool _dense;
     private bool _disabled;
@@ -268,6 +272,53 @@ else
     private bool coerceValue;
     private bool selectedOnTab;
 
+    bool _expanded = false;
+
+    private void OnExpandCollapseClick()
+    {
+        _expanded = !_expanded;
+    }
+
+    private readonly DialogOptions _maxWidth = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
+    private readonly DialogOptions _closeButton = new() { CloseButton = true };
+    private readonly DialogOptions _noHeader = new() { NoHeader = true };
+    private readonly DialogOptions _backdropClick = new() { BackdropClick = false };
+    private readonly DialogOptions _fullScreen = new() { FullScreen = false, CloseButton = true };
+    private readonly DialogOptions _topCenter = new() { Position = DialogPosition.TopCenter };
+
+
+
+    private async Task OpenDialogAsync(DialogOptions options)
+    {
+        var dialog = await DialogService.ShowAsync<EndMatch>("Delete Server", options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            OnExpandCollapseClick();
+            EndMatch();
+        }
+    }
+
+    // Change ReloadPage from static to instance method to fix CS0120
+    public void ReloadPage()
+    {
+        history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false) });
+
+        _value = "";
+        _value2 = "";
+        _value3 = "";
+        _value4 = "";
+        _winner = "";
+        opponentGames = 0;
+        userGames = 0;
+        setScores.Clear();
+        userSets = 0;
+        opponentSets = 0;
+        isMatchEnded = false;
+        CurrentMatch = null;
+
+    }
 
     private async Task<IEnumerable<string>> Search1(string value, CancellationToken token)
     {
@@ -296,7 +347,7 @@ else
 
     void ButtonOnClick()
     {
-        currentMatch = new Match
+        CurrentMatch = new Match
         {
             History = history,
             Player1 = _value,
@@ -308,7 +359,7 @@ else
 
     private string[] _states =
     {
-        "Alan Beattie", "Andrew Beattie", "Mark Buchner", "Kevin Beathie", "Ronald Beattie",
+        "Alan Beattie", "Andrew Beattie", "Mark Buchner", "Kevin Beattie", "Ronald Beattie",
         "Ian Kerr", "James Daniel"
     };
 
@@ -341,26 +392,47 @@ else
     private List<Score> scores = new();
     private HubConnection? hubConnection;
     private bool matchGo = false;
-    private Match currentMatch;
+    private bool loaded = false;
+
+    private Match _currentMatch;
+    public Match CurrentMatch
+    {
+        get => _currentMatch;
+        set
+        {
+            _currentMatch = value;
+            // Breakpoint here
+        }
+    }
+
 
     protected override async Task OnInitializedAsync()
     {
-
-        using var dbc = DbFactory.CreateDbContext();
-
-        var savedMatch = await dbc.SavedMatch.FirstOrDefaultAsync();
+        // using var dbc = DbFactory.CreateDbContext();
+        if (hubConnection is not null)
+        {
+            loaded = true;
+            return;
+        }
+ 
+        var savedMatch = await DbContext.SavedMatch
+            .FirstOrDefaultAsync(m => !m.Complete);
 
         // Fix CS8602: Check for null before dereferencing savedMatch
         if (savedMatch != null && !string.IsNullOrEmpty(savedMatch.MatchJson))
         {
             // Fix CS0266: Specify the type parameter for DeserializeObject
             // Fix CS8601: Use null-forgiving operator if you are sure MatchJson is not null, or handle null
-            currentMatch = JsonConvert.DeserializeObject<Match>(savedMatch.MatchJson) ?? new Match();
-            history = currentMatch.History;
+
+            if (CurrentMatch == null)
+            {
+                CurrentMatch = JsonConvert.DeserializeObject<Match>(savedMatch.MatchJson) ?? new Match();
+            }
+            history = new Stack<GameState>(CurrentMatch.HistoryList.AsEnumerable().Reverse());
 
             if (history.Any())
             {
-                var last = history.Last();
+                var last = history.Peek();
                 userPoints = last.UserPts;
                 opponentPoints = last.OppPts;
                 userGames = last.UserG;
@@ -372,24 +444,23 @@ else
                 isMatchEnded = false;
                 isUserServing = last.IsUserServing;
                 setScores = last.SetScores ?? new List<SetScore>();
+                isMatchEnded = last.isComplete;
             }
         }
-
-
-        scores = await dbc.Score.ToListAsync();
-
+     
         hubConnection = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
             .Build();
 
-        hubConnection.On<string, string>("ReceiveMessage", async (user, message) =>
-        {
-            scores = await dbc.Score.ToListAsync();
+        // hubConnection.On<string, string>("ReceiveMessage", async (user, message) =>
+        // {
+        //     scores = await dbc.Score.ToListAsync();
 
-            await InvokeAsync(StateHasChanged);
-        });
+        //     await InvokeAsync(StateHasChanged);
+        // });
 
         await hubConnection.StartAsync();
+        loaded = true;
     }
 
     private int deuceCount = 0;
@@ -409,11 +480,12 @@ else
         int UserGamesSnapshot,
         int OpponentGamesSnapshot,
         List<SetScore>? SetScores,
-        DateTime Timestamp
+        DateTime Timestamp,
+        bool isComplete
     );
 
     // Initialize history with a GameState containing zeros and a null SetScores
-    private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now) });
+    private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false) });
 
     // Add this field to store set scores
     private List<SetScore> setScores = new();
@@ -464,17 +536,21 @@ else
 
     public class Match
     {
-        public Stack<GameState> History { get; set; }
+        public Stack<GameState> History { get; set; } = new Stack<GameState>();
+        public List<GameState> HistoryList { get; set; } = new List<GameState>();
         public string Player1 { get; set; }
         public string Player2 { get; set; }
         public string Player3 { get; set; }
         public string Player4 { get; set; }
+        public bool Complete { get; set; }
     }
 
     public class SavedMatch
     {
         public int SavedMatchId { get; set; }
         public string MatchJson { get; set; }
+        public bool Complete { get; set; }
+
 
     }
 
@@ -485,9 +561,10 @@ else
     {
         // Push a snapshot using the GameState record. Clone setScores to avoid shared references.
         var setsClone = setScores is null ? null : new List<SetScore>(setScores);
-        history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, setsClone, DateTime.Now));
+        history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, setsClone, DateTime.Now, isMatchEnded));
 
-        currentMatch.History = history;
+        CurrentMatch.History = history;
+        CurrentMatch.HistoryList = history.ToList();
 
         using var dbc = DbFactory.CreateDbContext();
 
@@ -497,8 +574,10 @@ else
             matchToSave = new SavedMatch();
             dbc.SavedMatch.Add(matchToSave);
         }
-        string currentMatchString = JsonConvert.SerializeObject(currentMatch);
+
+        string currentMatchString = JsonConvert.SerializeObject(CurrentMatch);
         matchToSave.MatchJson = currentMatchString;
+        matchToSave.Complete = CurrentMatch.Complete;
         await dbc.SaveChangesAsync();
 
 
@@ -513,7 +592,10 @@ else
     private void UserWinsPoint()
     {
         if (isMatchEnded)
+        {
             return;
+        }    
+
         userPoints++;
         CheckGame();
         SaveHistory();
@@ -522,7 +604,10 @@ else
     private void OpponentWinsPoint()
     {
         if (isMatchEnded)
+        {
             return;
+        }
+
         opponentPoints++;
         CheckGame();
         SaveHistory();
@@ -686,6 +771,26 @@ else
     private void EndMatch()
     {
         isMatchEnded = true;
+        SaveHistory();
+        CurrentMatch.Complete = true;
+
+        if(userSets > opponentSets)
+        {
+            _winner = CurrentMatch.Player1;
+            if (Label_Switch1)
+            {
+                _winner += " & " + CurrentMatch.Player2;
+            }
+        }
+        else
+        {
+            _winner = CurrentMatch.Player3;
+            if (Label_Switch1)
+            {
+                _winner += " & " + CurrentMatch.Player4;
+            }
+        };
+        _winner = $"Congratulations {_winner}"; 
         Console.WriteLine(userSets > opponentSets ? "User wins the match!" : "Opponent wins the match!");
     }
 
