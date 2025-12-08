@@ -109,7 +109,7 @@
         <!-- Top Player Button -->
         <div style="display: flex">
             <MudAvatarGroup Max="3" Spacing="5" MaxColor="Color.Primary">
-                <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
+                    <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 1px lightseagreen; width:60px; height: 60px; touch-action: pan-x pan-y;">
                 <MudImage Src="images/me.png"></MudImage>
                 <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                     color:white; font-size:20px; font-weight:bold;">
