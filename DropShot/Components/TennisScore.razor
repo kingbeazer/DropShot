@@ -124,8 +124,8 @@
                 @if (Label_Switch1)
                 {
                     <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:60px; height: 60px; margin-left: -15px;">
-                        <MudImage Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
-                        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                        <MudImage Class="no-zoom-element" Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
+                        <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                                     color:white; font-size:20px; font-weight:bold;">
                             @CurrentMatch.Player2.GetInitials()
                         </div>
@@ -204,8 +204,8 @@
                 {
                     <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
                         <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
-                            <MudImage Src="images/me.png"></MudImage>
-                            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                            <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
+                            <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                         color:white; font-size:20px; font-weight:bold;">
                                 @CurrentMatch.Player3.GetInitials()
                             </div>
@@ -214,8 +214,8 @@
                             <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
                         </MudAvatar>
                         <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px; margin-left: -15px;">
-                            <MudImage Src="images/me.png"></MudImage>
-                            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                            <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
+                            <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                         color:white; font-size:20px; font-weight:bold;">
                                 @CurrentMatch.Player4.GetInitials()
                             </div>
