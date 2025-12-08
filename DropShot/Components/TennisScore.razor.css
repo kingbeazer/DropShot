@@ -2,6 +2,9 @@
 :root {
 }
 
+.no-zoom-element {
+    touch-action: pan-x pan-y; /* Disables pinch and double-tap zoom on the element */
+}
 
 .score-container {
     display: flex;
