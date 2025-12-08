@@ -12,7 +12,7 @@
 
 @page "/tennisscore"
 @rendermode InteractiveServer
- 
+
 @inject MyDbContext DbContext
 @inject NavigationManager Navigation
 @inject UserState State
@@ -102,140 +102,149 @@
     <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.PlayArrow" Style="margin: 10px;" OnClick="ButtonOnClick">Start Match</MudButton>
 }
 
-@if(loaded && @CurrentMatch != null)
+@if (loaded && @CurrentMatch != null)
 {
-      <section class="bg-tennis overlay-dark">
-    <div class="score-container">
-        <!-- Top Player Button -->
-        <div style="display: flex">
-            <MudAvatarGroup Max="3" Spacing="5" MaxColor="Color.Primary">
-                    <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 1px lightseagreen; width:60px; height: 60px; touch-action: pan-x pan-y;">
-                <MudImage Src="images/me.png"></MudImage>
-                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                    color:white; font-size:20px; font-weight:bold;">
-                        @CurrentMatch.Player1.GetInitials()
-                </div>
-            </MudAvatar>
-                        <MudAvatar Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
+    <section class="bg-tennis overlay-dark">
+        <div class="score-container">
+            <!-- Top Player Button -->
+            <div style="display: flex">
+                <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
+                    <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px; touch-action: pan-x pan-y;">
+                        <MudImage Src="images/me.png"></MudImage>
+                        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                        color:white; font-size:20px; font-weight:bold;">
+                            @CurrentMatch.Player1.GetInitials()
+                        </div>
+                    </MudAvatar>
+                    <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
                         <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
-                        </MudAvatar>
+                    </MudAvatar>
                 </MudAvatarGroup>
-           
-            @if (Label_Switch1)
-            {
-                    <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:60px; height: 60px; margin-left: -15px;">
-                    <MudImage Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
-                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                            color:white; font-size:20px; font-weight:bold;">
-                            @CurrentMatch.Player2.GetInitials()
-                    </div>
-                </MudAvatar>
-            }
-        </div>
-        <!-- Score Display -->
-        <div class="score-display">
-            <div class="score-row">
 
-                @if (isUserServing)
+                @if (Label_Switch1)
                 {
-                    <span class="sets serve-indicator">🎾</span>
+                    <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:60px; height: 60px; margin-left: -15px;">
+                        <MudImage Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
+                        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                                    color:white; font-size:20px; font-weight:bold;">
+                            @CurrentMatch.Player2.GetInitials()
+                        </div>
+                    </MudAvatar>
+                }
+            </div>
+            <!-- Score Display -->
+            <div class="score-display">
+                <div class="score-row">
+
+                    @if (isUserServing)
+                    {
+                        <span class="sets serve-indicator">🎾</span>
+                    }
+                    else
+                    {
+                        <span class="sets serve-indicator"></span>
+                    }
+
+                    @foreach (var set in setScores)
+                    {
+                        <span class="sets">@set.UserGames</span>
+                    }
+                    @if (!isMatchEnded)
+                    {
+                        <span class="sets">@userGames</span>
+                    }
+                    @if (!gameScoring || isTieBreak)
+                    {
+                        <span class="sets">@ScoreDisplayUser</span>
+                    }
+                </div>
+                <div class="score-row">
+
+                    @if (!isUserServing)
+                    {
+                        <span class="sets serve-indicator">🎾</span>
+                    }
+                    else
+                    {
+                        <span class="sets serve-indicator"></span>
+                    }
+
+                    @foreach (var set in setScores)
+                    {
+                        <span class="sets">@set.OpponentGames </span>
+                    }
+
+                    @if (!isMatchEnded)
+                    {
+                        <span class="sets">@opponentGames</span>
+                    }
+
+                    @if (!gameScoring || isTieBreak)
+                    {
+                        <span class="sets">@ScoreDisplayOpp</span>
+                    }
+                </div>
+
+
+                <!-- Settings Button (Bottom Left) -->
+                <button class="settings-btn no-zoom-element" @onclick="@OnExpandCollapseClick">
+                    <MudIcon Icon="@Icons.Material.Filled.Settings" Title="Favorite" Size="Size.Large" />
+                </button>
+
+                <!-- Undo Button (Bottom Right) -->
+                <button class="undo-btn no-zoom-element" @onclick="UndoLastPoint">
+                    <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Favorite" Size="Size.Large" />
+                </button>
+
+            </div>
+
+            <!-- Bottom Player Button -->
+            <div style="display: flex">
+                @if (Label_Switch1)
+                {
+                    <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
+                            <MudImage Src="images/me.png"></MudImage>
+                            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                        color:white; font-size:20px; font-weight:bold;">
+                                @CurrentMatch.Player3.GetInitials()
+                            </div>
+                        </MudAvatar>
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
+                            <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
+                        </MudAvatar>
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px; margin-left: -15px;">
+                            <MudImage Src="images/me.png"></MudImage>
+                            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                        color:white; font-size:20px; font-weight:bold;">
+                                @CurrentMatch.Player4.GetInitials()
+                            </div>
+                        </MudAvatar>
+                    </MudAvatarGroup>
                 }
                 else
                 {
-                    <span class="sets serve-indicator"></span>
-                }
-
-                @foreach (var set in setScores)
-                {
-                    <span class="sets">@set.UserGames</span>
-                }
-                @if (!isMatchEnded)
-                {
-                    <span class="sets">@userGames</span>
-                }
-                @if (!gameScoring || isTieBreak)
-                {
-                    <span class="sets">@ScoreDisplayUser</span>
-                }
-            </div>
-            <div class="score-row">
-
-                @if (!isUserServing)
-                {
-                    <span class="sets serve-indicator">🎾</span>
-                }
-                else
-                {
-                    <span class="sets serve-indicator"></span>
-                }
-
-                @foreach (var set in setScores)
-                {
-                    <span class="sets">@set.OpponentGames </span>
-                }
-
-                @if (!isMatchEnded)
-                {
-                    <span class="sets">@opponentGames</span>
-                }
-
-                @if (!gameScoring || isTieBreak)
-                {
-                    <span class="sets">@ScoreDisplayOpp</span>
-                }
-            </div>
-
-
-            <!-- Settings Button (Bottom Left) -->
-                <button class="settings-btn" @onclick="@OnExpandCollapseClick">
-                <MudIcon Icon="@Icons.Material.Filled.Settings" Title="Favorite" Size="Size.Large" />  
-            </button>
-
-            <!-- Undo Button (Bottom Right) -->
-            <button class="undo-btn" @onclick="UndoLastPoint">
-                <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Favorite" Size="Size.Large" />
-            </button>
-
-        </div>
-
-        <!-- Bottom Player Button -->
-        <div style="display: flex">
-            @if (Label_Switch1)
-            {
-                    <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
-                    <MudImage Src="images/me.png"></MudImage>
-                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                    <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
+                            <MudImage Src="images/me.png"></MudImage>
+                            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                 color:white; font-size:20px; font-weight:bold;">
-                            @CurrentMatch.Player3.GetInitials()
-                    </div>
-                </MudAvatar>
-                    <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px; margin-left: -15px;">
-                    <MudImage Src="images/me.png"></MudImage>
-                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                color:white; font-size:20px; font-weight:bold;">
-                            @CurrentMatch.Player4.GetInitials()
-                    </div>
-                </MudAvatar>
-            }
-            else
-            {
-                    <MudAvatar @onclick="OpponentWinsPoint" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
-                    <MudImage Src="images/me.png"></MudImage>
-                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                        color:white; font-size:20px; font-weight:bold;">
-                            @CurrentMatch.Player2.GetInitials()
-                    </div>
-                </MudAvatar>
-
-              @*   <button name="btnOppWinsPoint" class="initial-circle" style="color: lightseagreen; border-color: lightseagreen" >
+                                @CurrentMatch.Player2.GetInitials()
+                            </div>
+                        </MudAvatar>
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
+                            <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
+                        </MudAvatar>
+                    </MudAvatarGroup>
+                    @*   <button name="btnOppWinsPoint" class="initial-circle" style="color: lightseagreen; border-color: lightseagreen" >
                     <MudImage Src="images/me.png" Alt="Mony the dog" ObjectFit="@ObjectFit.Contain" Elevation="25" Class="rounded-lg" />
                 </button> *@
 
-            }
+                }
+            </div>
         </div>
-    </div>
     </section>
-   
+
 }
 
 <div style="margin: 10px;"></div>
@@ -570,7 +579,7 @@
     private async void SaveHistory()
     {
         // Push a snapshot using the GameState record. Clone setScores to avoid shared references.
-     
+
         var snapshotList = setScores.Select(s => s.Clone()).ToList();
 
         history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, snapshotList, DateTime.Now, isMatchEnded));
@@ -606,7 +615,7 @@
         if (isMatchEnded)
         {
             return;
-        }    
+        }
 
         userPoints++;
         CheckGame();
@@ -789,7 +798,7 @@
         // SaveHistory();
         CurrentMatch.Complete = true;
 
-        if(userSets > opponentSets)
+        if (userSets > opponentSets)
         {
             _winner = CurrentMatch.Player1;
             if (Label_Switch1)
@@ -804,8 +813,9 @@
             {
                 _winner = CurrentMatch.Player3 + " & " + CurrentMatch.Player4;
             }
-        };
-        _winner = $"Congratulations {_winner}"; 
+        }
+        ;
+        _winner = $"Congratulations {_winner}";
         Console.WriteLine(userSets > opponentSets ? "User wins the match!" : "Opponent wins the match!");
     }
 
