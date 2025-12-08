@@ -111,10 +111,10 @@
                 <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
                     <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
                         <MudImage Src="images/me.png"></MudImage>
-                        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                       @*  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                         color:white; font-size:20px; font-weight:bold;">
                             @CurrentMatch.Player1.GetInitials()
-                        </div>
+                        </div> *@
                     </MudAvatar>
                     <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
                         <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
@@ -125,10 +125,10 @@
                 {
                     <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:60px; height: 60px; margin-left: -15px;">
                         <MudImage Class="no-zoom-element" Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
-                        <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                       @*  <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                                     color:white; font-size:20px; font-weight:bold;">
                             @CurrentMatch.Player2.GetInitials()
-                        </div>
+                        </div> *@
                     </MudAvatar>
                 }
             </div>
