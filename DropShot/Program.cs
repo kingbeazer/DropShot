@@ -2,6 +2,7 @@ using DropShot.Components;
 using DropShot.Components.Account;
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
     .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<UserState>();
+builder.Services.AddScoped<TennisScoreService>();
 
 builder.Services.AddSingleton<EmailService>();
 

@@ -13,17 +13,19 @@
 @page "/tennisscore"
 @rendermode InteractiveServer
 
+@using DropShot.Services
 @inject MyDbContext DbContext
 @inject NavigationManager Navigation
 @inject UserState State
 @inject IDialogService DialogService
+@inject TennisScoreService ScoreService
 
 <MudCollapse Expanded="_expanded" Style="margin-top: 10px;">
     <MudPaper Class="pa-4">
         <MudStack Spacing="2">
             <MudText>Settings</MudText>
             <MudDivider />
-            <MudSwitch @bind-Value="gameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
+            <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
             <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@OnExpandCollapseClick">Save</MudButton>
             <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => OpenDialogAsync(_fullScreen))">End Match</MudButton>
         </MudStack>
@@ -97,18 +99,18 @@
                          AdornmentColor="Color.Primary" />
     }
 
-    <MudSelect @bind-Value="bestOf" Label="Best Of" Variant="Variant.Outlined" Style="margin: 10px;">
+    <MudSelect @bind-Value="_state.BestOf" Label="Best Of" Variant="Variant.Outlined" Style="margin: 10px;">
         <MudSelectItem Value="1">1 Set</MudSelectItem>
         <MudSelectItem Value="3">Best of 3</MudSelectItem>
         <MudSelectItem Value="5">Best of 5</MudSelectItem>
     </MudSelect>
 
-    <MudSelect @bind-Value="gamesFirstTo" Label="Games Per Set" Variant="Variant.Outlined" Style="margin: 10px;">
+    <MudSelect @bind-Value="_state.GamesFirstTo" Label="Games Per Set" Variant="Variant.Outlined" Style="margin: 10px;">
         <MudSelectItem Value="4">First to 4</MudSelectItem>
         <MudSelectItem Value="6">First to 6</MudSelectItem>
     </MudSelect>
 
-    <MudSwitch @bind-Value="unlimitedDeuce" Label="Unlimited Deuce" Color="Color.Success" Style="margin: 10px;" />
+    <MudSwitch @bind-Value="_state.UnlimitedDeuce" Label="Unlimited Deuce" Color="Color.Success" Style="margin: 10px;" />
 
     <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.PlayArrow" Style="margin: 10px;" OnClick="ButtonOnClick">Start Match</MudButton>
 }
@@ -120,7 +122,7 @@
             <!-- Top Player Button -->
             <div style="display: flex">
                 <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
-                    <MudAvatar @onclick="UserWinsPoint" disabled="@isMatchEnded" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
+                    <MudAvatar @onclick="UserWinsPoint" disabled="@_state.IsMatchEnded" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
                         <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
                         <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                         color:white; font-size:20px; font-weight:bold;">
@@ -134,7 +136,7 @@
 
                 @if (Label_Switch1)
                 {
-                    <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px lightseagreen; width:60px; height: 60px; margin-left: -15px;">
+                    <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded" Style="border: solid 2px lightseagreen; width:60px; height: 60px; margin-left: -15px;">
                         <MudImage Class="no-zoom-element" Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
                         <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                                     color:white; font-size:20px; font-weight:bold;">
@@ -147,7 +149,7 @@
             <div class="score-display">
                 <div class="score-row">
 
-                    @if (isUserServing)
+                    @if (_state.IsUserServing)
                     {
                         <span class="sets serve-indicator">🎾</span>
                     }
@@ -156,22 +158,22 @@
                         <span class="sets serve-indicator"></span>
                     }
 
-                    @foreach (var set in setScores)
+                    @foreach (var set in _state.SetScores)
                     {
                         <span class="sets">@set.UserGames</span>
                     }
-                    @if (!isMatchEnded)
+                    @if (!_state.IsMatchEnded)
                     {
-                        <span class="sets">@userGames</span>
+                        <span class="sets">@_state.UserGames</span>
                     }
-                    @if (!gameScoring || isTieBreak)
+                    @if (!_state.GameScoring || _state.IsTieBreak)
                     {
-                        <span class="sets">@ScoreDisplayUser</span>
+                        <span class="sets">@ScoreService.GetScoreDisplayUser(_state)</span>
                     }
                 </div>
                 <div class="score-row">
 
-                    @if (!isUserServing)
+                    @if (!_state.IsUserServing)
                     {
                         <span class="sets serve-indicator">🎾</span>
                     }
@@ -180,19 +182,19 @@
                         <span class="sets serve-indicator"></span>
                     }
 
-                    @foreach (var set in setScores)
+                    @foreach (var set in _state.SetScores)
                     {
                         <span class="sets">@set.OpponentGames </span>
                     }
 
-                    @if (!isMatchEnded)
+                    @if (!_state.IsMatchEnded)
                     {
-                        <span class="sets">@opponentGames</span>
+                        <span class="sets">@_state.OppGames</span>
                     }
 
-                    @if (!gameScoring || isTieBreak)
+                    @if (!_state.GameScoring || _state.IsTieBreak)
                     {
-                        <span class="sets">@ScoreDisplayOpp</span>
+                        <span class="sets">@ScoreService.GetScoreDisplayOpp(_state)</span>
                     }
                 </div>
 
@@ -214,7 +216,7 @@
                 @if (Label_Switch1)
                 {
                     <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
-                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
                             <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
                             <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                         color:white; font-size:20px; font-weight:bold;">
@@ -224,7 +226,7 @@
                         <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
                             <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
                         </MudAvatar>
-                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px; margin-left: -15px;">
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px; margin-left: -15px;">
                             <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
                             <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                         color:white; font-size:20px; font-weight:bold;">
@@ -236,7 +238,7 @@
                 else
                 {
                     <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
-                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@isMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
                             <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
                             <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
                                 color:white; font-size:20px; font-weight:bold;">
@@ -316,7 +318,9 @@
         if (!result.Canceled)
         {
             OnExpandCollapseClick();
-            EndMatch();
+            _state.IsMatchEnded = true;
+            if (CurrentMatch != null)
+                _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1);
         }
     }
 
@@ -324,20 +328,13 @@
     public void ReloadPage()
     {
         history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false) });
-
         _value = "";
         _value2 = "";
         _value3 = "";
         _value4 = "";
         _winner = "";
-        opponentGames = 0;
-        userGames = 0;
-        setScores.Clear();
-        userSets = 0;
-        opponentSets = 0;
-        isMatchEnded = false;
+        _state = new();
         CurrentMatch = null;
-
     }
 
     private async Task<IEnumerable<string>> Search1(string value, CancellationToken token)
@@ -393,18 +390,7 @@
         return _states.Where(x => x.Contains(value, StringComparison.InvariantCultureIgnoreCase));
     }
 
-    private int userPoints = 0;
-    private int opponentPoints = 0;
-    private int userGames = 0;
-    private int opponentGames = 0;
-    private int userSets = 0;
-    private int opponentSets = 0;
-    private bool isTieBreak = false;
-    private int bestOf = 3;
-    private int gamesFirstTo = 6;
-    private bool gameScoring = true;
-    private bool unlimitedDeuce = true;
-    private bool isUserServing = true; // Start with user serving
+    private TennisMatchState _state = new();
     private List<Score> scores = new();
     private HubConnection? hubConnection;
     private bool matchGo = false;
@@ -452,21 +438,7 @@
             history = new Stack<GameState>(CurrentMatch.HistoryList.AsEnumerable().Reverse());
 
             if (history.Any())
-            {
-                var last = history.Peek();
-                userPoints = last.UserPts;
-                opponentPoints = last.OppPts;
-                userGames = last.UserG;
-                opponentGames = last.OppG;
-                userSets = last.UserS;
-                opponentSets = last.OppS;
-                isTieBreak = last.TieBreak;
-                deuceCount = last.DeuceCount;
-                isMatchEnded = false;
-                isUserServing = last.IsUserServing;
-                setScores = last.SetScores != null ? last.SetScores.Select(s => s.Clone()).ToList() : new List<SetScore>();
-                isMatchEnded = last.isComplete;
-            }
+                ScoreService.RestoreFromGameState(_state, history.Peek());
         }
 
         hubConnection = new HubConnectionBuilder()
@@ -484,50 +456,7 @@
         loaded = true;
     }
 
-    private int deuceCount = 0;
-    private bool isMatchEnded = false;
-
-    // Initialize history with a GameState containing zeros and a null SetScores
     private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false) });
-
-    // Add this field to store set scores
-    private List<SetScore> setScores = new();
-
-    private string ScoreDisplayOpp
-    {
-        get
-        {
-            if (isTieBreak)
-                return $"{opponentPoints}";
-
-            if (userPoints >= 3 && opponentPoints >= 3)
-            {
-                if (userPoints == opponentPoints)
-                    return (userPoints == 3) ? "40" : "D";
-                if (userPoints == opponentPoints + 1) return "";
-                if (opponentPoints == userPoints + 1) return $"A({deuceCount})";
-            }
-            return $"{ConvertToTennisScore(opponentPoints)}";
-        }
-    }
-
-    private string ScoreDisplayUser
-    {
-        get
-        {
-            if (isTieBreak)
-                return $"{userPoints}";
-
-            if (userPoints >= 3 && opponentPoints >= 3)
-            {
-                if (userPoints == opponentPoints)
-                    return (userPoints == 3) ? "40" : "D";
-                if (userPoints == opponentPoints + 1) return $"A({deuceCount})";
-                if (opponentPoints == userPoints + 1) return "";
-            }
-            return $"{ConvertToTennisScore(userPoints)}";
-        }
-    }
 
 
 
@@ -537,11 +466,9 @@
 
     private async void SaveHistory()
     {
-        // Push a snapshot using the GameState record. Clone setScores to avoid shared references.
+        var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
 
-        var snapshotList = setScores.Select(s => s.Clone()).ToList();
-
-        history.Push(new GameState(userPoints, opponentPoints, userGames, opponentGames, userSets, opponentSets, isTieBreak, deuceCount, isUserServing, userGames, opponentGames, snapshotList, DateTime.Now, isMatchEnded));
+        history.Push(new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, _state.IsMatchEnded));
 
         CurrentMatch.History = history;
         CurrentMatch.HistoryList = history.ToList();
@@ -571,237 +498,37 @@
 
     private void UserWinsPoint()
     {
-        if (isMatchEnded)
-        {
-            return;
-        }
+        if (_state.IsMatchEnded) return;
 
-        userPoints++;
-        CheckGame();
+        _state.UserPoints++;
+        ScoreService.CheckGame(_state);
+        if (_state.IsMatchEnded && CurrentMatch != null)
+            _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1);
         SaveHistory();
     }
 
     private void OpponentWinsPoint()
     {
-        if (isMatchEnded)
-        {
-            return;
-        }
+        if (_state.IsMatchEnded) return;
 
-        opponentPoints++;
-        CheckGame();
+        _state.OppPoints++;
+        ScoreService.CheckGame(_state);
+        if (_state.IsMatchEnded && CurrentMatch != null)
+            _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1);
         SaveHistory();
     }
 
     private void UndoLastPoint()
     {
         if (history.Any())
-        {
             history.Pop();
-        }
         if (history.Any())
-        {
-            var last = history.Peek();
-            userPoints = last.UserPts;
-            opponentPoints = last.OppPts;
-            userGames = last.UserG;
-            opponentGames = last.OppG;
-            userSets = last.UserS;
-            opponentSets = last.OppS;
-            isTieBreak = last.TieBreak;
-            deuceCount = last.DeuceCount;
-            isMatchEnded = false;
-            isUserServing = last.IsUserServing;
-            setScores = last.SetScores != null ? last.SetScores.Select(s => s.Clone()).ToList() : new List<SetScore>();
-
-        }
-        CurrentMatch.Complete = false;
-        isMatchEnded = false;
+            ScoreService.RestoreFromGameState(_state, history.Peek());
+        if (CurrentMatch != null)
+            CurrentMatch.Complete = false;
+        _state.IsMatchEnded = false;
+        _winner = "";
     }
 
-    private void OpenSettings()
-    {
-
-    }
-
-    private void CheckGame()
-    {
-        if (isTieBreak)
-        {
-            if ((userPoints >= 7 || opponentPoints >= 7) && Math.Abs(userPoints - opponentPoints) >= 2)
-            {
-                if (userPoints > opponentPoints)
-                {
-                    userGames++;
-                    userSets++;
-                }
-                else
-                {
-                    opponentSets++;
-                    opponentGames++;
-                }
-                EndSet();
-            }
-
-            var dsd = (userPoints + opponentPoints) % 2;
-
-            if (dsd == 1)
-                isUserServing = !isUserServing;
-            return;
-        }
-
-        // Increment deuce count
-
-        if (gameScoring)
-        {
-            if (userPoints > 0)
-                userGames++;
-            else
-                opponentGames++;
-            ResetGame();
-            CheckSet();
-            return;
-        }
-
-
-        if (userPoints >= 4 || opponentPoints >= 4)
-        {
-            int diff = userPoints - opponentPoints;
-
-            if (unlimitedDeuce)
-            {
-                // Normal tennis logic — deuce can repeat indefinitely
-                if (diff >= 2)
-                {
-                    userGames++;
-                    ResetGame();
-                    CheckSet();
-                }
-                else if (diff <= -2)
-                {
-                    opponentGames++;
-                    ResetGame();
-                    CheckSet();
-                }
-            }
-            else
-            {
-                if (diff == 2 || diff == -2 || (diff == 1 && opponentPoints > 3) || (diff == -1 && userPoints > 3))
-                {
-                    if (diff > 0)
-                        userGames++;
-                    else
-                        opponentGames++;
-                    ResetGame();
-                    CheckSet();
-                }
-            }
-        }
-        if (userPoints >= 3 && opponentPoints >= 3 && userPoints == opponentPoints)
-            deuceCount += 1;
-    }
-
-    private void CheckSet()
-    {
-        if (userGames == 6 && opponentGames == 6)
-        {
-            isTieBreak = true;
-            userPoints = opponentPoints = 0;
-            return;
-        }
-
-        if ((userGames >= 6 || opponentGames >= 6) && Math.Abs(userGames - opponentGames) >= 2)
-        {
-            if (userGames > opponentGames)
-                userSets++;
-            else
-                opponentSets++;
-
-            EndSet();
-        }
-    }
-
-    private int GetMaxSetsToWin(int bestOf)
-    {
-        switch (bestOf)
-        {
-            case 3:
-                return 2;
-            case 5:
-                return 3;
-            case 7:
-                return 4;
-            default:
-                return 0;
-        }
-    }
-
-    private void EndSet()
-    {
-        setScores.Add(new SetScore { SetNumber = setScores.Count() + 1, UserGames = userGames, OpponentGames = opponentGames }); // Save completed set score
-        userGames = opponentGames = 0;
-        userPoints = opponentPoints = 0;
-        isTieBreak = false;
-
-        // Check match win condition dynamically
-        if (userSets == GetMaxSetsToWin(bestOf) || opponentSets == GetMaxSetsToWin(bestOf))
-        {
-            EndMatch();
-            // ResetMatch();
-        }
-    }
-
-    private void EndMatch()
-    {
-        isMatchEnded = true;
-        // SaveHistory();
-        CurrentMatch.Complete = true;
-
-        if (userSets > opponentSets)
-        {
-            _winner = CurrentMatch.Player1;
-            if (Label_Switch1)
-            {
-                _winner += " & " + CurrentMatch.Player2;
-            }
-        }
-        else
-        {
-            _winner = CurrentMatch.Player2;
-            if (Label_Switch1)
-            {
-                _winner = CurrentMatch.Player3 + " & " + CurrentMatch.Player4;
-            }
-        }
-        ;
-        _winner = $"Congratulations {_winner}";
-        Console.WriteLine(userSets > opponentSets ? "User wins the match!" : "Opponent wins the match!");
-    }
-
-    private void ResetGame()
-    {
-        userPoints = 0;
-        opponentPoints = 0;
-        isUserServing = !isUserServing;
-        deuceCount = 0;
-    }
-
-    private void ResetMatch()
-    {
-        userPoints = opponentPoints = 0;
-        userGames = opponentGames = 0;
-        userSets = opponentSets = 0;
-        isTieBreak = false;
-        isMatchEnded = false;
-        history.Clear();
-    }
-
-    private string ConvertToTennisScore(int points) => points switch
-    {
-        0 => "0",
-        1 => "15",
-        2 => "30",
-        3 => "40",
-        _ => "40"
-    };
+    private void OpenSettings() { }
 }
