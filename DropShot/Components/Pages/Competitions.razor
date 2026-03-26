@@ -1,0 +1,58 @@
+﻿@page "/competitions"
+@rendermode InteractiveServer
+
+@using System.Net.Http.Json
+@using DropShot.Data
+@using DropShot.Models
+@using Microsoft.EntityFrameworkCore
+
+@* Example route in your Competition page *@
+@* @page "/competition/{id:int}" *@
+
+@inject NavigationManager Nav
+
+<MudDataGrid Items="@copetitions" Filterable="false" SortMode="@SortMode.None" Groupable="false">
+    <Columns>
+        <PropertyColumn Property="x => x.CompetitionName" />
+        <PropertyColumn Property="x => x.CompetitionFormat" />
+        <TemplateColumn CellClass="d-flex justify-end">
+            <CellTemplate>
+                <MudStack Row>
+                    <MudButton Size="@Size.Small"
+                               Variant="@Variant.Filled"
+                               Color="@Color.Primary"
+                               OnClick="@(() => Nav.NavigateTo($"/competition/{@context.Item.CompetitionID}"))">
+                        Edit
+                    </MudButton>
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+</MudDataGrid>
+
+<MudButton Size="@Size.Small"
+           Variant="@Variant.Filled"
+           Color="@Color.Primary"
+           OnClick="@(() => Nav.NavigateTo($"/competition/0"))">
+    Add New
+</MudButton>
+
+@code {
+    public IEnumerable<Competition> copetitions;
+    
+    [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; }
+
+    protected override void OnInitialized()
+    {
+        using var dbc = DbFactory.CreateDbContext();
+
+        var comps = dbc.Competition.ToList();
+
+        copetitions = comps.Select(c => new Competition
+        {
+            CompetitionID = c.CompetitionID,
+            CompetitionName = c.CompetitionName,
+            CompetitionFormat = c.CompetitionFormat
+        });
+    }
+}

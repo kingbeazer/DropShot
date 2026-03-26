@@ -1,0 +1,216 @@
+﻿@page "/competition/{Id:int}"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using DropShot.Data
+@using DropShot.Models
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject NavigationManager Nav
+
+<MudGrid>
+    <MudItem xs="12" sm="7">
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6">@((IsEdit ? "Edit Competition" : "New Competition"))</MudText>
+
+            <MudForm @ref="form" @bind-IsValid="isValid" @bind-Errors="errors">
+                <MudTextField T="string"
+                              Label="Competition Name"
+                              @bind-Value="Model.CompetitionName"
+                              For="@(() => Model.CompetitionName)"
+                              Required="true"
+                              RequiredError="Competition name is required!"
+                              Immediate="true" />
+
+                <MudStack Row="true" Spacing="2" Class="mt-4">
+                    <MudButton Color="Color.Primary"
+                               Variant="Variant.Filled"
+                               Disabled = "isSaving"
+                               OnClick="SubmitAsync">
+                        @if (isSaving)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                        }
+                        Save
+                    </MudButton>
+
+                    <MudButton Color="Color.Default"
+                               Variant="Variant.Outlined"
+                                 OnClick="Cancel"
+                    Disabled = "isSaving">
+                        Cancel
+                    </MudButton>
+                </MudStack>
+            </MudForm>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" sm="5">
+        <MudPaper Class="pa-4 mud-height-full">
+            <MudText Typo="Typo.subtitle2">@($"Errors ({errors?.Length ?? 0})")</MudText>
+
+            @if (errors is not null && errors.Length > 0)
+            {
+                <MudDivider Class="my-2" />
+                @foreach (var error in errors)
+                {
+                    <MudText Color="@Color.Error">@error</MudText>
+                }
+            }
+
+            @if (!string.IsNullOrWhiteSpace(serverError))
+            {
+                <MudDivider Class="my-2" />
+                <MudAlert Severity="Severity.Error" Dense="true">
+                    @serverError
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code
+{
+    [Parameter] public int Id { get; set; }
+
+    private MudForm? form;
+    private bool isValid;
+    private bool isSaving;
+    private string[] errors = Array.Empty<string>();
+    private string? serverError;
+    private bool IsEdit => Id != 0;
+
+    // View model with DataAnnotations so MudForm can validate
+    private CompetitionFormModel Model { get; set; } = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        serverError = null;
+
+        if (IsEdit)
+        {
+            try
+            {
+                using var db = DbFactory.CreateDbContext();
+
+                var comp = await db.Competition
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.CompetitionID == Id);
+
+                if (comp is null)
+                {
+                    serverError = $"Competition with ID {Id} was not found.";
+                    return;
+                }
+
+                Model.CompetitionName = comp.CompetitionName;
+            }
+            catch (Exception ex)
+            {
+                serverError = $"Failed to load competition. Details: {ex.Message}";
+            }
+        }
+        else
+        {
+            Model = new CompetitionFormModel();
+        }
+    }
+
+    private void Cancel() => Nav.NavigateTo("/Competitions");
+
+    private async Task SubmitAsync()
+    {
+        serverError = null;
+
+        if (form is not null)
+            await form.Validate();
+
+        if (!isValid)
+            return;
+
+        isSaving = true;
+
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+
+            // Normalize input
+            var normalizedName = (Model.CompetitionName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                errors = errors.Concat(new[] { "Competition name cannot be empty." }).ToArray();
+                return;
+            }
+
+            // Duplicate check: case-insensitive & trimmed, exclude current record on edit
+            var normalizedLower = normalizedName.ToLower();
+            var nameExists = await db.Competition
+                .AsNoTracking()
+                .AnyAsync(c =>
+                    c.CompetitionID != Id &&
+                    c.CompetitionName != null &&
+                    c.CompetitionName.Trim().ToLower() == normalizedLower
+                );
+
+            if (nameExists)
+            {
+                serverError = $"A competition named \"{normalizedName}\" already exists.";
+                return;
+            }
+
+            if (IsEdit)
+            {
+                var comp = await db.Competition.FirstOrDefaultAsync(c => c.CompetitionID == Id);
+                if (comp is null)
+                {
+                    serverError = $"Competition with ID {Id} no longer exists.";
+                    return;
+                }
+
+                comp.CompetitionName = normalizedName;
+                await db.SaveChangesAsync();
+            }
+            else
+            {
+                var competition = new Competition
+                {
+                    CompetitionName = normalizedName
+                };
+
+                db.Competition.Add(competition);
+                await db.SaveChangesAsync();
+            }
+
+            Nav.NavigateTo("/Competitions");
+        }
+        catch (DbUpdateException ex)
+        {
+            serverError = "A database error occurred while saving. Please try again.";
+            AppendDetail(ex);
+        }
+        catch (Exception ex)
+        {
+            serverError = "An unexpected error occurred.";
+            AppendDetail(ex);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void AppendDetail(Exception ex)
+    {
+        // Enrich error panel with details (optional in production)
+        errors = (errors ?? Array.Empty<string>()).Concat(new[] { ex.Message }).ToArray();
+        StateHasChanged();
+    }
+
+    private sealed class CompetitionFormModel
+    {
+        [Required(ErrorMessage = "Competition name is required!")]
+        [StringLength(200, ErrorMessage = "Competition name must be 200 characters or fewer.")]
+        public string CompetitionName { get; set; } = string.Empty;
+    }
+}
