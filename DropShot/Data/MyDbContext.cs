@@ -1,7 +1,6 @@
 using DropShot.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using static DropShot.Components.TennisScore;
 
 namespace DropShot.Data
 {
