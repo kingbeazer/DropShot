@@ -43,7 +43,7 @@
     private List<string> messages = new();
     private List<Score> scores = new();
     private Stack<GameState> history = new();
-    GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>());
+    GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false);
 
     protected override async Task OnInitializedAsync()
     {
@@ -67,27 +67,6 @@
         await hubConnection.StartAsync();
     }
 
-      public record GameState(
-        int UserPts,
-        int OppPts,
-        int UserG,
-        int OppG,
-        int UserS,
-        int OppS,
-        bool TieBreak,
-        int DeuceCount,
-        bool IsUserServing,
-        int UserGamesSnapshot,
-        int OpponentGamesSnapshot,
-        List<SetScore>? SetScores
-    );
-
-    public class SetScore
-    {
-        public int SetNumber { get; set; }
-        public int UserGames { get; set; }
-        public int OpponentGames { get; set; }
-    }
 
     private void SendMessage()
     {

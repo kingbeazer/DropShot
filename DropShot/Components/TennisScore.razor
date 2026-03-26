@@ -473,24 +473,6 @@
     private int deuceCount = 0;
     private bool isMatchEnded = false;
 
-    // Define a record to replace the tuple snapshot
-    public record GameState(
-        int UserPts,
-        int OppPts,
-        int UserG,
-        int OppG,
-        int UserS,
-        int OppS,
-        bool TieBreak,
-        int DeuceCount,
-        bool IsUserServing,
-        int UserGamesSnapshot,
-        int OpponentGamesSnapshot,
-        List<SetScore>? SetScores,
-        DateTime Timestamp,
-        bool isComplete
-    );
-
     // Initialize history with a GameState containing zeros and a null SetScores
     private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false) });
 
@@ -534,22 +516,6 @@
     }
 
 
-    public class SetScore
-    {
-        public int SetNumber { get; set; }
-        public int UserGames { get; set; }
-        public int OpponentGames { get; set; }
-
-
-        public SetScore Clone()
-                => new SetScore
-                {
-                    UserGames = this.UserGames,
-                    OpponentGames = this.OpponentGames,
-                    SetNumber = this.SetNumber,
-                };
-
-    }
 
     public class Match
     {
