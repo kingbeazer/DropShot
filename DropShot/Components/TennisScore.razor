@@ -364,11 +364,7 @@
         };
     }
 
-    private string[] _states =
-    {
-        "Alan Beattie", "Andrew Beattie", "Mark Buchner", "Kevin Beattie", "Ronald Beattie",
-        "Ian Kerr", "James Daniel"
-    };
+    private List<string> _states = [];
 
     private async Task<IEnumerable<string>> Search(string value, CancellationToken token)
     {
@@ -415,6 +411,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _states = await DbContext.Users
+            .Select(u => u.UserName)
+            .OrderBy(u => u)
+            .ToListAsync();
+
         // using var dbc = DbFactory.CreateDbContext();
         if (hubConnection is not null)
         {
