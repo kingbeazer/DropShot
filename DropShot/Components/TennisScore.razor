@@ -419,10 +419,10 @@
 
         _showCoinToss = true;
         _coinAnimating = true;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
         await Task.Delay(2200);
         _coinAnimating = false;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
     }
 
     private void StartAfterCoinToss()
