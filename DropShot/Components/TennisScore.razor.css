@@ -131,3 +131,80 @@
     border-radius: 6px;
     cursor: pointer;
 }
+
+/* ── Coin Toss Overlay ───────────────────────────────────────── */
+
+.coin-toss-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    gap: 16px;
+}
+
+.coin-wrap {
+    perspective: 600px;
+    margin: 8px 0;
+}
+
+.coin {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 38%, #FFE566, #FFA500 60%, #B8860B);
+    border: 5px solid #DAA520;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    box-shadow: 0 0 28px rgba(255, 215, 0, 0.55), inset 0 2px 6px rgba(255,255,255,0.25);
+    will-change: transform;
+}
+
+.coin-spinning {
+    animation: coinFlip 2.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+.coin-result {
+    font-size: 15px;
+    font-weight: bold;
+    color: #222;
+    text-align: center;
+    padding: 0 12px;
+    animation: coinLand 0.35s ease-out forwards;
+}
+
+@keyframes coinFlip {
+    0%   { transform: rotateY(0deg)    scaleX(1);    }
+    8%   { transform: rotateY(180deg)  scaleX(0.08); }
+    16%  { transform: rotateY(360deg)  scaleX(1);    }
+    24%  { transform: rotateY(540deg)  scaleX(0.08); }
+    32%  { transform: rotateY(720deg)  scaleX(1);    }
+    40%  { transform: rotateY(900deg)  scaleX(0.08); }
+    48%  { transform: rotateY(1080deg) scaleX(1);    }
+    56%  { transform: rotateY(1260deg) scaleX(0.08); }
+    64%  { transform: rotateY(1440deg) scaleX(1);    }
+    74%  { transform: rotateY(1530deg) scaleX(0.4);  }
+    82%  { transform: rotateY(1620deg) scaleX(0.7);  }
+    90%  { transform: rotateY(1710deg) scaleX(0.9);  }
+    100% { transform: rotateY(1800deg) scaleX(1);    }
+}
+
+@keyframes coinLand {
+    0%   { transform: scale(0.85); opacity: 0; }
+    60%  { transform: scale(1.06); opacity: 1; }
+    100% { transform: scale(1);    opacity: 1; }
+}
+
+.coin-winner-text {
+    animation: fadeUp 0.4s ease-out 0.1s both;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0);    }
+}
