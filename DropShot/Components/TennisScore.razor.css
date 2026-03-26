@@ -152,16 +152,13 @@
 }
 
 .coin {
-    width: 140px;
-    height: 140px;
+    width: 180px;
+    height: 180px;
     border-radius: 50%;
-    background: radial-gradient(circle at 38% 38%, #FFE566, #FFA500 60%, #B8860B);
-    border: 5px solid #DAA520;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 48px;
-    box-shadow: 0 0 28px rgba(255, 215, 0, 0.55), inset 0 2px 6px rgba(255,255,255,0.25);
+    background-image: url('/Images/Logo.png');
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 0 32px rgba(0, 230, 180, 0.5);
     will-change: transform;
 }
 
@@ -169,12 +166,7 @@
     animation: coinFlip 5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
 }
 
-.coin-result {
-    font-size: 15px;
-    font-weight: bold;
-    color: #222;
-    text-align: center;
-    padding: 0 12px;
+.coin-landed {
     animation: coinLand 0.35s ease-out forwards;
 }
 

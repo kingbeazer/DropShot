@@ -39,16 +39,7 @@
         <MudText Typo="Typo.h4" Style="color: white; letter-spacing: 2px;">COIN TOSS</MudText>
 
         <div class="coin-wrap">
-            <div class="coin @(_coinAnimating ? "coin-spinning" : "")">
-                @if (_coinAnimating)
-                {
-                    <span>🎾</span>
-                }
-                else
-                {
-                    <span class="coin-result">@_coinTossWinnerName</span>
-                }
-            </div>
+            <div class="coin @(_coinAnimating ? "coin-spinning" : "coin-landed")"></div>
         </div>
 
         @if (!_coinAnimating)
