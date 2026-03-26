@@ -19,6 +19,7 @@
 @inject UserState State
 @inject IDialogService DialogService
 @inject TennisScoreService ScoreService
+@inject ISnackbar Snackbar
 
 <MudCollapse Expanded="_expanded" Style="margin-top: 10px;">
     <MudPaper Class="pa-4">
@@ -403,6 +404,18 @@
 
     private async Task ButtonOnClick()
     {
+        if (string.IsNullOrWhiteSpace(_value) || string.IsNullOrWhiteSpace(_value2))
+        {
+            Snackbar.Add("Please select both players before starting.", Severity.Warning);
+            return;
+        }
+
+        if (Label_Switch1 && (string.IsNullOrWhiteSpace(_value3) || string.IsNullOrWhiteSpace(_value4)))
+        {
+            Snackbar.Add("Please select all four players for a doubles match.", Severity.Warning);
+            return;
+        }
+
         _pendingMatch = new Match
         {
             History = history,
