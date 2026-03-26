@@ -166,7 +166,7 @@
 }
 
 .coin-spinning {
-    animation: coinFlip 2.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+    animation: coinFlip 5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
 }
 
 .coin-result {
