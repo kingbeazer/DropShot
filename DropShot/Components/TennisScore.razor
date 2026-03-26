@@ -97,6 +97,19 @@
                          AdornmentColor="Color.Primary" />
     }
 
+    <MudSelect @bind-Value="bestOf" Label="Best Of" Variant="Variant.Outlined" Style="margin: 10px;">
+        <MudSelectItem Value="1">1 Set</MudSelectItem>
+        <MudSelectItem Value="3">Best of 3</MudSelectItem>
+        <MudSelectItem Value="5">Best of 5</MudSelectItem>
+    </MudSelect>
+
+    <MudSelect @bind-Value="gamesFirstTo" Label="Games Per Set" Variant="Variant.Outlined" Style="margin: 10px;">
+        <MudSelectItem Value="4">First to 4</MudSelectItem>
+        <MudSelectItem Value="6">First to 6</MudSelectItem>
+    </MudSelect>
+
+    <MudSwitch @bind-Value="unlimitedDeuce" Label="Unlimited Deuce" Color="Color.Success" Style="margin: 10px;" />
+
     <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.PlayArrow" Style="margin: 10px;" OnClick="ButtonOnClick">Start Match</MudButton>
 }
 
@@ -387,10 +400,10 @@
     private int userSets = 0;
     private int opponentSets = 0;
     private bool isTieBreak = false;
-    private int bestOf = 5;
+    private int bestOf = 3;
     private int gamesFirstTo = 6;
     private bool gameScoring = true;
-    private int maxDeuce = 99999;
+    private bool unlimitedDeuce = true;
     private bool isUserServing = true; // Start with user serving
     private List<Score> scores = new();
     private HubConnection? hubConnection;
@@ -655,9 +668,9 @@
         {
             int diff = userPoints - opponentPoints;
 
-            if (!(deuceCount > maxDeuce))
+            if (unlimitedDeuce)
             {
-                // Normal tennis logic before deuce
+                // Normal tennis logic — deuce can repeat indefinitely
                 if (diff >= 2)
                 {
                     userGames++;
@@ -673,7 +686,7 @@
             }
             else
             {
-                if (diff == 2 || diff == -2 || (diff == 1 && opponentPoints > 3) || (diff == -1 && userPoints > 3) || deuceCount > maxDeuce)
+                if (diff == 2 || diff == -2 || (diff == 1 && opponentPoints > 3) || (diff == -1 && userPoints > 3))
                 {
                     if (diff > 0)
                         userGames++;
