@@ -32,7 +32,40 @@
     </MudPaper>
 </MudCollapse>
 
-@if (loaded && CurrentMatch == null)
+@if (_showCoinToss)
+{
+    <div class="coin-toss-overlay">
+        <MudText Typo="Typo.h4" Style="color: white; letter-spacing: 2px;">COIN TOSS</MudText>
+
+        <div class="coin-wrap">
+            <div class="coin @(_coinAnimating ? "coin-spinning" : "")">
+                @if (_coinAnimating)
+                {
+                    <span>🎾</span>
+                }
+                else
+                {
+                    <span class="coin-result">@_coinTossWinnerName</span>
+                }
+            </div>
+        </div>
+
+        @if (!_coinAnimating)
+        {
+            <MudText Typo="Typo.h5" Style="color: #FFD700;" Class="coin-winner-text">
+                @_coinTossWinnerName serves first!
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Large"
+                       Style="margin-top: 12px; font-size: 18px; padding: 12px 36px;"
+                       Class="coin-winner-text"
+                       OnClick="StartAfterCoinToss">
+                Let's Play!
+            </MudButton>
+        }
+    </div>
+}
+
+@if (loaded && CurrentMatch == null && !_showCoinToss)
 {
     <MudSwitch @bind-Value="Label_Switch1" Label="Doubles" Color="Color.Success" />
 
@@ -362,9 +395,15 @@
 
     public bool Label_Switch1 { get; set; } = false;
 
-    void ButtonOnClick()
+    private bool _showCoinToss;
+    private bool _coinAnimating;
+    private bool _coinTossUserServes;
+    private string _coinTossWinnerName;
+    private Match _pendingMatch;
+
+    private async Task ButtonOnClick()
     {
-        CurrentMatch = new Match
+        _pendingMatch = new Match
         {
             History = history,
             Player1 = _value,
@@ -372,6 +411,25 @@
             Player3 = _value3,
             Player4 = _value4
         };
+
+        _coinTossUserServes = Random.Shared.Next(2) == 0;
+        _coinTossWinnerName = _coinTossUserServes
+            ? (Label_Switch1 ? $"{_value} & {_value2}" : _value)
+            : (Label_Switch1 ? $"{_value3} & {_value4}" : _value2);
+
+        _showCoinToss = true;
+        _coinAnimating = true;
+        StateHasChanged();
+        await Task.Delay(2200);
+        _coinAnimating = false;
+        StateHasChanged();
+    }
+
+    private void StartAfterCoinToss()
+    {
+        _state.IsUserServing = _coinTossUserServes;
+        CurrentMatch = _pendingMatch;
+        _showCoinToss = false;
     }
 
     private List<string> _states = [];
