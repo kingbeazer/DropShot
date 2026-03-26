@@ -11,7 +11,7 @@
 
 @inject NavigationManager Nav
 
-<MudDataGrid Items="@copetitions" Filterable="false" SortMode="@SortMode.None" Groupable="false">
+<MudDataGrid Items="@competitions" Filterable="false" SortMode="@SortMode.None" Groupable="false">
     <Columns>
         <PropertyColumn Property="x => x.CompetitionName" />
         <PropertyColumn Property="x => x.CompetitionFormat" />
@@ -30,6 +30,11 @@
     </Columns>
 </MudDataGrid>
 
+@if (_errorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error">@_errorMessage</MudAlert>
+}
+
 <MudButton Size="@Size.Small"
            Variant="@Variant.Filled"
            Color="@Color.Primary"
@@ -38,21 +43,28 @@
 </MudButton>
 
 @code {
-    public IEnumerable<Competition> copetitions;
-    
+    private List<Competition> competitions = [];
+    private string? _errorMessage;
+
     [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        using var dbc = DbFactory.CreateDbContext();
-
-        var comps = dbc.Competition.ToList();
-
-        copetitions = comps.Select(c => new Competition
+        try
         {
-            CompetitionID = c.CompetitionID,
-            CompetitionName = c.CompetitionName,
-            CompetitionFormat = c.CompetitionFormat
-        });
+            await using var dbc = DbFactory.CreateDbContext();
+            competitions = await dbc.Competition
+                .Select(c => new Competition
+                {
+                    CompetitionID = c.CompetitionID,
+                    CompetitionName = c.CompetitionName,
+                    CompetitionFormat = c.CompetitionFormat
+                })
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load competitions: {ex.Message}";
+        }
     }
 }
