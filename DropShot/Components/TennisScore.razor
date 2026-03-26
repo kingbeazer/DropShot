@@ -482,9 +482,14 @@
             dbc.SavedMatch.Add(matchToSave);
         }
 
-        string currentMatchString = JsonConvert.SerializeObject(CurrentMatch);
-        matchToSave.MatchJson = currentMatchString;
+        matchToSave.MatchJson = JsonConvert.SerializeObject(CurrentMatch);
         matchToSave.Complete = CurrentMatch.Complete;
+        matchToSave.Player1 = CurrentMatch.Player1;
+        matchToSave.Player2 = CurrentMatch.Player2;
+        matchToSave.Player3 = CurrentMatch.Player3;
+        matchToSave.Player4 = CurrentMatch.Player4;
+        matchToSave.WinnerName = _state.IsMatchEnded ? _winner : null;
+        if (matchToSave.CreatedAt == default) matchToSave.CreatedAt = DateTime.UtcNow;
         await dbc.SaveChangesAsync();
 
 
