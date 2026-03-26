@@ -43,7 +43,7 @@ namespace DropShot.Migrations
                     b.ToTable("AppSettings");
                 });
 
-            modelBuilder.Entity("DropShot.Components.TennisScore+SavedMatch", b =>
+            modelBuilder.Entity("DropShot.Models.SavedMatch", b =>
                 {
                     b.Property<int>("SavedMatchId")
                         .ValueGeneratedOnAdd()
@@ -55,8 +55,31 @@ namespace DropShot.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("MatchJson")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Player1")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Player2")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Player3")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Player4")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("WinnerName")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.HasKey("SavedMatchId");
 

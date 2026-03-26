@@ -1,8 +1,6 @@
 @page "/league"
 @rendermode InteractiveServer
-@using DropShot.Models
 @using Microsoft.EntityFrameworkCore
-@using Newtonsoft.Json
 @inject IDbContextFactory<DropShot.Data.MyDbContext> DbFactory
 
 <h3>League Table</h3>
@@ -33,45 +31,29 @@
 
     private record PlayerRecord(int Position, string PlayerName, int Played, int Won, int Lost, int Points);
 
-    // Minimal DTO matching the serialized Match structure in SavedMatch.MatchJson
-    private class MatchSummary
-    {
-        public string? Player1 { get; set; }
-        public string? Player2 { get; set; }
-        public List<GameState>? HistoryList { get; set; }
-    }
-
     protected override async Task OnInitializedAsync()
     {
         await using var dbc = DbFactory.CreateDbContext();
-        var savedMatches = await dbc.SavedMatch
-            .Where(m => m.Complete)
+        var matches = await dbc.SavedMatch
+            .Where(m => m.Complete && m.Player1 != null)
+            .Select(m => new { m.Player1, m.Player2, m.WinnerName })
             .ToListAsync();
 
         var stats = new Dictionary<string, (int Played, int Won)>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var sm in savedMatches)
+        foreach (var m in matches)
         {
-            if (string.IsNullOrEmpty(sm.MatchJson)) continue;
-            var match = JsonConvert.DeserializeObject<MatchSummary>(sm.MatchJson);
-            if (match is null) continue;
-
-            var finalState = match.HistoryList?.LastOrDefault();
-            if (finalState is null) continue;
-
-            var players = new[] { match.Player1, match.Player2 }
-                .Where(p => !string.IsNullOrEmpty(p))
-                .ToList();
+            var players = new[] { m.Player1, m.Player2 }
+                .Where(p => !string.IsNullOrEmpty(p));
 
             foreach (var p in players)
             {
-                if (!stats.ContainsKey(p)) stats[p] = (0, 0);
-                stats[p] = (stats[p].Played + 1, stats[p].Won);
+                if (!stats.ContainsKey(p!)) stats[p!] = (0, 0);
+                stats[p!] = (stats[p!].Played + 1, stats[p!].Won);
             }
 
-            var winner = finalState.UserS > finalState.OppS ? match.Player1 : match.Player2;
-            if (!string.IsNullOrEmpty(winner) && stats.ContainsKey(winner))
-                stats[winner] = (stats[winner].Played, stats[winner].Won + 1);
+            if (!string.IsNullOrEmpty(m.WinnerName) && stats.ContainsKey(m.WinnerName))
+                stats[m.WinnerName] = (stats[m.WinnerName].Played, stats[m.WinnerName].Won + 1);
         }
 
         Elements = stats
