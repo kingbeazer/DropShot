@@ -1,4 +1,4 @@
-﻿@using System.ComponentModel.DataAnnotations
+﻿    @using System.ComponentModel.DataAnnotations
 @using DropShot.Models;
 @using DropShot.Data;
 @using Microsoft.AspNetCore.SignalR.Client
@@ -569,8 +569,6 @@
         public int SavedMatchId { get; set; }
         public string MatchJson { get; set; }
         public bool Complete { get; set; }
-
-
     }
 
     [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; }
