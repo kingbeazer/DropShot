@@ -1,5 +1,4 @@
-﻿using DropShot.Components.Pages;
-
+﻿
 namespace DropShot.Models
 {
     public class UserState
