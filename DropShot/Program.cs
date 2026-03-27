@@ -36,6 +36,7 @@ builder.Services.AddScoped<MyDbContext>(sp =>
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<MyDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();

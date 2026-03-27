@@ -1,0 +1,228 @@
+@page "/players"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using DropShot.Models
+@using DropShot.Data
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-4">Players</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+           OnClick="@(() => _showAddDialog = true)" Class="mb-4">
+    Add Player
+</MudButton>
+
+<MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
+    <HeaderContent>
+        <MudTh>Display Name</MudTh>
+        <MudTh>Email</MudTh>
+        <MudTh>Linked Account</MudTh>
+        <AuthorizeView Roles="Admin" Context="auth">
+            <MudTh>Actions</MudTh>
+        </AuthorizeView>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Display Name">@context.Player.DisplayName</MudTd>
+        <MudTd DataLabel="Email">@(context.Player.Email ?? "—")</MudTd>
+        <MudTd DataLabel="Linked Account">
+            @if (context.Player.UserId != null)
+            {
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">@context.LinkedUserName</MudChip>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Style="color: grey;">Not linked</MudText>
+            }
+        </MudTd>
+        <AuthorizeView Roles="Admin" Context="auth">
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => StartEdit(context.Player))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Info"
+                               OnClick="@(() => StartLink(context.Player))"
+                               Title="Link to account" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeletePlayer(context.Player))" />
+            </MudTd>
+        </AuthorizeView>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No players yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@* ── Add Player Dialog ─────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddDialog">
+    <TitleContent>Add Player</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newDisplayName" Label="Display Name" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="_newEmail" Label="Email (optional)" Variant="Variant.Outlined"
+                      InputType="InputType.Email" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddPlayer">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Edit Player Dialog ────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showEditDialog">
+    <TitleContent>Edit Player</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_editDisplayName" Label="Display Name" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="_editEmail" Label="Email (optional)" Variant="Variant.Outlined"
+                      InputType="InputType.Email" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showEditDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveEdit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Link to Account Dialog ────────────────────────────────── *@
+<MudDialog @bind-Visible="_showLinkDialog">
+    <TitleContent>Link "@_linkingPlayer?.DisplayName" to Account</TitleContent>
+    <DialogContent>
+        <MudSelect @bind-Value="_selectedUserId" Label="Select Account" Variant="Variant.Outlined">
+            <MudSelectItem T="string" Value="@null">— Unlink —</MudSelectItem>
+            @foreach (var u in _aspNetUsers)
+            {
+                <MudSelectItem T="string" Value="@u.Id">@u.UserName</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showLinkDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Info" OnClick="SaveLink">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private record PlayerRow(Player Player, string? LinkedUserName);
+
+    private bool _loading = true;
+    private List<PlayerRow> _players = [];
+
+    private bool _showAddDialog;
+    private string _newDisplayName = "";
+    private string? _newEmail;
+
+    private bool _showEditDialog;
+    private Player? _editingPlayer;
+    private string _editDisplayName = "";
+    private string? _editEmail;
+
+    private bool _showLinkDialog;
+    private Player? _linkingPlayer;
+    private string? _selectedUserId;
+    private List<ApplicationUser> _aspNetUsers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPlayers();
+    }
+
+    private async Task LoadPlayers()
+    {
+        _loading = true;
+        await using var dbc = DbFactory.CreateDbContext();
+        var players = await dbc.Players
+            .Include(p => p.User)
+            .OrderBy(p => p.DisplayName)
+            .ToListAsync();
+
+        _players = players
+            .Select(p => new PlayerRow(p, p.User?.UserName))
+            .ToList();
+
+        _loading = false;
+    }
+
+    private async Task AddPlayer()
+    {
+        if (string.IsNullOrWhiteSpace(_newDisplayName)) return;
+
+        await using var dbc = DbFactory.CreateDbContext();
+        dbc.Players.Add(new Player
+        {
+            DisplayName = _newDisplayName.Trim(),
+            Email = string.IsNullOrWhiteSpace(_newEmail) ? null : _newEmail.Trim()
+        });
+        await dbc.SaveChangesAsync();
+
+        _newDisplayName = "";
+        _newEmail = null;
+        _showAddDialog = false;
+        Snackbar.Add($"Player added.", Severity.Success);
+        await LoadPlayers();
+    }
+
+    private void StartEdit(Player player)
+    {
+        _editingPlayer = player;
+        _editDisplayName = player.DisplayName;
+        _editEmail = player.Email;
+        _showEditDialog = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (_editingPlayer == null || string.IsNullOrWhiteSpace(_editDisplayName)) return;
+
+        await using var dbc = DbFactory.CreateDbContext();
+        var p = await dbc.Players.FindAsync(_editingPlayer.PlayerId);
+        if (p == null) return;
+
+        p.DisplayName = _editDisplayName.Trim();
+        p.Email = string.IsNullOrWhiteSpace(_editEmail) ? null : _editEmail.Trim();
+        await dbc.SaveChangesAsync();
+
+        _showEditDialog = false;
+        Snackbar.Add("Player updated.", Severity.Success);
+        await LoadPlayers();
+    }
+
+    private async Task DeletePlayer(Player player)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var p = await dbc.Players.FindAsync(player.PlayerId);
+        if (p != null)
+        {
+            dbc.Players.Remove(p);
+            await dbc.SaveChangesAsync();
+        }
+        Snackbar.Add($"Player deleted.", Severity.Warning);
+        await LoadPlayers();
+    }
+
+    private async Task StartLink(Player player)
+    {
+        _linkingPlayer = player;
+        _selectedUserId = player.UserId;
+
+        await using var dbc = DbFactory.CreateDbContext();
+        _aspNetUsers = await dbc.Users.OrderBy(u => u.UserName).ToListAsync();
+        _showLinkDialog = true;
+    }
+
+    private async Task SaveLink()
+    {
+        if (_linkingPlayer == null) return;
+
+        await using var dbc = DbFactory.CreateDbContext();
+        var p = await dbc.Players.FindAsync(_linkingPlayer.PlayerId);
+        if (p == null) return;
+
+        p.UserId = _selectedUserId;
+        await dbc.SaveChangesAsync();
+
+        _showLinkDialog = false;
+        Snackbar.Add("Account link updated.", Severity.Success);
+        await LoadPlayers();
+    }
+}
