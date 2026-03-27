@@ -472,9 +472,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _states = await DbContext.Users
-            .Select(u => u.UserName)
-            .OrderBy(u => u)
+        _states = await DbContext.Players
+            .OrderBy(p => p.DisplayName)
+            .Select(p => p.DisplayName)
             .ToListAsync();
 
         // using var dbc = DbFactory.CreateDbContext();

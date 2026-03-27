@@ -5,14 +5,12 @@ using Microsoft.EntityFrameworkCore;
 namespace DropShot.Data
 {
     public class MyDbContext(DbContextOptions<MyDbContext> options) : IdentityDbContext<ApplicationUser>(options)
-     
     {
         public DbSet<Competition> Competition { get; set; }
         public DbSet<Score> Score { get; set; }
         public DbSet<SavedMatch> SavedMatch { get; set; }
         public DbSet<AppSetting> AppSettings { get; set; }
-
-        // Add this property to fix CS1061
+        public DbSet<Player> Players { get; set; }
     }
 
     public interface ISettingsService
