@@ -1,4 +1,4 @@
-﻿@page "/competition/{Id:int}"
+@page "/competition/{Id:int}"
 @rendermode InteractiveServer
 
 @using System.ComponentModel.DataAnnotations
@@ -8,209 +8,428 @@
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-4">@(IsEdit ? "Edit Competition" : "New Competition")</MudText>
 
 <MudGrid>
-    <MudItem xs="12" sm="7">
-        <MudPaper Class="pa-4">
-            <MudText Typo="Typo.h6">@((IsEdit ? "Edit Competition" : "New Competition"))</MudText>
+    @* ── Details form ───────────────────────────────────────── *@
+    <MudItem xs="12" md="8">
+        <MudPaper Class="pa-4 mb-4">
+            <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
 
-            <MudForm @ref="form" @bind-IsValid="isValid" @bind-Errors="errors">
-                <MudTextField T="string"
-                              Label="Competition Name"
-                              @bind-Value="Model.CompetitionName"
-                              For="@(() => Model.CompetitionName)"
-                              Required="true"
-                              RequiredError="Competition name is required!"
-                              Immediate="true" />
+            <MudForm @ref="_form" @bind-IsValid="_isValid" @bind-Errors="_errors">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="8">
+                        <MudTextField T="string" Label="Competition Name" @bind-Value="Model.CompetitionName"
+                                      For="@(() => Model.CompetitionName)"
+                                      Required="true" RequiredError="Name is required" Immediate="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect @bind-Value="Model.CompetitionFormat" Label="Format" Variant="Variant.Text">
+                            @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
+                            {
+                                <MudSelectItem Value="@f">@f</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker @bind-Date="Model.StartDateDt" Label="Start Date (optional)" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker @bind-Date="Model.EndDateDt" Label="End Date (optional)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="4">
+                        <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants (optional)"
+                                         Min="2" Variant="Variant.Text" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudNumericField @bind-Value="Model.MaxAge" Label="Max Age (optional)"
+                                         Min="1" Max="120" Variant="Variant.Text" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect @bind-Value="Model.EligibleSex" Label="Eligible Sex" Variant="Variant.Text"
+                                   Clearable="true">
+                            @foreach (PlayerSex s in Enum.GetValues<PlayerSex>())
+                            {
+                                <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)s)">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="Model.HostClubId" Label="Host Club (optional)" Variant="Variant.Text"
+                                   Clearable="true">
+                            @foreach (var c in _clubs)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
+                                   Clearable="true">
+                            @foreach (var r in _rulesSets)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+
+                @if (!string.IsNullOrWhiteSpace(_serverError))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-3">@_serverError</MudAlert>
+                }
 
                 <MudStack Row="true" Spacing="2" Class="mt-4">
-                    <MudButton Color="Color.Primary"
-                               Variant="Variant.Filled"
-                               Disabled = "isSaving"
-                               OnClick="SubmitAsync">
-                        @if (isSaving)
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                               Disabled="@_isSaving" OnClick="SubmitAsync">
+                        @if (_isSaving)
                         {
                             <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
                         }
                         Save
                     </MudButton>
-
-                    <MudButton Color="Color.Default"
-                               Variant="Variant.Outlined"
-                                 OnClick="Cancel"
-                    Disabled = "isSaving">
+                    <MudButton Color="Color.Default" Variant="Variant.Outlined"
+                               Disabled="@_isSaving" OnClick="@(() => Nav.NavigateTo("/Competitions"))">
                         Cancel
                     </MudButton>
                 </MudStack>
             </MudForm>
         </MudPaper>
+
+        @* ── Stages ─────────────────────────────────────────── *@
+        @if (IsEdit)
+        {
+            <MudPaper Class="pa-4 mb-4">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                    <MudText Typo="Typo.h6" Style="flex:1">Stages</MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="OpenAddStageDialog">Add Stage</MudButton>
+                </MudStack>
+
+                <MudTable Items="@_stages" Dense="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Order</MudTh>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Type</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.StageOrder</MudTd>
+                        <MudTd>@context.Name</MudTd>
+                        <MudTd>@context.StageType</MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error" OnClick="@(() => DeleteStage(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent><MudText Typo="Typo.caption">No stages defined.</MudText></NoRecordsContent>
+                </MudTable>
+            </MudPaper>
+
+            @* ── Participants ────────────────────────────────── *@
+            <MudPaper Class="pa-4">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                    <MudText Typo="Typo.h6" Style="flex:1">Participants</MudText>
+                    <MudAutocomplete T="Player" Label="Add player" SearchFunc="SearchPlayers"
+                                     ToStringFunc="@(p => p?.DisplayName ?? "")"
+                                     ValueChanged="AddParticipant" ResetValueOnEmptyText="true"
+                                     Variant="Variant.Outlined" Dense="true" Style="max-width:260px" />
+                </MudStack>
+
+                <MudTable Items="@_participants" Dense="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Player</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Registered</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Player?.DisplayName</MudTd>
+                        <MudTd>
+                            <MudSelect Value="context.Status" Dense="true" Variant="Variant.Text"
+                                       ValueChanged="@((ParticipantStatus s) => UpdateParticipantStatus(context, s))"
+                                       T="ParticipantStatus">
+                                @foreach (ParticipantStatus s in Enum.GetValues<ParticipantStatus>())
+                                {
+                                    <MudSelectItem Value="@s">@s</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudTd>
+                        <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.PersonRemove" Size="Size.Small"
+                                           Color="Color.Error" OnClick="@(() => RemoveParticipant(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent><MudText Typo="Typo.caption">No participants yet.</MudText></NoRecordsContent>
+                </MudTable>
+            </MudPaper>
+        }
     </MudItem>
 
-    <MudItem xs="12" sm="5">
-        <MudPaper Class="pa-4 mud-height-full">
-            <MudText Typo="Typo.subtitle2">@($"Errors ({errors?.Length ?? 0})")</MudText>
-
-            @if (errors is not null && errors.Length > 0)
-            {
+    @* ── Error panel ────────────────────────────────────────── *@
+    <MudItem xs="12" md="4">
+        @if (_errors.Length > 0)
+        {
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.subtitle2">Validation errors</MudText>
                 <MudDivider Class="my-2" />
-                @foreach (var error in errors)
+                @foreach (var e in _errors)
                 {
-                    <MudText Color="@Color.Error">@error</MudText>
+                    <MudText Color="Color.Error">@e</MudText>
                 }
-            }
-
-            @if (!string.IsNullOrWhiteSpace(serverError))
-            {
-                <MudDivider Class="my-2" />
-                <MudAlert Severity="Severity.Error" Dense="true">
-                    @serverError
-                </MudAlert>
-            }
-        </MudPaper>
+            </MudPaper>
+        }
     </MudItem>
 </MudGrid>
 
-@code
-{
+@* ── Add Stage Dialog ──────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showStageDialog">
+    <TitleContent>Add Stage</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_stageForm.Name" Label="Stage Name" Variant="Variant.Outlined"
+                              Required="true" Placeholder="e.g. Group Stage" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudNumericField @bind-Value="_stageForm.StageOrder" Label="Order" Min="1" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSelect @bind-Value="_stageForm.StageType" Label="Type" Variant="Variant.Outlined">
+                    @foreach (StageType t in Enum.GetValues<StageType>())
+                    {
+                        <MudSelectItem Value="@t">@t</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showStageDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveStage">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
     [Parameter] public int Id { get; set; }
 
-    private MudForm? form;
-    private bool isValid;
-    private bool isSaving;
-    private string[] errors = Array.Empty<string>();
-    private string? serverError;
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _isSaving;
+    private string[] _errors = [];
+    private string? _serverError;
     private bool IsEdit => Id != 0;
 
-    // View model with DataAnnotations so MudForm can validate
     private CompetitionFormModel Model { get; set; } = new();
+
+    private List<Club> _clubs = [];
+    private List<RulesSet> _rulesSets = [];
+    private List<CompetitionStage> _stages = [];
+    private List<CompetitionParticipant> _participants = [];
+    private List<Player> _allPlayers = [];
+
+    private bool _showStageDialog;
+    private StageForm _stageForm = new();
+
+    private sealed class CompetitionFormModel
+    {
+        [Required(ErrorMessage = "Competition name is required!")]
+        [StringLength(200, ErrorMessage = "Name must be 200 characters or fewer.")]
+        public string CompetitionName { get; set; } = "";
+        public CompetitionFormat CompetitionFormat { get; set; } = CompetitionFormat.Singles;
+        public int? MaxParticipants { get; set; }
+        public DateTime? StartDateDt { get; set; }
+        public DateTime? EndDateDt { get; set; }
+        public int? MaxAge { get; set; }
+        public PlayerSex? EligibleSex { get; set; }
+        public int? HostClubId { get; set; }
+        public int? RulesSetId { get; set; }
+    }
+
+    private sealed class StageForm
+    {
+        public string Name { get; set; } = "";
+        public int StageOrder { get; set; } = 1;
+        public StageType StageType { get; set; } = StageType.RoundRobin;
+    }
 
     protected override async Task OnParametersSetAsync()
     {
-        serverError = null;
+        _serverError = null;
+        await using var db = DbFactory.CreateDbContext();
+
+        _clubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
+        _rulesSets = await db.RulesSets.OrderBy(r => r.Name).ToListAsync();
+        _allPlayers = await db.Players.OrderBy(p => p.DisplayName).ToListAsync();
 
         if (IsEdit)
         {
-            try
+            var comp = await db.Competition
+                .Include(c => c.Stages.OrderBy(s => s.StageOrder))
+                .Include(c => c.Participants).ThenInclude(p => p.Player)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.CompetitionID == Id);
+
+            if (comp is null) { _serverError = $"Competition {Id} not found."; return; }
+
+            Model = new CompetitionFormModel
             {
-                using var db = DbFactory.CreateDbContext();
-
-                var comp = await db.Competition
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.CompetitionID == Id);
-
-                if (comp is null)
-                {
-                    serverError = $"Competition with ID {Id} was not found.";
-                    return;
-                }
-
-                Model.CompetitionName = comp.CompetitionName;
-            }
-            catch (Exception ex)
-            {
-                serverError = $"Failed to load competition. Details: {ex.Message}";
-            }
+                CompetitionName = comp.CompetitionName,
+                CompetitionFormat = comp.CompetitionFormat,
+                MaxParticipants = comp.MaxParticipants,
+                StartDateDt = comp.StartDate,
+                EndDateDt = comp.EndDate,
+                MaxAge = comp.MaxAge,
+                EligibleSex = comp.EligibleSex,
+                HostClubId = comp.HostClubId,
+                RulesSetId = comp.RulesSetId
+            };
+            _stages = comp.Stages.ToList();
+            _participants = comp.Participants.ToList();
         }
         else
         {
             Model = new CompetitionFormModel();
+            _stages = [];
+            _participants = [];
         }
     }
 
-    private void Cancel() => Nav.NavigateTo("/Competitions");
-
     private async Task SubmitAsync()
     {
-        serverError = null;
+        _serverError = null;
+        if (_form is not null) await _form.Validate();
+        if (!_isValid) return;
 
-        if (form is not null)
-            await form.Validate();
-
-        if (!isValid)
-            return;
-
-        isSaving = true;
-
+        _isSaving = true;
         try
         {
-            using var db = DbFactory.CreateDbContext();
+            await using var db = DbFactory.CreateDbContext();
+            var name = Model.CompetitionName.Trim();
 
-            // Normalize input
-            var normalizedName = (Model.CompetitionName ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(normalizedName))
-            {
-                errors = errors.Concat(new[] { "Competition name cannot be empty." }).ToArray();
-                return;
-            }
-
-            // Duplicate check: case-insensitive & trimmed, exclude current record on edit
-            var normalizedLower = normalizedName.ToLower();
-            var nameExists = await db.Competition
-                .AsNoTracking()
-                .AnyAsync(c =>
-                    c.CompetitionID != Id &&
-                    c.CompetitionName != null &&
-                    c.CompetitionName.Trim().ToLower() == normalizedLower
-                );
-
-            if (nameExists)
-            {
-                serverError = $"A competition named \"{normalizedName}\" already exists.";
-                return;
-            }
+            var nameExists = await db.Competition.AsNoTracking()
+                .AnyAsync(c => c.CompetitionID != Id && c.CompetitionName.Trim().ToLower() == name.ToLower());
+            if (nameExists) { _serverError = $"A competition named \"{name}\" already exists."; return; }
 
             if (IsEdit)
             {
                 var comp = await db.Competition.FirstOrDefaultAsync(c => c.CompetitionID == Id);
-                if (comp is null)
-                {
-                    serverError = $"Competition with ID {Id} no longer exists.";
-                    return;
-                }
-
-                comp.CompetitionName = normalizedName;
+                if (comp is null) { _serverError = "Competition no longer exists."; return; }
+                ApplyModel(comp, name);
                 await db.SaveChangesAsync();
             }
             else
             {
-                var competition = new Competition
-                {
-                    CompetitionName = normalizedName
-                };
-
-                db.Competition.Add(competition);
+                var comp = new Competition();
+                ApplyModel(comp, name);
+                db.Competition.Add(comp);
                 await db.SaveChangesAsync();
             }
 
             Nav.NavigateTo("/Competitions");
         }
-        catch (DbUpdateException ex)
-        {
-            serverError = "A database error occurred while saving. Please try again.";
-            AppendDetail(ex);
-        }
-        catch (Exception ex)
-        {
-            serverError = "An unexpected error occurred.";
-            AppendDetail(ex);
-        }
-        finally
-        {
-            isSaving = false;
-        }
+        catch (DbUpdateException ex) { _serverError = "Database error: " + ex.InnerException?.Message ?? ex.Message; }
+        catch (Exception ex) { _serverError = ex.Message; }
+        finally { _isSaving = false; }
     }
 
-    private void AppendDetail(Exception ex)
+    private void ApplyModel(Competition comp, string name)
     {
-        // Enrich error panel with details (optional in production)
-        errors = (errors ?? Array.Empty<string>()).Concat(new[] { ex.Message }).ToArray();
-        StateHasChanged();
+        comp.CompetitionName = name;
+        comp.CompetitionFormat = Model.CompetitionFormat;
+        comp.MaxParticipants = Model.MaxParticipants;
+        comp.StartDate = Model.StartDateDt;
+        comp.EndDate = Model.EndDateDt;
+        comp.MaxAge = Model.MaxAge;
+        comp.EligibleSex = Model.EligibleSex;
+        comp.HostClubId = Model.HostClubId;
+        comp.RulesSetId = Model.RulesSetId;
     }
 
-    private sealed class CompetitionFormModel
+    // ── Stages ──────────────────────────────────────────────────────────────
+
+    private void OpenAddStageDialog()
     {
-        [Required(ErrorMessage = "Competition name is required!")]
-        [StringLength(200, ErrorMessage = "Competition name must be 200 characters or fewer.")]
-        public string CompetitionName { get; set; } = string.Empty;
+        _stageForm = new StageForm { StageOrder = _stages.Count + 1 };
+        _showStageDialog = true;
+    }
+
+    private async Task SaveStage()
+    {
+        if (string.IsNullOrWhiteSpace(_stageForm.Name)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var stage = new CompetitionStage
+        {
+            CompetitionId = Id,
+            Name = _stageForm.Name.Trim(),
+            StageOrder = _stageForm.StageOrder,
+            StageType = _stageForm.StageType
+        };
+        db.CompetitionStages.Add(stage);
+        await db.SaveChangesAsync();
+        _stages.Add(stage);
+        _showStageDialog = false;
+        Snackbar.Add("Stage added.", Severity.Success);
+    }
+
+    private async Task DeleteStage(CompetitionStage stage)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var s = await db.CompetitionStages.FindAsync(stage.CompetitionStageId);
+        if (s != null) { db.CompetitionStages.Remove(s); await db.SaveChangesAsync(); }
+        _stages.Remove(stage);
+        Snackbar.Add("Stage removed.", Severity.Warning);
+    }
+
+    // ── Participants ─────────────────────────────────────────────────────────
+
+    private Task<IEnumerable<Player>> SearchPlayers(string text, CancellationToken ct)
+    {
+        var alreadyIn = _participants.Select(p => p.PlayerId).ToHashSet();
+        var results = _allPlayers
+            .Where(p => !alreadyIn.Contains(p.PlayerId) &&
+                        (string.IsNullOrWhiteSpace(text) || p.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)))
+            .Take(10);
+        return Task.FromResult(results);
+    }
+
+    private async Task AddParticipant(Player player)
+    {
+        if (player == null || _participants.Any(p => p.PlayerId == player.PlayerId)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var cp = new CompetitionParticipant
+        {
+            CompetitionId = Id,
+            PlayerId = player.PlayerId,
+            RegisteredAt = DateTime.UtcNow,
+            Status = ParticipantStatus.Registered
+        };
+        db.CompetitionParticipants.Add(cp);
+        await db.SaveChangesAsync();
+        cp.Player = player;
+        _participants.Add(cp);
+        Snackbar.Add($"{player.DisplayName} added.", Severity.Success);
+    }
+
+    private async Task UpdateParticipantStatus(CompetitionParticipant cp, ParticipantStatus status)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var row = await db.CompetitionParticipants.FindAsync(cp.CompetitionId, cp.PlayerId);
+        if (row != null) { row.Status = status; await db.SaveChangesAsync(); }
+    }
+
+    private async Task RemoveParticipant(CompetitionParticipant cp)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var row = await db.CompetitionParticipants.FindAsync(cp.CompetitionId, cp.PlayerId);
+        if (row != null) { db.CompetitionParticipants.Remove(row); await db.SaveChangesAsync(); }
+        _participants.Remove(cp);
+        Snackbar.Add("Participant removed.", Severity.Warning);
     }
 }

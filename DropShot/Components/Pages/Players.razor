@@ -11,14 +11,17 @@
 <MudText Typo="Typo.h4" Class="mb-4">Players</MudText>
 
 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
-           OnClick="@(() => _showAddDialog = true)" Class="mb-4">
+           OnClick="@(() => OpenAddDialog())" Class="mb-4">
     Add Player
 </MudButton>
 
 <MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
     <HeaderContent>
         <MudTh>Display Name</MudTh>
+        <MudTh>Name</MudTh>
         <MudTh>Email</MudTh>
+        <MudTh>Date of Birth</MudTh>
+        <MudTh>Sex</MudTh>
         <MudTh>Linked Account</MudTh>
         <AuthorizeView Roles="Admin" Context="auth">
             <MudTh>Actions</MudTh>
@@ -26,7 +29,10 @@
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Display Name">@context.Player.DisplayName</MudTd>
+        <MudTd DataLabel="Name">@(FullName(context.Player))</MudTd>
         <MudTd DataLabel="Email">@(context.Player.Email ?? "—")</MudTd>
+        <MudTd DataLabel="Date of Birth">@(context.Player.DateOfBirth?.ToString("dd MMM yyyy") ?? "—")</MudTd>
+        <MudTd DataLabel="Sex">@(context.Player.Sex?.ToString() ?? "—")</MudTd>
         <MudTd DataLabel="Linked Account">
             @if (context.Player.UserId != null)
             {
@@ -58,10 +64,38 @@
 <MudDialog @bind-Visible="_showAddDialog">
     <TitleContent>Add Player</TitleContent>
     <DialogContent>
-        <MudTextField @bind-Value="_newDisplayName" Label="Display Name" Variant="Variant.Outlined"
-                      Required="true" Class="mb-3" />
-        <MudTextField @bind-Value="_newEmail" Label="Email (optional)" Variant="Variant.Outlined"
-                      InputType="InputType.Email" />
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.DisplayName" Label="Display Name" Variant="Variant.Outlined"
+                              Required="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.FirstName" Label="First Name" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Email" Label="Email (optional)" Variant="Variant.Outlined"
+                              InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudDatePicker @bind-Date="_form.DateOfBirthDt" Label="Date of Birth" Variant="Variant.Outlined"
+                               MaxDate="@DateTime.Today" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSelect @bind-Value="_form.Sex" Label="Sex" Variant="Variant.Outlined" Clearable="true">
+                    @foreach (PlayerSex s in Enum.GetValues<PlayerSex>())
+                    {
+                        <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)s)">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.ContactPreferences" Label="Contact Preferences (optional)"
+                              Variant="Variant.Outlined" Placeholder="e.g. Email, SMS" />
+            </MudItem>
+        </MudGrid>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => _showAddDialog = false)">Cancel</MudButton>
@@ -73,10 +107,38 @@
 <MudDialog @bind-Visible="_showEditDialog">
     <TitleContent>Edit Player</TitleContent>
     <DialogContent>
-        <MudTextField @bind-Value="_editDisplayName" Label="Display Name" Variant="Variant.Outlined"
-                      Required="true" Class="mb-3" />
-        <MudTextField @bind-Value="_editEmail" Label="Email (optional)" Variant="Variant.Outlined"
-                      InputType="InputType.Email" />
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.DisplayName" Label="Display Name" Variant="Variant.Outlined"
+                              Required="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.FirstName" Label="First Name" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Email" Label="Email (optional)" Variant="Variant.Outlined"
+                              InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudDatePicker @bind-Date="_form.DateOfBirthDt" Label="Date of Birth" Variant="Variant.Outlined"
+                               MaxDate="@DateTime.Today" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSelect @bind-Value="_form.Sex" Label="Sex" Variant="Variant.Outlined" Clearable="true">
+                    @foreach (PlayerSex s in Enum.GetValues<PlayerSex>())
+                    {
+                        <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)s)">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.ContactPreferences" Label="Contact Preferences (optional)"
+                              Variant="Variant.Outlined" Placeholder="e.g. Email, SMS" />
+            </MudItem>
+        </MudGrid>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => _showEditDialog = false)">Cancel</MudButton>
@@ -109,23 +171,35 @@
     private List<PlayerRow> _players = [];
 
     private bool _showAddDialog;
-    private string _newDisplayName = "";
-    private string? _newEmail;
-
     private bool _showEditDialog;
     private Player? _editingPlayer;
-    private string _editDisplayName = "";
-    private string? _editEmail;
+
+    private PlayerForm _form = new();
 
     private bool _showLinkDialog;
     private Player? _linkingPlayer;
     private string? _selectedUserId;
     private List<ApplicationUser> _aspNetUsers = [];
 
-    protected override async Task OnInitializedAsync()
+    private sealed class PlayerForm
     {
-        await LoadPlayers();
+        public string DisplayName { get; set; } = "";
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Email { get; set; }
+        public DateTime? DateOfBirthDt { get; set; }
+        public PlayerSex? Sex { get; set; }
+        public string? ContactPreferences { get; set; }
+
+        public DateOnly? DateOfBirth => DateOfBirthDt.HasValue
+            ? DateOnly.FromDateTime(DateOfBirthDt.Value)
+            : null;
     }
+
+    private static string FullName(Player p) =>
+        string.Join(" ", new[] { p.FirstName, p.LastName }.Where(s => !string.IsNullOrWhiteSpace(s))) is { Length: > 0 } n ? n : "—";
+
+    protected override async Task OnInitializedAsync() => await LoadPlayers();
 
     private async Task LoadPlayers()
     {
@@ -136,50 +210,69 @@
             .OrderBy(p => p.DisplayName)
             .ToListAsync();
 
-        _players = players
-            .Select(p => new PlayerRow(p, p.User?.UserName))
-            .ToList();
-
+        _players = players.Select(p => new PlayerRow(p, p.User?.UserName)).ToList();
         _loading = false;
+    }
+
+    private void OpenAddDialog()
+    {
+        _form = new PlayerForm();
+        _showAddDialog = true;
     }
 
     private async Task AddPlayer()
     {
-        if (string.IsNullOrWhiteSpace(_newDisplayName)) return;
+        if (string.IsNullOrWhiteSpace(_form.DisplayName)) return;
 
         await using var dbc = DbFactory.CreateDbContext();
         dbc.Players.Add(new Player
         {
-            DisplayName = _newDisplayName.Trim(),
-            Email = string.IsNullOrWhiteSpace(_newEmail) ? null : _newEmail.Trim()
+            DisplayName = _form.DisplayName.Trim(),
+            FirstName = NullIfEmpty(_form.FirstName),
+            LastName = NullIfEmpty(_form.LastName),
+            Email = NullIfEmpty(_form.Email),
+            DateOfBirth = _form.DateOfBirth,
+            Sex = _form.Sex,
+            ContactPreferences = NullIfEmpty(_form.ContactPreferences)
         });
         await dbc.SaveChangesAsync();
 
-        _newDisplayName = "";
-        _newEmail = null;
         _showAddDialog = false;
-        Snackbar.Add($"Player added.", Severity.Success);
+        Snackbar.Add("Player added.", Severity.Success);
         await LoadPlayers();
     }
 
     private void StartEdit(Player player)
     {
         _editingPlayer = player;
-        _editDisplayName = player.DisplayName;
-        _editEmail = player.Email;
+        _form = new PlayerForm
+        {
+            DisplayName = player.DisplayName,
+            FirstName = player.FirstName,
+            LastName = player.LastName,
+            Email = player.Email,
+            DateOfBirthDt = player.DateOfBirth?.ToDateTime(TimeOnly.MinValue),
+            Sex = player.Sex,
+            ContactPreferences = player.ContactPreferences
+        };
         _showEditDialog = true;
     }
 
     private async Task SaveEdit()
     {
-        if (_editingPlayer == null || string.IsNullOrWhiteSpace(_editDisplayName)) return;
+        if (_editingPlayer == null || string.IsNullOrWhiteSpace(_form.DisplayName)) return;
 
         await using var dbc = DbFactory.CreateDbContext();
         var p = await dbc.Players.FindAsync(_editingPlayer.PlayerId);
         if (p == null) return;
 
-        p.DisplayName = _editDisplayName.Trim();
-        p.Email = string.IsNullOrWhiteSpace(_editEmail) ? null : _editEmail.Trim();
+        p.DisplayName = _form.DisplayName.Trim();
+        p.FirstName = NullIfEmpty(_form.FirstName);
+        p.LastName = NullIfEmpty(_form.LastName);
+        p.Email = NullIfEmpty(_form.Email);
+        p.DateOfBirth = _form.DateOfBirth;
+        p.Sex = _form.Sex;
+        p.ContactPreferences = NullIfEmpty(_form.ContactPreferences);
         await dbc.SaveChangesAsync();
 
         _showEditDialog = false;
@@ -196,7 +289,7 @@
             dbc.Players.Remove(p);
             await dbc.SaveChangesAsync();
         }
-        Snackbar.Add($"Player deleted.", Severity.Warning);
+        Snackbar.Add("Player deleted.", Severity.Warning);
         await LoadPlayers();
     }
 
@@ -204,7 +297,6 @@
     {
         _linkingPlayer = player;
         _selectedUserId = player.UserId;
-
         await using var dbc = DbFactory.CreateDbContext();
         _aspNetUsers = await dbc.Users.OrderBy(u => u.UserName).ToListAsync();
         _showLinkDialog = true;
@@ -213,16 +305,16 @@
     private async Task SaveLink()
     {
         if (_linkingPlayer == null) return;
-
         await using var dbc = DbFactory.CreateDbContext();
         var p = await dbc.Players.FindAsync(_linkingPlayer.PlayerId);
         if (p == null) return;
-
         p.UserId = _selectedUserId;
         await dbc.SaveChangesAsync();
-
         _showLinkDialog = false;
         Snackbar.Add("Account link updated.", Severity.Success);
         await LoadPlayers();
     }
+
+    private static string? NullIfEmpty(string? s) =>
+        string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 }

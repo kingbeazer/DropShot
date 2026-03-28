@@ -11,6 +11,224 @@ namespace DropShot.Data
         public DbSet<SavedMatch> SavedMatch { get; set; }
         public DbSet<AppSetting> AppSettings { get; set; }
         public DbSet<Player> Players { get; set; }
+
+        public DbSet<RulesSet> RulesSets { get; set; }
+        public DbSet<RulesSetItem> RulesSetItems { get; set; }
+        public DbSet<Club> Clubs { get; set; }
+        public DbSet<Court> Courts { get; set; }
+        public DbSet<ClubMember> ClubMembers { get; set; }
+        public DbSet<CompetitionParticipant> CompetitionParticipants { get; set; }
+        public DbSet<CompetitionStage> CompetitionStages { get; set; }
+        public DbSet<CompetitionFixture> CompetitionFixtures { get; set; }
+        public DbSet<ClubLadder> ClubLadders { get; set; }
+        public DbSet<LadderEntry> LadderEntries { get; set; }
+        public DbSet<PlayerFriend> PlayerFriends { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+
+            // ── Player ──────────────────────────────────────────────────────────
+            builder.Entity<Player>(entity =>
+            {
+                entity.Property(p => p.DisplayName).HasMaxLength(100).IsRequired();
+                entity.Property(p => p.Email).HasMaxLength(256);
+                entity.Property(p => p.FirstName).HasMaxLength(100);
+                entity.Property(p => p.LastName).HasMaxLength(100);
+                entity.Property(p => p.ProfileImagePath).HasMaxLength(500);
+                entity.Property(p => p.ContactPreferences).HasMaxLength(50);
+                entity.Property(p => p.Sex).HasConversion<byte?>();
+
+                entity.HasOne(p => p.User)
+                      .WithMany()
+                      .HasForeignKey(p => p.UserId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── Competition ──────────────────────────────────────────────────────
+            builder.Entity<Competition>(entity =>
+            {
+                entity.Property(c => c.CompetitionName).HasMaxLength(200).IsRequired();
+                entity.Property(c => c.EligibleSex).HasConversion<byte?>();
+
+                entity.HasOne(c => c.Rules)
+                      .WithMany(r => r.Competitions)
+                      .HasForeignKey(c => c.RulesSetId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(c => c.HostClub)
+                      .WithMany(cl => cl.Competitions)
+                      .HasForeignKey(c => c.HostClubId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── RulesSet / RulesSetItem ──────────────────────────────────────────
+            builder.Entity<RulesSet>(entity =>
+            {
+                entity.Property(r => r.Name).HasMaxLength(200).IsRequired();
+            });
+
+            builder.Entity<RulesSetItem>(entity =>
+            {
+                entity.Property(i => i.RuleText).HasMaxLength(500).IsRequired();
+
+                entity.HasOne(i => i.RulesSet)
+                      .WithMany(r => r.Items)
+                      .HasForeignKey(i => i.RulesSetId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── Club / Court ─────────────────────────────────────────────────────
+            builder.Entity<Club>(entity =>
+            {
+                entity.Property(c => c.Name).HasMaxLength(200).IsRequired();
+                entity.Property(c => c.AddressLine1).HasMaxLength(200);
+                entity.Property(c => c.AddressLine2).HasMaxLength(200);
+                entity.Property(c => c.Town).HasMaxLength(100);
+                entity.Property(c => c.Postcode).HasMaxLength(20);
+                entity.Property(c => c.Phone).HasMaxLength(50);
+                entity.Property(c => c.Email).HasMaxLength(256);
+                entity.Property(c => c.Website).HasMaxLength(500);
+            });
+
+            builder.Entity<Court>(entity =>
+            {
+                entity.Property(c => c.Name).HasMaxLength(100).IsRequired();
+                entity.Property(c => c.Surface).HasConversion<byte>();
+
+                entity.HasOne(c => c.Club)
+                      .WithMany(cl => cl.Courts)
+                      .HasForeignKey(c => c.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── ClubMember ───────────────────────────────────────────────────────
+            builder.Entity<ClubMember>(entity =>
+            {
+                entity.HasKey(cm => new { cm.ClubId, cm.PlayerId });
+
+                entity.HasOne(cm => cm.Club)
+                      .WithMany(c => c.Members)
+                      .HasForeignKey(cm => cm.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(cm => cm.Player)
+                      .WithMany(p => p.ClubMemberships)
+                      .HasForeignKey(cm => cm.PlayerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── CompetitionParticipant ───────────────────────────────────────────
+            builder.Entity<CompetitionParticipant>(entity =>
+            {
+                entity.HasKey(cp => new { cp.CompetitionId, cp.PlayerId });
+                entity.Property(cp => cp.Status).HasConversion<byte>();
+
+                entity.HasOne(cp => cp.Competition)
+                      .WithMany(c => c.Participants)
+                      .HasForeignKey(cp => cp.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(cp => cp.Player)
+                      .WithMany(p => p.CompetitionParticipants)
+                      .HasForeignKey(cp => cp.PlayerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── CompetitionStage ─────────────────────────────────────────────────
+            builder.Entity<CompetitionStage>(entity =>
+            {
+                entity.Property(s => s.Name).HasMaxLength(100).IsRequired();
+                entity.Property(s => s.StageType).HasConversion<byte>();
+
+                entity.HasOne(s => s.Competition)
+                      .WithMany(c => c.Stages)
+                      .HasForeignKey(s => s.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── CompetitionFixture ───────────────────────────────────────────────
+            builder.Entity<CompetitionFixture>(entity =>
+            {
+                entity.Property(f => f.Status).HasConversion<byte>();
+                entity.Property(f => f.ResultSummary).HasMaxLength(200);
+
+                entity.HasOne(f => f.Competition)
+                      .WithMany(c => c.Fixtures)
+                      .HasForeignKey(f => f.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(f => f.Stage)
+                      .WithMany(s => s.Fixtures)
+                      .HasForeignKey(f => f.CompetitionStageId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(f => f.Court)
+                      .WithMany(c => c.Fixtures)
+                      .HasForeignKey(f => f.CourtId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                // Multiple FKs to Player — all must be Restrict to avoid multi-cascade-path error
+                entity.HasOne(f => f.Player1).WithMany().HasForeignKey(f => f.Player1Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(f => f.Player2).WithMany().HasForeignKey(f => f.Player2Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(f => f.Player3).WithMany().HasForeignKey(f => f.Player3Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(f => f.Player4).WithMany().HasForeignKey(f => f.Player4Id).OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(f => f.SavedMatch)
+                      .WithMany()
+                      .HasForeignKey(f => f.SavedMatchId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── PlayerFriend (self-referential) ──────────────────────────────────
+            builder.Entity<PlayerFriend>(entity =>
+            {
+                entity.HasKey(pf => new { pf.PlayerId, pf.FriendPlayerId });
+                entity.Property(pf => pf.Status).HasConversion<byte>();
+
+                // Both sides Restrict — SQL Server cannot cascade on self-referential tables
+                entity.HasOne(pf => pf.Player)
+                      .WithMany(p => p.Friends)
+                      .HasForeignKey(pf => pf.PlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(pf => pf.Friend)
+                      .WithMany(p => p.FriendOf)
+                      .HasForeignKey(pf => pf.FriendPlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── ClubLadder / LadderEntry ─────────────────────────────────────────
+            builder.Entity<ClubLadder>(entity =>
+            {
+                entity.Property(l => l.Name).HasMaxLength(200).IsRequired();
+
+                entity.HasOne(l => l.Club)
+                      .WithMany(c => c.Ladders)
+                      .HasForeignKey(l => l.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(l => l.Rules)
+                      .WithMany(r => r.Ladders)
+                      .HasForeignKey(l => l.RulesSetId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<LadderEntry>(entity =>
+            {
+                entity.HasIndex(le => new { le.ClubLadderId, le.PlayerId }).IsUnique();
+
+                entity.HasOne(le => le.Ladder)
+                      .WithMany(l => l.Entries)
+                      .HasForeignKey(le => le.ClubLadderId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(le => le.Player)
+                      .WithMany()
+                      .HasForeignKey(le => le.PlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+        }
     }
 
     public interface ISettingsService

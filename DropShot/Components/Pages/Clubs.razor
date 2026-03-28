@@ -1,0 +1,287 @@
+@page "/clubs"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using DropShot.Models
+@using DropShot.Data
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-4">Clubs</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+           OnClick="OpenAddDialog" Class="mb-4">
+    Add Club
+</MudButton>
+
+<MudTable Items="@_clubs" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Town</MudTh>
+        <MudTh>Email</MudTh>
+        <MudTh>Courts</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Town">@(context.Town ?? "—")</MudTd>
+        <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
+        <MudTd DataLabel="Courts">@context.Courts.Count</MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => StartEdit(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Info"
+                           Title="Manage courts" OnClick="@(() => OpenCourts(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           OnClick="@(() => DeleteClub(context))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No clubs yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@* ── Add/Edit Club Dialog ──────────────────────────────────── *@
+<MudDialog @bind-Visible="_showClubDialog">
+    <TitleContent>@(_editingClub == null ? "Add Club" : "Edit Club")</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_clubForm.Name" Label="Club Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_clubForm.AddressLine1" Label="Address Line 1" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_clubForm.AddressLine2" Label="Address Line 2" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_clubForm.Town" Label="Town" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_clubForm.Postcode" Label="Postcode" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_clubForm.Phone" Label="Phone" Variant="Variant.Outlined"
+                              InputType="InputType.Telephone" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_clubForm.Email" Label="Email" Variant="Variant.Outlined"
+                              InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_clubForm.Website" Label="Website" Variant="Variant.Outlined"
+                              InputType="InputType.Url" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showClubDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveClub">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Manage Courts Dialog ──────────────────────────────────── *@
+<MudDialog @bind-Visible="_showCourtsDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>Courts – @(_courtsClub?.Name)</TitleContent>
+    <DialogContent>
+        @* Add court row *@
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="4">
+                <MudTextField @bind-Value="_courtForm.Name" Label="Court Name" Variant="Variant.Outlined"
+                              Placeholder="e.g. Court 1" Dense="true" />
+            </MudItem>
+            <MudItem xs="3">
+                <MudSelect @bind-Value="_courtForm.Surface" Label="Surface" Variant="Variant.Outlined" Dense="true">
+                    @foreach (CourtSurface s in Enum.GetValues<CourtSurface>())
+                    {
+                        <MudSelectItem Value="@s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="3">
+                <MudCheckBox @bind-Value="_courtForm.IsIndoor" Label="Indoor" />
+            </MudItem>
+            <MudItem xs="2" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           OnClick="AddCourt">Add</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        <MudTable Items="@_courts" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Surface</MudTh>
+                <MudTh>Indoor</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@context.Surface</MudTd>
+                <MudTd><MudIcon Icon="@(context.IsIndoor ? Icons.Material.Filled.CheckBox : Icons.Material.Filled.CheckBoxOutlineBlank)" Size="Size.Small" /></MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteCourt(context))" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Typo="Typo.caption">No courts yet.</MudText></NoRecordsContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showCourtsDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private List<Club> _clubs = [];
+
+    private bool _showClubDialog;
+    private Club? _editingClub;
+    private ClubForm _clubForm = new();
+
+    private bool _showCourtsDialog;
+    private Club? _courtsClub;
+    private List<Court> _courts = [];
+    private CourtForm _courtForm = new();
+
+    private sealed class ClubForm
+    {
+        public string Name { get; set; } = "";
+        public string? AddressLine1 { get; set; }
+        public string? AddressLine2 { get; set; }
+        public string? Town { get; set; }
+        public string? Postcode { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string? Website { get; set; }
+    }
+
+    private sealed class CourtForm
+    {
+        public string Name { get; set; } = "";
+        public CourtSurface Surface { get; set; } = CourtSurface.Hard;
+        public bool IsIndoor { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadClubs();
+
+    private async Task LoadClubs()
+    {
+        _loading = true;
+        await using var dbc = DbFactory.CreateDbContext();
+        _clubs = await dbc.Clubs.Include(c => c.Courts).OrderBy(c => c.Name).ToListAsync();
+        _loading = false;
+    }
+
+    private void OpenAddDialog()
+    {
+        _editingClub = null;
+        _clubForm = new ClubForm();
+        _showClubDialog = true;
+    }
+
+    private void StartEdit(Club club)
+    {
+        _editingClub = club;
+        _clubForm = new ClubForm
+        {
+            Name = club.Name,
+            AddressLine1 = club.AddressLine1,
+            AddressLine2 = club.AddressLine2,
+            Town = club.Town,
+            Postcode = club.Postcode,
+            Phone = club.Phone,
+            Email = club.Email,
+            Website = club.Website
+        };
+        _showClubDialog = true;
+    }
+
+    private async Task SaveClub()
+    {
+        if (string.IsNullOrWhiteSpace(_clubForm.Name)) return;
+
+        await using var dbc = DbFactory.CreateDbContext();
+
+        if (_editingClub == null)
+        {
+            dbc.Clubs.Add(BuildClub(new Club()));
+            Snackbar.Add("Club added.", Severity.Success);
+        }
+        else
+        {
+            var c = await dbc.Clubs.FindAsync(_editingClub.ClubId);
+            if (c == null) return;
+            BuildClub(c);
+            Snackbar.Add("Club updated.", Severity.Success);
+        }
+
+        await dbc.SaveChangesAsync();
+        _showClubDialog = false;
+        await LoadClubs();
+    }
+
+    private Club BuildClub(Club c)
+    {
+        c.Name = _clubForm.Name.Trim();
+        c.AddressLine1 = NullIfEmpty(_clubForm.AddressLine1);
+        c.AddressLine2 = NullIfEmpty(_clubForm.AddressLine2);
+        c.Town = NullIfEmpty(_clubForm.Town);
+        c.Postcode = NullIfEmpty(_clubForm.Postcode);
+        c.Phone = NullIfEmpty(_clubForm.Phone);
+        c.Email = NullIfEmpty(_clubForm.Email);
+        c.Website = NullIfEmpty(_clubForm.Website);
+        return c;
+    }
+
+    private async Task DeleteClub(Club club)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var c = await dbc.Clubs.FindAsync(club.ClubId);
+        if (c != null) { dbc.Clubs.Remove(c); await dbc.SaveChangesAsync(); }
+        Snackbar.Add("Club deleted.", Severity.Warning);
+        await LoadClubs();
+    }
+
+    private async Task OpenCourts(Club club)
+    {
+        _courtsClub = club;
+        _courtForm = new CourtForm();
+        await using var dbc = DbFactory.CreateDbContext();
+        _courts = await dbc.Courts.Where(c => c.ClubId == club.ClubId).OrderBy(c => c.Name).ToListAsync();
+        _showCourtsDialog = true;
+    }
+
+    private async Task AddCourt()
+    {
+        if (_courtsClub == null || string.IsNullOrWhiteSpace(_courtForm.Name)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        var court = new Court
+        {
+            ClubId = _courtsClub.ClubId,
+            Name = _courtForm.Name.Trim(),
+            Surface = _courtForm.Surface,
+            IsIndoor = _courtForm.IsIndoor
+        };
+        dbc.Courts.Add(court);
+        await dbc.SaveChangesAsync();
+        _courts.Add(court);
+        _courtForm = new CourtForm();
+        Snackbar.Add("Court added.", Severity.Success);
+        await LoadClubs();
+    }
+
+    private async Task DeleteCourt(Court court)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var c = await dbc.Courts.FindAsync(court.CourtId);
+        if (c != null) { dbc.Courts.Remove(c); await dbc.SaveChangesAsync(); }
+        _courts.Remove(court);
+        Snackbar.Add("Court removed.", Severity.Warning);
+        await LoadClubs();
+    }
+
+    private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}

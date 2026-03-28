@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -7,17 +7,6 @@
     <UserSecretsId>aspnet-DropShot-ffb5c9e5-dd8a-4f43-8296-4cc4f7015b29</UserSecretsId>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="wwwroot\bootstrap\**" />
-    <Content Remove="wwwroot\bootstrap\**" />
-    <EmbeddedResource Remove="wwwroot\bootstrap\**" />
-    <None Remove="wwwroot\bootstrap\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Remove="wwwroot\app.css" />
-  </ItemGroup>
- 
   <ItemGroup>
     <PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.22" />
@@ -28,11 +17,11 @@
     <PackageReference Include="MudBlazor" Version="8.15.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
- 
+
   <ItemGroup>
     <Folder Include="wwwroot\Images\" />
   </ItemGroup>
- 
+
   <ItemGroup>
     <None Include="wwwroot\Images\me.png" />
   </ItemGroup>
