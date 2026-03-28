@@ -1,0 +1,168 @@
+@page "/players"
+@attribute [Authorize]
+@inject ApiService Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<MudText Typo="Typo.h5" Class="mb-4">Players</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+        <MudTextField @bind-Value="_search" Placeholder="Search players…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" Clearable="true" Variant="Variant.Outlined"
+                      Class="flex-grow-1" />
+        @if (Auth.IsAdmin)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
+                       Color="Color.Primary" OnClick="OpenAddDialog">Add Player</MudButton>
+        }
+    </MudStack>
+
+    <MudTable Items="FilteredPlayers" Dense="true" Hover="true" Striped="true" Elevation="2">
+        <HeaderContent>
+            <MudTh>Display Name</MudTh>
+            <MudTh>Full Name</MudTh>
+            <MudTh>DOB</MudTh>
+            <MudTh>Sex</MudTh>
+            @if (Auth.IsAdmin)
+            {
+                <MudTh></MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.DisplayName</MudTd>
+            <MudTd>@($"{context.FirstName} {context.LastName}".Trim())</MudTd>
+            <MudTd>@(context.DateOfBirth?.ToString("dd MMM yyyy") ?? "—")</MudTd>
+            <MudTd>@(context.Sex?.ToString() ?? "—")</MudTd>
+            @if (Auth.IsAdmin)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="@(() => DeleteAsync(context))" />
+                </MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<PlayerDto>? _players;
+    private bool _loading = true;
+    private string? _error;
+    private string _search = "";
+
+    private IEnumerable<PlayerDto> FilteredPlayers => _players is null
+        ? []
+        : _players.Where(p => string.IsNullOrWhiteSpace(_search)
+            || p.DisplayName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || ($"{p.FirstName} {p.LastName}").Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _players = await Api.GetPlayersAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var dialog = await Dialog.ShowAsync<PlayerDialog>("Add Player");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: PlayerFormModel model })
+            await CreatePlayerAsync(model);
+    }
+
+    private async Task OpenEditDialog(PlayerDto player)
+    {
+        var parameters = new DialogParameters<PlayerDialog>
+        {
+            { x => x.Model, PlayerFormModel.From(player) },
+            { x => x.PlayerId, player.PlayerId }
+        };
+        var dialog = await Dialog.ShowAsync<PlayerDialog>("Edit Player", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: PlayerFormModel model })
+            await UpdatePlayerAsync(player.PlayerId, model);
+    }
+
+    private async Task CreatePlayerAsync(PlayerFormModel model)
+    {
+        try
+        {
+            var dto = await Api.CreatePlayerAsync(new CreatePlayerRequest(
+                model.DisplayName, model.FirstName, model.LastName, model.Email,
+                model.DateOfBirth.HasValue ? DateOnly.FromDateTime(model.DateOfBirth.Value) : null,
+                model.Sex, model.ContactPreferences));
+            if (dto is not null) _players?.Add(dto);
+            Snackbar.Add("Player created.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task UpdatePlayerAsync(int id, PlayerFormModel model)
+    {
+        try
+        {
+            var dto = await Api.UpdatePlayerAsync(id, new UpdatePlayerRequest(
+                model.DisplayName, model.FirstName, model.LastName, model.Email,
+                model.DateOfBirth.HasValue ? DateOnly.FromDateTime(model.DateOfBirth.Value) : null,
+                model.Sex, model.ContactPreferences));
+            if (dto is not null)
+            {
+                var idx = _players?.FindIndex(p => p.PlayerId == id) ?? -1;
+                if (idx >= 0) _players![idx] = dto;
+            }
+            Snackbar.Add("Player updated.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync(PlayerDto player)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "Delete Player",
+            $"Delete {player.DisplayName}? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        try
+        {
+            await Api.DeletePlayerAsync(player.PlayerId);
+            _players?.Remove(player);
+            Snackbar.Add("Player deleted.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

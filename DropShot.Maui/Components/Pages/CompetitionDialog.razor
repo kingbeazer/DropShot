@@ -1,0 +1,81 @@
+@inject ApiService Api
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="Model.CompetitionName" Label="Competition Name"
+                          Variant="Variant.Outlined" Required="true" />
+
+            <MudSelect @bind-Value="Model.CompetitionFormat" Label="Format"
+                       Variant="Variant.Outlined" T="CompetitionFormat">
+                @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
+                {
+                    <MudSelectItem Value="f">@f</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants"
+                             Variant="Variant.Outlined" Min="2" />
+
+            <MudDatePicker @bind-Date="Model.StartDate" Label="Start Date"
+                           Variant="Variant.Outlined" Editable="true" DateFormat="dd/MM/yyyy" />
+
+            <MudDatePicker @bind-Date="Model.EndDate" Label="End Date"
+                           Variant="Variant.Outlined" Editable="true" DateFormat="dd/MM/yyyy" />
+
+            <MudNumericField @bind-Value="Model.MaxAge" Label="Max Age (leave blank = open)"
+                             Variant="Variant.Outlined" Min="1" />
+
+            <MudSelect @bind-Value="Model.EligibleSex" Label="Eligible Sex" Variant="Variant.Outlined"
+                       T="PlayerSex?" Clearable="true">
+                @foreach (PlayerSex s in Enum.GetValues<PlayerSex>())
+                {
+                    <MudSelectItem Value="(PlayerSex?)s">@s</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect @bind-Value="Model.HostClubId" Label="Host Club" Variant="Variant.Outlined"
+                       T="int?" Clearable="true">
+                @foreach (var club in _clubs)
+                {
+                    <MudSelectItem Value="(int?)club.ClubId">@club.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set" Variant="Variant.Outlined"
+                       T="int?" Clearable="true">
+                @foreach (var rs in _rulesSets)
+                {
+                    <MudSelectItem Value="(int?)rs.RulesSetId">@rs.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   Disabled="string.IsNullOrWhiteSpace(Model.CompetitionName)"
+                   OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public CompetitionFormModel Model { get; set; } = new();
+
+    private List<ClubDto> _clubs = [];
+    private List<RulesSetDto> _rulesSets = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _clubs = await Api.GetClubsAsync() ?? [];
+            _rulesSets = await Api.GetRulesSetsAsync() ?? [];
+        }
+        catch { /* non-critical – dropdowns will just be empty */ }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+}

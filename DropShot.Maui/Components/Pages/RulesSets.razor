@@ -1,0 +1,166 @@
+@page "/rulessets"
+@attribute [Authorize]
+@inject ApiService Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<MudText Typo="Typo.h5" Class="mb-4">Rules Sets</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else
+{
+    @if (Auth.IsAdmin)
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
+                   Color="Color.Primary" Class="mb-3" OnClick="OpenAddDialog">Add Rules Set</MudButton>
+    }
+
+    @if (_rulesSets?.Count == 0)
+    {
+        <MudText Color="Color.Secondary">No rules sets defined yet.</MudText>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var rs in _rulesSets ?? [])
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">@rs.Name</MudText>
+                                @if (rs.Description is not null)
+                                {
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">@rs.Description</MudText>
+                                }
+                            </CardHeaderContent>
+                            <CardHeaderActions>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info">
+                                    @rs.ItemCount rules
+                                </MudChip>
+                            </CardHeaderActions>
+                        </MudCardHeader>
+                        @if (Auth.IsAdmin)
+                        {
+                            <MudCardActions>
+                                <MudButton StartIcon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           OnClick="@(() => OpenEditDialog(rs))">Edit</MudButton>
+                                <MudButton StartIcon="@Icons.Material.Filled.FormatListBulleted"
+                                           Size="Size.Small"
+                                           OnClick="@(() => ManageItemsAsync(rs))">Rules</MudButton>
+                                <MudButton StartIcon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteAsync(rs))">Delete</MudButton>
+                            </MudCardActions>
+                        }
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+}
+
+@code {
+    private List<RulesSetDto>? _rulesSets;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _rulesSets = await Api.GetRulesSetsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var dialog = await Dialog.ShowAsync<RulesSetDialog>("Add Rules Set");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: RulesSetFormModel model })
+            await SaveAsync(0, model);
+    }
+
+    private async Task OpenEditDialog(RulesSetDto rs)
+    {
+        var parameters = new DialogParameters<RulesSetDialog>
+        {
+            { x => x.Model, new RulesSetFormModel { Name = rs.Name, Description = rs.Description } }
+        };
+        var dialog = await Dialog.ShowAsync<RulesSetDialog>("Edit Rules Set", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: RulesSetFormModel model })
+            await SaveAsync(rs.RulesSetId, model);
+    }
+
+    private async Task SaveAsync(int id, RulesSetFormModel model)
+    {
+        try
+        {
+            var dto = await Api.SaveRulesSetAsync(id, new SaveRulesSetRequest(model.Name, model.Description));
+            if (dto is not null)
+            {
+                if (id == 0)
+                    _rulesSets?.Add(dto);
+                else
+                {
+                    var idx = _rulesSets?.FindIndex(r => r.RulesSetId == id) ?? -1;
+                    if (idx >= 0) _rulesSets![idx] = dto;
+                }
+            }
+            Snackbar.Add(id == 0 ? "Rules set created." : "Rules set updated.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ManageItemsAsync(RulesSetDto rs)
+    {
+        var parameters = new DialogParameters<RulesSetItemsDialog>
+        {
+            { x => x.RulesSetId, rs.RulesSetId },
+            { x => x.RulesSetName, rs.Name }
+        };
+        await Dialog.ShowAsync<RulesSetItemsDialog>($"Rules — {rs.Name}", parameters);
+        // Reload to get updated item count
+        _rulesSets = await Api.GetRulesSetsAsync();
+    }
+
+    private async Task DeleteAsync(RulesSetDto rs)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "Delete Rules Set",
+            $"Delete \"{rs.Name}\"? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        try
+        {
+            await Api.DeleteRulesSetAsync(rs.RulesSetId);
+            _rulesSets?.Remove(rs);
+            Snackbar.Add("Rules set deleted.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,88 @@
+@page "/login"
+@layout LoginLayout
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<MudPaper Class="pa-8" Elevation="4">
+    <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-6">
+        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="mr-2" />
+        DropShot
+    </MudText>
+
+    <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
+        <DataAnnotationsValidator />
+
+        <MudTextField @bind-Value="_model.Email"
+                      Label="Email"
+                      InputType="InputType.Email"
+                      Variant="Variant.Outlined"
+                      Class="mb-4"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Email"
+                      Disabled="_loading" />
+
+        <MudTextField @bind-Value="_model.Password"
+                      Label="Password"
+                      InputType="InputType.Password"
+                      Variant="Variant.Outlined"
+                      Class="mb-4"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Lock"
+                      Disabled="_loading" />
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudButton ButtonType="ButtonType.Submit"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   Size="Size.Large"
+                   Disabled="_loading">
+            @if (_loading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Signing in…</span>
+            }
+            else
+            {
+                <span>Sign In</span>
+            }
+        </MudButton>
+    </EditForm>
+</MudPaper>
+
+@code {
+    private readonly LoginModel _model = new();
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Already logged in? Go straight to home.
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+            Nav.NavigateTo("/", replace: true);
+    }
+
+    private async Task HandleLoginAsync()
+    {
+        _loading = true;
+        _error = null;
+        var ok = await Auth.LoginAsync(_model.Email, _model.Password);
+        _loading = false;
+
+        if (ok)
+            Nav.NavigateTo("/", replace: true);
+        else
+            _error = "Invalid email or password.";
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

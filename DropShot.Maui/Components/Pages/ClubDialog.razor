@@ -1,0 +1,36 @@
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="Model.Name" Label="Club Name"
+                          Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="Model.AddressLine1" Label="Address Line 1"
+                          Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="Model.AddressLine2" Label="Address Line 2"
+                          Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="Model.Town" Label="Town"
+                          Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="Model.Postcode" Label="Postcode"
+                          Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="Model.Phone" Label="Phone"
+                          InputType="InputType.Telephone" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="Model.Email" Label="Email"
+                          InputType="InputType.Email" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="Model.Website" Label="Website"
+                          InputType="InputType.Url" Variant="Variant.Outlined" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   Disabled="string.IsNullOrWhiteSpace(Model.Name)"
+                   OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public ClubFormModel Model { get; set; } = new();
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+}

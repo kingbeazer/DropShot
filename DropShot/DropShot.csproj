@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.22" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.22" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.0" />
@@ -24,6 +25,10 @@
 
   <ItemGroup>
     <None Include="wwwroot\Images\me.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DropShot.Shared\DropShot.Shared.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,156 @@
+@page "/competitions"
+@attribute [Authorize]
+@inject ApiService Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<MudText Typo="Typo.h5" Class="mb-4">Competitions</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+        <MudTextField @bind-Value="_search" Placeholder="Search competitions…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" Clearable="true" Variant="Variant.Outlined"
+                      Class="flex-grow-1" />
+        @if (Auth.IsAdmin)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
+                       Color="Color.Primary" OnClick="OpenAddDialog">Add</MudButton>
+        }
+    </MudStack>
+
+    <MudTable Items="FilteredCompetitions" Dense="true" Hover="true" Striped="true" Elevation="2">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Format</MudTh>
+            <MudTh>Start</MudTh>
+            <MudTh>Club</MudTh>
+            @if (Auth.IsAdmin || (_competitions?.Any(c => Auth.CanEditCompetition(c.HostClubId)) == true))
+            {
+                <MudTh></MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.CompetitionName</MudTd>
+            <MudTd>@context.CompetitionFormat</MudTd>
+            <MudTd>@(context.StartDate?.ToString("dd MMM yyyy") ?? "—")</MudTd>
+            <MudTd>@(context.HostClubName ?? "—")</MudTd>
+            <MudTd>
+                @if (Auth.IsAdmin || Auth.CanEditCompetition(context.HostClubId))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="@(() => DeleteAsync(context))" />
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<CompetitionDto>? _competitions;
+    private bool _loading = true;
+    private string? _error;
+    private string _search = "";
+
+    private IEnumerable<CompetitionDto> FilteredCompetitions => _competitions is null
+        ? []
+        : _competitions.Where(c => string.IsNullOrWhiteSpace(_search)
+            || c.CompetitionName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _competitions = await Api.GetCompetitionsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var dialog = await Dialog.ShowAsync<CompetitionDialog>("Add Competition");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: CompetitionFormModel model })
+            await SaveAsync(0, model);
+    }
+
+    private async Task OpenEditDialog(CompetitionDto comp)
+    {
+        var parameters = new DialogParameters<CompetitionDialog>
+        {
+            { x => x.Model, CompetitionFormModel.From(comp) }
+        };
+        var dialog = await Dialog.ShowAsync<CompetitionDialog>("Edit Competition", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: CompetitionFormModel model })
+            await SaveAsync(comp.CompetitionId, model);
+    }
+
+    private async Task SaveAsync(int id, CompetitionFormModel model)
+    {
+        try
+        {
+            var req = new SaveCompetitionRequest(
+                model.CompetitionName, model.CompetitionFormat,
+                model.MaxParticipants, model.StartDate, model.EndDate,
+                model.MaxAge, model.EligibleSex, model.HostClubId, model.RulesSetId);
+
+            var dto = await Api.SaveCompetitionAsync(id, req);
+            if (dto is not null)
+            {
+                if (id == 0)
+                    _competitions?.Add(dto);
+                else
+                {
+                    var idx = _competitions?.FindIndex(c => c.CompetitionId == id) ?? -1;
+                    if (idx >= 0) _competitions![idx] = dto;
+                }
+            }
+            Snackbar.Add(id == 0 ? "Competition created." : "Competition updated.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync(CompetitionDto comp)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "Delete Competition",
+            $"Delete \"{comp.CompetitionName}\"? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        try
+        {
+            await Api.DeleteCompetitionAsync(comp.CompetitionId);
+            _competitions?.Remove(comp);
+            Snackbar.Add("Competition deleted.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,123 @@
+@inject ApiService Api
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else
+        {
+            <MudTable Items="_courts" Dense="true" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Surface</MudTh>
+                    <MudTh>Indoor</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Name</MudTd>
+                    <MudTd>@context.Surface</MudTd>
+                    <MudTd>
+                        <MudIcon Icon="@(context.IsIndoor ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
+                                 Color="@(context.IsIndoor ? Color.Success : Color.Default)" Size="Size.Small" />
+                    </MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                       Color="Color.Error"
+                                       OnClick="@(() => DeleteCourtAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Add Court</MudText>
+            <MudStack Spacing="2">
+                <MudTextField @bind-Value="_newCourtName" Label="Court Name"
+                              Variant="Variant.Outlined" />
+                <MudSelect @bind-Value="_newSurface" Label="Surface" Variant="Variant.Outlined"
+                           T="CourtSurface">
+                    @foreach (CourtSurface s in Enum.GetValues<CourtSurface>())
+                    {
+                        <MudSelectItem Value="s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudCheckBox @bind-Value="_newIsIndoor" Label="Indoor" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Disabled="string.IsNullOrWhiteSpace(_newCourtName)"
+                           OnClick="AddCourtAsync">Add</MudButton>
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Close()">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public int ClubId { get; set; }
+    [Parameter] public string ClubName { get; set; } = "";
+
+    private List<CourtDto> _courts = [];
+    private bool _loading = true;
+    private string _newCourtName = "";
+    private CourtSurface _newSurface = CourtSurface.Hard;
+    private bool _newIsIndoor;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCourtsAsync();
+    }
+
+    private async Task LoadCourtsAsync()
+    {
+        _loading = true;
+        try
+        {
+            var detail = await Api.GetClubAsync(ClubId);
+            _courts = detail?.Courts ?? [];
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddCourtAsync()
+    {
+        try
+        {
+            var dto = await Api.AddCourtAsync(ClubId,
+                new AddCourtRequest(_newCourtName.Trim(), _newSurface, _newIsIndoor));
+            if (dto is not null) _courts.Add(dto);
+            _newCourtName = "";
+            _newIsIndoor = false;
+            Snackbar.Add("Court added.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteCourtAsync(CourtDto court)
+    {
+        try
+        {
+            await Api.DeleteCourtAsync(ClubId, court.CourtId);
+            _courts.Remove(court);
+            Snackbar.Add("Court deleted.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}
