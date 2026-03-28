@@ -1,5 +1,5 @@
 @page "/admin/users"
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
@@ -11,6 +11,10 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
+
+@* Ensure MudThemeProvider runs inside this circuit so it re-applies CSS variables
+   after MudBlazor's JS initialisation, which clears them when the circuit starts. *@
+<MudThemeProvider IsDarkMode="true" />
 
 @if (_error is not null)
 {
