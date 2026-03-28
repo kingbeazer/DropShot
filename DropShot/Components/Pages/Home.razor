@@ -10,7 +10,12 @@
 @using System.Text.RegularExpressions
 @using System.ComponentModel.DataAnnotations
 
-
+@if (LinkedPlayer)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => LinkedPlayer = false)">
+        Your account has been linked to an existing player profile with this email address.
+    </MudAlert>
+}
 
 <MudCarousel Class="mud-width-full" Style="height:400px;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" TData="object">
     <MudCarouselItem Transition="transition" Color="@Color.Primary">
@@ -49,4 +54,7 @@
     private bool enableSwipeGesture = true;
     private bool autocycle = true;
     private Transition transition = Transition.Slide;
+
+    [SupplyParameterFromQuery]
+    private bool LinkedPlayer { get; set; }
 }

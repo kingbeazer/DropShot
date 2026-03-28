@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
 @using DropShot.Data
+@using Microsoft.EntityFrameworkCore
 
 @inject UserManager<ApplicationUser> UserManager
 @inject IUserStore<ApplicationUser> UserStore
@@ -14,6 +15,7 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 @inject EmailService EmailService
+@inject IDbContextFactory<MyDbContext> DbFactory
 
 <PageTitle>Register</PageTitle>
 
@@ -82,6 +84,21 @@
 
         Logger.LogInformation("User created a new account with password.");
 
+        // Auto-link to an existing unlinked Player record with the same email
+        var linkedPlayer = false;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            var player = await db.Players.FirstOrDefaultAsync(p =>
+                p.Email == Input.Email && p.UserId == null);
+            if (player is not null)
+            {
+                player.UserId = await UserManager.GetUserIdAsync(user);
+                await db.SaveChangesAsync();
+                linkedPlayer = true;
+                Logger.LogInformation("Linked new user {Email} to existing player record.", Input.Email);
+            }
+        }
+
         var userId = await UserManager.GetUserIdAsync(user);
         var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
@@ -95,11 +112,11 @@
         {
             RedirectManager.RedirectTo(
                 "Account/RegisterConfirmation",
-                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl, ["linkedPlayer"] = linkedPlayer });
         }
 
         await SignInManager.SignInAsync(user, isPersistent: false);
-        RedirectManager.RedirectTo(ReturnUrl);
+        RedirectManager.RedirectTo(linkedPlayer ? $"/?linkedPlayer=true" : (ReturnUrl ?? "/"));
     }
 
     private ApplicationUser CreateUser()

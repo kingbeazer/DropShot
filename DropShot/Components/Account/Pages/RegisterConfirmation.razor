@@ -15,6 +15,13 @@
 
 <StatusMessage Message="@statusMessage" />
 
+@if (LinkedPlayer)
+{
+    <div class="alert alert-info">
+        Your account has been linked to an existing player profile with this email address.
+    </div>
+}
+
 @if (emailConfirmationLink is not null)
 {
     <p>
@@ -39,6 +46,9 @@ else
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    private bool LinkedPlayer { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
