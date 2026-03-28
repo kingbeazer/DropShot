@@ -104,7 +104,7 @@ app.MapHub<ChatHub>("/chathub");
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    foreach (var roleName in new[] { "Admin", "ClubAdmin" })
+    foreach (var roleName in new[] { "SuperAdmin", "Admin", "ClubAdmin" })
         if (!await roleManager.RoleExistsAsync(roleName))
             await roleManager.CreateAsync(new IdentityRole(roleName));
 }

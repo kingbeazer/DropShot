@@ -13,12 +13,21 @@ public class ClubAuthorizationService(
     UserManager<ApplicationUser> userManager,
     IDbContextFactory<MyDbContext> dbFactory)
 {
-    /// <summary>Returns true if the user holds the global Admin role.</summary>
+    /// <summary>Returns true if the user holds the SuperAdmin role.</summary>
+    public async Task<bool> IsSuperAdminAsync(ClaimsPrincipal user)
+    {
+        var appUser = await userManager.GetUserAsync(user);
+        if (appUser is null) return false;
+        return await userManager.IsInRoleAsync(appUser, "SuperAdmin");
+    }
+
+    /// <summary>Returns true if the user holds the Admin or SuperAdmin role.</summary>
     public async Task<bool> IsAdminAsync(ClaimsPrincipal user)
     {
         var appUser = await userManager.GetUserAsync(user);
         if (appUser is null) return false;
-        return await userManager.IsInRoleAsync(appUser, "Admin");
+        return await userManager.IsInRoleAsync(appUser, "Admin")
+            || await userManager.IsInRoleAsync(appUser, "SuperAdmin");
     }
 
     /// <summary>Returns the list of ClubIds the user is an administrator of.</summary>
