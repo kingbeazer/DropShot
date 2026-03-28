@@ -22,6 +22,7 @@ public class Club
 
     public ICollection<Court> Courts { get; set; } = [];
     public ICollection<ClubMember> Members { get; set; } = [];
+    public ICollection<ClubAdministrator> Administrators { get; set; } = [];
     public ICollection<Competition> Competitions { get; set; } = [];
     public ICollection<ClubLadder> Ladders { get; set; } = [];
 }

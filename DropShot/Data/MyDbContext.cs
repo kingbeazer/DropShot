@@ -17,6 +17,7 @@ namespace DropShot.Data
         public DbSet<Club> Clubs { get; set; }
         public DbSet<Court> Courts { get; set; }
         public DbSet<ClubMember> ClubMembers { get; set; }
+        public DbSet<ClubAdministrator> ClubAdministrators { get; set; }
         public DbSet<CompetitionParticipant> CompetitionParticipants { get; set; }
         public DbSet<CompetitionStage> CompetitionStages { get; set; }
         public DbSet<CompetitionFixture> CompetitionFixtures { get; set; }
@@ -116,6 +117,22 @@ namespace DropShot.Data
                       .WithMany(p => p.ClubMemberships)
                       .HasForeignKey(cm => cm.PlayerId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── ClubAdministrator ────────────────────────────────────────────────
+            builder.Entity<ClubAdministrator>(entity =>
+            {
+                entity.HasKey(ca => new { ca.UserId, ca.ClubId });
+
+                entity.HasOne(ca => ca.User)
+                      .WithMany()
+                      .HasForeignKey(ca => ca.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);   // block user deletion while club admin assignments exist
+
+                entity.HasOne(ca => ca.Club)
+                      .WithMany(c => c.Administrators)
+                      .HasForeignKey(ca => ca.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);    // deleting a club removes its admin assignments
             });
 
             // ── CompetitionParticipant ───────────────────────────────────────────

@@ -10,10 +10,12 @@
 
 <MudText Typo="Typo.h4" Class="mb-4">Rules Sets</MudText>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="OpenAddDialog" Class="mb-4">
-    Add Rules Set
-</MudButton>
+<AuthorizeView Roles="Admin">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenAddDialog" Class="mb-4">
+        Add Rules Set
+    </MudButton>
+</AuthorizeView>
 
 <MudTable Items="@_sets" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
     <HeaderContent>
@@ -27,12 +29,14 @@
         <MudTd DataLabel="Description">@(context.Description ?? "—")</MudTd>
         <MudTd DataLabel="Rules">@context.Items.Count</MudTd>
         <MudTd DataLabel="Actions">
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                           OnClick="@(() => StartEdit(context))" />
-            <MudIconButton Icon="@Icons.Material.Filled.List" Size="Size.Small" Color="Color.Info"
-                           Title="Manage rules" OnClick="@(() => OpenItems(context))" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                           OnClick="@(() => DeleteSet(context))" />
+            <AuthorizeView Roles="Admin" Context="auth">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => StartEdit(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.List" Size="Size.Small" Color="Color.Info"
+                               Title="Manage rules" OnClick="@(() => OpenItems(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeleteSet(context))" />
+            </AuthorizeView>
         </MudTd>
     </RowTemplate>
     <NoRecordsContent>

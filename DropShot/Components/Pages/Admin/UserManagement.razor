@@ -1,0 +1,213 @@
+@page "/admin/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using DropShot.Data
+@using DropShot.Models
+@inject UserManager<ApplicationUser> UserManager
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-4">User Management</MudText>
+
+<MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Dense="true">
+    <HeaderContent>
+        <MudTh>Username</MudTh>
+        <MudTh>Email</MudTh>
+        <MudTh Style="text-align:center">Super Admin</MudTh>
+        <MudTh>Club Admin Assignments</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Username">@context.User.UserName</MudTd>
+        <MudTd DataLabel="Email">@context.User.Email</MudTd>
+
+        @* ── Super Admin toggle ─────────────────────────────────────── *@
+        <MudTd DataLabel="Super Admin" Style="text-align:center">
+            <MudSwitch T="bool"
+                       Value="@context.IsAdmin"
+                       ValueChanged="@(v => ToggleAdmin(context, v))"
+                       Color="Color.Primary" />
+        </MudTd>
+
+        @* ── Club Admin assignments ─────────────────────────────────── *@
+        <MudTd DataLabel="Club Admin">
+            <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Spacing="1">
+                @foreach (var ca in context.ClubAssignments)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info"
+                             OnClose="@(() => RemoveClubAdmin(context, ca.ClubId))"
+                             CloseIcon="@Icons.Material.Filled.Close">
+                        @ca.ClubName
+                    </MudChip>
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline"
+                               Size="Size.Small" Color="Color.Success"
+                               Title="Add club admin assignment"
+                               OnClick="@(() => OpenAddClubDialog(context))" />
+            </MudStack>
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No users found.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@* ── Add Club Admin Dialog ─────────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddClubDialog">
+    <TitleContent>Assign Club Admin – @(_targetRow?.User.UserName)</TitleContent>
+    <DialogContent>
+        <MudSelect @bind-Value="_selectedClubId" Label="Select Club" Variant="Variant.Outlined">
+            @foreach (var club in AvailableClubs)
+            {
+                <MudSelectItem T="int?" Value="@((int?)club.ClubId)">@club.Name</MudSelectItem>
+            }
+        </MudSelect>
+        @if (!AvailableClubs.Any())
+        {
+            <MudText Typo="Typo.caption" Class="mt-2" Style="color:grey">
+                This user is already an admin of all clubs.
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddClubDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_selectedClubId == null)"
+                   OnClick="SaveClubAdmin">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private List<UserRow> _rows = [];
+    private List<Club> _allClubs = [];
+
+    private bool _showAddClubDialog;
+    private UserRow? _targetRow;
+    private int? _selectedClubId;
+
+    private IEnumerable<Club> AvailableClubs =>
+        _targetRow is null
+            ? []
+            : _allClubs.Where(c => _targetRow.ClubAssignments.All(a => a.ClubId != c.ClubId));
+
+    private sealed class UserRow
+    {
+        public ApplicationUser User { get; init; } = null!;
+        public bool IsAdmin { get; set; }
+        public List<ClubAdminRow> ClubAssignments { get; set; } = [];
+    }
+
+    private sealed record ClubAdminRow(int ClubId, string ClubName);
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+
+        await using var db = DbFactory.CreateDbContext();
+        _allClubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
+
+        // Load all club admin assignments grouped by UserId in one query
+        var allAssignments = await db.ClubAdministrators
+            .Include(ca => ca.Club)
+            .ToListAsync();
+        var assignmentsByUser = allAssignments
+            .GroupBy(ca => ca.UserId)
+            .ToDictionary(g => g.Key, g => g
+                .Select(ca => new ClubAdminRow(ca.ClubId, ca.Club.Name))
+                .ToList());
+
+        var users = UserManager.Users.OrderBy(u => u.UserName).ToList();
+
+        _rows = [];
+        foreach (var user in users)
+        {
+            var isAdmin = await UserManager.IsInRoleAsync(user, "Admin");
+            assignmentsByUser.TryGetValue(user.Id, out var clubs);
+            _rows.Add(new UserRow
+            {
+                User = user,
+                IsAdmin = isAdmin,
+                ClubAssignments = clubs ?? []
+            });
+        }
+
+        _loading = false;
+    }
+
+    // ── Admin role toggle ────────────────────────────────────────────────────
+
+    private async Task ToggleAdmin(UserRow row, bool makeAdmin)
+    {
+        if (makeAdmin)
+            await UserManager.AddToRoleAsync(row.User, "Admin");
+        else
+            await UserManager.RemoveFromRoleAsync(row.User, "Admin");
+
+        row.IsAdmin = makeAdmin;
+        Snackbar.Add(
+            $"{row.User.UserName} {(makeAdmin ? "granted" : "removed from")} Admin role.",
+            makeAdmin ? Severity.Success : Severity.Warning);
+    }
+
+    // ── Club admin assignments ───────────────────────────────────────────────
+
+    private void OpenAddClubDialog(UserRow row)
+    {
+        _targetRow = row;
+        _selectedClubId = null;
+        _showAddClubDialog = true;
+    }
+
+    private async Task SaveClubAdmin()
+    {
+        if (_targetRow is null || _selectedClubId is null) return;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        // Insert the ClubAdministrator row
+        db.ClubAdministrators.Add(new ClubAdministrator
+        {
+            UserId = _targetRow.User.Id,
+            ClubId = _selectedClubId.Value,
+            AssignedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        // Ensure the user has the ClubAdmin role
+        if (!await UserManager.IsInRoleAsync(_targetRow.User, "ClubAdmin"))
+            await UserManager.AddToRoleAsync(_targetRow.User, "ClubAdmin");
+
+        var clubName = _allClubs.First(c => c.ClubId == _selectedClubId.Value).Name;
+        _targetRow.ClubAssignments.Add(new ClubAdminRow(_selectedClubId.Value, clubName));
+
+        _showAddClubDialog = false;
+        Snackbar.Add($"{_targetRow.User.UserName} is now a Club Admin for {clubName}.", Severity.Success);
+    }
+
+    private async Task RemoveClubAdmin(UserRow row, int clubId)
+    {
+        await using var db = DbFactory.CreateDbContext();
+
+        var record = await db.ClubAdministrators
+            .FindAsync(row.User.Id, clubId);
+        if (record is not null)
+        {
+            db.ClubAdministrators.Remove(record);
+            await db.SaveChangesAsync();
+        }
+
+        row.ClubAssignments.RemoveAll(a => a.ClubId == clubId);
+
+        // If this was the last club, remove the ClubAdmin role too
+        if (row.ClubAssignments.Count == 0)
+            await UserManager.RemoveFromRoleAsync(row.User, "ClubAdmin");
+
+        var clubName = _allClubs.FirstOrDefault(c => c.ClubId == clubId)?.Name ?? clubId.ToString();
+        Snackbar.Add($"Removed {row.User.UserName} as Club Admin for {clubName}.", Severity.Warning);
+    }
+}
