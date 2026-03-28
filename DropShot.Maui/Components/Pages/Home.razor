@@ -1,0 +1,38 @@
+@page "/"
+@attribute [Authorize]
+@inject AuthService Auth
+
+<MudText Typo="Typo.h4" Class="mb-6">Welcome back!</MudText>
+
+<MudGrid>
+    <MudItem xs="12" sm="6" md="4">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary">
+                <MudIcon Icon="@Icons.Material.Filled.Person" Class="mr-1" />
+                Signed in as
+            </MudText>
+            <MudText Typo="Typo.h6">@Auth.Session?.UserName</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@Auth.Session?.Email</MudText>
+            <MudDivider Class="my-2" />
+            @foreach (var role in Auth.Session?.Roles ?? [])
+            {
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Class="mr-1">@role</MudChip>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="4">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary">
+                <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="mr-1" />
+                Quick Links
+            </MudText>
+            <MudList T="string" Dense="true">
+                <MudListItem Href="/players" Icon="@Icons.Material.Filled.People">Players</MudListItem>
+                <MudListItem Href="/competitions" Icon="@Icons.Material.Filled.EmojiEvents">Competitions</MudListItem>
+                <MudListItem Href="/clubs" Icon="@Icons.Material.Filled.SportsTennis">Clubs</MudListItem>
+                <MudListItem Href="/rulessets" Icon="@Icons.Material.Filled.Gavel">Rules Sets</MudListItem>
+            </MudList>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

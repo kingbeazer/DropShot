@@ -1,29 +1,42 @@
 using DropShot.Components;
-using DropShot.Services;
 using DropShot.Components.Account;
 using DropShot.Data;
 using DropShot.Models;
 using DropShot.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using MudBlazor.Services;
-using System;
-
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ── Razor / Blazor Server ────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddControllers();
+
+// ── CORS (allow MAUI app to call the API) ────────────────────────────────────
+builder.Services.AddCors(options =>
+    options.AddPolicy("MauiPolicy", policy =>
+        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+
+// ── Database ─────────────────────────────────────────────────────────────────
+builder.Services.AddDbContextFactory<MyDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<MyDbContext>(sp =>
+    sp.GetRequiredService<IDbContextFactory<MyDbContext>>().CreateDbContext());
+builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+// ── Identity ─────────────────────────────────────────────────────────────────
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
-
-builder.Services.AddDbContextFactory<MyDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddAuthentication(options =>
     {
@@ -32,9 +45,23 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
-builder.Services.AddScoped<MyDbContext>(sp =>
-    sp.GetRequiredService<IDbContextFactory<MyDbContext>>().CreateDbContext());
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+// JWT bearer — used by the MAUI app (separate AddAuthentication call)
+var jwtCfg = builder.Configuration.GetSection("Jwt");
+builder.Services.AddAuthentication()
+    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtCfg["Issuer"],
+            ValidAudience = jwtCfg["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtCfg["Key"]!))
+        };
+    });
 
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
     .AddRoles<IdentityRole>()
@@ -42,48 +69,44 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
+// ── App services ─────────────────────────────────────────────────────────────
 builder.Services.AddScoped<UserState>();
 builder.Services.AddScoped<TennisScoreService>();
 builder.Services.AddScoped<ClubAuthorizationService>();
-
+builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<EmailService>();
-
 builder.Services.AddMudServices();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ── HTTP pipeline ─────────────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
-{
     app.UseMigrationsEndPoint();
-}
 else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
-
+app.UseCors("MauiPolicy");
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-// Add additional endpoints required by the Identity /Account Razor components.
+app.MapControllers();
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.MapAdditionalIdentityEndpoints();
 app.MapHub<ChatHub>("/chathub");
-// ── Seed roles ───────────────────────────────────────────────────────────────
+
+// ── Seed roles ────────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     foreach (var roleName in new[] { "Admin", "ClubAdmin" })
-    {
         if (!await roleManager.RoleExistsAsync(roleName))
             await roleManager.CreateAsync(new IdentityRole(roleName));
-    }
 }
 
 app.Run();

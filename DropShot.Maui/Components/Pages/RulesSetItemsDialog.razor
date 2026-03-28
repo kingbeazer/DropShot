@@ -1,0 +1,105 @@
+@inject ApiService Api
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else
+        {
+            @if (_items.Count == 0)
+            {
+                <MudText Color="Color.Secondary" Class="mb-3">No rules defined yet.</MudText>
+            }
+            else
+            {
+                <MudList T="RulesSetItemDto" Dense="true" Class="mb-3">
+                    @foreach (var item in _items.OrderBy(i => i.SortOrder))
+                    {
+                        <MudListItem>
+                            <MudStack Row="true" AlignItems="AlignItems.Center">
+                                <MudText Class="flex-grow-1">@item.SortOrder. @item.RuleText</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteItemAsync(item))" />
+                            </MudStack>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+
+            <MudDivider Class="my-2" />
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudTextField @bind-Value="_newRule" Label="New rule…"
+                              Variant="Variant.Outlined" Class="flex-grow-1" />
+                <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
+                               Disabled="string.IsNullOrWhiteSpace(_newRule)"
+                               OnClick="AddItemAsync" />
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Close()">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public int RulesSetId { get; set; }
+    [Parameter] public string RulesSetName { get; set; } = "";
+
+    private List<RulesSetItemDto> _items = [];
+    private bool _loading = true;
+    private string _newRule = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            var detail = await Api.GetRulesSetAsync(RulesSetId);
+            _items = detail?.Items ?? [];
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddItemAsync()
+    {
+        try
+        {
+            await Api.AddRulesSetItemAsync(RulesSetId, _newRule.Trim());
+            _newRule = "";
+            // Reload to get assigned SortOrder
+            var detail = await Api.GetRulesSetAsync(RulesSetId);
+            _items = detail?.Items ?? [];
+            Snackbar.Add("Rule added.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteItemAsync(RulesSetItemDto item)
+    {
+        try
+        {
+            await Api.DeleteRulesSetItemAsync(RulesSetId, item.RulesSetItemId);
+            _items.Remove(item);
+            Snackbar.Add("Rule deleted.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

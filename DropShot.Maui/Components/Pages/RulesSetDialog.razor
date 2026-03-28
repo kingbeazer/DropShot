@@ -1,0 +1,24 @@
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="Model.Name" Label="Name"
+                          Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="Model.Description" Label="Description"
+                          Variant="Variant.Outlined" Lines="3" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   Disabled="string.IsNullOrWhiteSpace(Model.Name)"
+                   OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public RulesSetFormModel Model { get; set; } = new();
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+}

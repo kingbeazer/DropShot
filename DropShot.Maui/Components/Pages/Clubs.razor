@@ -1,0 +1,169 @@
+@page "/clubs"
+@attribute [Authorize]
+@inject ApiService Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<MudText Typo="Typo.h5" Class="mb-4">Clubs</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+        <MudTextField @bind-Value="_search" Placeholder="Search clubs…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" Clearable="true" Variant="Variant.Outlined"
+                      Class="flex-grow-1" />
+        @if (Auth.IsAdmin)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
+                       Color="Color.Primary" OnClick="OpenAddDialog">Add Club</MudButton>
+        }
+    </MudStack>
+
+    <MudTable Items="FilteredClubs" Dense="true" Hover="true" Striped="true" Elevation="2">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Town</MudTh>
+            <MudTh>Courts</MudTh>
+            <MudTh>Contact</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@(context.Town ?? "—")</MudTd>
+            <MudTd>@context.CourtCount</MudTd>
+            <MudTd>@(context.Phone ?? context.Email ?? "—")</MudTd>
+            <MudTd>
+                @if (Auth.CanEditClub(context.ClubId))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small"
+                                   Tooltip="Manage Courts"
+                                   OnClick="@(() => ManageCourtsAsync(context))" />
+                }
+                @if (Auth.IsAdmin)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="@(() => DeleteAsync(context))" />
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<ClubDto>? _clubs;
+    private bool _loading = true;
+    private string? _error;
+    private string _search = "";
+
+    private IEnumerable<ClubDto> FilteredClubs => _clubs is null
+        ? []
+        : _clubs.Where(c => string.IsNullOrWhiteSpace(_search)
+            || c.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (c.Town?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _clubs = await Api.GetClubsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var dialog = await Dialog.ShowAsync<ClubDialog>("Add Club");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: ClubFormModel model })
+            await SaveAsync(0, model);
+    }
+
+    private async Task OpenEditDialog(ClubDto club)
+    {
+        var parameters = new DialogParameters<ClubDialog>
+        {
+            { x => x.Model, ClubFormModel.From(club) }
+        };
+        var dialog = await Dialog.ShowAsync<ClubDialog>("Edit Club", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: ClubFormModel model })
+            await SaveAsync(club.ClubId, model);
+    }
+
+    private async Task SaveAsync(int id, ClubFormModel model)
+    {
+        try
+        {
+            var req = new SaveClubRequest(model.Name, model.AddressLine1, model.AddressLine2,
+                model.Town, model.Postcode, model.Phone, model.Email, model.Website);
+            var dto = await Api.SaveClubAsync(id, req);
+            if (dto is not null)
+            {
+                if (id == 0)
+                    _clubs?.Add(dto);
+                else
+                {
+                    var idx = _clubs?.FindIndex(c => c.ClubId == id) ?? -1;
+                    if (idx >= 0) _clubs![idx] = dto;
+                }
+            }
+            Snackbar.Add(id == 0 ? "Club created." : "Club updated.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ManageCourtsAsync(ClubDto club)
+    {
+        var parameters = new DialogParameters<CourtsDialog>
+        {
+            { x => x.ClubId, club.ClubId },
+            { x => x.ClubName, club.Name }
+        };
+        await Dialog.ShowAsync<CourtsDialog>($"Courts — {club.Name}", parameters);
+        // Reload to get updated court count
+        _clubs = await Api.GetClubsAsync();
+    }
+
+    private async Task DeleteAsync(ClubDto club)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "Delete Club",
+            $"Delete \"{club.Name}\"? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        try
+        {
+            await Api.DeleteClubAsync(club.ClubId);
+            _clubs?.Remove(club);
+            Snackbar.Add("Club deleted.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}
