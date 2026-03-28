@@ -1,14 +1,19 @@
 @page "/competition/{Id:int}"
 @rendermode InteractiveServer
+@attribute [Authorize]
 
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
 @using DropShot.Data
 @using DropShot.Models
+@using DropShot.Services
 @using Microsoft.EntityFrameworkCore
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudText Typo="Typo.h5" Class="mb-4">@(IsEdit ? "Edit Competition" : "New Competition")</MudText>
 
@@ -17,6 +22,14 @@
     <MudItem xs="12" md="8">
         <MudPaper Class="pa-4 mb-4">
             <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
+
+            @if (!_canEdit)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-3">
+                    You do not have permission to edit this competition.
+                    Only Admins or Club Admins for the host club may make changes.
+                </MudAlert>
+            }
 
             <MudForm @ref="_form" @bind-IsValid="_isValid" @bind-Errors="_errors">
                 <MudGrid Spacing="2">
@@ -86,7 +99,7 @@
 
                 <MudStack Row="true" Spacing="2" Class="mt-4">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled"
-                               Disabled="@_isSaving" OnClick="SubmitAsync">
+                               Disabled="@(_isSaving || !_canEdit)" OnClick="SubmitAsync">
                         @if (_isSaving)
                         {
                             <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
@@ -222,6 +235,7 @@
     private MudForm? _form;
     private bool _isValid;
     private bool _isSaving;
+    private bool _canEdit;
     private string[] _errors = [];
     private string? _serverError;
     private bool IsEdit => Id != 0;
@@ -262,6 +276,7 @@
     protected override async Task OnParametersSetAsync()
     {
         _serverError = null;
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         await using var db = DbFactory.CreateDbContext();
 
         _clubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
@@ -277,6 +292,8 @@
                 .FirstOrDefaultAsync(c => c.CompetitionID == Id);
 
             if (comp is null) { _serverError = $"Competition {Id} not found."; return; }
+
+            _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, comp.HostClubId);
 
             Model = new CompetitionFormModel
             {
@@ -295,6 +312,8 @@
         }
         else
         {
+            // Only Admins can create new competitions
+            _canEdit = await AuthzService.IsAdminAsync(authState.User);
             Model = new CompetitionFormModel();
             _stages = [];
             _participants = [];

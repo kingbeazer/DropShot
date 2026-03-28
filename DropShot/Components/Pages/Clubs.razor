@@ -5,15 +5,21 @@
 @using Microsoft.EntityFrameworkCore
 @using DropShot.Models
 @using DropShot.Data
+@using DropShot.Services
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudText Typo="Typo.h4" Class="mb-4">Clubs</MudText>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="OpenAddDialog" Class="mb-4">
-    Add Club
-</MudButton>
+@if (_isAdmin)
+{
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenAddDialog" Class="mb-4">
+        Add Club
+    </MudButton>
+}
 
 <MudTable Items="@_clubs" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
     <HeaderContent>
@@ -29,12 +35,18 @@
         <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
         <MudTd DataLabel="Courts">@context.Courts.Count</MudTd>
         <MudTd DataLabel="Actions">
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                           OnClick="@(() => StartEdit(context))" />
-            <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Info"
-                           Title="Manage courts" OnClick="@(() => OpenCourts(context))" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                           OnClick="@(() => DeleteClub(context))" />
+            @if (_isAdmin || _editableClubIds.Contains(context.ClubId))
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => StartEdit(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Info"
+                               Title="Manage courts" OnClick="@(() => OpenCourts(context))" />
+            }
+            @if (_isAdmin)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeleteClub(context))" />
+            }
         </MudTd>
     </RowTemplate>
     <NoRecordsContent>
@@ -136,6 +148,8 @@
 @code {
     private bool _loading = true;
     private List<Club> _clubs = [];
+    private bool _isAdmin;
+    private HashSet<int> _editableClubIds = [];
 
     private bool _showClubDialog;
     private Club? _editingClub;
@@ -165,7 +179,13 @@
         public bool IsIndoor { get; set; }
     }
 
-    protected override async Task OnInitializedAsync() => await LoadClubs();
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAdmin = await AuthzService.IsAdminAsync(authState.User);
+        _editableClubIds = [.. await AuthzService.GetAdminClubIdsAsync(authState.User)];
+        await LoadClubs();
+    }
 
     private async Task LoadClubs()
     {

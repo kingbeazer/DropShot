@@ -1,4 +1,5 @@
 using DropShot.Components;
+using DropShot.Services;
 using DropShot.Components.Account;
 using DropShot.Data;
 using DropShot.Models;
@@ -43,6 +44,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
 
 builder.Services.AddScoped<UserState>();
 builder.Services.AddScoped<TennisScoreService>();
+builder.Services.AddScoped<ClubAuthorizationService>();
 
 builder.Services.AddSingleton<EmailService>();
 
@@ -73,4 +75,15 @@ app.MapRazorComponents<App>()
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
 app.MapHub<ChatHub>("/chathub");
+// ── Seed roles ───────────────────────────────────────────────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    foreach (var roleName in new[] { "Admin", "ClubAdmin" })
+    {
+        if (!await roleManager.RoleExistsAsync(roleName))
+            await roleManager.CreateAsync(new IdentityRole(roleName));
+    }
+}
+
 app.Run();

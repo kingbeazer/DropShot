@@ -1,58 +1,69 @@
-﻿@page "/competitions"
+@page "/competitions"
 @rendermode InteractiveServer
+@attribute [Authorize]
 
-@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Authorization
 @using DropShot.Data
 @using DropShot.Models
+@using DropShot.Services
 @using Microsoft.EntityFrameworkCore
 
-@* Example route in your Competition page *@
-@* @page "/competition/{id:int}" *@
-
 @inject NavigationManager Nav
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
 
-<MudDataGrid Items="@copetitions" Filterable="false" SortMode="@SortMode.None" Groupable="false">
+<MudDataGrid Items="@_competitions" Filterable="false" SortMode="@SortMode.None" Groupable="false">
     <Columns>
         <PropertyColumn Property="x => x.CompetitionName" />
         <PropertyColumn Property="x => x.CompetitionFormat" />
         <TemplateColumn CellClass="d-flex justify-end">
             <CellTemplate>
-                <MudStack Row>
+                @if (CanEdit(context.Item))
+                {
                     <MudButton Size="@Size.Small"
                                Variant="@Variant.Filled"
                                Color="@Color.Primary"
-                               OnClick="@(() => Nav.NavigateTo($"/competition/{@context.Item.CompetitionID}"))">
+                               OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionID}"))">
                         Edit
                     </MudButton>
-                </MudStack>
+                }
             </CellTemplate>
         </TemplateColumn>
     </Columns>
 </MudDataGrid>
 
-<MudButton Size="@Size.Small"
-           Variant="@Variant.Filled"
-           Color="@Color.Primary"
-           OnClick="@(() => Nav.NavigateTo($"/competition/0"))">
-    Add New
-</MudButton>
+@if (_isAdmin)
+{
+    <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Primary" Class="mt-3"
+               OnClick="@(() => Nav.NavigateTo($"/competition/0"))">
+        Add New
+    </MudButton>
+}
 
 @code {
-    public IEnumerable<Competition> copetitions;
-    
-    [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; }
+    private List<Competition> _competitions = [];
+    private bool _isAdmin;
+    private HashSet<int> _editableClubIds = [];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        using var dbc = DbFactory.CreateDbContext();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAdmin = await AuthzService.IsAdminAsync(authState.User);
+        _editableClubIds = [.. await AuthzService.GetAdminClubIdsAsync(authState.User)];
 
-        var comps = dbc.Competition.ToList();
-
-        copetitions = comps.Select(c => new Competition
-        {
-            CompetitionID = c.CompetitionID,
-            CompetitionName = c.CompetitionName,
-            CompetitionFormat = c.CompetitionFormat
-        });
+        await using var dbc = DbFactory.CreateDbContext();
+        _competitions = await dbc.Competition
+            .Select(c => new Competition
+            {
+                CompetitionID = c.CompetitionID,
+                CompetitionName = c.CompetitionName,
+                CompetitionFormat = c.CompetitionFormat,
+                HostClubId = c.HostClubId
+            })
+            .ToListAsync();
     }
+
+    private bool CanEdit(Competition c) =>
+        _isAdmin || (c.HostClubId.HasValue && _editableClubIds.Contains(c.HostClubId.Value));
 }
