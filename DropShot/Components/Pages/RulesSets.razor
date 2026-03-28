@@ -1,0 +1,214 @@
+@page "/rules"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using DropShot.Models
+@using DropShot.Data
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-4">Rules Sets</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+           OnClick="OpenAddDialog" Class="mb-4">
+    Add Rules Set
+</MudButton>
+
+<MudTable Items="@_sets" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Description</MudTh>
+        <MudTh>Rules</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Description">@(context.Description ?? "—")</MudTd>
+        <MudTd DataLabel="Rules">@context.Items.Count</MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => StartEdit(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.List" Size="Size.Small" Color="Color.Info"
+                           Title="Manage rules" OnClick="@(() => OpenItems(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           OnClick="@(() => DeleteSet(context))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No rules sets yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@* ── Add/Edit Rules Set Dialog ─────────────────────────────── *@
+<MudDialog @bind-Visible="_showSetDialog">
+    <TitleContent>@(_editingSet == null ? "Add Rules Set" : "Edit Rules Set")</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_setForm.Name" Label="Name" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="_setForm.Description" Label="Description (optional)"
+                      Variant="Variant.Outlined" Lines="3" AutoGrow="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showSetDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSet">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Manage Rule Items Dialog ──────────────────────────────── *@
+<MudDialog @bind-Visible="_showItemsDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>Rules – @(_itemsSet?.Name)</TitleContent>
+    <DialogContent>
+        @* Add rule row *@
+        <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.Center">
+            <MudTextField @bind-Value="_newRuleText" Label="Rule" Variant="Variant.Outlined" Dense="true"
+                          Style="flex:1" Placeholder="e.g. Sets played first to 6" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       OnClick="AddItem">Add</MudButton>
+        </MudStack>
+
+        <MudTable Items="@_items" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>#</MudTh>
+                <MudTh>Rule</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.SortOrder</MudTd>
+                <MudTd>@context.RuleText</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteItem(context))" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Typo="Typo.caption">No rules yet.</MudText></NoRecordsContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showItemsDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private List<RulesSet> _sets = [];
+
+    private bool _showSetDialog;
+    private RulesSet? _editingSet;
+    private SetForm _setForm = new();
+
+    private bool _showItemsDialog;
+    private RulesSet? _itemsSet;
+    private List<RulesSetItem> _items = [];
+    private string _newRuleText = "";
+
+    private sealed class SetForm
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadSets();
+
+    private async Task LoadSets()
+    {
+        _loading = true;
+        await using var dbc = DbFactory.CreateDbContext();
+        _sets = await dbc.RulesSets.Include(r => r.Items).OrderBy(r => r.Name).ToListAsync();
+        _loading = false;
+    }
+
+    private void OpenAddDialog()
+    {
+        _editingSet = null;
+        _setForm = new SetForm();
+        _showSetDialog = true;
+    }
+
+    private void StartEdit(RulesSet set)
+    {
+        _editingSet = set;
+        _setForm = new SetForm { Name = set.Name, Description = set.Description };
+        _showSetDialog = true;
+    }
+
+    private async Task SaveSet()
+    {
+        if (string.IsNullOrWhiteSpace(_setForm.Name)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+
+        if (_editingSet == null)
+        {
+            dbc.RulesSets.Add(new RulesSet
+            {
+                Name = _setForm.Name.Trim(),
+                Description = NullIfEmpty(_setForm.Description)
+            });
+            Snackbar.Add("Rules set added.", Severity.Success);
+        }
+        else
+        {
+            var r = await dbc.RulesSets.FindAsync(_editingSet.RulesSetId);
+            if (r == null) return;
+            r.Name = _setForm.Name.Trim();
+            r.Description = NullIfEmpty(_setForm.Description);
+            Snackbar.Add("Rules set updated.", Severity.Success);
+        }
+
+        await dbc.SaveChangesAsync();
+        _showSetDialog = false;
+        await LoadSets();
+    }
+
+    private async Task DeleteSet(RulesSet set)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var r = await dbc.RulesSets.FindAsync(set.RulesSetId);
+        if (r != null) { dbc.RulesSets.Remove(r); await dbc.SaveChangesAsync(); }
+        Snackbar.Add("Rules set deleted.", Severity.Warning);
+        await LoadSets();
+    }
+
+    private async Task OpenItems(RulesSet set)
+    {
+        _itemsSet = set;
+        _newRuleText = "";
+        await using var dbc = DbFactory.CreateDbContext();
+        _items = await dbc.RulesSetItems
+            .Where(i => i.RulesSetId == set.RulesSetId)
+            .OrderBy(i => i.SortOrder)
+            .ToListAsync();
+        _showItemsDialog = true;
+    }
+
+    private async Task AddItem()
+    {
+        if (_itemsSet == null || string.IsNullOrWhiteSpace(_newRuleText)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        var nextOrder = _items.Count == 0 ? 1 : _items.Max(i => i.SortOrder) + 1;
+        var item = new RulesSetItem
+        {
+            RulesSetId = _itemsSet.RulesSetId,
+            SortOrder = nextOrder,
+            RuleText = _newRuleText.Trim()
+        };
+        dbc.RulesSetItems.Add(item);
+        await dbc.SaveChangesAsync();
+        _items.Add(item);
+        _newRuleText = "";
+        Snackbar.Add("Rule added.", Severity.Success);
+        await LoadSets();
+    }
+
+    private async Task DeleteItem(RulesSetItem item)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var i = await dbc.RulesSetItems.FindAsync(item.RulesSetItemId);
+        if (i != null) { dbc.RulesSetItems.Remove(i); await dbc.SaveChangesAsync(); }
+        _items.Remove(item);
+        Snackbar.Add("Rule removed.", Severity.Warning);
+        await LoadSets();
+    }
+
+    private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}
