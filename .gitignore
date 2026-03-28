@@ -3,6 +3,9 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Claude Code memory
+.claude/
+
 # dotenv files
 .env
 
