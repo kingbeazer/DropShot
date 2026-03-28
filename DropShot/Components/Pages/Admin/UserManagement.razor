@@ -11,7 +11,11 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
-@inject AuthenticationStateProvider AuthStateProvider
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
 
 <MudText Typo="Typo.h4" Class="mb-4">User Management</MudText>
 
@@ -134,7 +138,11 @@
 </MudDialog>
 
 @code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = default!;
+
     private bool _loading = true;
+    private string? _error;
     private List<UserRow> _rows = [];
     private List<Club> _allClubs = [];
     private bool _isSuperAdmin;
@@ -166,17 +174,28 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var currentUser = await UserManager.GetUserAsync(authState.User);
-        _currentUserId = currentUser?.Id;
-        _isSuperAdmin = currentUser is not null && await UserManager.IsInRoleAsync(currentUser, "SuperAdmin");
-        await Load();
+        try
+        {
+            var authState = await AuthenticationState;
+            var currentUser = await UserManager.GetUserAsync(authState.User);
+            _currentUserId = currentUser?.Id;
+            _isSuperAdmin = currentUser is not null && await UserManager.IsInRoleAsync(currentUser, "SuperAdmin");
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load user management: {ex.Message}";
+            _loading = false;
+        }
     }
 
     private async Task Load()
     {
         _loading = true;
+        _error = null;
 
+        try
+        {
         await using var db = DbFactory.CreateDbContext();
         _allClubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
 
@@ -208,6 +227,12 @@
         }
 
         _loading = false;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load users: {ex.Message}";
+            _loading = false;
+        }
     }
 
     // ── Role toggles ─────────────────────────────────────────────────────────
