@@ -1,13 +1,15 @@
 ﻿ <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
 @inherits LayoutComponentBase
-<MudProviders />
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 <div class="page">
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
-        <MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
         
         <article class="content px-4">
             @Body

@@ -19,6 +19,8 @@
 
 <MudText Typo="Typo.h4" Class="mb-4">User Management</MudText>
 
+<ErrorBoundary>
+    <ChildContent>
 <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Dense="true">
     <HeaderContent>
         <MudTh>Username</MudTh>
@@ -91,6 +93,13 @@
         <MudText>No users found.</MudText>
     </NoRecordsContent>
 </MudTable>
+    </ChildContent>
+    <ErrorContent>
+        <MudAlert Severity="Severity.Error" Class="mt-4">
+            An error occurred rendering the user list. Please reload the page.
+        </MudAlert>
+    </ErrorContent>
+</ErrorBoundary>
 
 @* ── Add Club Admin Dialog ─────────────────────────────────────────── *@
 <MudDialog @bind-Visible="_showAddClubDialog">
@@ -209,7 +218,7 @@
                 .Select(ca => new ClubAdminRow(ca.ClubId, ca.Club.Name))
                 .ToList());
 
-        var users = UserManager.Users.OrderBy(u => u.UserName).ToList();
+        var users = await UserManager.Users.OrderBy(u => u.UserName).ToListAsync();
 
         _rows = [];
         foreach (var user in users)
