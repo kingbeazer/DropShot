@@ -1,14 +1,17 @@
 @page "/admin/users"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using DropShot.Data
 @using DropShot.Models
 @inject UserManager<ApplicationUser> UserManager
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudText Typo="Typo.h4" Class="mb-4">User Management</MudText>
 
@@ -16,20 +19,36 @@
     <HeaderContent>
         <MudTh>Username</MudTh>
         <MudTh>Email</MudTh>
-        <MudTh Style="text-align:center">Super Admin</MudTh>
+        @if (_isSuperAdmin)
+        {
+            <MudTh Style="text-align:center">Super Admin</MudTh>
+            <MudTh Style="text-align:center">Admin</MudTh>
+        }
         <MudTh>Club Admin Assignments</MudTh>
+        <MudTh></MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Username">@context.User.UserName</MudTd>
         <MudTd DataLabel="Email">@context.User.Email</MudTd>
 
-        @* ── Super Admin toggle ─────────────────────────────────────── *@
-        <MudTd DataLabel="Super Admin" Style="text-align:center">
-            <MudSwitch T="bool"
-                       Value="@context.IsAdmin"
-                       ValueChanged="@(v => ToggleAdmin(context, v))"
-                       Color="Color.Primary" />
-        </MudTd>
+        @* ── Role toggles (SuperAdmin only) ────────────────────────── *@
+        @if (_isSuperAdmin)
+        {
+            <MudTd DataLabel="Super Admin" Style="text-align:center">
+                <MudSwitch T="bool"
+                           Value="@context.IsSuperAdmin"
+                           ValueChanged="@(v => ToggleSuperAdmin(context, v))"
+                           Disabled="@(context.User.Id == _currentUserId)"
+                           Color="Color.Error" />
+            </MudTd>
+            <MudTd DataLabel="Admin" Style="text-align:center">
+                <MudSwitch T="bool"
+                           Value="@context.IsAdmin"
+                           ValueChanged="@(v => ToggleAdmin(context, v))"
+                           Disabled="@(context.IsSuperAdmin)"
+                           Color="Color.Primary" />
+            </MudTd>
+        }
 
         @* ── Club Admin assignments ─────────────────────────────────── *@
         <MudTd DataLabel="Club Admin">
@@ -44,9 +63,24 @@
                 }
                 <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline"
                                Size="Size.Small" Color="Color.Success"
-                               Title="Add club admin assignment"
+                               Tooltip="Add club admin assignment"
                                OnClick="@(() => OpenAddClubDialog(context))" />
             </MudStack>
+        </MudTd>
+
+        @* ── Row actions ────────────────────────────────────────────── *@
+        <MudTd>
+            @* Admins/SuperAdmins can only be edited/deleted by a SuperAdmin *@
+            @if (_isSuperAdmin || (!context.IsAdmin && !context.IsSuperAdmin))
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               Disabled="@(context.User.Id == _currentUserId && context.IsSuperAdmin)"
+                               OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                               Color="Color.Error"
+                               Disabled="@(context.User.Id == _currentUserId)"
+                               OnClick="@(() => DeleteUserAsync(context))" />
+            }
         </MudTd>
     </RowTemplate>
     <NoRecordsContent>
@@ -79,14 +113,41 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Edit User Dialog ──────────────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showEditDialog">
+    <TitleContent>Edit User – @(_editRow?.User.UserName)</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_editUsername" Label="Username" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_editEmail" Label="Email" Variant="Variant.Outlined"
+                              InputType="InputType.Email" Required="true" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showEditDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveEditAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private bool _loading = true;
     private List<UserRow> _rows = [];
     private List<Club> _allClubs = [];
+    private bool _isSuperAdmin;
+    private string? _currentUserId;
 
     private bool _showAddClubDialog;
     private UserRow? _targetRow;
     private int? _selectedClubId;
+
+    private bool _showEditDialog;
+    private UserRow? _editRow;
+    private string _editUsername = "";
+    private string _editEmail = "";
 
     private IEnumerable<Club> AvailableClubs =>
         _targetRow is null
@@ -96,13 +157,21 @@
     private sealed class UserRow
     {
         public ApplicationUser User { get; init; } = null!;
+        public bool IsSuperAdmin { get; set; }
         public bool IsAdmin { get; set; }
         public List<ClubAdminRow> ClubAssignments { get; set; } = [];
     }
 
     private sealed record ClubAdminRow(int ClubId, string ClubName);
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var currentUser = await UserManager.GetUserAsync(authState.User);
+        _currentUserId = currentUser?.Id;
+        _isSuperAdmin = currentUser is not null && await UserManager.IsInRoleAsync(currentUser, "SuperAdmin");
+        await Load();
+    }
 
     private async Task Load()
     {
@@ -126,11 +195,13 @@
         _rows = [];
         foreach (var user in users)
         {
+            var isSuperAdmin = await UserManager.IsInRoleAsync(user, "SuperAdmin");
             var isAdmin = await UserManager.IsInRoleAsync(user, "Admin");
             assignmentsByUser.TryGetValue(user.Id, out var clubs);
             _rows.Add(new UserRow
             {
                 User = user,
+                IsSuperAdmin = isSuperAdmin,
                 IsAdmin = isAdmin,
                 ClubAssignments = clubs ?? []
             });
@@ -139,19 +210,32 @@
         _loading = false;
     }
 
-    // ── Admin role toggle ────────────────────────────────────────────────────
+    // ── Role toggles ─────────────────────────────────────────────────────────
 
-    private async Task ToggleAdmin(UserRow row, bool makeAdmin)
+    private async Task ToggleSuperAdmin(UserRow row, bool make)
     {
-        if (makeAdmin)
+        if (make)
+            await UserManager.AddToRoleAsync(row.User, "SuperAdmin");
+        else
+            await UserManager.RemoveFromRoleAsync(row.User, "SuperAdmin");
+
+        row.IsSuperAdmin = make;
+        Snackbar.Add(
+            $"{row.User.UserName} {(make ? "granted" : "removed from")} Super Admin role.",
+            make ? Severity.Success : Severity.Warning);
+    }
+
+    private async Task ToggleAdmin(UserRow row, bool make)
+    {
+        if (make)
             await UserManager.AddToRoleAsync(row.User, "Admin");
         else
             await UserManager.RemoveFromRoleAsync(row.User, "Admin");
 
-        row.IsAdmin = makeAdmin;
+        row.IsAdmin = make;
         Snackbar.Add(
-            $"{row.User.UserName} {(makeAdmin ? "granted" : "removed from")} Admin role.",
-            makeAdmin ? Severity.Success : Severity.Warning);
+            $"{row.User.UserName} {(make ? "granted" : "removed from")} Admin role.",
+            make ? Severity.Success : Severity.Warning);
     }
 
     // ── Club admin assignments ───────────────────────────────────────────────
@@ -187,6 +271,78 @@
 
         _showAddClubDialog = false;
         Snackbar.Add($"{_targetRow.User.UserName} is now a Club Admin for {clubName}.", Severity.Success);
+    }
+
+    // ── Edit user ────────────────────────────────────────────────────────────
+
+    private void OpenEditDialog(UserRow row)
+    {
+        _editRow = row;
+        _editUsername = row.User.UserName ?? "";
+        _editEmail = row.User.Email ?? "";
+        _showEditDialog = true;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (_editRow is null) return;
+
+        var user = _editRow.User;
+        var errors = new List<string>();
+
+        if (user.UserName != _editUsername)
+        {
+            var r = await UserManager.SetUserNameAsync(user, _editUsername);
+            if (!r.Succeeded) errors.AddRange(r.Errors.Select(e => e.Description));
+        }
+
+        if (user.Email != _editEmail)
+        {
+            var r = await UserManager.SetEmailAsync(user, _editEmail);
+            if (!r.Succeeded) errors.AddRange(r.Errors.Select(e => e.Description));
+        }
+
+        if (errors.Count > 0)
+        {
+            Snackbar.Add(string.Join(" ", errors), Severity.Error);
+            return;
+        }
+
+        _showEditDialog = false;
+        Snackbar.Add($"User updated successfully.", Severity.Success);
+    }
+
+    // ── Delete user ──────────────────────────────────────────────────────────
+
+    private async Task DeleteUserAsync(UserRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBox(
+            "Delete User",
+            $"Are you sure you want to delete '{row.User.UserName}'? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        // Unlink any associated player record
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == row.User.Id);
+            if (player is not null)
+            {
+                player.UserId = null;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var result = await UserManager.DeleteAsync(row.User);
+        if (!result.Succeeded)
+        {
+            Snackbar.Add(string.Join(" ", result.Errors.Select(e => e.Description)), Severity.Error);
+            return;
+        }
+
+        _rows.Remove(row);
+        Snackbar.Add($"User '{row.User.UserName}' deleted.", Severity.Warning);
     }
 
     private async Task RemoveClubAdmin(UserRow row, int clubId)
