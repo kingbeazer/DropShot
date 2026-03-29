@@ -226,16 +226,6 @@
                 </div>
             </div>
 
-            <!-- Controls Row -->
-            <div class="controls-row">
-                <button class="settings-btn no-zoom-element" @onclick="@OnExpandCollapseClick">
-                    <MudIcon Icon="@Icons.Material.Filled.Settings" Title="Settings" Size="Size.Large" />
-                </button>
-                <button class="undo-btn no-zoom-element" @onclick="UndoLastPoint">
-                    <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Undo" Size="Size.Large" />
-                </button>
-            </div>
-
             <!-- Bottom Player Button -->
             <div style="display: flex">
                 @if (Label_Switch1)
@@ -279,6 +269,16 @@
                 </button> *@
 
                 }
+            </div>
+
+            <!-- Controls Row -->
+            <div class="controls-row">
+                <button class="settings-btn no-zoom-element" @onclick="@OnExpandCollapseClick">
+                    <MudIcon Icon="@Icons.Material.Filled.Settings" Title="Settings" Size="Size.Large" />
+                </button>
+                <button class="undo-btn no-zoom-element" @onclick="UndoLastPoint">
+                    <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Undo" Size="Size.Large" />
+                </button>
             </div>
         </div>
     </section>
