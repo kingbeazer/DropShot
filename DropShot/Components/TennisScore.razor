@@ -21,6 +21,8 @@
 @inject TennisScoreService ScoreService
 @inject ISnackbar Snackbar
 
+<MudProviders />
+
 <MudCollapse Expanded="_expanded" Style="margin-top: 10px;">
     <MudPaper Class="pa-4">
         <MudStack Spacing="2">
@@ -477,22 +479,11 @@
             .Select(p => p.DisplayName)
             .ToListAsync();
 
-        // using var dbc = DbFactory.CreateDbContext();
-        if (hubConnection is not null)
-        {
-            loaded = true;
-            return;
-        }
-
         var savedMatch = await DbContext.SavedMatch
             .FirstOrDefaultAsync(m => !m.Complete);
 
-        // Fix CS8602: Check for null before dereferencing savedMatch
         if (savedMatch != null && !string.IsNullOrEmpty(savedMatch.MatchJson))
         {
-            // Fix CS0266: Specify the type parameter for DeserializeObject
-            // Fix CS8601: Use null-forgiving operator if you are sure MatchJson is not null, or handle null
-
             if (CurrentMatch == null)
             {
                 CurrentMatch = JsonConvert.DeserializeObject<Match>(savedMatch.MatchJson) ?? new Match();
@@ -503,19 +494,23 @@
                 ScoreService.RestoreFromGameState(_state, history.Peek());
         }
 
-        hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-            .Build();
-
-        // hubConnection.On<string, string>("ReceiveMessage", async (user, message) =>
-        // {
-        //     scores = await dbc.Score.ToListAsync();
-
-        //     await InvokeAsync(StateHasChanged);
-        // });
-
-        await hubConnection.StartAsync();
+        // Mark as loaded after DB queries so content renders immediately.
+        // The hub connection is deferred to OnAfterRenderAsync so it only
+        // runs in the browser — never during SSR pre-rendering, which would
+        // throw because WebSockets aren't available server-side.
         loaded = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && hubConnection is null)
+        {
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+                .Build();
+
+            await hubConnection.StartAsync();
+        }
     }
 
     private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false) });
