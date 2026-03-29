@@ -21,7 +21,12 @@
 
 <ErrorBoundary>
     <ChildContent>
-<MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Dense="true">
+<MudTextField @bind-Value="_searchText" Placeholder="Search users..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Dense="true"
+          Filter="@(row => FilterUsers(row))">
     <HeaderContent>
         <MudTh>Username</MudTh>
         <MudTh>Email</MudTh>
@@ -153,6 +158,12 @@
     private bool _loading = true;
     private string? _error;
     private List<UserRow> _rows = [];
+    private string _searchText = "";
+
+    private bool FilterUsers(UserRow row) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        (row.User.UserName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.User.Email ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
     private List<Club> _allClubs = [];
     private bool _isSuperAdmin;
     private string? _currentUserId;

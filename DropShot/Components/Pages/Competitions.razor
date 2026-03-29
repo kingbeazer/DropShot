@@ -13,7 +13,12 @@
 @inject ClubAuthorizationService AuthzService
 @inject AuthenticationStateProvider AuthStateProvider
 
-<MudDataGrid Items="@_competitions" Filterable="false" SortMode="@SortMode.None" Groupable="false">
+<MudTextField @bind-Value="_searchText" Placeholder="Search competitions..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudDataGrid Items="@_competitions" Filterable="false" SortMode="@SortMode.None" Groupable="false"
+             QuickFilter="@FilterCompetitions">
     <Columns>
         <PropertyColumn Property="x => x.CompetitionName" />
         <PropertyColumn Property="x => x.CompetitionFormat" />
@@ -43,7 +48,13 @@
 
 @code {
     private List<Competition> _competitions = [];
+    private string _searchText = "";
     private bool _isAdmin;
+
+    private bool FilterCompetitions(Competition c) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        (c.CompetitionName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        c.CompetitionFormat.ToString().Contains(_searchText, StringComparison.OrdinalIgnoreCase);
     private HashSet<int> _editableClubIds = [];
 
     protected override async Task OnInitializedAsync()

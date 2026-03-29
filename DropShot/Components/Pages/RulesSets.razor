@@ -17,7 +17,12 @@
     </MudButton>
 </AuthorizeView>
 
-<MudTable Items="@_sets" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
+<MudTextField @bind-Value="_searchText" Placeholder="Search rules sets..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@_sets" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+          Filter="@(set => FilterSets(set))">
     <HeaderContent>
         <MudTh>Name</MudTh>
         <MudTh>Description</MudTh>
@@ -96,6 +101,12 @@
 @code {
     private bool _loading = true;
     private List<RulesSet> _sets = [];
+    private string _searchText = "";
+
+    private bool FilterSets(RulesSet set) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        set.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (set.Description ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
 
     private bool _showSetDialog;
     private RulesSet? _editingSet;

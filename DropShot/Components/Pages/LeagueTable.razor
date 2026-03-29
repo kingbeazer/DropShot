@@ -5,7 +5,12 @@
 
 <h3>League Table</h3>
 
-<MudTable Items="@Elements" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" LoadingProgressColor="Color.Info">
+<MudTextField @bind-Value="_searchText" Placeholder="Search players..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@Elements" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" LoadingProgressColor="Color.Info"
+          Filter="@(row => string.IsNullOrWhiteSpace(_searchText) || row.PlayerName.Contains(_searchText, StringComparison.OrdinalIgnoreCase))">
     <HeaderContent>
         <MudTh>Player</MudTh>
         <MudTh>Played</MudTh>
@@ -27,6 +32,7 @@
 
 @code {
     private bool _loading = true;
+    private string _searchText = "";
     private List<PlayerRecord> Elements = [];
 
     private record PlayerRecord(int Position, string PlayerName, int Played, int Won, int Lost, int Points);
