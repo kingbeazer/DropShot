@@ -17,56 +17,56 @@
     <nav class="flex-column">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+                <MudIcon Icon="@Icons.Material.Filled.Home" Class="nav-icon" /> Home
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="match">
-                <span class="bi bi-stopwatch-fill-nav-menu" aria-hidden="true"></span> Match
+                <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="nav-icon" /> Match
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="score">
-                <span class="bi bi-bar-chart-fill-nav-menu" aria-hidden="true"></span> Scoreboard
+                <MudIcon Icon="@Icons.Material.Filled.Leaderboard" Class="nav-icon" /> Scoreboard
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="competitions">
-                <span class="bi bi-trophy-fill-nav-menu" aria-hidden="true"></span> Competitions
+                <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Class="nav-icon" /> Competitions
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="players">
-                <span class="bi bi-people-fill-nav-menu" aria-hidden="true"></span> Players
+                <MudIcon Icon="@Icons.Material.Filled.People" Class="nav-icon" /> Players
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="clubs">
-                <span class="bi bi-building-nav-menu" aria-hidden="true"></span> Clubs
+                <MudIcon Icon="@Icons.Material.Filled.Business" Class="nav-icon" /> Clubs
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="rules">
-                <span class="bi bi-journal-text-nav-menu" aria-hidden="true"></span> Rules
+                <MudIcon Icon="@Icons.Material.Filled.Gavel" Class="nav-icon" /> Rules
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="auth">
-                <span class="bi bi-lock-nav-menu" aria-hidden="true"></span> Auth Required
+                <MudIcon Icon="@Icons.Material.Filled.Lock" Class="nav-icon" /> Auth Required
             </NavLink>
         </div>
 
         <AuthorizeView Roles="Admin,SuperAdmin">
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="admin/users">
-                    <span class="bi bi-shield-lock-nav-menu" aria-hidden="true"></span> User Management
+                    <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" /> User Management
                 </NavLink>
             </div>
         </AuthorizeView>
@@ -75,7 +75,7 @@
             <Authorized>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Account/Manage">
-                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
+                        <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" /> @context.User.Identity?.Name
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
@@ -83,7 +83,7 @@
                         <AntiforgeryToken />
                         <input type="hidden" name="ReturnUrl" value="@currentUrl" />
                         <button type="submit" class="nav-link">
-                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
+                            <MudIcon Icon="@Icons.Material.Filled.Logout" Class="nav-icon" /> Logout
                         </button>
                     </form>
                 </div>
@@ -91,12 +91,12 @@
             <NotAuthorized>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Account/Register">
-                        <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
+                        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="nav-icon" /> Register
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Account/Login">
-                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
+                        <MudIcon Icon="@Icons.Material.Filled.Login" Class="nav-icon" /> Login
                     </NavLink>
                 </div>
             </NotAuthorized>
