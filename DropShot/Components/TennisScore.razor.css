@@ -110,26 +110,34 @@
     position: relative;
 }
 
+.controls-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 4px 20px;
+    box-sizing: border-box;
+}
+
 .settings-btn {
-    position: absolute;
-    bottom: 30px;
-    left: 50px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 8px 12px;
     font-size: 16px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    touch-action: manipulation;
 }
 
 .undo-btn {
-    position: absolute;
-    bottom: 30px;
-    right: 50px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 8px 12px;
     font-size: 16px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    touch-action: manipulation;
 }
 
 /* ── Coin Toss Overlay ───────────────────────────────────────── */

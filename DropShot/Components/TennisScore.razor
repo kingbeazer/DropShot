@@ -224,18 +224,16 @@
                         <span class="sets">@ScoreService.GetScoreDisplayOpp(_state)</span>
                     }
                 </div>
+            </div>
 
-
-                <!-- Settings Button (Bottom Left) -->
+            <!-- Controls Row -->
+            <div class="controls-row">
                 <button class="settings-btn no-zoom-element" @onclick="@OnExpandCollapseClick">
-                    <MudIcon Icon="@Icons.Material.Filled.Settings" Title="Favorite" Size="Size.Large" />
+                    <MudIcon Icon="@Icons.Material.Filled.Settings" Title="Settings" Size="Size.Large" />
                 </button>
-
-                <!-- Undo Button (Bottom Right) -->
                 <button class="undo-btn no-zoom-element" @onclick="UndoLastPoint">
-                    <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Favorite" Size="Size.Large" />
+                    <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Undo" Size="Size.Large" />
                 </button>
-
             </div>
 
             <!-- Bottom Player Button -->
