@@ -197,6 +197,15 @@ namespace DropShot.Data
                       .OnDelete(DeleteBehavior.SetNull);
             });
 
+            // ── SavedMatch ───────────────────────────────────────────────────────
+            builder.Entity<SavedMatch>(entity =>
+            {
+                entity.HasOne<Court>()
+                      .WithMany()
+                      .HasForeignKey(m => m.CourtId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
             // ── PlayerFriend (self-referential) ──────────────────────────────────
             builder.Entity<PlayerFriend>(entity =>
             {
