@@ -15,7 +15,12 @@
     Add Player
 </MudButton>
 
-<MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
+<MudTextField @bind-Value="_searchText" Placeholder="Search players..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+          Filter="@(row => FilterPlayers(row))">
     <HeaderContent>
         <MudTh>Display Name</MudTh>
         <MudTh>Name</MudTh>
@@ -169,6 +174,14 @@
 
     private bool _loading = true;
     private List<PlayerRow> _players = [];
+    private string _searchText = "";
+
+    private bool FilterPlayers(PlayerRow row) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        row.Player.DisplayName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.Player.FirstName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.Player.LastName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.Player.Email ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
 
     private bool _showAddDialog;
     private bool _showEditDialog;

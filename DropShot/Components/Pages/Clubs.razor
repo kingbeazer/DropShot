@@ -21,7 +21,12 @@
     </MudButton>
 }
 
-<MudTable Items="@_clubs" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading">
+<MudTextField @bind-Value="_searchText" Placeholder="Search clubs..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@_clubs" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+          Filter="@(club => FilterClubs(club))">
     <HeaderContent>
         <MudTh>Name</MudTh>
         <MudTh>Town</MudTh>
@@ -148,6 +153,13 @@
 @code {
     private bool _loading = true;
     private List<Club> _clubs = [];
+    private string _searchText = "";
+
+    private bool FilterClubs(Club club) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        club.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (club.Town ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (club.Email ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
     private bool _isAdmin;
     private HashSet<int> _editableClubIds = [];
 
