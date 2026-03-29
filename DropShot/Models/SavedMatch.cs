@@ -11,4 +11,5 @@ public class SavedMatch
     public string? Player4 { get; set; }
     public string? WinnerName { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public int? CourtId { get; set; }
 }

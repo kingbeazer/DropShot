@@ -1,86 +1,165 @@
-﻿@page "/score"
+@page "/score"
 @rendermode InteractiveServer
 @using DropShot.Data
 @using DropShot.Models
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.EntityFrameworkCore
 @using Newtonsoft.Json
+@using MudBlazor
 @inject NavigationManager Navigation
-  
-
 @inject MyDbContext DbContext
+@inject IDbContextFactory<MyDbContext> DbFactory
 
+<MudProviders />
 
-<div style="display: flex">
-    @foreach (var set in currentScore.SetScores)
+<MudSelect T="int?" Value="_selectedCourtId" ValueChanged="OnCourtChanged" Label="Select Court"
+           Variant="Variant.Outlined" Style="max-width: 400px; margin: 12px;" Clearable="true">
+    @foreach (var court in _allCourts)
+    {
+        <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+    }
+</MudSelect>
+
+@if (_selectedCourt != null)
+{
+    <MudText Typo="Typo.h5" Align="Align.Center" Style="margin-top: 8px; letter-spacing: 2px; text-transform: uppercase;">
+        @_selectedCourt.Club.Name — @_selectedCourt.Name
+    </MudText>
+}
+
+@if (_activeMatch != null)
+{
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Style="margin-bottom: 4px;">
+        @PlayerLabel(_activeMatch)
+    </MudText>
+}
+
+@if (!currentScore.isComplete)
+{
+    <div style="display: flex; justify-content: center; gap: 40px; margin-top: 8px; margin-bottom: 4px;">
+        <MudText Typo="Typo.h3" Style="min-width: 70px; text-align: center; font-weight: bold;">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</MudText>
+        <MudText Typo="Typo.h3" Style="min-width: 70px; text-align: center; font-weight: bold;">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</MudText>
+    </div>
+}
+
+<div style="display: flex; justify-content: center; margin-top: 4px;">
+    @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
     {
         <DotDigit Number="@set.UserGames" />
     }
     <DotDigit Number="@currentScore.UserG" />
-    @for (int i = 0; i < 5 - currentScore.SetScores.Count() -1 ; i++)
+    @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) - 1; i++)
     {
         <DotDigit Number="0" />
     }
 </div>
 
-<div style="display: flex">
-    @foreach (var set in currentScore.SetScores)
+<div style="display: flex; justify-content: center;">
+    @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
     {
         <DotDigit Number="@set.OpponentGames" />
     }
     <DotDigit Number="@currentScore.OppG" />
-    @for (int i = 0; i < 5 - currentScore.SetScores.Count() -1; i++)
+    @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) - 1; i++)
     {
         <DotDigit Number="0" />
     }
 </div>
 
- 
 @code {
     private HubConnection? hubConnection;
-    private string? userInput;
-    private string? messageInput;
-    private List<string> messages = new();
-    private List<Score> scores = new();
-    private Stack<GameState> history = new();
+    private List<Court> _allCourts = [];
+    private int? _selectedCourtId;
+    private Court? _selectedCourt => _allCourts.FirstOrDefault(c => c.CourtId == _selectedCourtId);
+    private SavedMatch? _activeMatch;
     GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false);
 
     protected override async Task OnInitializedAsync()
     {
-        scores = await DbContext.Score.ToListAsync();
-
-        hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-            .Build();
-
-        hubConnection.On<string, string>("ReceiveMessage", async (user, message) =>
-        {
-            // FIX: Use nullable type and null check to avoid CS8600
-            GameState? gameState = JsonConvert.DeserializeObject<GameState>(user);
-            if (gameState != null)
-            {
-                currentScore = gameState;
-            }
-            await InvokeAsync(StateHasChanged);
-        });
-
-        await hubConnection.StartAsync();
+        _allCourts = await DbContext.Courts
+            .Include(c => c.Club)
+            .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
+            .ToListAsync();
     }
 
-
-    private void SendMessage()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        Console.WriteLine("SendMessage clicked"); // 👈 log to browser console
-
-
-        if (hubConnection is not null && !string.IsNullOrWhiteSpace(userInput) && !string.IsNullOrWhiteSpace(messageInput))
+        if (firstRender && hubConnection is null)
         {
-              hubConnection.SendAsync("SendMessage", userInput, messageInput);
-            messageInput = string.Empty;
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+                .Build();
+
+            hubConnection.On<string, string>("ReceiveMessage", async (user, message) =>
+            {
+                if (_selectedCourtId.HasValue)
+                {
+                    if (!int.TryParse(message, out int msgCourtId) || msgCourtId != _selectedCourtId.Value)
+                        return;
+                }
+
+                GameState? gameState = JsonConvert.DeserializeObject<GameState>(user);
+                if (gameState != null)
+                    currentScore = gameState;
+
+                // Refresh match details when scoring starts (e.g. a new match just began on this court)
+                if (_activeMatch == null && _selectedCourtId.HasValue)
+                {
+                    using var dbc = DbFactory.CreateDbContext();
+                    _activeMatch = await dbc.SavedMatch
+                        .FirstOrDefaultAsync(m => m.CourtId == _selectedCourtId && !m.Complete);
+                }
+
+                await InvokeAsync(StateHasChanged);
+            });
+
+            await hubConnection.StartAsync();
         }
+    }
+
+    private async Task OnCourtChanged(int? courtId)
+    {
+        _selectedCourtId = courtId;
+        currentScore = new GameState(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false);
+        _activeMatch = null;
+
+        if (courtId.HasValue)
+        {
+            _activeMatch = await DbContext.SavedMatch
+                .FirstOrDefaultAsync(m => m.CourtId == courtId && !m.Complete);
+
+            if (_activeMatch?.MatchJson is { } json)
+            {
+                var match = JsonConvert.DeserializeObject<DropShot.Models.Match>(json);
+                var latest = match?.HistoryList?.FirstOrDefault();
+                if (latest != null)
+                    currentScore = latest;
+            }
+        }
+    }
+
+    private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak, bool isUser)
+    {
+        if (tieBreak)
+            return myPts.ToString();
+
+        if (deuceCount > 0)
+        {
+            if (myPts > oppPts) return "Ad";
+            if (myPts < oppPts) return "";
+            return "Deuce";
+        }
+
+        return myPts switch { 0 => "0", 1 => "15", 2 => "30", _ => "40" };
+    }
+
+    private static string PlayerLabel(SavedMatch m)
+    {
+        if (!string.IsNullOrWhiteSpace(m.Player3) && !string.IsNullOrWhiteSpace(m.Player4))
+            return $"{m.Player1} & {m.Player2}  vs  {m.Player3} & {m.Player4}";
+        return $"{m.Player1}  vs  {m.Player2}";
     }
 
     public bool IsConnected =>
         hubConnection?.State == HubConnectionState.Connected;
 }
-

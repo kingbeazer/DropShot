@@ -11,6 +11,7 @@
 @using System.Threading
 
 @page "/tennisscore"
+@page "/match/{MatchId:int}"
 @rendermode InteractiveServer
 
 @using DropShot.Services
@@ -125,6 +126,13 @@
                          SelectValueOnTab="@selectedOnTab"
                          AdornmentColor="Color.Primary" />
     }
+
+    <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court (optional)" Variant="Variant.Outlined" Style="margin: 10px;" Clearable="true">
+        @foreach (var court in _courts)
+        {
+            <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+        }
+    </MudSelect>
 
     <MudSelect @bind-Value="_state.BestOf" Label="Best Of" Variant="Variant.Outlined" Style="margin: 10px;">
         <MudSelectItem Value="1">1 Set</MudSelectItem>
@@ -346,20 +354,13 @@
             _state.IsMatchEnded = true;
             if (CurrentMatch != null)
                 _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1);
+            SaveHistory();
         }
     }
 
-    // Change ReloadPage from static to instance method to fix CS0120
     public void ReloadPage()
     {
-        history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false) });
-        _value = "";
-        _value2 = "";
-        _value3 = "";
-        _value4 = "";
-        _winner = "";
-        _state = new();
-        CurrentMatch = null;
+        Navigation.NavigateTo("/match");
     }
 
     private async Task<IEnumerable<string>> Search1(string value, CancellationToken token)
@@ -413,7 +414,8 @@
             Player1 = _value,
             Player2 = _value2,
             Player3 = _value3,
-            Player4 = _value4
+            Player4 = _value4,
+            CourtId = _selectedCourtId
         };
 
         _coinTossUserServes = Random.Shared.Next(2) == 0;
@@ -429,14 +431,51 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private void StartAfterCoinToss()
+    private async Task StartAfterCoinToss()
     {
         _state.IsUserServing = _coinTossUserServes;
         CurrentMatch = _pendingMatch;
         _showCoinToss = false;
+
+        // Persist the new match immediately so we get a stable SavedMatchId for the URL.
+        await SaveInitialMatchAsync();
+
+        // Navigate to /match/{id} so that refreshing the page restores this exact match.
+        if (_savedMatchId > 0)
+            Navigation.NavigateTo($"/match/{_savedMatchId}", replace: true);
     }
 
+    private async Task SaveInitialMatchAsync()
+    {
+        var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
+        var initialState = new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, false);
+        history.Push(initialState);
+        CurrentMatch.History = history;
+        CurrentMatch.HistoryList = history.ToList();
+
+        using var dbc = DbFactory.CreateDbContext();
+        var matchToSave = new SavedMatch
+        {
+            MatchJson = JsonConvert.SerializeObject(CurrentMatch),
+            Complete = false,
+            Player1 = CurrentMatch.Player1,
+            Player2 = CurrentMatch.Player2,
+            Player3 = CurrentMatch.Player3,
+            Player4 = CurrentMatch.Player4,
+            CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null,
+            CreatedAt = DateTime.UtcNow
+        };
+        dbc.SavedMatch.Add(matchToSave);
+        await dbc.SaveChangesAsync();
+        _savedMatchId = matchToSave.SavedMatchId;
+    }
+
+    [Parameter] public int MatchId { get; set; }
+    private int _savedMatchId;
+
     private List<string> _states = [];
+    private List<Court> _courts = [];
+    private int? _selectedCourtId;
 
     private async Task<IEnumerable<string>> Search(string value, CancellationToken token)
     {
@@ -477,19 +516,26 @@
             .Select(p => p.DisplayName)
             .ToListAsync();
 
-        var savedMatch = await DbContext.SavedMatch
-            .FirstOrDefaultAsync(m => !m.Complete);
+        _courts = await DbContext.Courts
+            .Include(c => c.Club)
+            .Where(c => !DbContext.SavedMatch.Any(m => !m.Complete && m.CourtId == c.CourtId))
+            .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
+            .ToListAsync();
 
-        if (savedMatch != null && !string.IsNullOrEmpty(savedMatch.MatchJson))
+        if (MatchId > 0)
         {
-            if (CurrentMatch == null)
+            var savedMatch = await DbContext.SavedMatch
+                .FirstOrDefaultAsync(m => m.SavedMatchId == MatchId && !m.Complete);
+
+            if (savedMatch != null && !string.IsNullOrEmpty(savedMatch.MatchJson))
             {
                 CurrentMatch = JsonConvert.DeserializeObject<Match>(savedMatch.MatchJson) ?? new Match();
+                history = new Stack<GameState>(CurrentMatch.HistoryList.AsEnumerable().Reverse());
+                if (history.Any())
+                    ScoreService.RestoreFromGameState(_state, history.Peek());
+                _savedMatchId = savedMatch.SavedMatchId;
+                _selectedCourtId = savedMatch.CourtId;
             }
-            history = new Stack<GameState>(CurrentMatch.HistoryList.AsEnumerable().Reverse());
-
-            if (history.Any())
-                ScoreService.RestoreFromGameState(_state, history.Peek());
         }
 
         // Mark as loaded after DB queries so content renders immediately.
@@ -530,7 +576,9 @@
 
         using var dbc = DbFactory.CreateDbContext();
 
-        var matchToSave = await dbc.SavedMatch.FirstOrDefaultAsync();
+        var matchToSave = _savedMatchId > 0
+            ? await dbc.SavedMatch.FirstOrDefaultAsync(m => m.SavedMatchId == _savedMatchId)
+            : null;
         if (matchToSave == null)
         {
             matchToSave = new SavedMatch();
@@ -544,15 +592,17 @@
         matchToSave.Player3 = CurrentMatch.Player3;
         matchToSave.Player4 = CurrentMatch.Player4;
         matchToSave.WinnerName = _state.IsMatchEnded ? _winner : null;
+        matchToSave.CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null;
         if (matchToSave.CreatedAt == default) matchToSave.CreatedAt = DateTime.UtcNow;
         await dbc.SaveChangesAsync();
+        _savedMatchId = matchToSave.SavedMatchId;
 
 
         string json = JsonConvert.SerializeObject(history.Peek());
 
         if (hubConnection is not null)
         {
-            hubConnection.SendAsync("SendMessage", $"{json}", "");
+            hubConnection.SendAsync("SendMessage", $"{json}", CurrentMatch.CourtId?.ToString() ?? "");
         }
     }
 
@@ -588,6 +638,7 @@
             CurrentMatch.Complete = false;
         _state.IsMatchEnded = false;
         _winner = "";
+        SaveHistory();
     }
 
     private void OpenSettings() { }

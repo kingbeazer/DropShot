@@ -1,5 +1,73 @@
-﻿@page "/match"
+@page "/match"
+@rendermode InteractiveServer
+@using DropShot.Data
+@using DropShot.Models
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject NavigationManager Navigation
+@inject MyDbContext DbContext
 
-<TennisScore /> 
+<MudProviders />
 
+<MudText Typo="Typo.h5" Class="pa-4">Active Matches</MudText>
 
+@if (_matches.Count == 0)
+{
+    <MudText Class="px-4 pb-2" Color="Color.Secondary">No active matches.</MudText>
+}
+else
+{
+    <MudList T="SavedMatch" Class="px-2">
+        @foreach (var m in _matches)
+        {
+            <MudListItem T="SavedMatch">
+                <MudCard Outlined="true" Class="mb-2" Style="cursor:pointer" @onclick="@(() => Navigation.NavigateTo($"/match/{m.SavedMatchId}"))">
+                    <MudCardContent Class="py-2 px-3">
+                        <MudText Typo="Typo.subtitle1">
+                            @PlayerLabel(m)
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @(m.CourtId.HasValue && _courtNames.TryGetValue(m.CourtId.Value, out var cname) ? cname : "No court") &middot; Started @m.CreatedAt.ToLocalTime().ToString("g")
+                        </MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudListItem>
+        }
+    </MudList>
+}
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+           Class="ma-4" OnClick="@(() => Navigation.NavigateTo("/match/0"))">
+    Start New Match
+</MudButton>
+
+@code {
+    private List<SavedMatch> _matches = [];
+    private Dictionary<int, string> _courtNames = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _matches = await DbContext.SavedMatch
+            .Where(m => !m.Complete)
+            .OrderByDescending(m => m.CreatedAt)
+            .ToListAsync();
+
+        var courtIds = _matches.Where(m => m.CourtId.HasValue).Select(m => m.CourtId!.Value).Distinct().ToList();
+        if (courtIds.Count > 0)
+        {
+            _courtNames = await DbContext.Courts
+                .Include(c => c.Club)
+                .Where(c => courtIds.Contains(c.CourtId))
+                .ToDictionaryAsync(c => c.CourtId, c => $"{c.Club.Name} — {c.Name}");
+        }
+    }
+
+    private static string PlayerLabel(SavedMatch m)
+    {
+        var p1 = string.IsNullOrWhiteSpace(m.Player1) ? "?" : m.Player1;
+        var p2 = string.IsNullOrWhiteSpace(m.Player2) ? "?" : m.Player2;
+        if (!string.IsNullOrWhiteSpace(m.Player3) && !string.IsNullOrWhiteSpace(m.Player4))
+            return $"{p1} & {m.Player2}  vs  {m.Player3} & {m.Player4}";
+        return $"{p1}  vs  {p2}";
+    }
+}

@@ -9,4 +9,5 @@ public class Match
     public string Player3 { get; set; }
     public string Player4 { get; set; }
     public bool Complete { get; set; }
+    public int? CourtId { get; set; }
 }
