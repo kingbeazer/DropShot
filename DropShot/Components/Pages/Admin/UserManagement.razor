@@ -12,6 +12,8 @@
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
 
+<MudProviders />
+
 @if (_error is not null)
 {
     <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
