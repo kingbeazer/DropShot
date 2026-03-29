@@ -44,6 +44,14 @@ main {
     .top-row ::deep a, .top-row ::deep .btn-link {
         margin-left: 0;
     }
+
+    .sidebar {
+        height: 0;
+    }
+
+    main {
+        padding-top: 3.5rem;
+    }
 }
 
 @media (min-width: 641px) {
