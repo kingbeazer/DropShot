@@ -17,18 +17,20 @@
 
 .top-row {
     height: 3.5rem;
-    background-color: rgb(5, 39, 103) !important;
+    background-color: #000000 !important;
 }
 
 .navbar-brand {
     font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    padding: 0;
 }
 
 .navbar-logo {
     height: 2rem;
     width: auto;
     margin-right: 0.5rem;
-    vertical-align: middle;
 }
 
 .bi {
