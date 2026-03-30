@@ -17,7 +17,16 @@
 
 <MudProviders />
 
-<MudText Typo="Typo.h5" Class="mb-4">@(IsEdit ? "Edit Competition" : "New Competition")</MudText>
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
+    <MudText Typo="Typo.h5" Style="flex:1">@(IsEdit ? "Edit Competition" : "New Competition")</MudText>
+    @if (IsEdit)
+    {
+        <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
+                   OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
+            View Competition
+        </MudButton>
+    }
+</MudStack>
 
 <MudGrid>
     @* ── Details form ───────────────────────────────────────── *@
@@ -147,7 +156,7 @@
             </MudPaper>
 
             @* ── Participants ────────────────────────────────── *@
-            <MudPaper Class="pa-4">
+            <MudPaper Class="pa-4 mb-4">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Participants</MudText>
                     <MudAutocomplete T="Player" Label="Add player" SearchFunc="SearchPlayers"
@@ -161,6 +170,10 @@
                         <MudTh>Player</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh>Registered</MudTh>
+                        @if (Model.CompetitionFormat == CompetitionFormat.Team)
+                        {
+                            <MudTh>Team</MudTh>
+                        }
                         <MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
@@ -176,12 +189,105 @@
                             </MudSelect>
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
+                        @if (Model.CompetitionFormat == CompetitionFormat.Team)
+                        {
+                            <MudTd>
+                                <MudSelect T="int?" Value="context.TeamId" Dense="true" Variant="Variant.Text"
+                                           Clearable="true"
+                                           ValueChanged="@((int? tid) => AssignTeam(context, tid))">
+                                    @foreach (var t in _teams)
+                                    {
+                                        <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudTd>
+                        }
                         <MudTd>
                             <MudIconButton Icon="@Icons.Material.Filled.PersonRemove" Size="Size.Small"
                                            Color="Color.Error" OnClick="@(() => RemoveParticipant(context))" />
                         </MudTd>
                     </RowTemplate>
                     <NoRecordsContent><MudText Typo="Typo.caption">No participants yet.</MudText></NoRecordsContent>
+                </MudTable>
+            </MudPaper>
+
+            @* ── Teams (only for Team competitions) ──────────── *@
+            @if (Model.CompetitionFormat == CompetitionFormat.Team)
+            {
+                <MudPaper Class="pa-4 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                        <MudText Typo="Typo.h6" Style="flex:1">Teams</MudText>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenAddTeamDialog">Add Team</MudButton>
+                    </MudStack>
+
+                    <MudTable Items="@_teams" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>Team Name</MudTh>
+                            <MudTh>Members</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.Name</MudTd>
+                            <MudTd>
+                                @string.Join(", ", _participants
+                                    .Where(p => p.TeamId == context.CompetitionTeamId)
+                                    .Select(p => p.Player?.DisplayName ?? ""))
+                            </MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                               OnClick="@(() => OpenEditTeamDialog(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error" OnClick="@(() => DeleteTeam(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><MudText Typo="Typo.caption">No teams yet.</MudText></NoRecordsContent>
+                    </MudTable>
+                </MudPaper>
+            }
+
+            @* ── Fixtures ────────────────────────────────────── *@
+            <MudPaper Class="pa-4">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                    <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.AutoAwesome"
+                               OnClick="@(() => _showScheduleConfirm = true)">
+                        Auto Schedule
+                    </MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="OpenAddFixtureDialog">Add Fixture</MudButton>
+                </MudStack>
+
+                <MudTable Items="@_fixtures" Dense="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Stage</MudTh>
+                        <MudTh>Label</MudTh>
+                        <MudTh>Date / Time</MudTh>
+                        <MudTh>Players</MudTh>
+                        <MudTh>Court</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@(context.Stage?.Name ?? "—")</MudTd>
+                        <MudTd>@(context.FixtureLabel ?? "—")</MudTd>
+                        <MudTd>@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+                        <MudTd>@FixturePlayers(context)</MudTd>
+                        <MudTd>@(context.Court?.Name ?? "—")</MudTd>
+                        <MudTd>
+                            <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
+                                @context.Status
+                            </MudChip>
+                        </MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           OnClick="@(() => OpenEditFixtureDialog(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error" OnClick="@(() => DeleteFixture(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent><MudText Typo="Typo.caption">No fixtures scheduled yet.</MudText></NoRecordsContent>
                 </MudTable>
             </MudPaper>
         }
@@ -231,6 +337,120 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Auto Schedule Confirmation Dialog ────────────────────── *@
+<MudDialog @bind-Visible="_showScheduleConfirm">
+    <TitleContent>Auto Schedule Matches</TitleContent>
+    <DialogContent>
+        <MudText>This will delete all existing unplayed fixtures and generate a new schedule based on the current stages and participants. Continue?</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showScheduleConfirm = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ScheduleFixtures">Schedule</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Add / Edit Fixture Dialog ─────────────────────────────── *@
+<MudDialog @bind-Visible="_showFixtureDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>@(_editingFixture == null ? "Add Fixture" : "Edit Fixture")</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_fixtureForm.CompetitionStageId" Label="Stage (optional)"
+                           Variant="Variant.Outlined" Clearable="true">
+                    @foreach (var s in _stages)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)s.CompetitionStageId)">@s.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_fixtureForm.FixtureLabel" Label="Fixture Label (optional)"
+                              Variant="Variant.Outlined" Placeholder="e.g. Semi-Final 1" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="_fixtureForm.DatePart" Label="Date" Variant="Variant.Outlined"
+                               DateFormat="dd/MM/yyyy" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker @bind-Time="_fixtureForm.TimePart" Label="Time" Variant="Variant.Outlined"
+                               AmPm="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_fixtureForm.Player1Id" Label="Player 1 (optional)"
+                           Variant="Variant.Outlined" Clearable="true">
+                    @foreach (var p in _participants.Where(p => p.Player != null))
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_fixtureForm.Player2Id" Label="Player 2 (optional)"
+                           Variant="Variant.Outlined" Clearable="true">
+                    @foreach (var p in _participants.Where(p => p.Player != null))
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            @if (Model.CompetitionFormat == CompetitionFormat.Doubles || Model.CompetitionFormat == CompetitionFormat.MixedDoubles)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_fixtureForm.Player3Id" Label="Player 3 (optional)"
+                               Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var p in _participants.Where(p => p.Player != null))
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_fixtureForm.Player4Id" Label="Player 4 (optional)"
+                               Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var p in _participants.Where(p => p.Player != null))
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_fixtureForm.CourtId" Label="Court (optional)"
+                           Variant="Variant.Outlined" Clearable="true">
+                    @foreach (var c in _courts)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_fixtureForm.Status" Label="Status" Variant="Variant.Outlined">
+                    @foreach (FixtureStatus s in Enum.GetValues<FixtureStatus>())
+                    {
+                        <MudSelectItem Value="@s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showFixtureDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveFixture">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Add / Edit Team Dialog ────────────────────────────────── *@
+<MudDialog @bind-Visible="_showTeamDialog">
+    <TitleContent>@(_editingTeam == null ? "Add Team" : "Edit Team")</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_teamName" Label="Team Name" Variant="Variant.Outlined" Required="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showTeamDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveTeam">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     [Parameter] public int Id { get; set; }
 
@@ -249,9 +469,26 @@
     private List<CompetitionStage> _stages = [];
     private List<CompetitionParticipant> _participants = [];
     private List<Player> _allPlayers = [];
+    private List<CompetitionFixture> _fixtures = [];
+    private List<CompetitionTeam> _teams = [];
+    private List<Court> _courts = [];
 
+    // Stage dialog
     private bool _showStageDialog;
     private StageForm _stageForm = new();
+
+    // Schedule confirm dialog
+    private bool _showScheduleConfirm;
+
+    // Fixture dialog
+    private bool _showFixtureDialog;
+    private CompetitionFixture? _editingFixture;
+    private FixtureForm _fixtureForm = new();
+
+    // Team dialog
+    private bool _showTeamDialog;
+    private CompetitionTeam? _editingTeam;
+    private string _teamName = "";
 
     private sealed class CompetitionFormModel
     {
@@ -275,6 +512,24 @@
         public StageType StageType { get; set; } = StageType.RoundRobin;
     }
 
+    private sealed class FixtureForm
+    {
+        public int? CompetitionStageId { get; set; }
+        public string? FixtureLabel { get; set; }
+        public DateTime? DatePart { get; set; }
+        public TimeSpan? TimePart { get; set; }
+        public int? Player1Id { get; set; }
+        public int? Player2Id { get; set; }
+        public int? Player3Id { get; set; }
+        public int? Player4Id { get; set; }
+        public int? CourtId { get; set; }
+        public FixtureStatus Status { get; set; } = FixtureStatus.Scheduled;
+
+        public DateTime? ScheduledAt => DatePart.HasValue
+            ? DatePart.Value.Date + (TimePart ?? TimeSpan.Zero)
+            : null;
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         _serverError = null;
@@ -290,6 +545,13 @@
             var comp = await db.Competition
                 .Include(c => c.Stages.OrderBy(s => s.StageOrder))
                 .Include(c => c.Participants).ThenInclude(p => p.Player)
+                .Include(c => c.Fixtures).ThenInclude(f => f.Stage)
+                .Include(c => c.Fixtures).ThenInclude(f => f.Court)
+                .Include(c => c.Fixtures).ThenInclude(f => f.Player1)
+                .Include(c => c.Fixtures).ThenInclude(f => f.Player2)
+                .Include(c => c.Fixtures).ThenInclude(f => f.Player3)
+                .Include(c => c.Fixtures).ThenInclude(f => f.Player4)
+                .Include(c => c.Teams)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.CompetitionID == Id);
 
@@ -311,6 +573,14 @@
             };
             _stages = comp.Stages.ToList();
             _participants = comp.Participants.ToList();
+            _fixtures = comp.Fixtures
+                .OrderBy(f => f.RoundNumber)
+                .ThenBy(f => f.ScheduledAt)
+                .ToList();
+            _teams = comp.Teams.OrderBy(t => t.Name).ToList();
+
+            if (comp.HostClubId.HasValue)
+                _courts = await db.Courts.Where(c => c.ClubId == comp.HostClubId.Value).OrderBy(c => c.Name).ToListAsync();
         }
         else
         {
@@ -319,6 +589,8 @@
             Model = new CompetitionFormModel();
             _stages = [];
             _participants = [];
+            _fixtures = [];
+            _teams = [];
         }
     }
 
@@ -442,7 +714,7 @@
     {
         await using var db = DbFactory.CreateDbContext();
         var row = await db.CompetitionParticipants.FindAsync(cp.CompetitionId, cp.PlayerId);
-        if (row != null) { row.Status = status; await db.SaveChangesAsync(); }
+        if (row != null) { row.Status = status; await db.SaveChangesAsync(); cp.Status = status; }
     }
 
     private async Task RemoveParticipant(CompetitionParticipant cp)
@@ -453,4 +725,434 @@
         _participants.Remove(cp);
         Snackbar.Add("Participant removed.", Severity.Warning);
     }
+
+    private async Task AssignTeam(CompetitionParticipant cp, int? teamId)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var row = await db.CompetitionParticipants.FindAsync(cp.CompetitionId, cp.PlayerId);
+        if (row != null) { row.TeamId = teamId; await db.SaveChangesAsync(); cp.TeamId = teamId; }
+    }
+
+    // ── Teams ────────────────────────────────────────────────────────────────
+
+    private void OpenAddTeamDialog()
+    {
+        _editingTeam = null;
+        _teamName = "";
+        _showTeamDialog = true;
+    }
+
+    private void OpenEditTeamDialog(CompetitionTeam team)
+    {
+        _editingTeam = team;
+        _teamName = team.Name;
+        _showTeamDialog = true;
+    }
+
+    private async Task SaveTeam()
+    {
+        if (string.IsNullOrWhiteSpace(_teamName)) return;
+        await using var db = DbFactory.CreateDbContext();
+        if (_editingTeam == null)
+        {
+            var team = new CompetitionTeam { CompetitionId = Id, Name = _teamName.Trim() };
+            db.CompetitionTeams.Add(team);
+            await db.SaveChangesAsync();
+            _teams.Add(team);
+            Snackbar.Add("Team added.", Severity.Success);
+        }
+        else
+        {
+            var team = await db.CompetitionTeams.FindAsync(_editingTeam.CompetitionTeamId);
+            if (team != null) { team.Name = _teamName.Trim(); await db.SaveChangesAsync(); _editingTeam.Name = _teamName.Trim(); }
+            Snackbar.Add("Team updated.", Severity.Success);
+        }
+        _showTeamDialog = false;
+    }
+
+    private async Task DeleteTeam(CompetitionTeam team)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        // Unassign participants first (NoAction FK)
+        var members = await db.CompetitionParticipants.Where(cp => cp.TeamId == team.CompetitionTeamId).ToListAsync();
+        foreach (var m in members) m.TeamId = null;
+        foreach (var cp in _participants.Where(p => p.TeamId == team.CompetitionTeamId)) cp.TeamId = null;
+
+        var t = await db.CompetitionTeams.FindAsync(team.CompetitionTeamId);
+        if (t != null) { db.CompetitionTeams.Remove(t); await db.SaveChangesAsync(); }
+        _teams.Remove(team);
+        Snackbar.Add("Team removed.", Severity.Warning);
+    }
+
+    // ── Fixtures ─────────────────────────────────────────────────────────────
+
+    private void OpenAddFixtureDialog()
+    {
+        _editingFixture = null;
+        _fixtureForm = new FixtureForm();
+        _showFixtureDialog = true;
+    }
+
+    private void OpenEditFixtureDialog(CompetitionFixture fixture)
+    {
+        _editingFixture = fixture;
+        _fixtureForm = new FixtureForm
+        {
+            CompetitionStageId = fixture.CompetitionStageId,
+            FixtureLabel = fixture.FixtureLabel,
+            DatePart = fixture.ScheduledAt?.Date,
+            TimePart = fixture.ScheduledAt?.TimeOfDay,
+            Player1Id = fixture.Player1Id,
+            Player2Id = fixture.Player2Id,
+            Player3Id = fixture.Player3Id,
+            Player4Id = fixture.Player4Id,
+            CourtId = fixture.CourtId,
+            Status = fixture.Status
+        };
+        _showFixtureDialog = true;
+    }
+
+    private async Task SaveFixture()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        if (_editingFixture == null)
+        {
+            var f = new CompetitionFixture { CompetitionId = Id };
+            ApplyFixtureForm(f);
+            db.CompetitionFixtures.Add(f);
+            await db.SaveChangesAsync();
+            // Reload with nav props
+            f.Stage = _stages.FirstOrDefault(s => s.CompetitionStageId == f.CompetitionStageId);
+            f.Court = _courts.FirstOrDefault(c => c.CourtId == f.CourtId);
+            f.Player1 = _allPlayers.FirstOrDefault(p => p.PlayerId == f.Player1Id);
+            f.Player2 = _allPlayers.FirstOrDefault(p => p.PlayerId == f.Player2Id);
+            f.Player3 = _allPlayers.FirstOrDefault(p => p.PlayerId == f.Player3Id);
+            f.Player4 = _allPlayers.FirstOrDefault(p => p.PlayerId == f.Player4Id);
+            _fixtures.Add(f);
+            Snackbar.Add("Fixture added.", Severity.Success);
+        }
+        else
+        {
+            var f = await db.CompetitionFixtures.FindAsync(_editingFixture.CompetitionFixtureId);
+            if (f != null)
+            {
+                ApplyFixtureForm(f);
+                await db.SaveChangesAsync();
+                ApplyFixtureForm(_editingFixture);
+                _editingFixture.Stage = _stages.FirstOrDefault(s => s.CompetitionStageId == _editingFixture.CompetitionStageId);
+                _editingFixture.Court = _courts.FirstOrDefault(c => c.CourtId == _editingFixture.CourtId);
+                _editingFixture.Player1 = _allPlayers.FirstOrDefault(p => p.PlayerId == _editingFixture.Player1Id);
+                _editingFixture.Player2 = _allPlayers.FirstOrDefault(p => p.PlayerId == _editingFixture.Player2Id);
+                _editingFixture.Player3 = _allPlayers.FirstOrDefault(p => p.PlayerId == _editingFixture.Player3Id);
+                _editingFixture.Player4 = _allPlayers.FirstOrDefault(p => p.PlayerId == _editingFixture.Player4Id);
+            }
+            Snackbar.Add("Fixture updated.", Severity.Success);
+        }
+        _showFixtureDialog = false;
+    }
+
+    private void ApplyFixtureForm(CompetitionFixture f)
+    {
+        f.CompetitionStageId = _fixtureForm.CompetitionStageId;
+        f.FixtureLabel = _fixtureForm.FixtureLabel;
+        f.ScheduledAt = _fixtureForm.ScheduledAt;
+        f.Player1Id = _fixtureForm.Player1Id;
+        f.Player2Id = _fixtureForm.Player2Id;
+        f.Player3Id = _fixtureForm.Player3Id;
+        f.Player4Id = _fixtureForm.Player4Id;
+        f.CourtId = _fixtureForm.CourtId;
+        f.Status = _fixtureForm.Status;
+    }
+
+    private async Task DeleteFixture(CompetitionFixture fixture)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var f = await db.CompetitionFixtures.FindAsync(fixture.CompetitionFixtureId);
+        if (f != null) { db.CompetitionFixtures.Remove(f); await db.SaveChangesAsync(); }
+        _fixtures.Remove(fixture);
+        Snackbar.Add("Fixture removed.", Severity.Warning);
+    }
+
+    private async Task ScheduleFixtures()
+    {
+        _showScheduleConfirm = false;
+        await using var db = DbFactory.CreateDbContext();
+
+        // Delete non-completed fixtures
+        var toDelete = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == Id && f.Status != FixtureStatus.Completed)
+            .ToListAsync();
+        db.CompetitionFixtures.RemoveRange(toDelete);
+
+        var startDate = Model.StartDateDt?.Date ?? DateTime.Today;
+        var endDate   = Model.EndDateDt?.Date   ?? DateTime.Today.AddDays(28);
+        if (endDate <= startDate) endDate = startDate.AddDays(28);
+
+        var activePlayers = _participants
+            .Where(p => p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed)
+            .Select(p => p.PlayerId)
+            .ToList();
+
+        var rng = new Random();
+        int[] timeSlots = [9 * 60, 10 * 60 + 30, 12 * 60, 13 * 60 + 30, 15 * 60, 16 * 60 + 30, 18 * 60];
+
+        // ── Phase-based date windows ───────────────────────────────────────────
+        // Each phase (RR → QF → SF → Final) gets its own slice of the date range
+        // so fixtures are always scheduled in the correct chronological order.
+        // Within a phase, match index controls ordering (QF1 < QF2 < QF3 < QF4).
+        bool hasExplicitQF    = _stages.Any(s => s.StageType == StageType.QuarterFinal);
+        bool hasExplicitSF    = _stages.Any(s => s.StageType == StageType.SemiFinal);
+        bool hasExplicitFinal = _stages.Any(s => s.StageType == StageType.Final);
+        bool hasKnockout      = _stages.Any(s => s.StageType == StageType.Knockout);
+        int  n                = activePlayers.Count;
+
+        var phases = new List<string>();
+        if (_stages.Any(s => s.StageType == StageType.RoundRobin))  phases.Add("rr");
+        if (hasExplicitQF || (hasKnockout && n >= 8))               phases.Add("qf");
+        if (hasExplicitSF || hasKnockout)                           phases.Add("sf");
+        if (hasExplicitFinal || hasKnockout)                        phases.Add("final");
+        if (phases.Count == 0) phases.Add("rr");
+
+        int totalDays = Math.Max(1, (endDate - startDate).Days);
+        int sliceSize = Math.Max(1, totalDays / phases.Count);
+
+        // Returns a DateTime within the given phase's date window.
+        // For RR fixtures a random day is chosen; for knockout rounds the
+        // matchIndex spreads fixtures evenly so earlier matches come first.
+        DateTime PhaseSlot(string phase, int matchIndex = 0, int totalInPhase = 1)
+        {
+            int phaseIdx = phases.IndexOf(phase);
+            if (phaseIdx < 0) phaseIdx = 0;
+
+            var windowStart = startDate.AddDays(phaseIdx * sliceSize);
+            var windowEnd   = phaseIdx < phases.Count - 1
+                ? startDate.AddDays((phaseIdx + 1) * sliceSize - 1)
+                : endDate;
+
+            int windowDays = Math.Max(0, (windowEnd - windowStart).Days);
+
+            int dayOffset = phase == "rr"
+                ? (windowDays > 0 ? rng.Next(0, windowDays + 1) : 0)
+                : totalInPhase > 1
+                    ? (int)Math.Round((double)matchIndex / (totalInPhase - 1) * windowDays)
+                    : windowDays / 2;
+
+            return windowStart.AddDays(dayOffset).AddMinutes(timeSlots[rng.Next(timeSlots.Length)]);
+        }
+
+        // Returns the top N players ranked by completed round-robin results.
+        // Falls back to registration order when no results exist yet.
+        async Task<List<int>> TopFromRoundRobin(int count)
+        {
+            var rrStageIds = _stages
+                .Where(s => s.StageType == StageType.RoundRobin)
+                .Select(s => s.CompetitionStageId)
+                .ToHashSet();
+
+            if (rrStageIds.Count == 0)
+                return activePlayers.Take(count).ToList();
+
+            var rrFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == Id
+                            && f.CompetitionStageId != null
+                            && rrStageIds.Contains(f.CompetitionStageId!.Value)
+                            && f.Status == FixtureStatus.Completed
+                            && f.WinnerPlayerId != null)
+                .ToListAsync();
+
+            if (rrFixtures.Count == 0)
+                return activePlayers.Take(count).ToList();
+
+            var pts = activePlayers.ToDictionary(pid => pid, _ => (Points: 0, Won: 0));
+            foreach (var f in rrFixtures)
+            {
+                var pids = new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
+                    .Where(pid => pid.HasValue && pts.ContainsKey(pid.Value))
+                    .Select(pid => pid!.Value).Distinct();
+                foreach (var pid in pids)
+                {
+                    bool win = pid == f.WinnerPlayerId;
+                    var cur = pts[pid];
+                    pts[pid] = (cur.Points + (win ? 3 : 0), cur.Won + (win ? 1 : 0));
+                }
+            }
+            return pts
+                .OrderByDescending(kv => kv.Value.Points)
+                .ThenByDescending(kv => kv.Value.Won)
+                .Take(count)
+                .Select(kv => kv.Key)
+                .ToList();
+        }
+
+        var newFixtures = new List<CompetitionFixture>();
+
+        foreach (var stage in _stages)
+        {
+            switch (stage.StageType)
+            {
+                case StageType.RoundRobin:
+                {
+                    var players = activePlayers.ToList();
+                    for (int i = 0; i < players.Count; i++)
+                        for (int j = i + 1; j < players.Count; j++)
+                            newFixtures.Add(new CompetitionFixture
+                            {
+                                CompetitionId      = Id,
+                                CompetitionStageId = stage.CompetitionStageId,
+                                Player1Id          = players[i],
+                                Player2Id          = players[j],
+                                ScheduledAt        = PhaseSlot("rr"),
+                                Status             = FixtureStatus.Scheduled
+                            });
+                    break;
+                }
+
+                case StageType.Knockout:
+                {
+                    // Only generates the sub-rounds not already covered by explicit
+                    // stage entries, preventing duplicate QF / SF / Final fixtures.
+                    if (n < 2) break;
+
+                    bool koGeneratesQF    = n >= 8 && !hasExplicitQF;
+                    bool koGeneratesSF    = !hasExplicitSF;
+                    bool koGeneratesFinal = !hasExplicitFinal;
+
+                    if (koGeneratesQF)
+                    {
+                        var qf = await TopFromRoundRobin(8);
+                        for (int m = 0; m < 4; m++)
+                            newFixtures.Add(new CompetitionFixture
+                            {
+                                CompetitionId      = Id,
+                                CompetitionStageId = stage.CompetitionStageId,
+                                Player1Id          = m * 2     < qf.Count ? qf[m * 2]     : null,
+                                Player2Id          = m * 2 + 1 < qf.Count ? qf[m * 2 + 1] : null,
+                                FixtureLabel       = $"Quarter-Final {m + 1}",
+                                RoundNumber        = 1,
+                                ScheduledAt        = PhaseSlot("qf", m, 4),
+                                Status             = FixtureStatus.Scheduled
+                            });
+                    }
+
+                    if (koGeneratesSF)
+                    {
+                        bool sfSeeded  = n >= 4 && !koGeneratesQF;
+                        var  sfPlayers = sfSeeded ? await TopFromRoundRobin(4) : new List<int>();
+                        for (int m = 0; m < 2; m++)
+                            newFixtures.Add(new CompetitionFixture
+                            {
+                                CompetitionId      = Id,
+                                CompetitionStageId = stage.CompetitionStageId,
+                                Player1Id          = m * 2     < sfPlayers.Count ? sfPlayers[m * 2]     : null,
+                                Player2Id          = m * 2 + 1 < sfPlayers.Count ? sfPlayers[m * 2 + 1] : null,
+                                FixtureLabel       = $"Semi-Final {m + 1}",
+                                RoundNumber        = koGeneratesQF ? 2 : 1,
+                                ScheduledAt        = PhaseSlot("sf", m, 2),
+                                Status             = FixtureStatus.Scheduled
+                            });
+                    }
+
+                    if (koGeneratesFinal)
+                        newFixtures.Add(new CompetitionFixture
+                        {
+                            CompetitionId      = Id,
+                            CompetitionStageId = stage.CompetitionStageId,
+                            FixtureLabel       = "Final",
+                            RoundNumber        = koGeneratesQF ? 3 : koGeneratesSF ? 2 : 1,
+                            ScheduledAt        = PhaseSlot("final", 0, 1),
+                            Status             = FixtureStatus.Scheduled
+                        });
+                    break;
+                }
+
+                case StageType.QuarterFinal:
+                {
+                    var qf = await TopFromRoundRobin(8);
+                    for (int m = 0; m < 4; m++)
+                        newFixtures.Add(new CompetitionFixture
+                        {
+                            CompetitionId      = Id,
+                            CompetitionStageId = stage.CompetitionStageId,
+                            Player1Id          = m * 2     < qf.Count ? qf[m * 2]     : null,
+                            Player2Id          = m * 2 + 1 < qf.Count ? qf[m * 2 + 1] : null,
+                            FixtureLabel       = $"Quarter-Final {m + 1}",
+                            RoundNumber        = 1,
+                            ScheduledAt        = PhaseSlot("qf", m, 4),
+                            Status             = FixtureStatus.Scheduled
+                        });
+                    break;
+                }
+
+                case StageType.SemiFinal:
+                {
+                    bool sfHasQf   = _stages.Any(s => s.StageType == StageType.QuarterFinal);
+                    var  sfPlayers = sfHasQf ? new List<int>() : await TopFromRoundRobin(4);
+                    for (int m = 0; m < 2; m++)
+                        newFixtures.Add(new CompetitionFixture
+                        {
+                            CompetitionId      = Id,
+                            CompetitionStageId = stage.CompetitionStageId,
+                            Player1Id          = m * 2     < sfPlayers.Count ? sfPlayers[m * 2]     : null,
+                            Player2Id          = m * 2 + 1 < sfPlayers.Count ? sfPlayers[m * 2 + 1] : null,
+                            FixtureLabel       = $"Semi-Final {m + 1}",
+                            RoundNumber        = 1,
+                            ScheduledAt        = PhaseSlot("sf", m, 2),
+                            Status             = FixtureStatus.Scheduled
+                        });
+                    break;
+                }
+
+                case StageType.Final:
+                    newFixtures.Add(new CompetitionFixture
+                    {
+                        CompetitionId      = Id,
+                        CompetitionStageId = stage.CompetitionStageId,
+                        FixtureLabel       = "Final",
+                        RoundNumber        = 1,
+                        ScheduledAt        = PhaseSlot("final", 0, 1),
+                        Status             = FixtureStatus.Scheduled
+                    });
+                    break;
+            }
+        }
+
+        db.CompetitionFixtures.AddRange(newFixtures);
+        await db.SaveChangesAsync();
+
+        // Reload fixtures with nav props
+        _fixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == Id)
+            .Include(f => f.Stage)
+            .Include(f => f.Court)
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .OrderBy(f => f.RoundNumber)
+            .ThenBy(f => f.ScheduledAt)
+            .ToListAsync();
+
+        Snackbar.Add($"{newFixtures.Count} fixtures scheduled.", Severity.Success);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static string FixturePlayers(CompetitionFixture f)
+    {
+        var side1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        return $"{side1} vs {side2}";
+    }
+
+    private static Color StatusColor(FixtureStatus s) => s switch
+    {
+        FixtureStatus.Scheduled => Color.Default,
+        FixtureStatus.InProgress => Color.Warning,
+        FixtureStatus.Completed => Color.Success,
+        FixtureStatus.Cancelled => Color.Error,
+        FixtureStatus.Walkover => Color.Info,
+        _ => Color.Default
+    };
 }

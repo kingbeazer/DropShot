@@ -27,5 +27,6 @@
         public ICollection<CompetitionParticipant> Participants { get; set; } = [];
         public ICollection<CompetitionFixture> Fixtures { get; set; } = [];
         public ICollection<CompetitionStage> Stages { get; set; } = [];
+        public ICollection<CompetitionTeam> Teams { get; set; } = [];
     }
 }

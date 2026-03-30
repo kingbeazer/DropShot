@@ -25,9 +25,11 @@ public enum CourtSurface : byte
 
 public enum StageType : byte
 {
-    RoundRobin = 1,
-    Knockout = 2,
-    Final = 3
+    RoundRobin   = 1,
+    Knockout     = 2,   // full auto-bracket (generates all rounds automatically)
+    Final        = 3,
+    QuarterFinal = 4,   // top 8 players — 4 matches
+    SemiFinal    = 5,   // top 4 players (or QF winners) — 2 matches
 }
 
 public enum ParticipantStatus : byte
@@ -50,5 +52,6 @@ public enum FixtureStatus : byte
     Scheduled = 1,
     InProgress = 2,
     Completed = 3,
-    Cancelled = 4
+    Cancelled = 4,
+    Walkover = 5
 }

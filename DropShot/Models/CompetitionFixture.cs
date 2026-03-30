@@ -23,6 +23,9 @@ public class CompetitionFixture
     public int? Player3Id { get; set; }
     public int? Player4Id { get; set; }
 
+    public string? FixtureLabel { get; set; }
+    public int? RoundNumber { get; set; }
+
     public int? SavedMatchId { get; set; }
     public string? ResultSummary { get; set; }
     public int? WinnerPlayerId { get; set; }
