@@ -50,3 +50,24 @@ h1:focus {
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
+
+.scoreboard-player-name {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: white;
+    margin-bottom: 4px;
+}
+
+.scoreboard-serve-indicator {
+    display: inline-block;
+    width: 50px;
+    font-size: 1.5rem;
+}
+
+.scoreboard-tiebreak {
+    margin-top: 16px;
+    font-size: 2rem;
+    font-weight: bold;
+    color: gold;
+    letter-spacing: 0.1em;
+}

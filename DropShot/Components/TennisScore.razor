@@ -154,6 +154,22 @@
 {
     <section class="bg-tennis overlay-dark">
         <div class="score-container">
+            <!-- Match Header -->
+            @{
+                var _headerCourt = _courts.FirstOrDefault(c => c.CourtId == _selectedCourtId);
+            }
+            <div style="text-align: center; padding: 4px 8px;">
+                @if (_headerCourt != null)
+                {
+                    <div style="font-size: 0.85rem; color: #aaa; letter-spacing: 1px; text-transform: uppercase;">
+                        @_headerCourt.Club.Name — @_headerCourt.Name
+                    </div>
+                }
+                <div style="font-size: 1rem; color: white; font-weight: bold;">
+                    @GetUserDisplayName() <span style="color: #aaa;">vs</span> @GetOpponentDisplayName()
+                </div>
+            </div>
+
             <!-- Top Player Button -->
             <div style="display: flex">
                 <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
@@ -431,6 +447,24 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    private string GetUserDisplayName()
+    {
+        if (CurrentMatch != null)
+            return !string.IsNullOrEmpty(CurrentMatch.Player3)
+                ? $"{CurrentMatch.Player1} & {CurrentMatch.Player2}"
+                : CurrentMatch.Player1;
+        return Label_Switch1 ? $"{_value} & {_value2}" : _value;
+    }
+
+    private string GetOpponentDisplayName()
+    {
+        if (CurrentMatch != null)
+            return !string.IsNullOrEmpty(CurrentMatch.Player3)
+                ? $"{CurrentMatch.Player3} & {CurrentMatch.Player4}"
+                : CurrentMatch.Player2;
+        return Label_Switch1 ? $"{_value3} & {_value4}" : _value2;
+    }
+
     private async Task StartAfterCoinToss()
     {
         _state.IsUserServing = _coinTossUserServes;
@@ -443,12 +477,24 @@
         // Navigate to /match/{id} so that refreshing the page restores this exact match.
         if (_savedMatchId > 0)
             Navigation.NavigateTo($"/match/{_savedMatchId}", replace: true);
+
+        // Broadcast initial state so the scoreboard shows player names and serve indicator immediately.
+        var initialState = new GameState(
+            0, 0, 0, 0, 0, 0, false, 0, _state.IsUserServing,
+            0, 0, new List<SetScore>(), DateTime.Now, false,
+            GetUserDisplayName(), GetOpponentDisplayName()
+        );
+        if (hubConnection is not null)
+        {
+            await hubConnection.SendAsync("SendMessage",
+                JsonConvert.SerializeObject(initialState), CurrentMatch.CourtId?.ToString() ?? "");
+        }
     }
 
     private async Task SaveInitialMatchAsync()
     {
         var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
-        var initialState = new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, false);
+        var initialState = new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, false, GetUserDisplayName(), GetOpponentDisplayName());
         history.Push(initialState);
         CurrentMatch.History = history;
         CurrentMatch.HistoryList = history.ToList();
@@ -557,7 +603,7 @@
         }
     }
 
-    private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false) });
+    private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "") });
 
 
 
@@ -565,12 +611,8 @@
     [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; }
     private bool isSaving;
 
-    private async void SaveHistory()
+    private async Task PersistAndBroadcast()
     {
-        var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
-
-        history.Push(new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, _state.IsMatchEnded));
-
         CurrentMatch.History = history;
         CurrentMatch.HistoryList = history.ToList();
 
@@ -597,13 +639,21 @@
         await dbc.SaveChangesAsync();
         _savedMatchId = matchToSave.SavedMatchId;
 
-
-        string json = JsonConvert.SerializeObject(history.Peek());
-
-        if (hubConnection is not null)
+        if (hubConnection is not null && history.Any())
         {
-            hubConnection.SendAsync("SendMessage", $"{json}", CurrentMatch.CourtId?.ToString() ?? "");
+            await hubConnection.SendAsync("SendMessage",
+                JsonConvert.SerializeObject(history.Peek()),
+                CurrentMatch.CourtId?.ToString() ?? "");
         }
+    }
+
+    private async void SaveHistory()
+    {
+        var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
+
+        history.Push(new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, _state.IsMatchEnded, GetUserDisplayName(), GetOpponentDisplayName()));
+
+        await PersistAndBroadcast();
     }
 
     private void UserWinsPoint()
@@ -628,7 +678,7 @@
         SaveHistory();
     }
 
-    private void UndoLastPoint()
+    private async void UndoLastPoint()
     {
         if (history.Any())
             history.Pop();
@@ -638,7 +688,7 @@
             CurrentMatch.Complete = false;
         _state.IsMatchEnded = false;
         _winner = "";
-        SaveHistory();
+        await PersistAndBroadcast();
     }
 
     private void OpenSettings() { }
