@@ -99,6 +99,22 @@ public class ClubsController(
             (DropShot.Shared.CourtSurface)court.Surface, court.IsIndoor));
     }
 
+    [HttpPut("{id:int}/courts/{courtId:int}")]
+    public async Task<ActionResult<CourtDto>> UpdateCourt(int id, int courtId, [FromBody] UpdateCourtRequest req)
+    {
+        if (!await authzService.CanEditClubAsync(User, id)) return Forbid();
+
+        await using var db = dbFactory.CreateDbContext();
+        var court = await db.Courts.FindAsync(courtId);
+        if (court is null || court.ClubId != id) return NotFound();
+        court.Name = req.Name.Trim();
+        court.Surface = (DropShot.Models.CourtSurface)req.Surface;
+        court.IsIndoor = req.IsIndoor;
+        await db.SaveChangesAsync();
+        return Ok(new CourtDto(court.CourtId, court.ClubId, court.Name,
+            (DropShot.Shared.CourtSurface)court.Surface, court.IsIndoor));
+    }
+
     [HttpDelete("{id:int}/courts/{courtId:int}")]
     public async Task<IActionResult> DeleteCourt(int id, int courtId)
     {

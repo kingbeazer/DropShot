@@ -136,13 +136,44 @@
                 <MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd>@context.Name</MudTd>
-                <MudTd>@context.Surface</MudTd>
-                <MudTd><MudIcon Icon="@(context.IsIndoor ? Icons.Material.Filled.CheckBox : Icons.Material.Filled.CheckBoxOutlineBlank)" Size="Size.Small" /></MudTd>
-                <MudTd>
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                   OnClick="@(() => DeleteCourt(context))" />
-                </MudTd>
+                @if (_editingCourt?.CourtId == context.CourtId)
+                {
+                    <MudTd>
+                        <MudTextField @bind-Value="_courtEditForm.Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudTd>
+                    <MudTd>
+                        <MudSelect @bind-Value="_courtEditForm.Surface" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (CourtSurface s in Enum.GetValues<CourtSurface>())
+                            {
+                                <MudSelectItem Value="@s">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd>
+                        <MudCheckBox @bind-Value="_courtEditForm.IsIndoor" />
+                    </MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Save" Size="Size.Small" Color="Color.Primary"
+                                       OnClick="SaveEditCourt"
+                                       Disabled="string.IsNullOrWhiteSpace(_courtEditForm.Name)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small"
+                                       OnClick="CancelEditCourt" />
+                    </MudTd>
+                }
+                else
+                {
+                    <MudTd>@context.Name</MudTd>
+                    <MudTd>@context.Surface</MudTd>
+                    <MudTd><MudIcon Icon="@(context.IsIndoor ? Icons.Material.Filled.CheckBox : Icons.Material.Filled.CheckBoxOutlineBlank)" Size="Size.Small" /></MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => StartEditCourt(context))"
+                                       Disabled="_editingCourt is not null" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => DeleteCourt(context))"
+                                       Disabled="_editingCourt is not null" />
+                    </MudTd>
+                }
             </RowTemplate>
             <NoRecordsContent><MudText Typo="Typo.caption">No courts yet.</MudText></NoRecordsContent>
         </MudTable>
@@ -173,6 +204,8 @@
     private Club? _courtsClub;
     private List<Court> _courts = [];
     private CourtForm _courtForm = new();
+    private Court? _editingCourt;
+    private CourtForm _courtEditForm = new();
 
     private sealed class ClubForm
     {
@@ -283,6 +316,7 @@
     {
         _courtsClub = club;
         _courtForm = new CourtForm();
+        _editingCourt = null;
         await using var dbc = DbFactory.CreateDbContext();
         _courts = await dbc.Courts.Where(c => c.ClubId == club.ClubId).OrderBy(c => c.Name).ToListAsync();
         _showCourtsDialog = true;
@@ -305,6 +339,33 @@
         _courtForm = new CourtForm();
         Snackbar.Add("Court added.", Severity.Success);
         await LoadClubs();
+    }
+
+    private void StartEditCourt(Court court)
+    {
+        _editingCourt = court;
+        _courtEditForm = new CourtForm { Name = court.Name, Surface = court.Surface, IsIndoor = court.IsIndoor };
+    }
+
+    private void CancelEditCourt() => _editingCourt = null;
+
+    private async Task SaveEditCourt()
+    {
+        if (_editingCourt is null || string.IsNullOrWhiteSpace(_courtEditForm.Name)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        var c = await dbc.Courts.FindAsync(_editingCourt.CourtId);
+        if (c is not null)
+        {
+            c.Name = _courtEditForm.Name.Trim();
+            c.Surface = _courtEditForm.Surface;
+            c.IsIndoor = _courtEditForm.IsIndoor;
+            await dbc.SaveChangesAsync();
+            _editingCourt.Name = c.Name;
+            _editingCourt.Surface = c.Surface;
+            _editingCourt.IsIndoor = c.IsIndoor;
+        }
+        _editingCourt = null;
+        Snackbar.Add("Court updated.", Severity.Success);
     }
 
     private async Task DeleteCourt(Court court)
