@@ -17,17 +17,48 @@
                     <MudTh></MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd>@context.Name</MudTd>
-                    <MudTd>@context.Surface</MudTd>
-                    <MudTd>
-                        <MudIcon Icon="@(context.IsIndoor ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
-                                 Color="@(context.IsIndoor ? Color.Success : Color.Default)" Size="Size.Small" />
-                    </MudTd>
-                    <MudTd>
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                       Color="Color.Error"
-                                       OnClick="@(() => DeleteCourtAsync(context))" />
-                    </MudTd>
+                    @if (_editingCourtId == context.CourtId)
+                    {
+                        <MudTd>
+                            <MudTextField @bind-Value="_editName" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudTd>
+                        <MudTd>
+                            <MudSelect @bind-Value="_editSurface" Variant="Variant.Outlined" Margin="Margin.Dense" T="CourtSurface">
+                                @foreach (CourtSurface s in Enum.GetValues<CourtSurface>())
+                                {
+                                    <MudSelectItem Value="s">@s</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudTd>
+                        <MudTd>
+                            <MudCheckBox @bind-Value="_editIsIndoor" />
+                        </MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Save" Size="Size.Small"
+                                           Color="Color.Primary" OnClick="SaveEditAsync"
+                                           Disabled="string.IsNullOrWhiteSpace(_editName)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small"
+                                           OnClick="CancelEdit" />
+                        </MudTd>
+                    }
+                    else
+                    {
+                        <MudTd>@context.Name</MudTd>
+                        <MudTd>@context.Surface</MudTd>
+                        <MudTd>
+                            <MudIcon Icon="@(context.IsIndoor ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
+                                     Color="@(context.IsIndoor ? Color.Success : Color.Default)" Size="Size.Small" />
+                        </MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           OnClick="@(() => StartEdit(context))"
+                                           Disabled="_editingCourtId.HasValue" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteCourtAsync(context))"
+                                           Disabled="_editingCourtId.HasValue" />
+                        </MudTd>
+                    }
                 </RowTemplate>
             </MudTable>
 
@@ -67,6 +98,11 @@
     private CourtSurface _newSurface = CourtSurface.Hard;
     private bool _newIsIndoor;
 
+    private int? _editingCourtId;
+    private string _editName = "";
+    private CourtSurface _editSurface = CourtSurface.Hard;
+    private bool _editIsIndoor;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadCourtsAsync();
@@ -100,6 +136,37 @@
             _newCourtName = "";
             _newIsIndoor = false;
             Snackbar.Add("Court added.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void StartEdit(CourtDto court)
+    {
+        _editingCourtId = court.CourtId;
+        _editName = court.Name;
+        _editSurface = court.Surface;
+        _editIsIndoor = court.IsIndoor;
+    }
+
+    private void CancelEdit() => _editingCourtId = null;
+
+    private async Task SaveEditAsync()
+    {
+        if (_editingCourtId is null) return;
+        try
+        {
+            var updated = await Api.UpdateCourtAsync(ClubId, _editingCourtId.Value,
+                new UpdateCourtRequest(_editName.Trim(), _editSurface, _editIsIndoor));
+            if (updated is not null)
+            {
+                var idx = _courts.FindIndex(c => c.CourtId == updated.CourtId);
+                if (idx >= 0) _courts[idx] = updated;
+            }
+            _editingCourtId = null;
+            Snackbar.Add("Court updated.", Severity.Success);
         }
         catch (Exception ex)
         {

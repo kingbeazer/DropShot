@@ -42,3 +42,4 @@ public record SaveClubRequest(
     string? Website);
 
 public record AddCourtRequest(string Name, CourtSurface Surface, bool IsIndoor);
+public record UpdateCourtRequest(string Name, CourtSurface Surface, bool IsIndoor);

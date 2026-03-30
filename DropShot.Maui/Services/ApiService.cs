@@ -123,6 +123,13 @@ public class ApiService(HttpClient http)
         return await r.Content.ReadFromJsonAsync<CourtDto>();
     }
 
+    public async Task<CourtDto?> UpdateCourtAsync(int clubId, int courtId, UpdateCourtRequest req)
+    {
+        var r = await http.PutAsJsonAsync($"api/clubs/{clubId}/courts/{courtId}", req);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CourtDto>();
+    }
+
     public async Task DeleteCourtAsync(int clubId, int courtId)
     {
         var r = await http.DeleteAsync($"api/clubs/{clubId}/courts/{courtId}");
