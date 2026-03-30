@@ -10,7 +10,8 @@ public record PlayerDto(
     PlayerSex? Sex,
     string? ContactPreferences,
     string? ProfileImagePath,
-    string? UserId);
+    string? UserId,
+    string? MobileNumber);
 
 public record CreatePlayerRequest(
     string DisplayName,
@@ -19,7 +20,8 @@ public record CreatePlayerRequest(
     string? Email,
     DateOnly? DateOfBirth,
     PlayerSex? Sex,
-    string? ContactPreferences);
+    string? ContactPreferences,
+    string? MobileNumber);
 
 public record UpdatePlayerRequest(
     string DisplayName,
@@ -28,4 +30,5 @@ public record UpdatePlayerRequest(
     string? Email,
     DateOnly? DateOfBirth,
     PlayerSex? Sex,
-    string? ContactPreferences);
+    string? ContactPreferences,
+    string? MobileNumber);

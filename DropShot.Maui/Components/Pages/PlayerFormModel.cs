@@ -12,6 +12,7 @@ public class PlayerFormModel
     public DateTime? DateOfBirth { get; set; }
     public PlayerSex? Sex { get; set; }
     public string? ContactPreferences { get; set; }
+    public string? MobileNumber { get; set; }
 
     public static PlayerFormModel From(PlayerDto dto) => new()
     {
@@ -23,6 +24,7 @@ public class PlayerFormModel
             ? dto.DateOfBirth.Value.ToDateTime(TimeOnly.MinValue)
             : null,
         Sex = dto.Sex,
-        ContactPreferences = dto.ContactPreferences
+        ContactPreferences = dto.ContactPreferences,
+        MobileNumber = dto.MobileNumber
     };
 }

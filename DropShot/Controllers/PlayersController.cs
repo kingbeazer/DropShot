@@ -41,7 +41,8 @@ public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : Contr
             Email = req.Email,
             DateOfBirth = req.DateOfBirth,
             Sex = (DropShot.Models.PlayerSex?)req.Sex,
-            ContactPreferences = req.ContactPreferences
+            ContactPreferences = req.ContactPreferences,
+            MobileNumber = req.MobileNumber
         };
         db.Players.Add(player);
         await db.SaveChangesAsync();
@@ -63,6 +64,7 @@ public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : Contr
         p.DateOfBirth = req.DateOfBirth;
         p.Sex = (DropShot.Models.PlayerSex?)req.Sex;
         p.ContactPreferences = req.ContactPreferences;
+        p.MobileNumber = req.MobileNumber;
         await db.SaveChangesAsync();
         return ToDto(p);
     }
@@ -82,5 +84,5 @@ public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : Contr
     private static PlayerDto ToDto(Player p) => new(
         p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.Email,
         p.DateOfBirth, (DropShot.Shared.PlayerSex?)p.Sex,
-        p.ContactPreferences, p.ProfileImagePath, p.UserId);
+        p.ContactPreferences, p.ProfileImagePath, p.UserId, p.MobileNumber);
 }

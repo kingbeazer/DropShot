@@ -115,7 +115,7 @@ else
             var dto = await Api.CreatePlayerAsync(new CreatePlayerRequest(
                 model.DisplayName, model.FirstName, model.LastName, model.Email,
                 model.DateOfBirth.HasValue ? DateOnly.FromDateTime(model.DateOfBirth.Value) : null,
-                model.Sex, model.ContactPreferences));
+                model.Sex, model.ContactPreferences, model.MobileNumber));
             if (dto is not null) _players?.Add(dto);
             Snackbar.Add("Player created.", Severity.Success);
         }
@@ -132,7 +132,7 @@ else
             var dto = await Api.UpdatePlayerAsync(id, new UpdatePlayerRequest(
                 model.DisplayName, model.FirstName, model.LastName, model.Email,
                 model.DateOfBirth.HasValue ? DateOnly.FromDateTime(model.DateOfBirth.Value) : null,
-                model.Sex, model.ContactPreferences));
+                model.Sex, model.ContactPreferences, model.MobileNumber));
             if (dto is not null)
             {
                 var idx = _players?.FindIndex(p => p.PlayerId == id) ?? -1;

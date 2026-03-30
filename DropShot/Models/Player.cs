@@ -24,6 +24,7 @@ public class Player
     public PlayerSex? Sex { get; set; }
     public string? ProfileImagePath { get; set; }
     public string? ContactPreferences { get; set; }
+    public string? MobileNumber { get; set; }
 
     public ICollection<CompetitionParticipant> CompetitionParticipants { get; set; } = [];
     public ICollection<PlayerFriend> Friends { get; set; } = [];

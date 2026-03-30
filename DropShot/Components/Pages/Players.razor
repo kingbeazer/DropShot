@@ -27,6 +27,7 @@
         <MudTh>Display Name</MudTh>
         <MudTh>Name</MudTh>
         <MudTh>Email</MudTh>
+        <MudTh>Mobile</MudTh>
         <MudTh>Date of Birth</MudTh>
         <MudTh>Sex</MudTh>
         <MudTh>Linked Account</MudTh>
@@ -38,6 +39,7 @@
         <MudTd DataLabel="Display Name">@context.Player.DisplayName</MudTd>
         <MudTd DataLabel="Name">@(FullName(context.Player))</MudTd>
         <MudTd DataLabel="Email">@(context.Player.Email ?? "—")</MudTd>
+        <MudTd DataLabel="Mobile">@(context.Player.MobileNumber ?? "—")</MudTd>
         <MudTd DataLabel="Date of Birth">@(context.Player.DateOfBirth?.ToString("dd MMM yyyy") ?? "—")</MudTd>
         <MudTd DataLabel="Sex">@(context.Player.Sex?.ToString() ?? "—")</MudTd>
         <MudTd DataLabel="Linked Account">
@@ -82,9 +84,13 @@
             <MudItem xs="6">
                 <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined" />
             </MudItem>
-            <MudItem xs="12">
+            <MudItem xs="6">
                 <MudTextField @bind-Value="_form.Email" Label="Email (optional)" Variant="Variant.Outlined"
                               InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number (optional)" Variant="Variant.Outlined"
+                              InputType="InputType.Telephone" />
             </MudItem>
             <MudItem xs="6">
                 <MudDatePicker @bind-Date="_form.DateOfBirthDt" Label="Date of Birth" Variant="Variant.Outlined"
@@ -125,9 +131,13 @@
             <MudItem xs="6">
                 <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined" />
             </MudItem>
-            <MudItem xs="12">
+            <MudItem xs="6">
                 <MudTextField @bind-Value="_form.Email" Label="Email (optional)" Variant="Variant.Outlined"
                               InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number (optional)" Variant="Variant.Outlined"
+                              InputType="InputType.Telephone" />
             </MudItem>
             <MudItem xs="6">
                 <MudDatePicker @bind-Date="_form.DateOfBirthDt" Label="Date of Birth" Variant="Variant.Outlined"
@@ -202,6 +212,7 @@
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
         public string? Email { get; set; }
+        public string? MobileNumber { get; set; }
         public DateTime? DateOfBirthDt { get; set; }
         public PlayerSex? Sex { get; set; }
         public string? ContactPreferences { get; set; }
@@ -246,6 +257,7 @@
             FirstName = NullIfEmpty(_form.FirstName),
             LastName = NullIfEmpty(_form.LastName),
             Email = NullIfEmpty(_form.Email),
+            MobileNumber = NullIfEmpty(_form.MobileNumber),
             DateOfBirth = _form.DateOfBirth,
             Sex = _form.Sex,
             ContactPreferences = NullIfEmpty(_form.ContactPreferences)
@@ -266,6 +278,7 @@
             FirstName = player.FirstName,
             LastName = player.LastName,
             Email = player.Email,
+            MobileNumber = player.MobileNumber,
             DateOfBirthDt = player.DateOfBirth?.ToDateTime(TimeOnly.MinValue),
             Sex = player.Sex,
             ContactPreferences = player.ContactPreferences
@@ -285,6 +298,7 @@
         p.FirstName = NullIfEmpty(_form.FirstName);
         p.LastName = NullIfEmpty(_form.LastName);
         p.Email = NullIfEmpty(_form.Email);
+        p.MobileNumber = NullIfEmpty(_form.MobileNumber);
         p.DateOfBirth = _form.DateOfBirth;
         p.Sex = _form.Sex;
         p.ContactPreferences = NullIfEmpty(_form.ContactPreferences);

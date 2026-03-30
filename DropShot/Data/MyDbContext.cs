@@ -21,6 +21,7 @@ namespace DropShot.Data
         public DbSet<CompetitionParticipant> CompetitionParticipants { get; set; }
         public DbSet<CompetitionStage> CompetitionStages { get; set; }
         public DbSet<CompetitionFixture> CompetitionFixtures { get; set; }
+        public DbSet<CompetitionTeam> CompetitionTeams { get; set; }
         public DbSet<ClubLadder> ClubLadders { get; set; }
         public DbSet<LadderEntry> LadderEntries { get; set; }
         public DbSet<PlayerFriend> PlayerFriends { get; set; }
@@ -38,6 +39,7 @@ namespace DropShot.Data
                 entity.Property(p => p.LastName).HasMaxLength(100);
                 entity.Property(p => p.ProfileImagePath).HasMaxLength(500);
                 entity.Property(p => p.ContactPreferences).HasMaxLength(50);
+                entity.Property(p => p.MobileNumber).HasMaxLength(20);
                 entity.Property(p => p.Sex).HasConversion<byte?>();
 
                 entity.HasOne(p => p.User)
@@ -135,6 +137,17 @@ namespace DropShot.Data
                       .OnDelete(DeleteBehavior.Cascade);    // deleting a club removes its admin assignments
             });
 
+            // ── CompetitionTeam ──────────────────────────────────────────────────
+            builder.Entity<CompetitionTeam>(entity =>
+            {
+                entity.Property(t => t.Name).HasMaxLength(100).IsRequired();
+
+                entity.HasOne(t => t.Competition)
+                      .WithMany(c => c.Teams)
+                      .HasForeignKey(t => t.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
             // ── CompetitionParticipant ───────────────────────────────────────────
             builder.Entity<CompetitionParticipant>(entity =>
             {
@@ -150,6 +163,11 @@ namespace DropShot.Data
                       .WithMany(p => p.CompetitionParticipants)
                       .HasForeignKey(cp => cp.PlayerId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(cp => cp.Team)
+                      .WithMany(t => t.Participants)
+                      .HasForeignKey(cp => cp.TeamId)
+                      .OnDelete(DeleteBehavior.NoAction);
             });
 
             // ── CompetitionStage ─────────────────────────────────────────────────
@@ -169,6 +187,7 @@ namespace DropShot.Data
             {
                 entity.Property(f => f.Status).HasConversion<byte>();
                 entity.Property(f => f.ResultSummary).HasMaxLength(200);
+                entity.Property(f => f.FixtureLabel).HasMaxLength(50);
 
                 entity.HasOne(f => f.Competition)
                       .WithMany(c => c.Fixtures)

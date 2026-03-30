@@ -22,8 +22,14 @@
     <Columns>
         <PropertyColumn Property="x => x.CompetitionName" />
         <PropertyColumn Property="x => x.CompetitionFormat" />
-        <TemplateColumn CellClass="d-flex justify-end">
+        <TemplateColumn CellClass="d-flex justify-end gap-2">
             <CellTemplate>
+                <MudButton Size="@Size.Small"
+                           Variant="@Variant.Outlined"
+                           Color="@Color.Info"
+                           OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionID}/view"))">
+                    View
+                </MudButton>
                 @if (CanEdit(context.Item))
                 {
                     <MudButton Size="@Size.Small"
