@@ -1,0 +1,142 @@
+@using DropShot.Models
+@implements IDisposable
+
+<div class="wimbledon-board">
+
+    @* Time bar *@
+    <div class="wb-time-bar">
+        <span class="wb-clock">@_currentTime</span>
+        <span class="wb-elapsed">@_elapsedTime</span>
+    </div>
+
+    @* Column headers *@
+    <div class="wb-header">
+        <div class="wb-prev-sets-label">PREVIOUS SETS</div>
+        <div class="wb-name-spacer"></div>
+        <div class="wb-live-headers">
+            <span>SETS</span>
+            <span>GAMES</span>
+            <span>POINTS</span>
+        </div>
+    </div>
+
+    @* Court / match info *@
+    @if (SelectedCourt != null)
+    {
+        <div class="wb-court-label">@SelectedCourt.Club.Name &mdash; @SelectedCourt.Name</div>
+    }
+
+    @* Player 1 row *@
+    <div class="wb-player-row @(Score.IsUserServing ? "wb-serving" : "")">
+        <div class="wb-prev-sets">
+            @foreach (var set in Score.SetScores ?? Enumerable.Empty<SetScore>())
+            {
+                <span class="wb-prev-score">@set.UserGames</span>
+            }
+        </div>
+        <div class="wb-name">
+            @if (Score.IsUserServing)
+            {
+                <span class="wb-serve-dot">&#9679;</span>
+            }
+            @(string.IsNullOrWhiteSpace(Score.UserName) ? (ActiveMatch?.Player1 ?? "Player 1") : Score.UserName)
+        </div>
+        <div class="wb-live-scores">
+            <span>@Score.UserS</span>
+            <span>@Score.UserG</span>
+            <span>@PointDisplay(Score.UserPts, Score.OppPts, Score.DeuceCount, Score.TieBreak)</span>
+        </div>
+    </div>
+
+    @* "v" separator *@
+    <div class="wb-separator">
+        <div class="wb-prev-sets-spacer"></div>
+        <div class="wb-vs">v</div>
+        <div class="wb-live-scores-spacer"></div>
+    </div>
+
+    @* Player 2 row *@
+    <div class="wb-player-row @(!Score.IsUserServing ? "wb-serving" : "")">
+        <div class="wb-prev-sets">
+            @foreach (var set in Score.SetScores ?? Enumerable.Empty<SetScore>())
+            {
+                <span class="wb-prev-score">@set.OpponentGames</span>
+            }
+        </div>
+        <div class="wb-name">
+            @if (!Score.IsUserServing)
+            {
+                <span class="wb-serve-dot">&#9679;</span>
+            }
+            @(string.IsNullOrWhiteSpace(Score.OpponentName) ? (ActiveMatch?.Player2 ?? "Player 2") : Score.OpponentName)
+        </div>
+        <div class="wb-live-scores">
+            <span>@Score.OppS</span>
+            <span>@Score.OppG</span>
+            <span>@PointDisplay(Score.OppPts, Score.UserPts, Score.DeuceCount, Score.TieBreak)</span>
+        </div>
+    </div>
+
+    @if (Score.TieBreak)
+    {
+        <div class="wb-tiebreak-badge">TIE BREAK</div>
+    }
+
+</div>
+
+@code {
+    [Parameter, EditorRequired] public GameState Score { get; set; } = default!;
+    [Parameter] public SavedMatch? ActiveMatch { get; set; }
+    [Parameter] public Court? SelectedCourt { get; set; }
+
+    private string _currentTime = "";
+    private string _elapsedTime = "";
+    private System.Timers.Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        UpdateTimes();
+        _timer = new System.Timers.Timer(30_000);
+        _timer.Elapsed += async (_, _) =>
+        {
+            UpdateTimes();
+            await InvokeAsync(StateHasChanged);
+        };
+        _timer.Start();
+    }
+
+    protected override void OnParametersSet()
+    {
+        UpdateTimes();
+    }
+
+    private void UpdateTimes()
+    {
+        var now = DateTime.Now;
+        _currentTime = now.ToString("H.mm");
+
+        if (ActiveMatch != null)
+        {
+            var elapsed = DateTime.UtcNow - ActiveMatch.CreatedAt;
+            _elapsedTime = $"{(int)elapsed.TotalHours}.{elapsed.Minutes:D2}";
+        }
+        else
+        {
+            _elapsedTime = "0.00";
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+
+    private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak)
+    {
+        if (tieBreak) return myPts.ToString();
+        if (deuceCount > 0)
+        {
+            if (myPts > oppPts) return "Ad";
+            if (myPts < oppPts) return "";
+            return "Deuce";
+        }
+        return myPts switch { 0 => "0", 1 => "15", 2 => "30", _ => "40" };
+    }
+}
