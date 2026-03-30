@@ -36,13 +36,24 @@
 
 @if (!currentScore.isComplete)
 {
-    <div style="display: flex; justify-content: center; gap: 40px; margin-top: 8px; margin-bottom: 4px;">
-        <MudText Typo="Typo.h3" Style="min-width: 70px; text-align: center; font-weight: bold;">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</MudText>
-        <MudText Typo="Typo.h3" Style="min-width: 70px; text-align: center; font-weight: bold;">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</MudText>
+    <div style="display: flex; justify-content: center; gap: 40px; margin-top: 8px; margin-bottom: 4px; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 1.4rem; visibility: @(currentScore.IsUserServing ? "visible" : "hidden");">🎾</span>
+            <MudText Typo="Typo.h3" Style="font-weight: bold;">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</MudText>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <MudText Typo="Typo.h3" Style="font-weight: bold;">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</MudText>
+            <span style="font-size: 1.4rem; visibility: @(!currentScore.IsUserServing ? "visible" : "hidden");">🎾</span>
+        </div>
     </div>
 }
 
-<div style="display: flex; justify-content: center; margin-top: 4px;">
+@if (currentScore.TieBreak)
+{
+    <div class="scoreboard-tiebreak">TIE BREAK</div>
+}
+
+<div style="display: flex; justify-content: center; margin-top: 4px; align-items: center;">
     @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
     {
         <DotDigit Number="@set.UserGames" />
@@ -54,7 +65,7 @@
     }
 </div>
 
-<div style="display: flex; justify-content: center;">
+<div style="display: flex; justify-content: center; align-items: center;">
     @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
     {
         <DotDigit Number="@set.OpponentGames" />
@@ -72,7 +83,7 @@
     private int? _selectedCourtId;
     private Court? _selectedCourt => _allCourts.FirstOrDefault(c => c.CourtId == _selectedCourtId);
     private SavedMatch? _activeMatch;
-    GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false);
+    GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "");
 
     protected override async Task OnInitializedAsync()
     {
@@ -120,7 +131,7 @@
     private async Task OnCourtChanged(int? courtId)
     {
         _selectedCourtId = courtId;
-        currentScore = new GameState(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false);
+        currentScore = new GameState(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "");
         _activeMatch = null;
 
         if (courtId.HasValue)

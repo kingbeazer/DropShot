@@ -14,5 +14,7 @@ public record GameState(
     int OpponentGamesSnapshot,
     List<SetScore>? SetScores,
     DateTime Timestamp,
-    bool isComplete
+    bool isComplete,
+    string UserName,
+    string OpponentName
 );
