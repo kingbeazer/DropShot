@@ -6,7 +6,8 @@ public enum FixtureStatus : byte
     InProgress = 2,
     Completed = 3,
     Cancelled = 4,
-    Walkover = 5
+    Walkover = 5,
+    AwaitingVerification = 6
 }
 
 public class CompetitionFixture
@@ -29,6 +30,7 @@ public class CompetitionFixture
     public int? SavedMatchId { get; set; }
     public string? ResultSummary { get; set; }
     public int? WinnerPlayerId { get; set; }
+    public Guid? VerificationToken { get; set; }
 
     public Competition Competition { get; set; } = null!;
     public CompetitionStage? Stage { get; set; }

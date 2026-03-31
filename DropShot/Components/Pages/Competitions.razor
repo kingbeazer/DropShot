@@ -13,6 +13,21 @@
 @inject ClubAuthorizationService AuthzService
 @inject AuthenticationStateProvider AuthStateProvider
 
+@if (_pendingVerifications.Count > 0)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">
+        <MudText><strong>Results awaiting verification (@_pendingVerifications.Count)</strong></MudText>
+        <MudList T="string" Dense="true">
+            @foreach (var (label, compId) in _pendingVerifications)
+            {
+                <MudListItem T="string">
+                    <MudLink Href="@($"/competition/{compId}")">@label</MudLink>
+                </MudListItem>
+            }
+        </MudList>
+    </MudAlert>
+}
+
 <MudTextField @bind-Value="_searchText" Placeholder="Search competitions..."
               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
               Immediate="true" Class="mb-4" />
@@ -56,6 +71,7 @@
     private List<Competition> _competitions = [];
     private string _searchText = "";
     private bool _isAdmin;
+    private List<(string Label, int CompetitionId)> _pendingVerifications = [];
 
     private bool FilterCompetitions(Competition c) =>
         string.IsNullOrWhiteSpace(_searchText) ||
@@ -79,6 +95,26 @@
                 HostClubId = c.HostClubId
             })
             .ToListAsync();
+
+        // Load pending verifications for admins / club admins
+        if (_isAdmin || _editableClubIds.Count > 0)
+        {
+            _pendingVerifications = (await dbc.CompetitionFixtures
+                .Where(f => f.Status == FixtureStatus.AwaitingVerification
+                    && (f.Competition.HostClubId == null
+                        ? _isAdmin
+                        : (_isAdmin || _editableClubIds.Contains(f.Competition.HostClubId!.Value))))
+                .Select(f => new
+                {
+                    f.CompetitionId,
+                    Label = f.FixtureLabel != null
+                        ? f.Competition.CompetitionName + " — " + f.FixtureLabel
+                        : f.Competition.CompetitionName
+                })
+                .ToListAsync())
+                .Select(f => (f.Label, f.CompetitionId))
+                .ToList();
+        }
     }
 
     private bool CanEdit(Competition c) =>

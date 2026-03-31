@@ -1,0 +1,81 @@
+@page "/verify-result/{Token}"
+@using DropShot.Data
+@using DropShot.Models
+@using DropShot.Services
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+
+<PageTitle>Verify Result</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudCard>
+        <MudCardContent>
+            @if (_loading)
+            {
+                <MudStack AlignItems="AlignItems.Center" Spacing="3">
+                    <MudProgressCircular Indeterminate="true" />
+                    <MudText>Verifying result…</MudText>
+                </MudStack>
+            }
+            else if (_success)
+            {
+                <MudStack Spacing="3">
+                    <MudAlert Severity="Severity.Success">Result verified — competition updated.</MudAlert>
+                    @if (_competitionId.HasValue)
+                    {
+                        <MudButton Href="@($"/competitions/{_competitionId}")" Variant="Variant.Filled" Color="Color.Primary">
+                            View Competition
+                        </MudButton>
+                    }
+                </MudStack>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">@_message</MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+
+    private bool _loading = true;
+    private bool _success;
+    private string _message = "";
+    private int? _competitionId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Guid.TryParse(Token, out var token))
+        {
+            _message = "Invalid verification link.";
+            _loading = false;
+            return;
+        }
+
+        await using var db = DbFactory.CreateDbContext();
+
+        var fixture = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .FirstOrDefaultAsync(f => f.VerificationToken == token && f.Status == FixtureStatus.AwaitingVerification);
+
+        if (fixture == null)
+        {
+            _message = "This link has already been used or could not be found.";
+            _loading = false;
+            return;
+        }
+
+        fixture.Status = FixtureStatus.Completed;
+        fixture.VerificationToken = null;
+        await db.SaveChangesAsync();
+
+        await CompetitionProgressionService.TryAdvanceAsync(db, fixture.CompetitionId, fixture.CompetitionFixtureId);
+
+        _competitionId = fixture.CompetitionId;
+        _success = true;
+        _loading = false;
+    }
+}

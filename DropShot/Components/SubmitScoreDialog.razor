@@ -4,6 +4,7 @@
 @using Microsoft.EntityFrameworkCore
 
 @inject IDbContextFactory<MyDbContext> DbFactory
+@inject ResultVerificationService ResultVerificationService
 
 <MudDialog>
     <TitleContent>
@@ -88,6 +89,7 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
     [Parameter] public CompetitionFixture Fixture { get; set; } = default!;
+    [Parameter] public bool AdminOverride { get; set; }
 
     private int _bestOf = 3;
     private int?[] _score1 = new int?[3];
@@ -175,6 +177,17 @@
             _error = "Please enter at least one set score.";
             return;
         }
+
+        // Validate no tied sets
+        for (int i = 0; i < _bestOf; i++)
+        {
+            if (_score1[i].HasValue && _score2[i].HasValue && _score1[i] == _score2[i])
+            {
+                _error = $"Set {i + 1} is a tie — one player must win each set.";
+                return;
+            }
+        }
+
         if (_winnerPlayerId == null)
         {
             _error = "Please select a winner.";
@@ -188,12 +201,43 @@
         var fx = await db.CompetitionFixtures.FindAsync(Fixture.CompetitionFixtureId);
         if (fx != null)
         {
-            fx.Status        = FixtureStatus.Completed;
-            fx.ResultSummary = resultSummary;
+            fx.ResultSummary  = resultSummary;
             fx.WinnerPlayerId = _winnerPlayerId;
+
+            bool requireVerification = !AdminOverride && (Fixture.Competition?.RequireVerification ?? false);
+            if (requireVerification)
+            {
+                fx.Status            = FixtureStatus.AwaitingVerification;
+                fx.VerificationToken = Guid.NewGuid();
+            }
+            else
+            {
+                fx.Status            = FixtureStatus.Completed;
+                fx.VerificationToken = null;
+            }
+
             await db.SaveChangesAsync();
 
-            await CompetitionProgressionService.TryAdvanceAsync(db, Fixture.CompetitionId, Fixture.CompetitionFixtureId);
+            fx.Competition  = Fixture.Competition;
+            fx.Player1      = Fixture.Player1;
+            fx.Player2      = Fixture.Player2;
+            fx.Player3      = Fixture.Player3;
+            fx.Player4      = Fixture.Player4;
+            fx.FixtureLabel = Fixture.FixtureLabel;
+
+            if (requireVerification)
+            {
+                var adminEmailsTask = ResultVerificationService.GetAdminEmailsForCompetitionAsync(Fixture.CompetitionId, db);
+                await Task.WhenAll(ResultVerificationService.SendResultNotificationAsync(fx), adminEmailsTask);
+                await ResultVerificationService.SendAdminVerificationEmailsAsync(fx, adminEmailsTask.Result);
+                _saving = false;
+                MudDialog.Close(DialogResult.Ok(true));
+                return;
+            }
+
+            await Task.WhenAll(
+                ResultVerificationService.SendResultNotificationAsync(fx),
+                CompetitionProgressionService.TryAdvanceAsync(db, Fixture.CompetitionId, Fixture.CompetitionFixtureId));
         }
 
         _saving = false;
