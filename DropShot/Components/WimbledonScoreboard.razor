@@ -21,6 +21,16 @@
     </div>
 
     @* Court / match info *@
+    @if (ActiveFixture?.Competition != null)
+    {
+        <div class="wb-court-label" style="color:#FFD700;">
+            @ActiveFixture.Competition.CompetitionName
+            @if (!string.IsNullOrEmpty(ActiveFixture.FixtureLabel))
+            {
+                <span> &mdash; @ActiveFixture.FixtureLabel</span>
+            }
+        </div>
+    }
     @if (SelectedCourt != null)
     {
         <div class="wb-court-label">@SelectedCourt.Club.Name &mdash; @SelectedCourt.Name</div>
@@ -88,6 +98,7 @@
     [Parameter, EditorRequired] public GameState Score { get; set; } = default!;
     [Parameter] public SavedMatch? ActiveMatch { get; set; }
     [Parameter] public Court? SelectedCourt { get; set; }
+    [Parameter] public CompetitionFixture? ActiveFixture { get; set; }
 
     private string _currentTime = "";
     private string _elapsedTime = "";

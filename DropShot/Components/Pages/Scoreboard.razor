@@ -30,7 +30,7 @@
 
 @if (_selectedLayout == "wimbledon")
 {
-    <WimbledonScoreboard Score="currentScore" ActiveMatch="_activeMatch" SelectedCourt="_selectedCourt" />
+    <WimbledonScoreboard Score="currentScore" ActiveMatch="_activeMatch" SelectedCourt="_selectedCourt" ActiveFixture="_activeFixture" />
 }
 else
 {
@@ -41,6 +41,16 @@ else
         </MudText>
     }
 
+    @if (_activeFixture?.Competition != null)
+    {
+        <MudText Typo="Typo.caption" Align="Align.Center" Style="letter-spacing:1px; text-transform:uppercase; color:#FFD700; margin-top:4px;">
+            @_activeFixture.Competition.CompetitionName
+            @if (!string.IsNullOrEmpty(_activeFixture.FixtureLabel))
+            {
+                <span> — @_activeFixture.FixtureLabel</span>
+            }
+        </MudText>
+    }
     @if (_activeMatch != null)
     {
         <MudText Typo="Typo.subtitle1" Align="Align.Center" Style="margin-bottom: 4px;">
@@ -99,6 +109,7 @@ else
     private string _selectedLayout = "default";
     private Court? _selectedCourt => _allCourts.FirstOrDefault(c => c.CourtId == _selectedCourtId);
     private SavedMatch? _activeMatch;
+    private CompetitionFixture? _activeFixture;
     GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "");
 
     protected override async Task OnInitializedAsync()
@@ -148,6 +159,7 @@ else
                     using var dbc = DbFactory.CreateDbContext();
                     _activeMatch = await dbc.SavedMatch
                         .FirstOrDefaultAsync(m => m.CourtId == _selectedCourtId && !m.Complete);
+                    _activeFixture = await LoadFixtureForMatchAsync(_activeMatch);
                 }
 
                 await InvokeAsync(StateHasChanged);
@@ -163,6 +175,7 @@ else
         await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-court", courtId?.ToString() ?? "");
         currentScore = new GameState(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "");
         _activeMatch = null;
+        _activeFixture = null;
 
         if (courtId.HasValue)
         {
@@ -176,7 +189,19 @@ else
                 if (latest != null)
                     currentScore = latest;
             }
+
+            _activeFixture = await LoadFixtureForMatchAsync(_activeMatch);
         }
+    }
+
+    private async Task<CompetitionFixture?> LoadFixtureForMatchAsync(SavedMatch? match)
+    {
+        if (match == null) return null;
+        using var dbc = DbFactory.CreateDbContext();
+        return await dbc.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Stage)
+            .FirstOrDefaultAsync(f => f.SavedMatchId == match.SavedMatchId);
     }
 
     private async Task OnLayoutChanged(string layout)

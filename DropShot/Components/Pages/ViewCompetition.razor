@@ -247,8 +247,8 @@ else
         if (_competition != null)
         {
             _fixtures = _competition.Fixtures
-                .OrderBy(f => f.RoundNumber ?? 0)
-                .ThenBy(f => f.ScheduledAt)
+                .OrderBy(f => f.ScheduledAt)
+                .ThenBy(f => f.RoundNumber ?? 0)
                 .ToList();
 
             _participants = _competition.Participants

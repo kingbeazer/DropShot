@@ -21,6 +21,7 @@
         public PlayerSex? EligibleSex { get; set; }
         public int? RulesSetId { get; set; }
         public int? HostClubId { get; set; }
+        public int BestOf { get; set; } = 3;
 
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
