@@ -49,6 +49,8 @@
                 <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Info"
                                Title="Manage courts" OnClick="@(() => OpenCourts(context))" />
             }
+            <MudIconButton Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Color="Color.Secondary"
+                           Title="Scheduling templates" OnClick="@(() => OpenTemplates(context))" />
             @if (_isAdmin)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
@@ -183,6 +185,97 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Scheduling Templates Dialog ───────────────────────────── *@
+<MudDialog @bind-Visible="_showTemplatesDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>Scheduling Templates – @(_templatesClub?.Name)</TitleContent>
+    <DialogContent>
+        @* Add template row *@
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="9">
+                <MudTextField @bind-Value="_newTemplateName" Label="Template Name" Variant="Variant.Outlined"
+                              Placeholder="e.g. Weekday evenings" />
+            </MudItem>
+            <MudItem xs="3" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           OnClick="AddTemplate" Disabled="string.IsNullOrWhiteSpace(_newTemplateName)">Add</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        @foreach (var template in _templates)
+        {
+            <MudPaper Class="pa-3 mb-3" Outlined="true">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                    <MudText Typo="Typo.subtitle2">@template.Name</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteTemplate(template))" />
+                </MudStack>
+
+                @* Add window row *@
+                <MudGrid Spacing="1" Class="mb-2">
+                    <MudItem xs="4">
+                        <MudSelect @bind-Value="_newWindowDay[template.ClubSchedulingTemplateId]" Label="Day"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                            {
+                                <MudSelectItem Value="@d">@d</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudTimePicker @bind-Time="_newWindowStart[template.ClubSchedulingTemplateId]"
+                                       Label="From" Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudTimePicker @bind-Time="_newWindowEnd[template.ClubSchedulingTemplateId]"
+                                       Label="To" Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" />
+                    </MudItem>
+                    <MudItem xs="2" Class="d-flex align-center">
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   OnClick="@(() => AddTemplateWindow(template))">Add</MudButton>
+                    </MudItem>
+                </MudGrid>
+
+                @if (template.Windows.Count > 0)
+                {
+                    <MudSimpleTable Dense="true">
+                        <thead>
+                            <tr>
+                                <th>Day</th><th>From</th><th>To</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var w in template.Windows)
+                            {
+                                <tr>
+                                    <td>@w.DayOfWeek</td>
+                                    <td>@w.StartTime.ToString(@"hh\:mm")</td>
+                                    <td>@w.EndTime.ToString(@"hh\:mm")</td>
+                                    <td>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       Color="Color.Error" OnClick="@(() => DeleteTemplateWindow(template, w))" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">No windows defined yet.</MudText>
+                }
+            </MudPaper>
+        }
+
+        @if (_templates.Count == 0)
+        {
+            <MudText Typo="Typo.caption">No templates yet. Add one above.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showTemplatesDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private bool _loading = true;
     private List<Club> _clubs = [];
@@ -206,6 +299,14 @@
     private CourtForm _courtForm = new();
     private Court? _editingCourt;
     private CourtForm _courtEditForm = new();
+
+    private bool _showTemplatesDialog;
+    private Club? _templatesClub;
+    private List<ClubSchedulingTemplate> _templates = [];
+    private string _newTemplateName = "";
+    private Dictionary<int, DayOfWeek> _newWindowDay = [];
+    private Dictionary<int, TimeSpan?> _newWindowStart = [];
+    private Dictionary<int, TimeSpan?> _newWindowEnd = [];
 
     private sealed class ClubForm
     {
@@ -376,6 +477,85 @@
         _courts.Remove(court);
         Snackbar.Add("Court removed.", Severity.Warning);
         await LoadClubs();
+    }
+
+    private async Task OpenTemplates(Club club)
+    {
+        _templatesClub = club;
+        _newTemplateName = "";
+        await using var dbc = DbFactory.CreateDbContext();
+        _templates = await dbc.ClubSchedulingTemplates
+            .Where(t => t.ClubId == club.ClubId)
+            .Include(t => t.Windows)
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+        _newWindowDay = _templates.ToDictionary(t => t.ClubSchedulingTemplateId, _ => DayOfWeek.Monday);
+        _newWindowStart = _templates.ToDictionary(t => t.ClubSchedulingTemplateId, _ => (TimeSpan?)null);
+        _newWindowEnd = _templates.ToDictionary(t => t.ClubSchedulingTemplateId, _ => (TimeSpan?)null);
+        _showTemplatesDialog = true;
+    }
+
+    private async Task AddTemplate()
+    {
+        if (_templatesClub == null || string.IsNullOrWhiteSpace(_newTemplateName)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        var template = new ClubSchedulingTemplate
+        {
+            ClubId = _templatesClub.ClubId,
+            Name = _newTemplateName.Trim()
+        };
+        dbc.ClubSchedulingTemplates.Add(template);
+        await dbc.SaveChangesAsync();
+        template.Windows = [];
+        _templates.Add(template);
+        _newWindowDay[template.ClubSchedulingTemplateId] = DayOfWeek.Monday;
+        _newWindowStart[template.ClubSchedulingTemplateId] = null;
+        _newWindowEnd[template.ClubSchedulingTemplateId] = null;
+        _newTemplateName = "";
+        Snackbar.Add("Template added.", Severity.Success);
+    }
+
+    private async Task DeleteTemplate(ClubSchedulingTemplate template)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var t = await dbc.ClubSchedulingTemplates.FindAsync(template.ClubSchedulingTemplateId);
+        if (t != null) { dbc.ClubSchedulingTemplates.Remove(t); await dbc.SaveChangesAsync(); }
+        _templates.Remove(template);
+        _newWindowDay.Remove(template.ClubSchedulingTemplateId);
+        _newWindowStart.Remove(template.ClubSchedulingTemplateId);
+        _newWindowEnd.Remove(template.ClubSchedulingTemplateId);
+        Snackbar.Add("Template deleted.", Severity.Warning);
+    }
+
+    private async Task AddTemplateWindow(ClubSchedulingTemplate template)
+    {
+        var start = _newWindowStart.GetValueOrDefault(template.ClubSchedulingTemplateId);
+        var end = _newWindowEnd.GetValueOrDefault(template.ClubSchedulingTemplateId);
+        if (start == null || end == null || end <= start) return;
+
+        await using var dbc = DbFactory.CreateDbContext();
+        var window = new ClubSchedulingTemplateWindow
+        {
+            ClubSchedulingTemplateId = template.ClubSchedulingTemplateId,
+            DayOfWeek = _newWindowDay[template.ClubSchedulingTemplateId],
+            StartTime = start.Value,
+            EndTime = end.Value
+        };
+        dbc.ClubSchedulingTemplateWindows.Add(window);
+        await dbc.SaveChangesAsync();
+        template.Windows.Add(window);
+        _newWindowStart[template.ClubSchedulingTemplateId] = null;
+        _newWindowEnd[template.ClubSchedulingTemplateId] = null;
+        Snackbar.Add("Window added.", Severity.Success);
+    }
+
+    private async Task DeleteTemplateWindow(ClubSchedulingTemplate template, ClubSchedulingTemplateWindow window)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var w = await dbc.ClubSchedulingTemplateWindows.FindAsync(window.ClubSchedulingTemplateWindowId);
+        if (w != null) { dbc.ClubSchedulingTemplateWindows.Remove(w); await dbc.SaveChangesAsync(); }
+        template.Windows.Remove(window);
+        Snackbar.Add("Window removed.", Severity.Warning);
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

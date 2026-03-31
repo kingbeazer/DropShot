@@ -326,6 +326,7 @@ public class CompetitionsController(
         var comp = await db.Competition
             .Include(c => c.Stages.OrderBy(s => s.StageOrder))
             .Include(c => c.Participants)
+            .Include(c => c.MatchWindows)
             .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
@@ -347,15 +348,10 @@ public class CompetitionsController(
             .ToList();
 
         var rng = new Random();
-        int[] timeSlots = [9 * 60, 10 * 60 + 30, 12 * 60, 13 * 60 + 30, 15 * 60, 16 * 60 + 30, 18 * 60];
+        IReadOnlyList<DropShot.Models.CompetitionMatchWindow> matchWindows = comp.MatchWindows.ToList();
 
-        DateTime RandomSlot()
-        {
-            var totalDays = (endDate - startDate).Days;
-            var dayOffset = totalDays > 0 ? rng.Next(0, totalDays + 1) : 0;
-            var minutesFromMidnight = timeSlots[rng.Next(timeSlots.Length)];
-            return startDate.AddDays(dayOffset).AddMinutes(minutesFromMidnight);
-        }
+        DateTime RandomSlot() =>
+            SchedulingSlotPicker.PickSlot(matchWindows, startDate, endDate, rng);
 
         // ── Local helper: top N players by round-robin league table ──────────
         // Queries only completed fixtures that belong to a RoundRobin stage.

@@ -30,5 +30,6 @@
         public ICollection<CompetitionFixture> Fixtures { get; set; } = [];
         public ICollection<CompetitionStage> Stages { get; set; } = [];
         public ICollection<CompetitionTeam> Teams { get; set; } = [];
+        public ICollection<CompetitionMatchWindow> MatchWindows { get; set; } = [];
     }
 }
