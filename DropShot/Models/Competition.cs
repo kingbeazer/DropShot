@@ -22,6 +22,7 @@
         public int? RulesSetId { get; set; }
         public int? HostClubId { get; set; }
         public int BestOf { get; set; } = 3;
+        public bool RequireVerification { get; set; } = false;
 
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }

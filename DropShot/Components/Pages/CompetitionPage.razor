@@ -108,6 +108,7 @@
                             <MudSelectItem T="int" Value="3">Best of 3</MudSelectItem>
                             <MudSelectItem T="int" Value="5">Best of 5</MudSelectItem>
                         </MudSelect>
+                        <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" Class="mt-2" />
                     </MudItem>
                 </MudGrid>
 
@@ -299,11 +300,17 @@
                         </MudTd>
                         <MudTd>
                             @if (context.Player1Id.HasValue && context.Player2Id.HasValue
-                                 && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover))
+                                 && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
                             {
                                 <MudIconButton Icon="@Icons.Material.Filled.Scoreboard" Size="Size.Small"
                                                Color="Color.Success" Title="Submit Score"
                                                OnClick="@(() => OpenSubmitScoreAsync(context))" />
+                            }
+                            @if (context.Status == FixtureStatus.AwaitingVerification && _canEdit)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Small"
+                                               Color="Color.Warning" Title="Override / Enter Result"
+                                               OnClick="@(() => OpenOverrideResultAsync(context))" />
                             }
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                            OnClick="@(() => OpenEditFixtureDialog(context))" />
@@ -541,6 +548,7 @@
         public int? HostClubId { get; set; }
         public int? RulesSetId { get; set; }
         public int BestOf { get; set; } = 3;
+        public bool RequireVerification { get; set; } = false;
     }
 
     private sealed class StageForm
@@ -608,7 +616,8 @@
                 EligibleSex = comp.EligibleSex,
                 HostClubId = comp.HostClubId,
                 RulesSetId = comp.RulesSetId,
-                BestOf = comp.BestOf
+                BestOf = comp.BestOf,
+                RequireVerification = comp.RequireVerification
             };
             _stages = comp.Stages.ToList();
             _participants = comp.Participants.ToList();
@@ -683,6 +692,7 @@
         comp.HostClubId = Model.HostClubId;
         comp.RulesSetId = Model.RulesSetId;
         comp.BestOf = Model.BestOf;
+        comp.RequireVerification = Model.RequireVerification;
     }
 
     // ── Stages ──────────────────────────────────────────────────────────────
@@ -904,19 +914,40 @@
         f.Status = _fixtureForm.Status;
     }
 
-    private async Task OpenSubmitScoreAsync(CompetitionFixture fixture)
+    private async Task<CompetitionFixture?> LoadFixtureForDialogAsync(int fixtureId)
     {
         await using var db = DbFactory.CreateDbContext();
-        var loaded = await db.CompetitionFixtures
+        return await db.CompetitionFixtures
             .Include(f => f.Competition)
             .Include(f => f.Stage)
             .Include(f => f.Player1).Include(f => f.Player2)
             .Include(f => f.Player3).Include(f => f.Player4)
-            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixture.CompetitionFixtureId);
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId);
+    }
+
+    private async Task OpenSubmitScoreAsync(CompetitionFixture fixture)
+    {
+        var loaded = await LoadFixtureForDialogAsync(fixture.CompetitionFixtureId);
         if (loaded == null) return;
 
         var parameters = new DialogParameters<SubmitScoreDialog> { { x => x.Fixture, loaded } };
         var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
+        var result = await dialog.Result;
+        if (!result.Canceled)
+            await OnParametersSetAsync();
+    }
+
+    private async Task OpenOverrideResultAsync(CompetitionFixture fixture)
+    {
+        var loaded = await LoadFixtureForDialogAsync(fixture.CompetitionFixtureId);
+        if (loaded == null) return;
+
+        var parameters = new DialogParameters<SubmitScoreDialog>
+        {
+            { x => x.Fixture, loaded },
+            { x => x.AdminOverride, true }
+        };
+        var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Override Result", parameters);
         var result = await dialog.Result;
         if (!result.Canceled)
             await OnParametersSetAsync();
@@ -1292,6 +1323,7 @@
         FixtureStatus.Completed => Color.Success,
         FixtureStatus.Cancelled => Color.Error,
         FixtureStatus.Walkover => Color.Info,
+        FixtureStatus.AwaitingVerification => Color.Secondary,
         _ => Color.Default
     };
 }
