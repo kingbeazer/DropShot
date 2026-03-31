@@ -25,6 +25,9 @@ namespace DropShot.Data
         public DbSet<ClubLadder> ClubLadders { get; set; }
         public DbSet<LadderEntry> LadderEntries { get; set; }
         public DbSet<PlayerFriend> PlayerFriends { get; set; }
+        public DbSet<CompetitionMatchWindow> CompetitionMatchWindows { get; set; }
+        public DbSet<ClubSchedulingTemplate> ClubSchedulingTemplates { get; set; }
+        public DbSet<ClubSchedulingTemplateWindow> ClubSchedulingTemplateWindows { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -214,6 +217,38 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(f => f.SavedMatchId)
                       .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── CompetitionMatchWindow ───────────────────────────────────────────
+            builder.Entity<CompetitionMatchWindow>(entity =>
+            {
+                entity.Property(w => w.DayOfWeek).HasConversion<int>();
+
+                entity.HasOne(w => w.Competition)
+                      .WithMany(c => c.MatchWindows)
+                      .HasForeignKey(w => w.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── ClubSchedulingTemplate / ClubSchedulingTemplateWindow ────────────
+            builder.Entity<ClubSchedulingTemplate>(entity =>
+            {
+                entity.Property(t => t.Name).HasMaxLength(200).IsRequired();
+
+                entity.HasOne(t => t.Club)
+                      .WithMany(c => c.SchedulingTemplates)
+                      .HasForeignKey(t => t.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ClubSchedulingTemplateWindow>(entity =>
+            {
+                entity.Property(w => w.DayOfWeek).HasConversion<int>();
+
+                entity.HasOne(w => w.Template)
+                      .WithMany(t => t.Windows)
+                      .HasForeignKey(w => w.ClubSchedulingTemplateId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── SavedMatch ───────────────────────────────────────────────────────

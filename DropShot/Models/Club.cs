@@ -25,6 +25,7 @@ public class Club
     public ICollection<ClubAdministrator> Administrators { get; set; } = [];
     public ICollection<Competition> Competitions { get; set; } = [];
     public ICollection<ClubLadder> Ladders { get; set; } = [];
+    public ICollection<ClubSchedulingTemplate> SchedulingTemplates { get; set; } = [];
 }
 
 public class Court

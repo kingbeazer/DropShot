@@ -164,6 +164,75 @@
                 </MudTable>
             </MudPaper>
 
+            @* ── Match Windows ───────────────────────────────── *@
+            <MudPaper Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-3">Match Windows</MudText>
+
+                <MudGrid Spacing="1" Class="mb-2">
+                    <MudItem xs="4">
+                        <MudSelect @bind-Value="_newMatchWindowDay" Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                            {
+                                <MudSelectItem Value="@d">@d</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudTimePicker @bind-Time="_newMatchWindowStart" Label="From" Variant="Variant.Outlined"
+                                       Margin="Margin.Dense" AmPm="false" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudTimePicker @bind-Time="_newMatchWindowEnd" Label="To" Variant="Variant.Outlined"
+                                       Margin="Margin.Dense" AmPm="false" />
+                    </MudItem>
+                    <MudItem xs="2" Class="d-flex align-center">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="AddMatchWindow">Add</MudButton>
+                    </MudItem>
+                </MudGrid>
+
+                @if (_matchWindows.Count > 0)
+                {
+                    <MudSimpleTable Dense="true" Class="mb-2">
+                        <thead>
+                            <tr><th>Day</th><th>From</th><th>To</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var w in _matchWindows)
+                            {
+                                <tr>
+                                    <td>@w.DayOfWeek</td>
+                                    <td>@w.StartTime.ToString(@"hh\:mm")</td>
+                                    <td>@w.EndTime.ToString(@"hh\:mm")</td>
+                                    <td>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       Color="Color.Error" OnClick="@(() => DeleteMatchWindow(w))" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                        No windows defined — auto-schedule will use default time slots.
+                    </MudText>
+                }
+
+                @if (_clubTemplates.Count > 0)
+                {
+                    <MudSelect T="int?" Label="Import from club template" Variant="Variant.Outlined"
+                               Value="_selectedTemplateId" Clearable="true"
+                               ValueChanged="ImportFromTemplate">
+                        @foreach (var t in _clubTemplates)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)t.ClubSchedulingTemplateId)">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+            </MudPaper>
+
             @* ── Participants ────────────────────────────────── *@
             <MudPaper Class="pa-4 mb-4">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
@@ -384,7 +453,8 @@
 <MudDialog @bind-Visible="_showScheduleConfirm">
     <TitleContent>Auto Schedule Matches</TitleContent>
     <DialogContent>
-        <MudText>This will delete all existing unplayed fixtures and generate a new schedule based on the current stages and participants. Continue?</MudText>
+        <MudText Class="mb-3">Auto-scheduling will create missing fixtures based on the current stages and participants. Fixtures that already have a scheduled date will be preserved.</MudText>
+        <MudCheckBox @bind-Value="_scheduleDeleteExisting" Label="Also delete existing unscheduled fixtures" />
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => _showScheduleConfirm = false)">Cancel</MudButton>
@@ -418,6 +488,17 @@
                 <MudTimePicker @bind-Time="_fixtureForm.TimePart" Label="Time" Variant="Variant.Outlined"
                                AmPm="false" />
             </MudItem>
+            @if (_fixtureForm.DatePart.HasValue
+                 && ((Model.StartDateDt.HasValue && _fixtureForm.DatePart < Model.StartDateDt)
+                     || (Model.EndDateDt.HasValue && _fixtureForm.DatePart > Model.EndDateDt)))
+            {
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Warning">
+                        This date is outside the competition's scheduled dates
+                        (@Model.StartDateDt?.ToString("dd MMM") – @Model.EndDateDt?.ToString("dd MMM yyyy")).
+                    </MudAlert>
+                </MudItem>
+            }
             <MudItem xs="12" sm="6">
                 <MudSelect @bind-Value="_fixtureForm.Player1Id" Label="Player 1 (optional)"
                            Variant="Variant.Outlined" Clearable="true">
@@ -534,6 +615,17 @@
     private CompetitionTeam? _editingTeam;
     private string _teamName = "";
 
+    // Match windows
+    private List<CompetitionMatchWindow> _matchWindows = [];
+    private DayOfWeek _newMatchWindowDay = DayOfWeek.Monday;
+    private TimeSpan? _newMatchWindowStart;
+    private TimeSpan? _newMatchWindowEnd;
+    private List<ClubSchedulingTemplate> _clubTemplates = [];
+    private int? _selectedTemplateId;
+
+    // Schedule options
+    private bool _scheduleDeleteExisting;
+
     private sealed class CompetitionFormModel
     {
         [Required(ErrorMessage = "Competition name is required!")]
@@ -598,6 +690,7 @@
                 .Include(c => c.Fixtures).ThenInclude(f => f.Player3)
                 .Include(c => c.Fixtures).ThenInclude(f => f.Player4)
                 .Include(c => c.Teams)
+                .Include(c => c.MatchWindows)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.CompetitionID == Id);
 
@@ -626,9 +719,19 @@
                 .ThenBy(f => f.ScheduledAt)
                 .ToList();
             _teams = comp.Teams.OrderBy(t => t.Name).ToList();
+            _matchWindows = comp.MatchWindows
+                .OrderBy(w => w.DayOfWeek).ThenBy(w => w.StartTime)
+                .ToList();
 
             if (comp.HostClubId.HasValue)
+            {
                 _courts = await db.Courts.Where(c => c.ClubId == comp.HostClubId.Value).OrderBy(c => c.Name).ToListAsync();
+                _clubTemplates = await db.ClubSchedulingTemplates
+                    .Include(t => t.Windows)
+                    .Where(t => t.ClubId == comp.HostClubId.Value)
+                    .OrderBy(t => t.Name)
+                    .ToListAsync();
+            }
         }
         else
         {
@@ -864,6 +967,16 @@
 
     private async Task SaveFixture()
     {
+        var side1 = new[] { _fixtureForm.Player1Id, _fixtureForm.Player3Id }
+            .Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
+        var side2 = new[] { _fixtureForm.Player2Id, _fixtureForm.Player4Id }
+            .Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
+        if (side1.Overlaps(side2))
+        {
+            Snackbar.Add("A player cannot appear on both sides of a fixture.", Severity.Error);
+            return;
+        }
+
         await using var db = DbFactory.CreateDbContext();
         if (_editingFixture == null)
         {
@@ -962,16 +1075,97 @@
         Snackbar.Add("Fixture removed.", Severity.Warning);
     }
 
+    private async Task AddMatchWindow()
+    {
+        if (_newMatchWindowStart == null || _newMatchWindowEnd == null || _newMatchWindowEnd <= _newMatchWindowStart) return;
+        await using var db = DbFactory.CreateDbContext();
+        var w = new CompetitionMatchWindow
+        {
+            CompetitionId = Id,
+            DayOfWeek     = _newMatchWindowDay,
+            StartTime     = _newMatchWindowStart.Value,
+            EndTime       = _newMatchWindowEnd.Value
+        };
+        db.CompetitionMatchWindows.Add(w);
+        await db.SaveChangesAsync();
+        _matchWindows.Add(w);
+        _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
+        _newMatchWindowStart = null;
+        _newMatchWindowEnd = null;
+        Snackbar.Add("Window added.", Severity.Success);
+    }
+
+    private async Task DeleteMatchWindow(CompetitionMatchWindow window)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var w = await db.CompetitionMatchWindows.FindAsync(window.CompetitionMatchWindowId);
+        if (w != null) { db.CompetitionMatchWindows.Remove(w); await db.SaveChangesAsync(); }
+        _matchWindows.Remove(window);
+        Snackbar.Add("Window removed.", Severity.Warning);
+    }
+
+    private async Task ImportFromTemplate(int? templateId)
+    {
+        _selectedTemplateId = templateId;
+        if (templateId == null) return;
+        var template = _clubTemplates.FirstOrDefault(t => t.ClubSchedulingTemplateId == templateId);
+        if (template == null) return;
+        var existingKeys = _matchWindows
+            .Select(w => (w.DayOfWeek, w.StartTime, w.EndTime))
+            .ToHashSet();
+        await using var db = DbFactory.CreateDbContext();
+        var toAdd = template.Windows
+            .Where(tw => !existingKeys.Contains((tw.DayOfWeek, tw.StartTime, tw.EndTime)))
+            .Select(tw => new CompetitionMatchWindow
+            {
+                CompetitionId = Id,
+                DayOfWeek     = tw.DayOfWeek,
+                StartTime     = tw.StartTime,
+                EndTime       = tw.EndTime
+            }).ToList();
+        _selectedTemplateId = null;
+        if (toAdd.Count == 0)
+        {
+            Snackbar.Add($"All windows from '{template.Name}' are already present.", Severity.Info);
+            return;
+        }
+        db.CompetitionMatchWindows.AddRange(toAdd);
+        await db.SaveChangesAsync();
+        _matchWindows.AddRange(toAdd);
+        _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
+        Snackbar.Add($"Imported {toAdd.Count} window(s) from '{template.Name}'.", Severity.Success);
+    }
+
     private async Task ScheduleFixtures()
     {
         _showScheduleConfirm = false;
         await using var db = DbFactory.CreateDbContext();
 
-        // Delete non-completed fixtures
-        var toDelete = await db.CompetitionFixtures
-            .Where(f => f.CompetitionId == Id && f.Status != FixtureStatus.Completed)
+        if (_scheduleDeleteExisting)
+        {
+            var toDelete = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == Id && f.ScheduledAt == null)
+                .ToListAsync();
+            db.CompetitionFixtures.RemoveRange(toDelete);
+            await db.SaveChangesAsync();
+        }
+
+        // Load remaining fixtures for deduplication
+        var existing = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == Id)
             .ToListAsync();
-        db.CompetitionFixtures.RemoveRange(toDelete);
+
+        var existingRrPairs = existing
+            .Where(f => f.Player1Id.HasValue && f.Player2Id.HasValue)
+            .Select(f => (Math.Min(f.Player1Id!.Value, f.Player2Id!.Value),
+                          Math.Max(f.Player1Id!.Value, f.Player2Id!.Value),
+                          f.CompetitionStageId))
+            .ToHashSet();
+
+        var existingLabels = existing
+            .Where(f => f.FixtureLabel != null)
+            .Select(f => (f.CompetitionStageId, f.FixtureLabel))
+            .ToHashSet();
 
         var startDate = Model.StartDateDt?.Date ?? DateTime.Today;
         var endDate   = Model.EndDateDt?.Date   ?? DateTime.Today.AddDays(28);
@@ -983,7 +1177,6 @@
             .ToList();
 
         var rng = new Random();
-        int[] timeSlots = [9 * 60, 10 * 60 + 30, 12 * 60, 13 * 60 + 30, 15 * 60, 16 * 60 + 30, 18 * 60];
 
         // ── Phase-based date windows ───────────────────────────────────────────
         // Each phase (RR → QF → SF → Final) gets its own slice of the date range
@@ -1018,15 +1211,15 @@
                 ? startDate.AddDays((phaseIdx + 1) * sliceSize - 1)
                 : endDate;
 
+            if (phase == "rr")
+                return SchedulingSlotPicker.PickSlot(_matchWindows, windowStart, windowEnd, rng);
+
             int windowDays = Math.Max(0, (windowEnd - windowStart).Days);
-
-            int dayOffset = phase == "rr"
-                ? (windowDays > 0 ? rng.Next(0, windowDays + 1) : 0)
-                : totalInPhase > 1
-                    ? (int)Math.Round((double)matchIndex / (totalInPhase - 1) * windowDays)
-                    : windowDays / 2;
-
-            return windowStart.AddDays(dayOffset).AddMinutes(timeSlots[rng.Next(timeSlots.Length)]);
+            int dayOffset = totalInPhase > 1
+                ? (int)Math.Round((double)matchIndex / (totalInPhase - 1) * windowDays)
+                : windowDays / 2;
+            var specificDay = windowStart.AddDays(dayOffset);
+            return SchedulingSlotPicker.PickSlot(_matchWindows, specificDay, specificDay, rng);
         }
 
         // Returns the top N players ranked by completed round-robin results.
@@ -1084,6 +1277,11 @@
                     var players = activePlayers.ToList();
                     for (int i = 0; i < players.Count; i++)
                         for (int j = i + 1; j < players.Count; j++)
+                        {
+                            var key = (Math.Min(players[i], players[j]),
+                                       Math.Max(players[i], players[j]),
+                                       (int?)stage.CompetitionStageId);
+                            if (existingRrPairs.Contains(key)) continue;
                             newFixtures.Add(new CompetitionFixture
                             {
                                 CompetitionId      = Id,
@@ -1093,6 +1291,7 @@
                                 ScheduledAt        = PhaseSlot("rr"),
                                 Status             = FixtureStatus.Scheduled
                             });
+                        }
                     break;
                 }
 
@@ -1109,32 +1308,40 @@
                     if (koGeneratesQF)
                     {
                         for (int m = 0; m < 4; m++)
+                        {
+                            var label = $"Quarter-Final {m + 1}";
+                            if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
                             newFixtures.Add(new CompetitionFixture
                             {
                                 CompetitionId      = Id,
                                 CompetitionStageId = stage.CompetitionStageId,
-                                FixtureLabel       = $"Quarter-Final {m + 1}",
+                                FixtureLabel       = label,
                                 RoundNumber        = 1,
                                 ScheduledAt        = PhaseSlot("qf", m, 4),
                                 Status             = FixtureStatus.Scheduled
                             });
+                        }
                     }
 
                     if (koGeneratesSF)
                     {
                         for (int m = 0; m < 2; m++)
+                        {
+                            var label = $"Semi-Final {m + 1}";
+                            if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
                             newFixtures.Add(new CompetitionFixture
                             {
                                 CompetitionId      = Id,
                                 CompetitionStageId = stage.CompetitionStageId,
-                                FixtureLabel       = $"Semi-Final {m + 1}",
+                                FixtureLabel       = label,
                                 RoundNumber        = koGeneratesQF ? 2 : 1,
                                 ScheduledAt        = PhaseSlot("sf", m, 2),
                                 Status             = FixtureStatus.Scheduled
                             });
+                        }
                     }
 
-                    if (koGeneratesFinal)
+                    if (koGeneratesFinal && !existingLabels.Contains(((int?)stage.CompetitionStageId, "Final")))
                         newFixtures.Add(new CompetitionFixture
                         {
                             CompetitionId      = Id,
@@ -1150,43 +1357,52 @@
                 case StageType.QuarterFinal:
                 {
                     for (int m = 0; m < 4; m++)
+                    {
+                        var label = $"Quarter-Final {m + 1}";
+                        if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
                         newFixtures.Add(new CompetitionFixture
                         {
                             CompetitionId      = Id,
                             CompetitionStageId = stage.CompetitionStageId,
-                            FixtureLabel       = $"Quarter-Final {m + 1}",
+                            FixtureLabel       = label,
                             RoundNumber        = 1,
                             ScheduledAt        = PhaseSlot("qf", m, 4),
                             Status             = FixtureStatus.Scheduled
                         });
+                    }
                     break;
                 }
 
                 case StageType.SemiFinal:
                 {
                     for (int m = 0; m < 2; m++)
+                    {
+                        var label = $"Semi-Final {m + 1}";
+                        if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
                         newFixtures.Add(new CompetitionFixture
                         {
                             CompetitionId      = Id,
                             CompetitionStageId = stage.CompetitionStageId,
-                            FixtureLabel       = $"Semi-Final {m + 1}",
+                            FixtureLabel       = label,
                             RoundNumber        = 1,
                             ScheduledAt        = PhaseSlot("sf", m, 2),
                             Status             = FixtureStatus.Scheduled
                         });
+                    }
                     break;
                 }
 
                 case StageType.Final:
-                    newFixtures.Add(new CompetitionFixture
-                    {
-                        CompetitionId      = Id,
-                        CompetitionStageId = stage.CompetitionStageId,
-                        FixtureLabel       = "Final",
-                        RoundNumber        = 1,
-                        ScheduledAt        = PhaseSlot("final", 0, 1),
-                        Status             = FixtureStatus.Scheduled
-                    });
+                    if (!existingLabels.Contains(((int?)stage.CompetitionStageId, "Final")))
+                        newFixtures.Add(new CompetitionFixture
+                        {
+                            CompetitionId      = Id,
+                            CompetitionStageId = stage.CompetitionStageId,
+                            FixtureLabel       = "Final",
+                            RoundNumber        = 1,
+                            ScheduledAt        = PhaseSlot("final", 0, 1),
+                            Status             = FixtureStatus.Scheduled
+                        });
                     break;
             }
         }
