@@ -14,6 +14,7 @@
 @inject ISnackbar Snackbar
 @inject ClubAuthorizationService AuthzService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
 
 <MudProviders />
 
@@ -99,6 +100,13 @@
                             {
                                 <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
                             }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="Model.BestOf" Label="Best Of" Variant="Variant.Text">
+                            <MudSelectItem T="int" Value="1">Best of 1</MudSelectItem>
+                            <MudSelectItem T="int" Value="3">Best of 3</MudSelectItem>
+                            <MudSelectItem T="int" Value="5">Best of 5</MudSelectItem>
                         </MudSelect>
                     </MudItem>
                 </MudGrid>
@@ -250,6 +258,15 @@
             <MudPaper Class="pa-4">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
+                    @if (_stages.Any(s => s.StageType == StageType.RoundRobin) &&
+                         _stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                   StartIcon="@Icons.Material.Filled.Leaderboard"
+                                   OnClick="@(() => _showSeedConfirm = true)">
+                            Seed from Standings
+                        </MudButton>
+                    }
                     <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
                                StartIcon="@Icons.Material.Filled.AutoAwesome"
                                OnClick="@(() => _showScheduleConfirm = true)">
@@ -281,6 +298,13 @@
                             </MudChip>
                         </MudTd>
                         <MudTd>
+                            @if (context.Player1Id.HasValue && context.Player2Id.HasValue
+                                 && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover))
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Scoreboard" Size="Size.Small"
+                                               Color="Color.Success" Title="Submit Score"
+                                               OnClick="@(() => OpenSubmitScoreAsync(context))" />
+                            }
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                            OnClick="@(() => OpenEditFixtureDialog(context))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
@@ -334,6 +358,18 @@
     <DialogActions>
         <MudButton OnClick="@(() => _showStageDialog = false)">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveStage">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Seed Knockout from Standings Dialog ───────────────────── *@
+<MudDialog @bind-Visible="_showSeedConfirm">
+    <TitleContent>Seed Knockout from Standings</TitleContent>
+    <DialogContent>
+        <MudText>This will update the player assignments in the quarter-final fixtures based on the current round-robin league table standings. Completed fixtures will not be affected. Continue?</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showSeedConfirm = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="SeedKnockoutFromStandingsAsync">Seed</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -479,6 +515,7 @@
 
     // Schedule confirm dialog
     private bool _showScheduleConfirm;
+    private bool _showSeedConfirm;
 
     // Fixture dialog
     private bool _showFixtureDialog;
@@ -503,6 +540,7 @@
         public PlayerSex? EligibleSex { get; set; }
         public int? HostClubId { get; set; }
         public int? RulesSetId { get; set; }
+        public int BestOf { get; set; } = 3;
     }
 
     private sealed class StageForm
@@ -569,7 +607,8 @@
                 MaxAge = comp.MaxAge,
                 EligibleSex = comp.EligibleSex,
                 HostClubId = comp.HostClubId,
-                RulesSetId = comp.RulesSetId
+                RulesSetId = comp.RulesSetId,
+                BestOf = comp.BestOf
             };
             _stages = comp.Stages.ToList();
             _participants = comp.Participants.ToList();
@@ -643,6 +682,7 @@
         comp.EligibleSex = Model.EligibleSex;
         comp.HostClubId = Model.HostClubId;
         comp.RulesSetId = Model.RulesSetId;
+        comp.BestOf = Model.BestOf;
     }
 
     // ── Stages ──────────────────────────────────────────────────────────────
@@ -864,6 +904,24 @@
         f.Status = _fixtureForm.Status;
     }
 
+    private async Task OpenSubmitScoreAsync(CompetitionFixture fixture)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var loaded = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Stage)
+            .Include(f => f.Player1).Include(f => f.Player2)
+            .Include(f => f.Player3).Include(f => f.Player4)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixture.CompetitionFixtureId);
+        if (loaded == null) return;
+
+        var parameters = new DialogParameters<SubmitScoreDialog> { { x => x.Fixture, loaded } };
+        var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
+        var result = await dialog.Result;
+        if (!result.Canceled)
+            await OnParametersSetAsync();
+    }
+
     private async Task DeleteFixture(CompetitionFixture fixture)
     {
         await using var db = DbFactory.CreateDbContext();
@@ -1019,14 +1077,11 @@
 
                     if (koGeneratesQF)
                     {
-                        var qf = await TopFromRoundRobin(8);
                         for (int m = 0; m < 4; m++)
                             newFixtures.Add(new CompetitionFixture
                             {
                                 CompetitionId      = Id,
                                 CompetitionStageId = stage.CompetitionStageId,
-                                Player1Id          = m * 2     < qf.Count ? qf[m * 2]     : null,
-                                Player2Id          = m * 2 + 1 < qf.Count ? qf[m * 2 + 1] : null,
                                 FixtureLabel       = $"Quarter-Final {m + 1}",
                                 RoundNumber        = 1,
                                 ScheduledAt        = PhaseSlot("qf", m, 4),
@@ -1036,15 +1091,11 @@
 
                     if (koGeneratesSF)
                     {
-                        bool sfSeeded  = n >= 4 && !koGeneratesQF;
-                        var  sfPlayers = sfSeeded ? await TopFromRoundRobin(4) : new List<int>();
                         for (int m = 0; m < 2; m++)
                             newFixtures.Add(new CompetitionFixture
                             {
                                 CompetitionId      = Id,
                                 CompetitionStageId = stage.CompetitionStageId,
-                                Player1Id          = m * 2     < sfPlayers.Count ? sfPlayers[m * 2]     : null,
-                                Player2Id          = m * 2 + 1 < sfPlayers.Count ? sfPlayers[m * 2 + 1] : null,
                                 FixtureLabel       = $"Semi-Final {m + 1}",
                                 RoundNumber        = koGeneratesQF ? 2 : 1,
                                 ScheduledAt        = PhaseSlot("sf", m, 2),
@@ -1067,14 +1118,11 @@
 
                 case StageType.QuarterFinal:
                 {
-                    var qf = await TopFromRoundRobin(8);
                     for (int m = 0; m < 4; m++)
                         newFixtures.Add(new CompetitionFixture
                         {
                             CompetitionId      = Id,
                             CompetitionStageId = stage.CompetitionStageId,
-                            Player1Id          = m * 2     < qf.Count ? qf[m * 2]     : null,
-                            Player2Id          = m * 2 + 1 < qf.Count ? qf[m * 2 + 1] : null,
                             FixtureLabel       = $"Quarter-Final {m + 1}",
                             RoundNumber        = 1,
                             ScheduledAt        = PhaseSlot("qf", m, 4),
@@ -1085,15 +1133,11 @@
 
                 case StageType.SemiFinal:
                 {
-                    bool sfHasQf   = _stages.Any(s => s.StageType == StageType.QuarterFinal);
-                    var  sfPlayers = sfHasQf ? new List<int>() : await TopFromRoundRobin(4);
                     for (int m = 0; m < 2; m++)
                         newFixtures.Add(new CompetitionFixture
                         {
                             CompetitionId      = Id,
                             CompetitionStageId = stage.CompetitionStageId,
-                            Player1Id          = m * 2     < sfPlayers.Count ? sfPlayers[m * 2]     : null,
-                            Player2Id          = m * 2 + 1 < sfPlayers.Count ? sfPlayers[m * 2 + 1] : null,
                             FixtureLabel       = $"Semi-Final {m + 1}",
                             RoundNumber        = 1,
                             ScheduledAt        = PhaseSlot("sf", m, 2),
@@ -1133,6 +1177,101 @@
             .ToListAsync();
 
         Snackbar.Add($"{newFixtures.Count} fixtures scheduled.", Severity.Success);
+    }
+
+    private async Task SeedKnockoutFromStandingsAsync()
+    {
+        _showSeedConfirm = false;
+        await using var db = DbFactory.CreateDbContext();
+
+        // Find the first-round knockout fixtures to update (QF fixtures in Knockout or QuarterFinal stages)
+        var knockoutStageIds = _stages
+            .Where(s => s.StageType is StageType.Knockout or StageType.QuarterFinal)
+            .Select(s => s.CompetitionStageId)
+            .ToHashSet();
+
+        var firstRoundFixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == Id
+                     && f.Status != FixtureStatus.Completed
+                     && f.CompetitionStageId.HasValue
+                     && knockoutStageIds.Contains(f.CompetitionStageId.Value)
+                     && f.RoundNumber == 1)
+            .OrderBy(f => f.FixtureLabel)
+            .ToListAsync();
+
+        if (!firstRoundFixtures.Any())
+        {
+            Snackbar.Add("No unseeded knockout fixtures found.", Severity.Warning);
+            return;
+        }
+
+        // Compute RR standings
+        var rrStageIds = _stages
+            .Where(s => s.StageType == StageType.RoundRobin)
+            .Select(s => s.CompetitionStageId)
+            .ToHashSet();
+
+        var activePlayers = _participants
+            .Where(p => p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed)
+            .Select(p => p.PlayerId)
+            .ToList();
+
+        List<int> seededPlayers;
+
+        var rrFixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == Id
+                     && f.CompetitionStageId != null
+                     && rrStageIds.Contains(f.CompetitionStageId!.Value)
+                     && f.Status == FixtureStatus.Completed
+                     && f.WinnerPlayerId != null)
+            .ToListAsync();
+
+        if (rrFixtures.Count == 0)
+        {
+            // No results yet — fall back to registration order
+            seededPlayers = activePlayers.Take(firstRoundFixtures.Count * 2).ToList();
+        }
+        else
+        {
+            var pts = activePlayers.ToDictionary(pid => pid, _ => (Points: 0, Won: 0));
+            foreach (var f in rrFixtures)
+            {
+                var pids = new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
+                    .Where(pid => pid.HasValue && pts.ContainsKey(pid.Value))
+                    .Select(pid => pid!.Value).Distinct();
+                foreach (var pid in pids)
+                {
+                    bool win = pid == f.WinnerPlayerId;
+                    var cur = pts[pid];
+                    pts[pid] = (cur.Points + (win ? 3 : 0), cur.Won + (win ? 1 : 0));
+                }
+            }
+            seededPlayers = pts
+                .OrderByDescending(kv => kv.Value.Points)
+                .ThenByDescending(kv => kv.Value.Won)
+                .Take(firstRoundFixtures.Count * 2)
+                .Select(kv => kv.Key)
+                .ToList();
+        }
+
+        CompetitionProgressionService.AssignWinners(firstRoundFixtures, seededPlayers);
+
+        await db.SaveChangesAsync();
+
+        // Reload fixtures with nav props
+        _fixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == Id)
+            .Include(f => f.Stage)
+            .Include(f => f.Court)
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .OrderBy(f => f.RoundNumber)
+            .ThenBy(f => f.ScheduledAt)
+            .ToListAsync();
+
+        Snackbar.Add($"Quarter-final fixtures seeded from standings.", Severity.Success);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

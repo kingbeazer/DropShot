@@ -451,16 +451,13 @@ public class CompetitionsController(
 
                     if (n >= 8)
                     {
-                        // ── Quarter-Finals (top 8 seeded from RR) ───────────────
-                        var qfPlayers = await TopFromRoundRobin(8);
+                        // ── Quarter-Finals (players assigned automatically when RR completes) ──
                         for (int m = 0; m < 4; m++)
                         {
                             db.CompetitionFixtures.Add(new CompetitionFixture
                             {
                                 CompetitionId = id,
                                 CompetitionStageId = stage.CompetitionStageId,
-                                Player1Id = m * 2     < qfPlayers.Count ? qfPlayers[m * 2]     : null,
-                                Player2Id = m * 2 + 1 < qfPlayers.Count ? qfPlayers[m * 2 + 1] : null,
                                 FixtureLabel = $"Quarter-Final {m + 1}",
                                 RoundNumber = 1,
                                 ScheduledAt = RandomSlot(),
@@ -468,7 +465,7 @@ public class CompetitionsController(
                             });
                         }
 
-                        // ── Semi-Finals (placeholder – QF winners fill these) ───
+                        // ── Semi-Finals (players assigned automatically when QF completes) ───
                         for (int m = 0; m < 2; m++)
                         {
                             db.CompetitionFixtures.Add(new CompetitionFixture
@@ -484,16 +481,13 @@ public class CompetitionsController(
                     }
                     else
                     {
-                        // ── Semi-Finals (top 4 seeded from RR, no QF) ───────────
-                        var sfPlayers = await TopFromRoundRobin(4);
+                        // ── Semi-Finals (players assigned automatically when RR completes) ────
                         for (int m = 0; m < 2; m++)
                         {
                             db.CompetitionFixtures.Add(new CompetitionFixture
                             {
                                 CompetitionId = id,
                                 CompetitionStageId = stage.CompetitionStageId,
-                                Player1Id = m * 2     < sfPlayers.Count ? sfPlayers[m * 2]     : null,
-                                Player2Id = m * 2 + 1 < sfPlayers.Count ? sfPlayers[m * 2 + 1] : null,
                                 FixtureLabel = $"Semi-Final {m + 1}",
                                 RoundNumber = 1,
                                 ScheduledAt = RandomSlot(),
@@ -531,20 +525,12 @@ public class CompetitionsController(
 
                 case DropShot.Models.StageType.QuarterFinal:
                 {
-                    // Seed QF from the top 8 of the round-robin league table.
-                    // Falls back to registration order when no RR results exist yet.
-                    var qfPlayers = await TopFromRoundRobin(8);
-
                     for (int m = 0; m < 4; m++)
                     {
-                        int p1Idx = m * 2;
-                        int p2Idx = m * 2 + 1;
                         db.CompetitionFixtures.Add(new CompetitionFixture
                         {
                             CompetitionId = id,
                             CompetitionStageId = stage.CompetitionStageId,
-                            Player1Id = p1Idx < qfPlayers.Count ? qfPlayers[p1Idx] : null,
-                            Player2Id = p2Idx < qfPlayers.Count ? qfPlayers[p2Idx] : null,
                             FixtureLabel = $"Quarter-Final {m + 1}",
                             RoundNumber = 1,
                             ScheduledAt = RandomSlot(),
@@ -556,24 +542,12 @@ public class CompetitionsController(
 
                 case DropShot.Models.StageType.SemiFinal:
                 {
-                    // If a QuarterFinal stage exists, SF slots are placeholders (QF winners fill them later).
-                    // If no QuarterFinal stage, seed with the top 4 from the round-robin league table,
-                    // falling back to registration order when no RR results exist yet.
-                    bool hasQf = comp.Stages.Any(s => s.StageType == DropShot.Models.StageType.QuarterFinal);
-                    var sfPlayers = hasQf
-                        ? new List<int>()
-                        : await TopFromRoundRobin(4);
-
                     for (int m = 0; m < 2; m++)
                     {
-                        int p1Idx = m * 2;
-                        int p2Idx = m * 2 + 1;
                         db.CompetitionFixtures.Add(new CompetitionFixture
                         {
                             CompetitionId = id,
                             CompetitionStageId = stage.CompetitionStageId,
-                            Player1Id = (!hasQf && p1Idx < sfPlayers.Count) ? sfPlayers[p1Idx] : null,
-                            Player2Id = (!hasQf && p2Idx < sfPlayers.Count) ? sfPlayers[p2Idx] : null,
                             FixtureLabel = $"Semi-Final {m + 1}",
                             RoundNumber = 1,
                             ScheduledAt = RandomSlot(),
@@ -689,6 +663,8 @@ public class CompetitionsController(
         f.Player3Id = r.Player3Id;
         f.Player4Id = r.Player4Id;
         f.Status = (DropShot.Models.FixtureStatus)r.Status;
+        if (r.ResultSummary != null) f.ResultSummary = r.ResultSummary;
+        if (r.WinnerPlayerId != null) f.WinnerPlayerId = r.WinnerPlayerId;
     }
 
     private static CompetitionDto ToDto(Competition c) => new(

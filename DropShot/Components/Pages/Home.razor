@@ -1,14 +1,20 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @using DropShot.Data
 @using DropShot.Models
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.EntityFrameworkCore
 @using Newtonsoft.Json
+@using System.Security.Claims
 @inject NavigationManager Navigation
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
 
 @using System.Text.RegularExpressions
 @using System.ComponentModel.DataAnnotations
+
+<MudProviders />
 
 @if (LinkedPlayer)
 {
@@ -35,8 +41,57 @@
     </MudCarouselItem>
 </MudCarousel>
 
+@if (_upcomingFixtures.Any())
+{
+    <MudCard Class="mt-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">Your Upcoming Matches</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent Class="pa-0">
+            <MudTable Items="@_upcomingFixtures" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Date / Time</MudTh>
+                    <MudTh>Competition</MudTh>
+                    <MudTh>Opponent(s)</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Date / Time">@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+                    <MudTd DataLabel="Competition">
+                        <MudText Typo="Typo.body2" Style="font-weight:500">@(context.Competition?.CompetitionName ?? "—")</MudText>
+                        @if (!string.IsNullOrEmpty(context.FixtureLabel))
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.FixtureLabel</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Opponent(s)">@FixtureOpponents(context)</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+                    </MudTd>
+                    <MudTd>
+                        <MudStack Row="true" Spacing="1">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                                       OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}"))">
+                                Play
+                            </MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
+                                       StartIcon="@Icons.Material.Filled.Edit"
+                                       OnClick="@(() => OpenSubmitScoreAsync(context))">
+                                Submit Score
+                            </MudButton>
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudCardContent>
+    </MudCard>
+}
 
-<MudCard>
+<MudCard Class="mt-4">
     <MudCardMedia Image="images/background.png" Height="200" />
     <MudCardContent>
         <MudText Typo="Typo.h5">Welcome</MudText>
@@ -47,7 +102,7 @@
         <MudButton Variant="Variant.Text" Color="Color.Primary">Learn more</MudButton>
     </MudCardActions>
 </MudCard>
- 
+
 @code {
     private bool arrows = true;
     private bool bullets = true;
@@ -57,4 +112,59 @@
 
     [SupplyParameterFromQuery]
     private bool LinkedPlayer { get; set; }
+
+    private List<CompetitionFixture> _upcomingFixtures = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (player == null) return;
+
+        var pid = player.PlayerId;
+        _upcomingFixtures = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Stage)
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Where(f => (f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid)
+                     && (f.Status == FixtureStatus.Scheduled || f.Status == FixtureStatus.InProgress))
+            .OrderBy(f => f.ScheduledAt)
+            .ToListAsync();
+    }
+
+    private async Task OpenSubmitScoreAsync(CompetitionFixture fixture)
+    {
+        var parameters = new DialogParameters<SubmitScoreDialog> { { x => x.Fixture, fixture } };
+        var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
+        var result = await dialog.Result;
+        if (!result.Canceled)
+            await OnInitializedAsync();
+    }
+
+    private string FixtureOpponents(CompetitionFixture f)
+    {
+        // Show the other side — from perspective of the logged-in player
+        var side1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        return $"{side1} vs {side2}";
+    }
+
+    private static Color StatusColor(FixtureStatus s) => s switch
+    {
+        FixtureStatus.Scheduled => Color.Default,
+        FixtureStatus.InProgress => Color.Warning,
+        FixtureStatus.Completed => Color.Success,
+        FixtureStatus.Cancelled => Color.Error,
+        FixtureStatus.Walkover => Color.Info,
+        _ => Color.Default
+    };
 }

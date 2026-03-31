@@ -22,6 +22,8 @@
 @inject TennisScoreService ScoreService
 @inject ISnackbar Snackbar
 
+@* FixtureId is passed as a query param when starting a match from a competition fixture *@
+
 <MudProviders />
 
 <MudCollapse Expanded="_expanded" Style="margin-top: 10px;">
@@ -159,6 +161,16 @@
                 var _headerCourt = _courts.FirstOrDefault(c => c.CourtId == _selectedCourtId);
             }
             <div style="text-align: center; padding: 4px 8px;">
+                @if (_competitionFixture?.Competition != null)
+                {
+                    <div style="font-size: 0.75rem; color: #FFD700; letter-spacing: 1px; text-transform: uppercase; font-weight: bold;">
+                        @_competitionFixture.Competition.CompetitionName
+                        @if (!string.IsNullOrEmpty(_competitionFixture.FixtureLabel))
+                        {
+                            <span> — @_competitionFixture.FixtureLabel</span>
+                        }
+                    </div>
+                }
                 @if (_headerCourt != null)
                 {
                     <div style="font-size: 0.85rem; color: #aaa; letter-spacing: 1px; text-transform: uppercase;">
@@ -514,10 +526,25 @@
         dbc.SavedMatch.Add(matchToSave);
         await dbc.SaveChangesAsync();
         _savedMatchId = matchToSave.SavedMatchId;
+
+        // Link to competition fixture and mark it as in progress
+        if (_competitionFixture != null)
+        {
+            using var dbc2 = DbFactory.CreateDbContext();
+            var fx = await dbc2.CompetitionFixtures.FindAsync(_competitionFixture.CompetitionFixtureId);
+            if (fx != null)
+            {
+                fx.SavedMatchId = _savedMatchId;
+                fx.Status = FixtureStatus.InProgress;
+                await dbc2.SaveChangesAsync();
+            }
+        }
     }
 
     [Parameter] public int MatchId { get; set; }
+    [SupplyParameterFromQuery] public int? FixtureId { get; set; }
     private int _savedMatchId;
+    private CompetitionFixture? _competitionFixture;
 
     private List<string> _states = [];
     private List<Court> _courts = [];
@@ -581,6 +608,38 @@
                     ScoreService.RestoreFromGameState(_state, history.Peek());
                 _savedMatchId = savedMatch.SavedMatchId;
                 _selectedCourtId = savedMatch.CourtId;
+
+                // Load linked competition fixture if any
+                _competitionFixture = await DbContext.CompetitionFixtures
+                    .Include(f => f.Competition)
+                    .Include(f => f.Stage)
+                    .Include(f => f.Player1)
+                    .Include(f => f.Player2)
+                    .Include(f => f.Player3)
+                    .Include(f => f.Player4)
+                    .FirstOrDefaultAsync(f => f.SavedMatchId == savedMatch.SavedMatchId);
+            }
+        }
+
+        // Load fixture from query param (starting a new match from a competition fixture)
+        if (FixtureId > 0 && _competitionFixture == null)
+        {
+            _competitionFixture = await DbContext.CompetitionFixtures
+                .Include(f => f.Competition)
+                .Include(f => f.Stage)
+                .Include(f => f.Player1)
+                .Include(f => f.Player2)
+                .Include(f => f.Player3)
+                .Include(f => f.Player4)
+                .FirstOrDefaultAsync(f => f.CompetitionFixtureId == FixtureId);
+
+            if (_competitionFixture != null)
+            {
+                _value  = _competitionFixture.Player1?.DisplayName ?? "";
+                _value2 = _competitionFixture.Player2?.DisplayName ?? "";
+                _value3 = _competitionFixture.Player3?.DisplayName ?? "";
+                _value4 = _competitionFixture.Player4?.DisplayName ?? "";
+                Label_Switch1 = _competitionFixture.Player3 != null;
             }
         }
 
@@ -644,6 +703,25 @@
             await hubConnection.SendAsync("SendMessage",
                 JsonConvert.SerializeObject(history.Peek()),
                 CurrentMatch.CourtId?.ToString() ?? "");
+        }
+
+        // When match ends, record the result on the linked competition fixture
+        if (_state.IsMatchEnded && _competitionFixture != null)
+        {
+            using var dbc3 = DbFactory.CreateDbContext();
+            var fx = await dbc3.CompetitionFixtures.FindAsync(_competitionFixture.CompetitionFixtureId);
+            if (fx != null && fx.Status != FixtureStatus.Completed)
+            {
+                fx.Status = FixtureStatus.Completed;
+                fx.SavedMatchId = _savedMatchId;
+                bool userSideWon = _state.UserSets > _state.OppSets;
+                fx.WinnerPlayerId = userSideWon ? _competitionFixture.Player1Id : _competitionFixture.Player2Id;
+                fx.ResultSummary = string.Join(", ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}"));
+                await dbc3.SaveChangesAsync();
+
+                // Auto-advance the next round if all matches in this round are now complete
+                await CompetitionProgressionService.TryAdvanceAsync(dbc3, _competitionFixture.CompetitionId, fx.CompetitionFixtureId);
+            }
         }
     }
 

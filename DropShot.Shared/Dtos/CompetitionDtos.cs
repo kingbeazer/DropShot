@@ -107,7 +107,9 @@ public record SaveFixtureRequest(
     int? Player2Id,
     int? Player3Id,
     int? Player4Id,
-    FixtureStatus Status);
+    FixtureStatus Status,
+    string? ResultSummary = null,
+    int? WinnerPlayerId = null);
 
 public record SaveTeamRequest(string Name);
 
