@@ -178,7 +178,7 @@ public class TennisScoreService
         if (s.UserPoints >= 3 && s.OppPoints >= 3)
         {
             if (s.UserPoints == s.OppPoints)
-                return s.UserPoints == 3 ? "40" : "D";
+                return "40";
             if (s.UserPoints == s.OppPoints + 1) return $"A({s.DeuceCount})";
             if (s.OppPoints == s.UserPoints + 1) return "";
         }
@@ -193,7 +193,7 @@ public class TennisScoreService
         if (s.UserPoints >= 3 && s.OppPoints >= 3)
         {
             if (s.UserPoints == s.OppPoints)
-                return s.UserPoints == 3 ? "40" : "D";
+                return "40";
             if (s.OppPoints == s.UserPoints + 1) return $"A({s.DeuceCount})";
             if (s.UserPoints == s.OppPoints + 1) return "";
         }
