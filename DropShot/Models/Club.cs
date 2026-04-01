@@ -26,6 +26,8 @@ public class Club
     public ICollection<Competition> Competitions { get; set; } = [];
     public ICollection<ClubLadder> Ladders { get; set; } = [];
     public ICollection<ClubSchedulingTemplate> SchedulingTemplates { get; set; } = [];
+    public ICollection<CompetitionTemplate> CompetitionTemplates { get; set; } = [];
+    public ICollection<ClubEmailTemplate> EmailTemplates { get; set; } = [];
 }
 
 public class Court

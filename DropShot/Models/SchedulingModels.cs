@@ -31,3 +31,29 @@ public class ClubSchedulingTemplateWindow
 
     public ClubSchedulingTemplate Template { get; set; } = null!;
 }
+
+public class CompetitionTemplate
+{
+    public int CompetitionTemplateId { get; set; }
+    public int ClubId { get; set; }
+    public string Name { get; set; } = "";
+    public CompetitionFormat? Format { get; set; }
+    public int? RulesSetId { get; set; }
+    public int? BestOf { get; set; }
+    public int? MaxAge { get; set; }
+    public PlayerSex? EligibleSex { get; set; }
+
+    public Club Club { get; set; } = null!;
+    public ICollection<CompetitionTemplateWindow> Windows { get; set; } = [];
+}
+
+public class CompetitionTemplateWindow
+{
+    public int CompetitionTemplateWindowId { get; set; }
+    public int CompetitionTemplateId { get; set; }
+    public DayOfWeek DayOfWeek { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+
+    public CompetitionTemplate Template { get; set; } = null!;
+}

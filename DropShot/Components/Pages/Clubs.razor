@@ -51,6 +51,10 @@
             }
             <MudIconButton Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Color="Color.Secondary"
                            Title="Scheduling templates" OnClick="@(() => OpenTemplates(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Small" Color="Color.Warning"
+                           Title="Competition templates" OnClick="@(() => OpenCompetitionTemplates(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Email" Size="Size.Small" Color="Color.Default"
+                           Title="Email templates" OnClick="@(() => OpenEmailTemplates(context))" />
             @if (_isAdmin)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
@@ -276,6 +280,156 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Competition Templates Dialog ─────────────────────────────────── *@
+<MudDialog @bind-Visible="_showCompetitionTemplatesDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>Competition Templates – @(_competitionTemplatesClub?.Name)</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="9">
+                <MudTextField @bind-Value="_newCompTemplateName" Label="Template Name" Variant="Variant.Outlined"
+                              Placeholder="e.g. Standard Singles" />
+            </MudItem>
+            <MudItem xs="3" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           OnClick="AddCompetitionTemplate" Disabled="string.IsNullOrWhiteSpace(_newCompTemplateName)">Add</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        @foreach (var ct in _competitionTemplatesList)
+        {
+            <MudPaper Class="pa-3 mb-3" Outlined="true">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                    <MudText Typo="Typo.subtitle2">@ct.Name</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteCompetitionTemplate(ct))" />
+                </MudStack>
+                <MudGrid Spacing="1" Class="mb-2">
+                    <MudItem xs="6" sm="3">
+                        <MudSelect @bind-Value="ct.Format" Label="Format" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                            @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
+                            {
+                                <MudSelectItem T="CompetitionFormat?" Value="@((CompetitionFormat?)f)">@f</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField @bind-Value="ct.BestOf" Label="Best Of" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="5" />
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField @bind-Value="ct.MaxAge" Label="Max Age" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => SaveCompetitionTemplate(ct))">Save</MudButton>
+                    </MudItem>
+                </MudGrid>
+                @* Match windows *@
+                <MudGrid Spacing="1" Class="mb-2">
+                    <MudItem xs="4">
+                        <MudSelect @bind-Value="_newCTWindowDay[ct.CompetitionTemplateId]" Label="Day"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                            {
+                                <MudSelectItem Value="@d">@d</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudTimePicker @bind-Time="_newCTWindowStart[ct.CompetitionTemplateId]"
+                                       Label="From" Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudTimePicker @bind-Time="_newCTWindowEnd[ct.CompetitionTemplateId]"
+                                       Label="To" Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" />
+                    </MudItem>
+                    <MudItem xs="2" Class="d-flex align-center">
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   OnClick="@(() => AddCTWindow(ct))">Add</MudButton>
+                    </MudItem>
+                </MudGrid>
+                @if (ct.Windows.Count > 0)
+                {
+                    <MudSimpleTable Dense="true">
+                        <thead><tr><th>Day</th><th>From</th><th>To</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var w in ct.Windows)
+                            {
+                                <tr>
+                                    <td>@w.DayOfWeek</td>
+                                    <td>@w.StartTime.ToString(@"hh\:mm")</td>
+                                    <td>@w.EndTime.ToString(@"hh\:mm")</td>
+                                    <td>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       Color="Color.Error" OnClick="@(() => DeleteCTWindow(ct, w))" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">No windows defined.</MudText>
+                }
+            </MudPaper>
+        }
+        @if (_competitionTemplatesList.Count == 0)
+        {
+            <MudText Typo="Typo.caption">No competition templates yet. Add one above.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showCompetitionTemplatesDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Email Templates Dialog ───────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showEmailTemplatesDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>Email Templates – @(_emailTemplatesClub?.Name)</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="12" sm="5">
+                <MudTextField @bind-Value="_newEmailTemplateName" Label="Template Name" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="5">
+                <MudTextField @bind-Value="_newEmailTemplateSubject" Label="Subject" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_newEmailTemplateBody" Label="Body" Variant="Variant.Outlined"
+                              Lines="3" HelperText="Variables: {PlayerName}, {CompetitionName}, {MatchLink}" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           OnClick="AddEmailTemplate"
+                           Disabled="@(string.IsNullOrWhiteSpace(_newEmailTemplateName) || string.IsNullOrWhiteSpace(_newEmailTemplateSubject))">
+                    Add Template
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+
+        @foreach (var et in _emailTemplatesList)
+        {
+            <MudPaper Class="pa-3 mb-3" Outlined="true">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <div>
+                        <MudText Typo="Typo.subtitle2">@et.Name</MudText>
+                        <MudText Typo="Typo.caption"><strong>Subject:</strong> @et.Subject</MudText>
+                        <MudText Typo="Typo.caption" Style="white-space:pre-wrap">@(et.Body.Length > 100 ? et.Body[..100] + "…" : et.Body)</MudText>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteEmailTemplate(et))" />
+                </MudStack>
+            </MudPaper>
+        }
+        @if (_emailTemplatesList.Count == 0)
+        {
+            <MudText Typo="Typo.caption">No email templates yet. Add one above.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showEmailTemplatesDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private bool _loading = true;
     private List<Club> _clubs = [];
@@ -307,6 +461,23 @@
     private Dictionary<int, DayOfWeek> _newWindowDay = [];
     private Dictionary<int, TimeSpan?> _newWindowStart = [];
     private Dictionary<int, TimeSpan?> _newWindowEnd = [];
+
+    // Competition Templates
+    private bool _showCompetitionTemplatesDialog;
+    private Club? _competitionTemplatesClub;
+    private List<CompetitionTemplate> _competitionTemplatesList = [];
+    private string _newCompTemplateName = "";
+    private Dictionary<int, DayOfWeek> _newCTWindowDay = [];
+    private Dictionary<int, TimeSpan?> _newCTWindowStart = [];
+    private Dictionary<int, TimeSpan?> _newCTWindowEnd = [];
+
+    // Email Templates
+    private bool _showEmailTemplatesDialog;
+    private Club? _emailTemplatesClub;
+    private List<ClubEmailTemplate> _emailTemplatesList = [];
+    private string _newEmailTemplateName = "";
+    private string _newEmailTemplateSubject = "";
+    private string _newEmailTemplateBody = "";
 
     private sealed class ClubForm
     {
@@ -559,4 +730,144 @@
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    // ── Competition Templates ─────────────────────────────────────────────────
+
+    private async Task OpenCompetitionTemplates(Club club)
+    {
+        _competitionTemplatesClub = club;
+        await using var dbc = DbFactory.CreateDbContext();
+        _competitionTemplatesList = await dbc.CompetitionTemplates
+            .Include(t => t.Windows)
+            .Where(t => t.ClubId == club.ClubId)
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+        _newCTWindowDay = _competitionTemplatesList.ToDictionary(t => t.CompetitionTemplateId, _ => DayOfWeek.Monday);
+        _newCTWindowStart = _competitionTemplatesList.ToDictionary(t => t.CompetitionTemplateId, _ => (TimeSpan?)null);
+        _newCTWindowEnd = _competitionTemplatesList.ToDictionary(t => t.CompetitionTemplateId, _ => (TimeSpan?)null);
+        _newCompTemplateName = "";
+        _showCompetitionTemplatesDialog = true;
+    }
+
+    private async Task AddCompetitionTemplate()
+    {
+        if (_competitionTemplatesClub == null || string.IsNullOrWhiteSpace(_newCompTemplateName)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        var t = new CompetitionTemplate
+        {
+            ClubId = _competitionTemplatesClub.ClubId,
+            Name = _newCompTemplateName.Trim()
+        };
+        dbc.CompetitionTemplates.Add(t);
+        await dbc.SaveChangesAsync();
+        t.Windows = [];
+        _competitionTemplatesList.Add(t);
+        _newCTWindowDay[t.CompetitionTemplateId] = DayOfWeek.Monday;
+        _newCTWindowStart[t.CompetitionTemplateId] = null;
+        _newCTWindowEnd[t.CompetitionTemplateId] = null;
+        _newCompTemplateName = "";
+        Snackbar.Add("Template added.", Severity.Success);
+    }
+
+    private async Task SaveCompetitionTemplate(CompetitionTemplate t)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var dbT = await dbc.CompetitionTemplates.FindAsync(t.CompetitionTemplateId);
+        if (dbT == null) return;
+        dbT.Format = t.Format;
+        dbT.BestOf = t.BestOf;
+        dbT.MaxAge = t.MaxAge;
+        dbT.EligibleSex = t.EligibleSex;
+        dbT.RulesSetId = t.RulesSetId;
+        await dbc.SaveChangesAsync();
+        Snackbar.Add("Template saved.", Severity.Success);
+    }
+
+    private async Task DeleteCompetitionTemplate(CompetitionTemplate t)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var dbT = await dbc.CompetitionTemplates.FindAsync(t.CompetitionTemplateId);
+        if (dbT != null) { dbc.CompetitionTemplates.Remove(dbT); await dbc.SaveChangesAsync(); }
+        _competitionTemplatesList.Remove(t);
+        _newCTWindowDay.Remove(t.CompetitionTemplateId);
+        _newCTWindowStart.Remove(t.CompetitionTemplateId);
+        _newCTWindowEnd.Remove(t.CompetitionTemplateId);
+        Snackbar.Add("Template deleted.", Severity.Warning);
+    }
+
+    private async Task AddCTWindow(CompetitionTemplate t)
+    {
+        var start = _newCTWindowStart.GetValueOrDefault(t.CompetitionTemplateId);
+        var end = _newCTWindowEnd.GetValueOrDefault(t.CompetitionTemplateId);
+        if (start == null || end == null) { Snackbar.Add("Please set both start and end times.", Severity.Warning); return; }
+        if (end <= start) { Snackbar.Add("End time must be after start time.", Severity.Warning); return; }
+        await using var dbc = DbFactory.CreateDbContext();
+        var w = new CompetitionTemplateWindow
+        {
+            CompetitionTemplateId = t.CompetitionTemplateId,
+            DayOfWeek = _newCTWindowDay[t.CompetitionTemplateId],
+            StartTime = start.Value,
+            EndTime = end.Value
+        };
+        dbc.CompetitionTemplateWindows.Add(w);
+        await dbc.SaveChangesAsync();
+        ((ICollection<CompetitionTemplateWindow>)t.Windows).Add(w);
+        _newCTWindowStart[t.CompetitionTemplateId] = null;
+        _newCTWindowEnd[t.CompetitionTemplateId] = null;
+        Snackbar.Add("Window added.", Severity.Success);
+    }
+
+    private async Task DeleteCTWindow(CompetitionTemplate t, CompetitionTemplateWindow w)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var dbW = await dbc.CompetitionTemplateWindows.FindAsync(w.CompetitionTemplateWindowId);
+        if (dbW != null) { dbc.CompetitionTemplateWindows.Remove(dbW); await dbc.SaveChangesAsync(); }
+        ((ICollection<CompetitionTemplateWindow>)t.Windows).Remove(w);
+        Snackbar.Add("Window removed.", Severity.Warning);
+    }
+
+    // ── Email Templates ───────────────────────────────────────────────────────
+
+    private async Task OpenEmailTemplates(Club club)
+    {
+        _emailTemplatesClub = club;
+        await using var dbc = DbFactory.CreateDbContext();
+        _emailTemplatesList = await dbc.ClubEmailTemplates
+            .Where(t => t.ClubId == club.ClubId)
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+        _newEmailTemplateName = "";
+        _newEmailTemplateSubject = "";
+        _newEmailTemplateBody = "";
+        _showEmailTemplatesDialog = true;
+    }
+
+    private async Task AddEmailTemplate()
+    {
+        if (_emailTemplatesClub == null || string.IsNullOrWhiteSpace(_newEmailTemplateName) || string.IsNullOrWhiteSpace(_newEmailTemplateSubject)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        var t = new ClubEmailTemplate
+        {
+            ClubId = _emailTemplatesClub.ClubId,
+            Name = _newEmailTemplateName.Trim(),
+            Subject = _newEmailTemplateSubject.Trim(),
+            Body = _newEmailTemplateBody.Trim()
+        };
+        dbc.ClubEmailTemplates.Add(t);
+        await dbc.SaveChangesAsync();
+        _emailTemplatesList.Add(t);
+        _newEmailTemplateName = "";
+        _newEmailTemplateSubject = "";
+        _newEmailTemplateBody = "";
+        Snackbar.Add("Email template added.", Severity.Success);
+    }
+
+    private async Task DeleteEmailTemplate(ClubEmailTemplate t)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var dbT = await dbc.ClubEmailTemplates.FindAsync(t.ClubEmailTemplateId);
+        if (dbT != null) { dbc.ClubEmailTemplates.Remove(dbT); await dbc.SaveChangesAsync(); }
+        _emailTemplatesList.Remove(t);
+        Snackbar.Add("Email template deleted.", Severity.Warning);
+    }
 }

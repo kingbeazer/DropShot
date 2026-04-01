@@ -28,6 +28,10 @@ namespace DropShot.Data
         public DbSet<CompetitionMatchWindow> CompetitionMatchWindows { get; set; }
         public DbSet<ClubSchedulingTemplate> ClubSchedulingTemplates { get; set; }
         public DbSet<ClubSchedulingTemplateWindow> ClubSchedulingTemplateWindows { get; set; }
+        public DbSet<CompetitionAdmin> CompetitionAdmins { get; set; }
+        public DbSet<CompetitionTemplate> CompetitionTemplates { get; set; }
+        public DbSet<CompetitionTemplateWindow> CompetitionTemplateWindows { get; set; }
+        public DbSet<ClubEmailTemplate> ClubEmailTemplates { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -248,6 +252,58 @@ namespace DropShot.Data
                 entity.HasOne(w => w.Template)
                       .WithMany(t => t.Windows)
                       .HasForeignKey(w => w.ClubSchedulingTemplateId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── CompetitionAdmin ─────────────────────────────────────────────────
+            builder.Entity<CompetitionAdmin>(entity =>
+            {
+                entity.HasKey(ca => new { ca.CompetitionId, ca.UserId });
+
+                entity.HasOne(ca => ca.Competition)
+                      .WithMany(c => c.Admins)
+                      .HasForeignKey(ca => ca.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(ca => ca.User)
+                      .WithMany()
+                      .HasForeignKey(ca => ca.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── CompetitionTemplate / CompetitionTemplateWindow ──────────────────
+            builder.Entity<CompetitionTemplate>(entity =>
+            {
+                entity.Property(t => t.Name).HasMaxLength(200).IsRequired();
+                entity.Property(t => t.Format).HasConversion<byte?>();
+                entity.Property(t => t.EligibleSex).HasConversion<byte?>();
+
+                entity.HasOne(t => t.Club)
+                      .WithMany(c => c.CompetitionTemplates)
+                      .HasForeignKey(t => t.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<CompetitionTemplateWindow>(entity =>
+            {
+                entity.Property(w => w.DayOfWeek).HasConversion<int>();
+
+                entity.HasOne(w => w.Template)
+                      .WithMany(t => t.Windows)
+                      .HasForeignKey(w => w.CompetitionTemplateId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── ClubEmailTemplate ────────────────────────────────────────────────
+            builder.Entity<ClubEmailTemplate>(entity =>
+            {
+                entity.Property(t => t.Name).HasMaxLength(200).IsRequired();
+                entity.Property(t => t.Subject).HasMaxLength(500).IsRequired();
+                entity.Property(t => t.Body).HasColumnType("nvarchar(max)").IsRequired();
+
+                entity.HasOne(t => t.Club)
+                      .WithMany(c => c.EmailTemplates)
+                      .HasForeignKey(t => t.ClubId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
 

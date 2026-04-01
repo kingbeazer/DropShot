@@ -72,18 +72,20 @@
     private string _searchText = "";
     private bool _isAdmin;
     private List<(string Label, int CompetitionId)> _pendingVerifications = [];
+    private HashSet<int> _editableClubIds = [];
+    private HashSet<int> _competitionAdminIds = [];
 
     private bool FilterCompetitions(Competition c) =>
         string.IsNullOrWhiteSpace(_searchText) ||
         (c.CompetitionName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
         c.CompetitionFormat.ToString().Contains(_searchText, StringComparison.OrdinalIgnoreCase);
-    private HashSet<int> _editableClubIds = [];
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _isAdmin = await AuthzService.IsAdminAsync(authState.User);
         _editableClubIds = [.. await AuthzService.GetAdminClubIdsAsync(authState.User)];
+        _competitionAdminIds = await AuthzService.GetEditableCompetitionIdsAsync(authState.User);
 
         await using var dbc = DbFactory.CreateDbContext();
         _competitions = await dbc.Competition
@@ -96,14 +98,14 @@
             })
             .ToListAsync();
 
-        // Load pending verifications for admins / club admins
-        if (_isAdmin || _editableClubIds.Count > 0)
+        // Load pending verifications for admins / club admins / competition admins
+        if (_isAdmin || _editableClubIds.Count > 0 || _competitionAdminIds.Count > 0)
         {
             _pendingVerifications = (await dbc.CompetitionFixtures
                 .Where(f => f.Status == FixtureStatus.AwaitingVerification
-                    && (f.Competition.HostClubId == null
-                        ? _isAdmin
-                        : (_isAdmin || _editableClubIds.Contains(f.Competition.HostClubId!.Value))))
+                    && (_isAdmin
+                        || (f.Competition.HostClubId.HasValue && _editableClubIds.Contains(f.Competition.HostClubId.Value))
+                        || _competitionAdminIds.Contains(f.CompetitionId)))
                 .Select(f => new
                 {
                     f.CompetitionId,
@@ -118,5 +120,7 @@
     }
 
     private bool CanEdit(Competition c) =>
-        _isAdmin || (c.HostClubId.HasValue && _editableClubIds.Contains(c.HostClubId.Value));
+        _isAdmin ||
+        (c.HostClubId.HasValue && _editableClubIds.Contains(c.HostClubId.Value)) ||
+        _competitionAdminIds.Contains(c.CompetitionID);
 }

@@ -76,6 +76,7 @@ builder.Services.AddScoped<ClubAuthorizationService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddScoped<ResultVerificationService>();
+builder.Services.AddScoped<AdminEmailService>();
 builder.Services.AddMudServices();
 
 var app = builder.Build();
