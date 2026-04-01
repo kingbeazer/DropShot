@@ -6,23 +6,39 @@ on:
       - main  # or your deployment branch
 
 jobs:
-  build-and-deploy:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
-    
+
     - name: Restore dependencies
-      run: dotnet restore DropShot/DropShot.csproj
+      run: dotnet restore
 
     - name: Build
-      run: dotnet build DropShot/DropShot.csproj --configuration Release
+      run: dotnet build --configuration Release
+
+    - name: Run bUnit tests
+      run: dotnet test DropShot.Tests/DropShot.Tests.csproj --configuration Release --no-build --verbosity normal
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
 
     - name: Publish
       run: dotnet publish DropShot/DropShot.csproj -c Release -o ./publish
@@ -33,3 +49,32 @@ jobs:
         app-name: DropShot
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: ./publish
+
+  e2e-tests:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: vars.STAGING_URL != ''
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Build E2E tests
+      run: dotnet build DropShot.E2E/DropShot.E2E.csproj --configuration Release
+
+    - name: Install Playwright browsers
+      run: pwsh DropShot.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+    - name: Run E2E tests
+      run: dotnet test DropShot.E2E/DropShot.E2E.csproj --configuration Release --no-build --verbosity normal
+      env:
+        PLAYWRIGHT_BASE_URL: ${{ vars.STAGING_URL }}
+        TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+        TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+        TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+        TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
