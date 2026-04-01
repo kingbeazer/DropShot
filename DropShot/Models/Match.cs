@@ -10,4 +10,5 @@ public class Match
     public string Player4 { get; set; } = string.Empty;
     public bool Complete { get; set; }
     public int? CourtId { get; set; }
+    public bool GameScoring { get; set; } = true;
 }
