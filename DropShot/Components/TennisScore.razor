@@ -36,6 +36,12 @@
             <MudText>Settings</MudText>
             <MudDivider />
             <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
+            <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court (optional)" Variant="Variant.Outlined" Clearable="true">
+                @foreach (var court in _courts)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+                }
+            </MudSelect>
             <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@SaveSettings">Save</MudButton>
             <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => OpenDialogAsync(_fullScreen))">End Match</MudButton>
         </MudStack>
@@ -132,6 +138,7 @@
     </MudSelect>
 
     <MudSwitch @bind-Value="_state.UnlimitedDeuce" Label="Unlimited Deuce" Color="Color.Success" Style="margin: 10px;" />
+    <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" Color="Color.Success" Style="margin: 10px;" />
 
     <MudText Typo="Typo.subtitle2" Style="margin: 10px 10px 0;">Who serves first?</MudText>
     <MudRadioGroup @bind-Value="_serverChoice" Style="margin: 0 10px;">
@@ -350,6 +357,12 @@
 
     private async Task SaveSettings()
     {
+        if (CurrentMatch != null)
+        {
+            CurrentMatch.GameScoring = _state.GameScoring;
+            CurrentMatch.CourtId = _selectedCourtId;
+            await PersistAndBroadcast();
+        }
         _expanded = false;
         if (_currentUserId != null)
         {
@@ -501,7 +514,8 @@
             Player2 = _value2,
             Player3 = _value3,
             Player4 = _value4,
-            CourtId = _selectedCourtId
+            CourtId = _selectedCourtId,
+            GameScoring = _state.GameScoring
         };
 
         if (_serverChoice == "random")
@@ -719,6 +733,7 @@
                 history = new Stack<GameState>(CurrentMatch.HistoryList.AsEnumerable().Reverse());
                 if (history.Any())
                     ScoreService.RestoreFromGameState(_state, history.Peek());
+                _state.GameScoring = CurrentMatch.GameScoring;
                 _savedMatchId = savedMatch.SavedMatchId;
                 _selectedCourtId = savedMatch.CourtId;
 
