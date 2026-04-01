@@ -45,10 +45,36 @@
     <div class="scoreboard-content">
         @if (_streamEnabled && !string.IsNullOrWhiteSpace(_streamEmbedUrl))
         {
-            <div class="stream-container" style="width: 100%; max-width: 1280px; margin: 0 auto; aspect-ratio: 16/9;">
+            <div class="stream-container">
                 <iframe src="@_streamEmbedUrl" style="width: 100%; height: 100%; border: none;"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowfullscreen></iframe>
+
+                @if (_activeMatch != null && !currentScore.isComplete)
+                {
+                    <div class="tv-overlay">
+                        <div class="tv-row @(currentScore.IsUserServing ? "tv-serving" : "")">
+                            <span class="tv-serve">@(currentScore.IsUserServing ? "\u25CF" : "")</span>
+                            <span class="tv-name">@(string.IsNullOrWhiteSpace(currentScore.UserName) ? _activeMatch.Player1 : currentScore.UserName)</span>
+                            @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
+                            {
+                                <span class="tv-set">@set.UserGames</span>
+                            }
+                            <span class="tv-game">@currentScore.UserG</span>
+                            <span class="tv-pts">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</span>
+                        </div>
+                        <div class="tv-row @(!currentScore.IsUserServing ? "tv-serving" : "")">
+                            <span class="tv-serve">@(!currentScore.IsUserServing ? "\u25CF" : "")</span>
+                            <span class="tv-name">@(string.IsNullOrWhiteSpace(currentScore.OpponentName) ? _activeMatch.Player2 : currentScore.OpponentName)</span>
+                            @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
+                            {
+                                <span class="tv-set">@set.OpponentGames</span>
+                            }
+                            <span class="tv-game">@currentScore.OppG</span>
+                            <span class="tv-pts">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</span>
+                        </div>
+                    </div>
+                }
             </div>
         }
         else if (_selectedLayout == "wimbledon")

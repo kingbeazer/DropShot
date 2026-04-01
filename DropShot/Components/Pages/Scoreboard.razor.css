@@ -78,3 +78,96 @@
     justify-content: center;
     align-items: center;
 }
+
+/* ── YouTube stream container ────────────────────────────────── */
+.stream-container {
+    position: relative;
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    aspect-ratio: 16 / 9;
+}
+
+/* ── TV-style score overlay ──────────────────────────────────── */
+.tv-overlay {
+    position: absolute;
+    bottom: clamp(12px, 3%, 32px);
+    right: clamp(12px, 3%, 32px);
+    background: rgba(10, 14, 21, 0.88);
+    backdrop-filter: blur(6px);
+    border-radius: 4px;
+    overflow: hidden;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: clamp(0.7rem, 1.4vw, 1rem);
+    line-height: 1;
+    z-index: 10;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+.tv-row {
+    display: flex;
+    align-items: center;
+    padding: clamp(4px, 0.6vh, 8px) clamp(6px, 1vw, 12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 0;
+}
+
+.tv-row:last-child {
+    border-bottom: none;
+}
+
+.tv-row.tv-serving {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.tv-serve {
+    width: clamp(12px, 1.6vw, 20px);
+    text-align: center;
+    color: #c9a84c;
+    font-size: clamp(0.45rem, 0.9vw, 0.7rem);
+    flex-shrink: 0;
+}
+
+.tv-name {
+    min-width: clamp(60px, 10vw, 140px);
+    max-width: clamp(80px, 14vw, 180px);
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: clamp(6px, 1vw, 12px);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.tv-set {
+    width: clamp(16px, 2.2vw, 28px);
+    text-align: center;
+    color: #999999;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.tv-game {
+    width: clamp(16px, 2.2vw, 28px);
+    text-align: center;
+    color: #ffffff;
+    font-weight: 700;
+    flex-shrink: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+    padding-left: clamp(4px, 0.6vw, 8px);
+    margin-left: clamp(2px, 0.4vw, 6px);
+}
+
+.tv-pts {
+    width: clamp(20px, 2.8vw, 36px);
+    text-align: center;
+    color: #FFD700;
+    font-weight: 700;
+    flex-shrink: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+    padding-left: clamp(4px, 0.6vw, 8px);
+    margin-left: clamp(2px, 0.4vw, 6px);
+}
