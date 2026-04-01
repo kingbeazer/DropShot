@@ -129,6 +129,8 @@ ipch/
 
 # Visual Studio Trace Files
 *.e2e
+!DropShot.E2E/
+!DropShot.Tests/
 
 # TFS 2012 Local Workspace
 $tf/
