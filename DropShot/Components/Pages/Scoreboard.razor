@@ -60,8 +60,11 @@
                             {
                                 <span class="tv-set">@set.UserGames</span>
                             }
-                            <span class="tv-game">@currentScore.UserG</span>
-                            <span class="tv-pts">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</span>
+                            @if (!currentScore.isComplete)
+                            {
+                                <span class="tv-game">@currentScore.UserG</span>
+                                <span class="tv-pts">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</span>
+                            }
                         </div>
                         <div class="tv-row @(!currentScore.IsUserServing ? "tv-serving" : "")">
                             <span class="tv-serve">@(!currentScore.IsUserServing ? "\u25CF" : "")</span>
@@ -70,8 +73,11 @@
                             {
                                 <span class="tv-set">@set.OpponentGames</span>
                             }
-                            <span class="tv-game">@currentScore.OppG</span>
-                            <span class="tv-pts">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</span>
+                            @if (!currentScore.isComplete)
+                            {
+                                <span class="tv-game">@currentScore.OppG</span>
+                                <span class="tv-pts">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</span>
+                            }
                         </div>
                     </div>
                 }
