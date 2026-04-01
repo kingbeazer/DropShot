@@ -185,7 +185,7 @@ else
             if (_activeMatch?.MatchJson is { } json)
             {
                 var match = JsonConvert.DeserializeObject<DropShot.Models.Match>(json);
-                var latest = match?.HistoryList?.FirstOrDefault();
+                var latest = match?.HistoryList?.LastOrDefault();
                 if (latest != null)
                     currentScore = latest;
             }
