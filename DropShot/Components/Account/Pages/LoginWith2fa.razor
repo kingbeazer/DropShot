@@ -48,8 +48,10 @@
     private string? message;
     private ApplicationUser user = default!;
 
+    private InputModel _input = new();
+
     [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = default!;
+    private InputModel Input { get => _input; set => _input = value ?? _input; }
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
