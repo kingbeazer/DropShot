@@ -43,7 +43,15 @@
     }
 
     <div class="scoreboard-content">
-        @if (_selectedLayout == "wimbledon")
+        @if (_streamEnabled && !string.IsNullOrWhiteSpace(_streamEmbedUrl))
+        {
+            <div class="stream-container" style="width: 100%; max-width: 1280px; margin: 0 auto; aspect-ratio: 16/9;">
+                <iframe src="@_streamEmbedUrl" style="width: 100%; height: 100%; border: none;"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen></iframe>
+            </div>
+        }
+        else if (_selectedLayout == "wimbledon")
         {
             <WimbledonScoreboard Score="currentScore" ActiveMatch="_activeMatch" SelectedCourt="_selectedCourt" ActiveFixture="_activeFixture" />
         }
@@ -130,6 +138,9 @@
     GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "");
 
     private bool _isFullscreen;
+    private bool _streamEnabled;
+    private string _streamUrl = "";
+    private string _streamEmbedUrl = "";
     private DotNetObjectReference<Scoreboard>? _dotNetRef;
     private IJSObjectReference? _jsModule;
 
@@ -170,6 +181,16 @@
                 if (int.TryParse(savedCourt, out int courtId))
                     await OnCourtChanged(courtId);
             }
+
+            // Restore stream settings
+            var savedStreamUrl = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-stream-url");
+            if (!string.IsNullOrEmpty(savedStreamUrl))
+            {
+                _streamUrl = savedStreamUrl;
+                _streamEmbedUrl = BuildYouTubeEmbedUrl(_streamUrl);
+            }
+            var savedStreamEnabled = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-stream-enabled");
+            _streamEnabled = savedStreamEnabled == "true";
 
             StateHasChanged();
 
@@ -227,6 +248,15 @@
                     case "setLayout":
                         _selectedLayout = value;
                         await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", value);
+                        break;
+                    case "setStreamUrl":
+                        _streamUrl = value ?? "";
+                        _streamEmbedUrl = BuildYouTubeEmbedUrl(_streamUrl);
+                        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-stream-url", _streamUrl);
+                        break;
+                    case "setStreamEnabled":
+                        _streamEnabled = value == "true";
+                        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-stream-enabled", _streamEnabled.ToString().ToLower());
                         break;
                 }
                 await InvokeAsync(StateHasChanged);
@@ -340,6 +370,49 @@
         if (!string.IsNullOrWhiteSpace(m.Player3) && !string.IsNullOrWhiteSpace(m.Player4))
             return $"{m.Player1} & {m.Player2}  vs  {m.Player3} & {m.Player4}";
         return $"{m.Player1}  vs  {m.Player2}";
+    }
+
+    private static string BuildYouTubeEmbedUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return "";
+
+        url = url.Trim();
+
+        // Already an embed URL
+        if (url.Contains("youtube.com/embed/"))
+            return url;
+
+        // Extract video ID from various formats
+        string? videoId = null;
+
+        // youtube.com/watch?v=VIDEO_ID
+        if (url.Contains("youtube.com/watch"))
+        {
+            var uri = new Uri(url);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            videoId = query["v"];
+        }
+        // youtu.be/VIDEO_ID
+        else if (url.Contains("youtu.be/"))
+        {
+            var uri = new Uri(url);
+            videoId = uri.AbsolutePath.TrimStart('/');
+        }
+        // youtube.com/live/VIDEO_ID
+        else if (url.Contains("youtube.com/live/"))
+        {
+            var uri = new Uri(url);
+            var segments = uri.AbsolutePath.Split('/');
+            var liveIdx = Array.IndexOf(segments, "live");
+            if (liveIdx >= 0 && liveIdx + 1 < segments.Length)
+                videoId = segments[liveIdx + 1];
+        }
+
+        if (!string.IsNullOrEmpty(videoId))
+            return $"https://www.youtube.com/embed/{videoId}?autoplay=1";
+
+        return "";
     }
 
     public bool IsConnected =>
