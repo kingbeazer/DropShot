@@ -79,9 +79,9 @@
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Manage">
+                    <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
                         <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" /> @context.User.Identity?.Name
-                    </NavLink>
+                    </a>
                 </div>
                 <div class="nav-item px-3">
                     <form action="Account/Logout" method="post">
@@ -95,14 +95,14 @@
             </Authorized>
             <NotAuthorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Register">
+                    <a class="nav-link" href="Account/Register" data-enhance-nav="false">
                         <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="nav-icon" /> Register
-                    </NavLink>
+                    </a>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Login">
+                    <a class="nav-link" href="Account/Login" data-enhance-nav="false">
                         <MudIcon Icon="@Icons.Material.Filled.Login" Class="nav-icon" /> Login
-                    </NavLink>
+                    </a>
                 </div>
             </NotAuthorized>
         </AuthorizeView>
