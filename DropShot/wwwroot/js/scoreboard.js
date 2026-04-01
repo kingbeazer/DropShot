@@ -16,3 +16,11 @@ export function unregisterEscHandler() {
         _handler = null;
     }
 }
+
+export function setFullscreen(enabled) {
+    if (enabled) {
+        document.body.classList.add('scoreboard-fullscreen');
+    } else {
+        document.body.classList.remove('scoreboard-fullscreen');
+    }
+}
