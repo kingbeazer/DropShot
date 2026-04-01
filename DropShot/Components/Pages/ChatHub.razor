@@ -22,24 +22,24 @@
 </ul>
 
 <div style="display: flex">
-    @foreach (var set in currentScore.SetScores)
+    @foreach (var set in (currentScore.SetScores ?? []))
     {
         <DotDigit Number="@set.UserGames" />
     }
     <DotDigit Number="@currentScore.UserG" />
-    @for (int i = 0; i < 5 - currentScore.SetScores.Count() -1 ; i++)
+    @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) -1 ; i++)
     {
         <DotDigit Number="0" />
     }
 </div>
 
 <div style="display: flex">
-    @foreach (var set in currentScore.SetScores)
+    @foreach (var set in (currentScore.SetScores ?? []))
     {
         <DotDigit Number="@set.OpponentGames" />
     }
     <DotDigit Number="@currentScore.OppG" />
-    @for (int i = 0; i < 5 - currentScore.SetScores.Count() -1; i++)
+    @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) -1; i++)
     {
         <DotDigit Number="0" />
     }

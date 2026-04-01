@@ -47,14 +47,14 @@
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => StartEdit(context))" />
                 <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Info"
-                               Title="Manage courts" OnClick="@(() => OpenCourts(context))" />
+                               aria-label="Manage courts" OnClick="@(() => OpenCourts(context))" />
             }
             <MudIconButton Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Color="Color.Secondary"
-                           Title="Scheduling templates" OnClick="@(() => OpenTemplates(context))" />
+                           aria-label="Scheduling templates" OnClick="@(() => OpenTemplates(context))" />
             <MudIconButton Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Small" Color="Color.Warning"
-                           Title="Competition templates" OnClick="@(() => OpenCompetitionTemplates(context))" />
+                           aria-label="Competition templates" OnClick="@(() => OpenCompetitionTemplates(context))" />
             <MudIconButton Icon="@Icons.Material.Filled.Email" Size="Size.Small" Color="Color.Default"
-                           Title="Email templates" OnClick="@(() => OpenEmailTemplates(context))" />
+                           aria-label="Email templates" OnClick="@(() => OpenEmailTemplates(context))" />
             @if (_isAdmin)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
@@ -115,10 +115,10 @@
         <MudGrid Spacing="2" Class="mb-3">
             <MudItem xs="4">
                 <MudTextField @bind-Value="_courtForm.Name" Label="Court Name" Variant="Variant.Outlined"
-                              Placeholder="e.g. Court 1" Dense="true" />
+                              Placeholder="e.g. Court 1" Margin="Margin.Dense" />
             </MudItem>
             <MudItem xs="3">
-                <MudSelect @bind-Value="_courtForm.Surface" Label="Surface" Variant="Variant.Outlined" Dense="true">
+                <MudSelect @bind-Value="_courtForm.Surface" Label="Surface" Variant="Variant.Outlined" Margin="Margin.Dense">
                     @foreach (CourtSurface s in Enum.GetValues<CourtSurface>())
                     {
                         <MudSelectItem Value="@s">@s</MudSelectItem>

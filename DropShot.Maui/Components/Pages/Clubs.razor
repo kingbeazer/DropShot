@@ -48,7 +48,7 @@ else
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                    OnClick="@(() => OpenEditDialog(context))" />
                     <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small"
-                                   Tooltip="Manage Courts"
+                                   aria-label="Manage Courts"
                                    OnClick="@(() => ManageCourtsAsync(context))" />
                 }
                 @if (Auth.IsAdmin)

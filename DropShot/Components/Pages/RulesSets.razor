@@ -40,7 +40,7 @@
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => StartEdit(context))" />
                 <MudIconButton Icon="@Icons.Material.Filled.List" Size="Size.Small" Color="Color.Info"
-                               Title="Manage rules" OnClick="@(() => OpenItems(context))" />
+                               aria-label="Manage rules" OnClick="@(() => OpenItems(context))" />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
                                OnClick="@(() => DeleteSet(context))" />
             </AuthorizeView>
@@ -72,7 +72,7 @@
     <DialogContent>
         @* Add rule row *@
         <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.Center">
-            <MudTextField @bind-Value="_newRuleText" Label="Rule" Variant="Variant.Outlined" Dense="true"
+            <MudTextField @bind-Value="_newRuleText" Label="Rule" Variant="Variant.Outlined" Margin="Margin.Dense"
                           Style="flex:1" Placeholder="e.g. Sets played first to 6" />
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                        OnClick="AddItem">Add</MudButton>
