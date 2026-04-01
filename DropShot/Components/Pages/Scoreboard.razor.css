@@ -130,8 +130,9 @@
 }
 
 .tv-name {
-    min-width: clamp(60px, 10vw, 140px);
-    max-width: clamp(80px, 14vw, 180px);
+    flex: 1;
+    width: clamp(60px, 10vw, 140px);
+    min-width: 0;
     font-weight: 600;
     color: #ffffff;
     white-space: nowrap;
