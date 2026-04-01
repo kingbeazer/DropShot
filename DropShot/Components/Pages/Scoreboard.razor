@@ -2,7 +2,6 @@
 @rendermode InteractiveServer
 @using DropShot.Data
 @using DropShot.Models
-@using DropShot.Services
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.EntityFrameworkCore
 @using Newtonsoft.Json
@@ -11,7 +10,6 @@
 @inject MyDbContext DbContext
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject IJSRuntime JS
-@inject LayoutState LayoutState
 @implements IAsyncDisposable
 
 <MudProviders />
@@ -32,13 +30,13 @@
             <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
         </MudSelect>
         <MudIconButton Icon="@Icons.Material.Filled.Fullscreen" aria-label="Enter fullscreen"
-                       OnClick="EnterFullscreen" Size="Size.Large" />
+                       OnClick="EnterFullscreenAsync" Size="Size.Large" />
     </div>
 }
 else
 {
     <MudIconButton Icon="@Icons.Material.Filled.FullscreenExit" aria-label="Exit fullscreen (ESC)"
-                   OnClick="ExitFullscreen"
+                   OnClick="ExitFullscreenAsync"
                    Style="position: fixed; top: 8px; right: 8px; z-index: 9999; opacity: 0.3;"
                    Size="Size.Large" />
 }
@@ -147,9 +145,6 @@ else
 
         if (int.TryParse(query["court"], out int qsCourtId))
             await OnCourtChanged(qsCourtId);
-
-        if (query["fullscreen"] == "true")
-            EnterFullscreen();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -178,6 +173,10 @@ else
             _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/scoreboard.js");
             _dotNetRef = DotNetObjectReference.Create(this);
             await _jsModule.InvokeVoidAsync("registerEscHandler", _dotNetRef);
+
+            // Apply fullscreen from query string (needs JS module to be loaded)
+            if (query["fullscreen"] == "true")
+                await EnterFullscreenAsync();
         }
 
         if (firstRender && hubConnection is null)
@@ -217,9 +216,9 @@ else
                 {
                     case "setFullscreen":
                         if (value == "true")
-                            EnterFullscreen();
+                            await EnterFullscreenAsync();
                         else
-                            ExitFullscreen();
+                            await ExitFullscreenAsync();
                         break;
                     case "setLayout":
                         _selectedLayout = value;
@@ -293,25 +292,27 @@ else
         await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", layout);
     }
 
-    private void EnterFullscreen()
+    private async Task EnterFullscreenAsync()
     {
         _isFullscreen = true;
-        LayoutState.SetFullscreen(true);
+        if (_jsModule is not null)
+            await _jsModule.InvokeVoidAsync("setFullscreen", true);
     }
 
-    private void ExitFullscreen()
+    private async Task ExitFullscreenAsync()
     {
         _isFullscreen = false;
-        LayoutState.SetFullscreen(false);
+        if (_jsModule is not null)
+            await _jsModule.InvokeVoidAsync("setFullscreen", false);
     }
 
     [JSInvokable]
-    public void ExitFullscreenFromJs()
+    public async Task ExitFullscreenFromJs()
     {
         if (_isFullscreen)
         {
-            ExitFullscreen();
-            InvokeAsync(StateHasChanged);
+            await ExitFullscreenAsync();
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -342,13 +343,12 @@ else
 
     public async ValueTask DisposeAsync()
     {
-        if (_isFullscreen)
-            LayoutState.SetFullscreen(false);
-
         if (_jsModule is not null)
         {
             try
             {
+                if (_isFullscreen)
+                    await _jsModule.InvokeVoidAsync("setFullscreen", false);
                 await _jsModule.InvokeVoidAsync("unregisterEscHandler");
                 await _jsModule.DisposeAsync();
             }

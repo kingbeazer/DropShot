@@ -73,7 +73,6 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
 builder.Services.AddScoped<UserState>();
 builder.Services.AddScoped<TennisScoreService>();
 builder.Services.AddScoped<ClubAuthorizationService>();
-builder.Services.AddScoped<LayoutState>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddScoped<ResultVerificationService>();

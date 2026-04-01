@@ -71,3 +71,21 @@ h1:focus {
     color: gold;
     letter-spacing: 0.1em;
 }
+
+/* Scoreboard fullscreen mode — hides sidebar and content padding */
+body.scoreboard-fullscreen .sidebar {
+    display: none !important;
+}
+
+body.scoreboard-fullscreen .page {
+    flex-direction: column;
+}
+
+body.scoreboard-fullscreen main {
+    width: 100%;
+    padding-top: 0 !important;
+}
+
+body.scoreboard-fullscreen .content {
+    padding: 0 !important;
+}
