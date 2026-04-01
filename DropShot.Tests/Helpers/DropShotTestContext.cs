@@ -93,6 +93,10 @@ public class DropShotTestContext : BunitContext
             emailService, config, NullLogger<ResultVerificationService>.Instance);
         Services.AddScoped(_ => resultVerification);
 
+        var adminEmailSvc = Substitute.For<AdminEmailService>(
+            emailService, config, NullLogger<AdminEmailService>.Instance);
+        Services.AddScoped(_ => adminEmailSvc);
+
         Services.AddScoped(_ => Substitute.For<JwtTokenService>(config, userManager));
 
         // Logging
