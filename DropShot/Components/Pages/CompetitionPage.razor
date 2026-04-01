@@ -15,6 +15,8 @@
 @inject ClubAuthorizationService AuthzService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDialogService DialogService
+@inject AdminEmailService AdminEmailSvc
+@using DropShot.Services
 
 <MudProviders />
 
@@ -288,6 +290,141 @@
                     <NoRecordsContent><MudText Typo="Typo.caption">No participants yet.</MudText></NoRecordsContent>
                 </MudTable>
             </MudPaper>
+
+            @* ── Apply Competition Template ───────────────────── *@
+            @if (_competitionTemplates.Count > 0)
+            {
+                <MudPaper Class="pa-4 mb-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Apply Competition Template</MudText>
+                    <MudSelect T="int?" Label="Choose a template to apply" Variant="Variant.Outlined"
+                               Value="_selectedCompetitionTemplateId" Clearable="true"
+                               ValueChanged="ApplyCompetitionTemplate">
+                        @foreach (var t in _competitionTemplates)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTemplateId)">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        Applying a template updates format, scoring, age, and match windows in-memory. Save the competition to persist.
+                    </MudText>
+                </MudPaper>
+            }
+
+            @* ── Competition Admins ───────────────────────────── *@
+            @if (IsEdit && _canEdit)
+            {
+                <MudPaper Class="pa-4 mb-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Competition Admins</MudText>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-3">
+                        <MudTextField @bind-Value="_newAdminEmail" Label="User email"
+                                      Variant="Variant.Outlined" Style="max-width:300px" Margin="Margin.Dense" />
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   Disabled="@string.IsNullOrWhiteSpace(_newAdminEmail)"
+                                   OnClick="AddCompetitionAdmin">Add Admin</MudButton>
+                    </MudStack>
+                    @if (_competitionAdmins.Count > 0)
+                    {
+                        <MudSimpleTable Dense="true">
+                            <thead><tr><th>User</th><th>Assigned</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var a in _competitionAdmins)
+                                {
+                                    <tr>
+                                        <td>@a.UserEmail</td>
+                                        <td>@a.AssignedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                        <td>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                           Size="Size.Small" Color="Color.Error"
+                                                           OnClick="@(() => RemoveCompetitionAdmin(a))" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">No competition-specific admins assigned.</MudText>
+                    }
+                </MudPaper>
+            }
+
+            @* ── Send Email ───────────────────────────────────── *@
+            @if (IsEdit && _canEdit)
+            {
+                <MudPaper Class="pa-4 mb-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Send Email</MudText>
+
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Match-Specific</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudSelect @bind-Value="_emailFixtureId" Label="Fixture" Variant="Variant.Outlined"
+                                       Clearable="true">
+                                @foreach (var f in _fixtures.Where(f => f.Player1Id.HasValue))
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)f.CompetitionFixtureId)">
+                                        @(string.IsNullOrEmpty(f.FixtureLabel) ? $"Fixture {f.CompetitionFixtureId}" : f.FixtureLabel)
+                                    </MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        @if (_emailTemplates.Count > 0)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="int?" Label="Load from template (optional)" Variant="Variant.Outlined"
+                                           Clearable="true" ValueChanged="LoadEmailTemplate">
+                                    @foreach (var t in _emailTemplates)
+                                    {
+                                        <MudSelectItem T="int?" Value="@((int?)t.ClubEmailTemplateId)">@t.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_emailSubject" Label="Subject" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_emailBody" Label="Body" Variant="Variant.Outlined"
+                                          Lines="4" HelperText="Variables: {PlayerName}, {CompetitionName}, {MatchLink}" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       Disabled="@(_emailFixtureId == null || string.IsNullOrWhiteSpace(_emailSubject))"
+                                       OnClick="SendMatchEmail">Send to Fixture Players</MudButton>
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudDivider Class="my-4" />
+
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Competition-Wide</MudText>
+                    <MudGrid Spacing="2">
+                        @if (_emailTemplates.Count > 0)
+                        {
+                            <MudItem xs="12">
+                                <MudSelect T="int?" Label="Load from template (optional)" Variant="Variant.Outlined"
+                                           Clearable="true" ValueChanged="LoadCompEmailTemplate">
+                                    @foreach (var t in _emailTemplates)
+                                    {
+                                        <MudSelectItem T="int?" Value="@((int?)t.ClubEmailTemplateId)">@t.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_compEmailSubject" Label="Subject" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_compEmailBody" Label="Body" Variant="Variant.Outlined"
+                                          Lines="4" HelperText="Variables: {PlayerName}, {CompetitionName}, {MatchLink}" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                       Disabled="@string.IsNullOrWhiteSpace(_compEmailSubject)"
+                                       OnClick="SendCompetitionEmail">Send to All Participants</MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
 
             @* ── Teams (only for Team competitions) ──────────── *@
             @if (Model.CompetitionFormat == CompetitionFormat.Team)
@@ -623,6 +760,24 @@
     private List<ClubSchedulingTemplate> _clubTemplates = [];
     private int? _selectedTemplateId;
 
+    // Competition templates
+    private List<CompetitionTemplate> _competitionTemplates = [];
+    private int? _selectedCompetitionTemplateId;
+    private bool _templateWindowsApplied;
+
+    // Competition admins
+    private record CompetitionAdminRow(string UserId, string UserEmail, DateTime AssignedAt);
+    private List<CompetitionAdminRow> _competitionAdmins = [];
+    private string _newAdminEmail = "";
+
+    // Send Email
+    private List<ClubEmailTemplate> _emailTemplates = [];
+    private int? _emailFixtureId;
+    private string _emailSubject = "";
+    private string _emailBody = "";
+    private string _compEmailSubject = "";
+    private string _compEmailBody = "";
+
     // Schedule options
     private bool _scheduleDeleteExisting;
 
@@ -696,7 +851,7 @@
 
             if (comp is null) { _serverError = $"Competition {Id} not found."; return; }
 
-            _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, comp.HostClubId);
+            _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, comp.HostClubId, Id);
 
             Model = new CompetitionFormModel
             {
@@ -731,7 +886,18 @@
                     .Where(t => t.ClubId == comp.HostClubId.Value)
                     .OrderBy(t => t.Name)
                     .ToListAsync();
+                _competitionTemplates = await db.CompetitionTemplates
+                    .Include(t => t.Windows)
+                    .Where(t => t.ClubId == comp.HostClubId.Value)
+                    .OrderBy(t => t.Name)
+                    .ToListAsync();
+                _emailTemplates = await db.ClubEmailTemplates
+                    .Where(t => t.ClubId == comp.HostClubId.Value)
+                    .OrderBy(t => t.Name)
+                    .ToListAsync();
             }
+
+            await LoadCompetitionAdmins(db);
         }
         else
         {
@@ -767,6 +933,21 @@
                 if (comp is null) { _serverError = "Competition no longer exists."; return; }
                 ApplyModel(comp, name);
                 await db.SaveChangesAsync();
+
+                if (_templateWindowsApplied)
+                {
+                    var old = await db.CompetitionMatchWindows.Where(w => w.CompetitionId == Id).ToListAsync();
+                    db.CompetitionMatchWindows.RemoveRange(old);
+                    db.CompetitionMatchWindows.AddRange(_matchWindows.Select(w => new CompetitionMatchWindow
+                    {
+                        CompetitionId = Id,
+                        DayOfWeek = w.DayOfWeek,
+                        StartTime = w.StartTime,
+                        EndTime = w.EndTime
+                    }));
+                    await db.SaveChangesAsync();
+                    _templateWindowsApplied = false;
+                }
             }
             else
             {
@@ -1134,6 +1315,124 @@
         _matchWindows.AddRange(toAdd);
         _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
         Snackbar.Add($"Imported {toAdd.Count} window(s) from '{template.Name}'.", Severity.Success);
+    }
+
+    // ── Competition Templates ────────────────────────────────────────────────
+
+    private void ApplyCompetitionTemplate(int? templateId)
+    {
+        _selectedCompetitionTemplateId = templateId;
+        if (templateId == null) return;
+        var t = _competitionTemplates.FirstOrDefault(x => x.CompetitionTemplateId == templateId);
+        if (t == null) return;
+
+        if (t.Format.HasValue) Model.CompetitionFormat = t.Format.Value;
+        if (t.RulesSetId.HasValue) Model.RulesSetId = t.RulesSetId;
+        if (t.BestOf.HasValue) Model.BestOf = t.BestOf.Value;
+        if (t.MaxAge.HasValue) Model.MaxAge = t.MaxAge;
+        if (t.EligibleSex.HasValue) Model.EligibleSex = t.EligibleSex;
+
+        if (t.Windows.Count > 0)
+        {
+            _matchWindows = t.Windows.Select(w => new CompetitionMatchWindow
+            {
+                CompetitionId = Id,
+                DayOfWeek = w.DayOfWeek,
+                StartTime = w.StartTime,
+                EndTime = w.EndTime
+            }).ToList();
+            _templateWindowsApplied = true;
+            Snackbar.Add($"Template '{t.Name}' applied. Save to persist.", Severity.Info);
+        }
+        else
+        {
+            Snackbar.Add($"Template '{t.Name}' applied.", Severity.Success);
+        }
+    }
+
+    // ── Competition Admins ───────────────────────────────────────────────────
+
+    private async Task LoadCompetitionAdmins(MyDbContext db)
+    {
+        _competitionAdmins = await db.CompetitionAdmins
+            .Where(ca => ca.CompetitionId == Id)
+            .Join(db.Users, ca => ca.UserId, u => u.Id,
+                  (ca, u) => new CompetitionAdminRow(ca.UserId, u.Email ?? "", ca.AssignedAt))
+            .ToListAsync();
+    }
+
+    private async Task AddCompetitionAdmin()
+    {
+        if (string.IsNullOrWhiteSpace(_newAdminEmail)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == _newAdminEmail.Trim());
+        if (user == null) { Snackbar.Add("No user found with that email.", Severity.Warning); return; }
+        if (_competitionAdmins.Any(a => a.UserId == user.Id)) { Snackbar.Add("Already an admin.", Severity.Info); return; }
+        db.CompetitionAdmins.Add(new CompetitionAdmin { CompetitionId = Id, UserId = user.Id });
+        await db.SaveChangesAsync();
+        _newAdminEmail = "";
+        await LoadCompetitionAdmins(db);
+        Snackbar.Add("Admin added.", Severity.Success);
+    }
+
+    private async Task RemoveCompetitionAdmin(CompetitionAdminRow row)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var ca = await db.CompetitionAdmins.FindAsync(Id, row.UserId);
+        if (ca != null) { db.CompetitionAdmins.Remove(ca); await db.SaveChangesAsync(); }
+        _competitionAdmins.RemoveAll(a => a.UserId == row.UserId);
+        Snackbar.Add("Admin removed.", Severity.Warning);
+    }
+
+    // ── Send Email ───────────────────────────────────────────────────────────
+
+    private void LoadEmailTemplate(int? templateId)
+    {
+        if (templateId == null) return;
+        var t = _emailTemplates.FirstOrDefault(x => x.ClubEmailTemplateId == templateId);
+        if (t == null) return;
+        _emailSubject = t.Subject;
+        _emailBody = t.Body;
+    }
+
+    private void LoadCompEmailTemplate(int? templateId)
+    {
+        if (templateId == null) return;
+        var t = _emailTemplates.FirstOrDefault(x => x.ClubEmailTemplateId == templateId);
+        if (t == null) return;
+        _compEmailSubject = t.Subject;
+        _compEmailBody = t.Body;
+    }
+
+    private async Task SendMatchEmail()
+    {
+        if (_emailFixtureId == null) return;
+        await using var db = DbFactory.CreateDbContext();
+        var fullFixture = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Player1).Include(f => f.Player2)
+            .Include(f => f.Player3).Include(f => f.Player4)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == _emailFixtureId);
+        if (fullFixture == null) return;
+
+        await AdminEmailSvc.SendMatchEmailAsync(fullFixture, _emailSubject, _emailBody);
+        Snackbar.Add("Emails sent to fixture players.", Severity.Success);
+    }
+
+    private async Task SendCompetitionEmail()
+    {
+        if (string.IsNullOrWhiteSpace(_compEmailSubject)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var participants = await db.CompetitionParticipants
+            .Where(cp => cp.CompetitionId == Id)
+            .Include(cp => cp.Player)
+            .Select(cp => cp.Player!)
+            .Where(p => p != null && p.Email != null)
+            .ToListAsync();
+
+        await AdminEmailSvc.SendCompetitionEmailAsync(
+            participants, Model.CompetitionName, _compEmailSubject, _compEmailBody, Id);
+        Snackbar.Add($"Emails sent to {participants.Count} participant(s).", Severity.Success);
     }
 
     private async Task ScheduleFixtures()

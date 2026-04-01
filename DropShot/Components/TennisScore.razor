@@ -9,6 +9,8 @@
 @using Newtonsoft.Json
 @using MudBlazor
 @using System.Threading
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
 
 @page "/tennisscore"
 @page "/match/{MatchId:int}"
@@ -21,6 +23,8 @@
 @inject IDialogService DialogService
 @inject TennisScoreService ScoreService
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 
 @* FixtureId is passed as a query param when starting a match from a competition fixture *@
 
@@ -32,7 +36,7 @@
             <MudText>Settings</MudText>
             <MudDivider />
             <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
-            <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@OnExpandCollapseClick">Save</MudButton>
+            <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@SaveSettings">Save</MudButton>
             <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => OpenDialogAsync(_fullScreen))">End Match</MudButton>
         </MudStack>
     </MudPaper>
@@ -66,7 +70,8 @@
 {
     <MudSwitch @bind-Value="Label_Switch1" Label="Doubles" Color="Color.Success" />
 
-    <MudAutocomplete @bind-Value="_value"
+    <MudAutocomplete Value="_value"
+                     ValueChanged="@((string v) => { _value = v; _ = CheckAndOfferFriendRequest(v); })"
                      Label="Player 1"
                      SearchFunc="@Search1"
                      ResetValueOnEmptyText="@resetValueOnEmptyText"
@@ -82,7 +87,8 @@
     {
         <MudText Typo="Typo.h1">vs</MudText>
     }
-    <MudAutocomplete @bind-Value="_value2"
+    <MudAutocomplete Value="_value2"
+                     ValueChanged="@((string v) => { _value2 = v; _ = CheckAndOfferFriendRequest(v); })"
                      Label="Player 2"
                      SearchFunc="@Search1"
                      ResetValueOnEmptyText="@resetValueOnEmptyText"
@@ -102,7 +108,8 @@
 
     @if (Label_Switch1)
     {
-        <MudAutocomplete @bind-Value="_value3"
+        <MudAutocomplete Value="_value3"
+                         ValueChanged="@((string v) => { _value3 = v; _ = CheckAndOfferFriendRequest(v); })"
                          Label="Player 3"
                          SearchFunc="@Search1"
                          ResetValueOnEmptyText="@resetValueOnEmptyText"
@@ -115,7 +122,8 @@
                          SelectValueOnTab="@selectedOnTab"
                          AdornmentColor="Color.Primary" />
 
-        <MudAutocomplete @bind-Value="_value4"
+        <MudAutocomplete Value="_value4"
+                         ValueChanged="@((string v) => { _value4 = v; _ = CheckAndOfferFriendRequest(v); })"
                          Label="Player 4"
                          SearchFunc="@Search1"
                          ResetValueOnEmptyText="@resetValueOnEmptyText"
@@ -148,6 +156,13 @@
     </MudSelect>
 
     <MudSwitch @bind-Value="_state.UnlimitedDeuce" Label="Unlimited Deuce" Color="Color.Success" Style="margin: 10px;" />
+
+    <MudText Typo="Typo.subtitle2" Style="margin: 10px 10px 0;">Who serves first?</MudText>
+    <MudRadioGroup @bind-Value="_serverChoice" Style="margin: 0 10px;">
+        <MudRadio Value=@("random") Color="Color.Primary">Random Coin Toss</MudRadio>
+        <MudRadio Value=@("player1") Color="Color.Primary">@(Label_Switch1 ? $"{_value} & {_value2}" : _value) serves first</MudRadio>
+        <MudRadio Value=@("player2") Color="Color.Primary">@(Label_Switch1 ? $"{_value3} & {_value4}" : _value2) serves first</MudRadio>
+    </MudRadioGroup>
 
     <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.PlayArrow" Style="margin: 10px;" OnClick="ButtonOnClick">Start Match</MudButton>
 }
@@ -315,6 +330,9 @@
                 <button class="undo-btn no-zoom-element" @onclick="UndoLastPoint">
                     <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Undo" Size="Size.Large" />
                 </button>
+                <button class="settings-btn no-zoom-element" @onclick="OpenScoreEditor">
+                    <MudIcon Icon="@Icons.Material.Filled.Edit" Title="Edit Score" Size="Size.Large" />
+                </button>
             </div>
         </div>
     </section>
@@ -330,6 +348,14 @@
         <MudAlert Style="margin-top: 10px;" Severity="Severity.Success">@_winner</MudAlert>
     }
     <MudButton Style="margin-top: 10px;" FullWidth=true Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.FiberNew" Color="Color.Secondary" Size="Size.Large" OnClick="@ReloadPage">Start New Match</MudButton>
+    @if (_competitionFixture != null)
+    {
+        <MudButton Style="margin-top: 10px;" FullWidth="true" Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" Size="Size.Large"
+                   OnClick="@(() => Navigation.NavigateTo($"/competition/{_competitionFixture.CompetitionId}/view"))">
+            Back to @(_competitionFixture.Competition?.CompetitionName ?? "Competition")
+        </MudButton>
+    }
 }
 
 @code {
@@ -360,6 +386,61 @@
     private void OnExpandCollapseClick()
     {
         _expanded = !_expanded;
+    }
+
+    private async Task SaveSettings()
+    {
+        _expanded = false;
+        if (_currentUserId != null)
+        {
+            using var dbc = DbFactory.CreateDbContext();
+            var player = await dbc.Players.FirstOrDefaultAsync(p => p.UserId == _currentUserId);
+            if (player != null)
+            {
+                player.DefaultGameScoring = _state.GameScoring;
+                await dbc.SaveChangesAsync();
+                Snackbar.Add("Scoring preference saved.", Severity.Success);
+            }
+        }
+    }
+
+    private async Task CheckAndOfferFriendRequest(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName)) return;
+        if (_myPlayerId == null) return;
+        if (!_playerIdByName.TryGetValue(displayName, out var selectedId)) return;
+        if (selectedId == _myPlayerId.Value) return;
+        if (_friendPlayerIds.Contains(selectedId)) return;
+
+        using var dbc = DbFactory.CreateDbContext();
+        var alreadyExists = await dbc.PlayerFriends.AnyAsync(pf =>
+            (pf.PlayerId == _myPlayerId.Value && pf.FriendPlayerId == selectedId) ||
+            (pf.PlayerId == selectedId && pf.FriendPlayerId == _myPlayerId.Value));
+        if (alreadyExists) return;
+
+        Snackbar.Add(
+            $"Add {displayName} as a friend?",
+            Severity.Info,
+            options =>
+            {
+                options.Action = "Add";
+                options.ActionColor = Color.Primary;
+                options.ActionVariant = Variant.Filled;
+                options.OnClick = async _ => await SendFriendRequest(selectedId, displayName);
+            });
+    }
+
+    private async Task SendFriendRequest(int targetPlayerId, string displayName)
+    {
+        if (_myPlayerId == null) return;
+        using var dbc = DbFactory.CreateDbContext();
+        dbc.PlayerFriends.Add(new PlayerFriend
+        {
+            PlayerId = _myPlayerId.Value,
+            FriendPlayerId = targetPlayerId
+        });
+        await dbc.SaveChangesAsync();
+        Snackbar.Add($"Friend request sent to {displayName}.", Severity.Success);
     }
 
     private readonly DialogOptions _maxWidth = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
@@ -416,6 +497,7 @@
 
     public bool Label_Switch1 { get; set; } = false;
 
+    private string _serverChoice = "random";
     private bool _showCoinToss;
     private bool _coinAnimating;
     private bool _coinTossUserServes;
@@ -436,6 +518,22 @@
             return;
         }
 
+        if (!Label_Switch1 && _value.Equals(_value2, StringComparison.OrdinalIgnoreCase))
+        {
+            Snackbar.Add("Player 1 and Player 2 must be different.", Severity.Warning);
+            return;
+        }
+
+        if (Label_Switch1)
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { _value, _value2, _value3, _value4 };
+            if (names.Count < 4)
+            {
+                Snackbar.Add("All four players must be different.", Severity.Warning);
+                return;
+            }
+        }
+
         _pendingMatch = new Match
         {
             History = history,
@@ -446,17 +544,25 @@
             CourtId = _selectedCourtId
         };
 
-        _coinTossUserServes = Random.Shared.Next(2) == 0;
-        _coinTossWinnerName = _coinTossUserServes
-            ? (Label_Switch1 ? $"{_value} & {_value2}" : _value)
-            : (Label_Switch1 ? $"{_value3} & {_value4}" : _value2);
+        if (_serverChoice == "random")
+        {
+            _coinTossUserServes = Random.Shared.Next(2) == 0;
+            _coinTossWinnerName = _coinTossUserServes
+                ? (Label_Switch1 ? $"{_value} & {_value2}" : _value)
+                : (Label_Switch1 ? $"{_value3} & {_value4}" : _value2);
 
-        _showCoinToss = true;
-        _coinAnimating = true;
-        await InvokeAsync(StateHasChanged);
-        await Task.Delay(5000);
-        _coinAnimating = false;
-        await InvokeAsync(StateHasChanged);
+            _showCoinToss = true;
+            _coinAnimating = true;
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(5000);
+            _coinAnimating = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            _coinTossUserServes = _serverChoice == "player1";
+            await StartAfterCoinToss();
+        }
     }
 
     private string GetUserDisplayName()
@@ -521,7 +627,9 @@
             Player3 = CurrentMatch.Player3,
             Player4 = CurrentMatch.Player4,
             CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            UserId = _currentUserId,
+            DeviceToken = _currentUserId == null ? _deviceToken : null
         };
         dbc.SavedMatch.Add(matchToSave);
         await dbc.SaveChangesAsync();
@@ -564,6 +672,11 @@
         return _states.Where(x => x.Contains(value, StringComparison.InvariantCultureIgnoreCase));
     }
 
+    private string? _currentUserId;
+    private string? _deviceToken;
+    private int? _myPlayerId;
+    private Dictionary<string, int> _playerIdByName = [];
+    private HashSet<int> _friendPlayerIds = [];
     private TennisMatchState _state = new();
     private List<Score> scores = new();
     private HubConnection? hubConnection;
@@ -584,10 +697,50 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _states = await DbContext.Players
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (_currentUserId != null)
+        {
+            var player = await DbContext.Players.FirstOrDefaultAsync(p => p.UserId == _currentUserId);
+            if (player?.DefaultGameScoring != null)
+                _state.GameScoring = player.DefaultGameScoring.Value;
+        }
+        else
+        {
+            _state.GameScoring = false;
+        }
+
+        var allPlayers = await DbContext.Players
             .OrderBy(p => p.DisplayName)
-            .Select(p => p.DisplayName)
+            .Select(p => new { p.PlayerId, p.DisplayName })
             .ToListAsync();
+
+        _playerIdByName = allPlayers.ToDictionary(p => p.DisplayName, p => p.PlayerId);
+
+        if (_currentUserId != null)
+        {
+            var myPlayerRecord = await DbContext.Players.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.UserId == _currentUserId);
+            _myPlayerId = myPlayerRecord?.PlayerId;
+
+            if (_myPlayerId.HasValue)
+            {
+                var pid = _myPlayerId.Value;
+                _friendPlayerIds = (await DbContext.PlayerFriends
+                    .Where(pf => (pf.PlayerId == pid || pf.FriendPlayerId == pid)
+                                 && pf.Status == FriendStatus.Accepted)
+                    .Select(pf => pf.PlayerId == pid ? pf.FriendPlayerId : pf.PlayerId)
+                    .ToListAsync()).ToHashSet();
+            }
+        }
+
+        // Friends appear first in the autocomplete list
+        _states = allPlayers
+            .OrderBy(p => _friendPlayerIds.Contains(p.PlayerId) ? 0 : 1)
+            .ThenBy(p => p.DisplayName)
+            .Select(p => p.DisplayName)
+            .ToList();
 
         _courts = await DbContext.Courts
             .Include(c => c.Club)
@@ -652,13 +805,26 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && hubConnection is null)
+        if (firstRender)
         {
-            hubConnection = new HubConnectionBuilder()
-                .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-                .Build();
+            if (_currentUserId == null)
+            {
+                _deviceToken = await JS.InvokeAsync<string?>("localStorage.getItem", "dropshot-device-token");
+                if (string.IsNullOrEmpty(_deviceToken))
+                {
+                    _deviceToken = Guid.NewGuid().ToString();
+                    await JS.InvokeVoidAsync("localStorage.setItem", "dropshot-device-token", _deviceToken);
+                }
+            }
 
-            await hubConnection.StartAsync();
+            if (hubConnection is null)
+            {
+                hubConnection = new HubConnectionBuilder()
+                    .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+                    .Build();
+
+                await hubConnection.StartAsync();
+            }
         }
     }
 
@@ -767,6 +933,41 @@
         _state.IsMatchEnded = false;
         _winner = "";
         await PersistAndBroadcast();
+    }
+
+    private async Task OpenScoreEditor()
+    {
+        var parameters = new DialogParameters<EditScoreDialog>
+        {
+            { x => x.UserSets, _state.UserSets },
+            { x => x.OppSets, _state.OppSets },
+            { x => x.UserGames, _state.UserGames },
+            { x => x.OppGames, _state.OppGames },
+            { x => x.UserPoints, _state.UserPoints },
+            { x => x.OppPoints, _state.OppPoints },
+            { x => x.IsUserServing, _state.IsUserServing },
+            { x => x.UserName, GetUserDisplayName() },
+            { x => x.OpponentName, GetOpponentDisplayName() }
+        };
+        var dialog = await DialogService.ShowAsync<EditScoreDialog>("Edit Score", parameters);
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            var edited = (EditScoreDialog.EditScoreResult)result.Data!;
+            history.Clear();
+            _state.UserSets = edited.UserSets;
+            _state.OppSets = edited.OppSets;
+            _state.UserGames = edited.UserGames;
+            _state.OppGames = edited.OppGames;
+            _state.UserPoints = edited.UserPoints;
+            _state.OppPoints = edited.OppPoints;
+            _state.IsUserServing = edited.IsUserServing;
+            _state.SetScores.Clear();
+            _state.IsMatchEnded = false;
+            _state.IsTieBreak = false;
+            _state.DeuceCount = 0;
+            SaveHistory();
+        }
     }
 
     private void OpenSettings() { }

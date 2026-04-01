@@ -3,19 +3,23 @@
 @using DropShot.Data
 @using DropShot.Models
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @using MudBlazor
 @inject NavigationManager Navigation
-@inject MyDbContext DbContext
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 
 <MudProviders />
 
 <MudText Typo="Typo.h5" Class="pa-4">Active Matches</MudText>
 
-@if (_matches.Count == 0)
+@if (_loaded && _matches.Count == 0)
 {
     <MudText Class="px-4 pb-2" Color="Color.Secondary">No active matches.</MudText>
 }
-else
+else if (_loaded)
 {
     <MudList T="SavedMatch" Class="px-2">
         @foreach (var m in _matches)
@@ -44,21 +48,53 @@ else
 @code {
     private List<SavedMatch> _matches = [];
     private Dictionary<int, string> _courtNames = [];
+    private bool _loaded;
+    private string? _userId;
 
     protected override async Task OnInitializedAsync()
     {
-        _matches = await DbContext.SavedMatch
-            .Where(m => !m.Complete)
-            .OrderByDescending(m => m.CreatedAt)
-            .ToListAsync();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
 
-        var courtIds = _matches.Where(m => m.CourtId.HasValue).Select(m => m.CourtId!.Value).Distinct().ToList();
-        if (courtIds.Count > 0)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
         {
-            _courtNames = await DbContext.Courts
-                .Include(c => c.Club)
-                .Where(c => courtIds.Contains(c.CourtId))
-                .ToDictionaryAsync(c => c.CourtId, c => $"{c.Club.Name} — {c.Name}");
+            using var db = DbFactory.CreateDbContext();
+
+            if (_userId != null)
+            {
+                // Logged-in users see all authenticated matches + their own
+                _matches = await db.SavedMatch
+                    .Where(m => !m.Complete && (m.UserId != null || (m.UserId == null && m.DeviceToken == null)))
+                    .OrderByDescending(m => m.CreatedAt)
+                    .ToListAsync();
+            }
+            else
+            {
+                // Anonymous users see only their device-token matches
+                var deviceToken = await JS.InvokeAsync<string?>("localStorage.getItem", "dropshot-device-token");
+                if (!string.IsNullOrEmpty(deviceToken))
+                {
+                    _matches = await db.SavedMatch
+                        .Where(m => !m.Complete && m.DeviceToken == deviceToken && m.UserId == null)
+                        .OrderByDescending(m => m.CreatedAt)
+                        .ToListAsync();
+                }
+            }
+
+            var courtIds = _matches.Where(m => m.CourtId.HasValue).Select(m => m.CourtId!.Value).Distinct().ToList();
+            if (courtIds.Count > 0)
+            {
+                _courtNames = await db.Courts
+                    .Include(c => c.Club)
+                    .Where(c => courtIds.Contains(c.CourtId))
+                    .ToDictionaryAsync(c => c.CourtId, c => $"{c.Club.Name} — {c.Name}");
+            }
+
+            _loaded = true;
+            await InvokeAsync(StateHasChanged);
         }
     }
 

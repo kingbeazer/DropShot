@@ -31,5 +31,6 @@
         public ICollection<CompetitionStage> Stages { get; set; } = [];
         public ICollection<CompetitionTeam> Teams { get; set; } = [];
         public ICollection<CompetitionMatchWindow> MatchWindows { get; set; } = [];
+        public ICollection<CompetitionAdmin> Admins { get; set; } = [];
     }
 }

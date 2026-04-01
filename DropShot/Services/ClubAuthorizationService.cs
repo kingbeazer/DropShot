@@ -59,13 +59,38 @@ public class ClubAuthorizationService(
     /// <summary>
     /// Returns true if the user can edit the given competition.
     /// Admin can edit any competition. ClubAdmin can only edit competitions
-    /// that have a host club they administer. Competitions with no host club
-    /// are Admin-only.
+    /// that have a host club they administer. CompetitionAdmins can edit
+    /// their specific competitions. Competitions with no host club
+    /// are Admin-only (unless they're a CompetitionAdmin for it).
     /// </summary>
-    public async Task<bool> CanEditCompetitionAsync(ClaimsPrincipal user, int? hostClubId)
+    public async Task<bool> CanEditCompetitionAsync(
+        ClaimsPrincipal user, int? hostClubId, int? competitionId = null)
     {
         if (await IsAdminAsync(user)) return true;
+
+        var userId = userManager.GetUserId(user);
+        if (userId != null && competitionId.HasValue)
+        {
+            await using var db = dbFactory.CreateDbContext();
+            if (await db.CompetitionAdmins.AnyAsync(ca =>
+                    ca.CompetitionId == competitionId.Value && ca.UserId == userId))
+                return true;
+        }
+
         if (hostClubId is null) return false;
         return await CanEditClubAsync(user, hostClubId.Value);
+    }
+
+    /// <summary>Returns the set of CompetitionIds the user is a per-competition admin of.</summary>
+    public async Task<HashSet<int>> GetEditableCompetitionIdsAsync(ClaimsPrincipal user)
+    {
+        var userId = userManager.GetUserId(user);
+        if (userId is null) return [];
+
+        await using var db = dbFactory.CreateDbContext();
+        return (await db.CompetitionAdmins
+            .Where(ca => ca.UserId == userId)
+            .Select(ca => ca.CompetitionId)
+            .ToListAsync()).ToHashSet();
     }
 }

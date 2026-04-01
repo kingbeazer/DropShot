@@ -4,6 +4,7 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DropShot.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260331225300_AddMatchBehaviourFields")]
+    partial class AddMatchBehaviourFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -170,38 +173,6 @@ namespace DropShot.Migrations
                     b.HasIndex("ClubId");
 
                     b.ToTable("ClubAdministrators");
-                });
-
-            modelBuilder.Entity("DropShot.Models.ClubEmailTemplate", b =>
-                {
-                    b.Property<int>("ClubEmailTemplateId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClubEmailTemplateId"));
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ClubId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Subject")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.HasKey("ClubEmailTemplateId");
-
-                    b.HasIndex("ClubId");
-
-                    b.ToTable("ClubEmailTemplates");
                 });
 
             modelBuilder.Entity("DropShot.Models.ClubLadder", b =>
@@ -365,24 +336,6 @@ namespace DropShot.Migrations
                     b.HasIndex("RulesSetId");
 
                     b.ToTable("Competition");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionAdmin", b =>
-                {
-                    b.Property<int>("CompetitionId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("CompetitionId", "UserId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("CompetitionAdmins");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionFixture", b =>
@@ -564,71 +517,6 @@ namespace DropShot.Migrations
                     b.HasIndex("CompetitionId");
 
                     b.ToTable("CompetitionTeams");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionTemplate", b =>
-                {
-                    b.Property<int>("CompetitionTemplateId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CompetitionTemplateId"));
-
-                    b.Property<int?>("BestOf")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ClubId")
-                        .HasColumnType("int");
-
-                    b.Property<byte?>("EligibleSex")
-                        .HasColumnType("tinyint");
-
-                    b.Property<byte?>("Format")
-                        .HasColumnType("tinyint");
-
-                    b.Property<int?>("MaxAge")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int?>("RulesSetId")
-                        .HasColumnType("int");
-
-                    b.HasKey("CompetitionTemplateId");
-
-                    b.HasIndex("ClubId");
-
-                    b.ToTable("CompetitionTemplates");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionTemplateWindow", b =>
-                {
-                    b.Property<int>("CompetitionTemplateWindowId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CompetitionTemplateWindowId"));
-
-                    b.Property<int>("CompetitionTemplateId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DayOfWeek")
-                        .HasColumnType("int");
-
-                    b.Property<TimeSpan>("EndTime")
-                        .HasColumnType("time");
-
-                    b.Property<TimeSpan>("StartTime")
-                        .HasColumnType("time");
-
-                    b.HasKey("CompetitionTemplateWindowId");
-
-                    b.HasIndex("CompetitionTemplateId");
-
-                    b.ToTable("CompetitionTemplateWindows");
                 });
 
             modelBuilder.Entity("DropShot.Models.Court", b =>
@@ -1042,17 +930,6 @@ namespace DropShot.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("DropShot.Models.ClubEmailTemplate", b =>
-                {
-                    b.HasOne("DropShot.Models.Club", "Club")
-                        .WithMany("EmailTemplates")
-                        .HasForeignKey("ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Club");
-                });
-
             modelBuilder.Entity("DropShot.Models.ClubLadder", b =>
                 {
                     b.HasOne("DropShot.Models.Club", "Club")
@@ -1127,25 +1004,6 @@ namespace DropShot.Migrations
                     b.Navigation("HostClub");
 
                     b.Navigation("Rules");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionAdmin", b =>
-                {
-                    b.HasOne("DropShot.Models.Competition", "Competition")
-                        .WithMany("Admins")
-                        .HasForeignKey("CompetitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Data.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Competition");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionFixture", b =>
@@ -1265,28 +1123,6 @@ namespace DropShot.Migrations
                         .IsRequired();
 
                     b.Navigation("Competition");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionTemplate", b =>
-                {
-                    b.HasOne("DropShot.Models.Club", "Club")
-                        .WithMany("CompetitionTemplates")
-                        .HasForeignKey("ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Club");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionTemplateWindow", b =>
-                {
-                    b.HasOne("DropShot.Models.CompetitionTemplate", "Template")
-                        .WithMany("Windows")
-                        .HasForeignKey("CompetitionTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Template");
                 });
 
             modelBuilder.Entity("DropShot.Models.Court", b =>
@@ -1422,13 +1258,9 @@ namespace DropShot.Migrations
                 {
                     b.Navigation("Administrators");
 
-                    b.Navigation("CompetitionTemplates");
-
                     b.Navigation("Competitions");
 
                     b.Navigation("Courts");
-
-                    b.Navigation("EmailTemplates");
 
                     b.Navigation("Ladders");
 
@@ -1449,8 +1281,6 @@ namespace DropShot.Migrations
 
             modelBuilder.Entity("DropShot.Models.Competition", b =>
                 {
-                    b.Navigation("Admins");
-
                     b.Navigation("Fixtures");
 
                     b.Navigation("MatchWindows");
@@ -1470,11 +1300,6 @@ namespace DropShot.Migrations
             modelBuilder.Entity("DropShot.Models.CompetitionTeam", b =>
                 {
                     b.Navigation("Participants");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionTemplate", b =>
-                {
-                    b.Navigation("Windows");
                 });
 
             modelBuilder.Entity("DropShot.Models.Court", b =>
