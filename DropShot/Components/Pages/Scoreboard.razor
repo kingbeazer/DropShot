@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using DropShot.Data
 @using DropShot.Models
+@using DropShot.Services
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.EntityFrameworkCore
 @using Newtonsoft.Json
@@ -10,23 +11,37 @@
 @inject MyDbContext DbContext
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject IJSRuntime JS
+@inject LayoutState LayoutState
+@implements IAsyncDisposable
 
 <MudProviders />
 
-<div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin: 12px;">
-    <MudSelect T="int?" Value="_selectedCourtId" ValueChanged="OnCourtChanged" Label="Select Court"
-               Variant="Variant.Outlined" Style="max-width: 300px;" Clearable="true">
-        @foreach (var court in _allCourts)
-        {
-            <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
-        }
-    </MudSelect>
-    <MudSelect T="string" Value="_selectedLayout" ValueChanged="OnLayoutChanged" Label="Layout"
-               Variant="Variant.Outlined" Style="max-width: 180px;">
-        <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
-        <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
-    </MudSelect>
-</div>
+@if (!_isFullscreen)
+{
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin: 12px;">
+        <MudSelect T="int?" Value="_selectedCourtId" ValueChanged="OnCourtChanged" Label="Select Court"
+                   Variant="Variant.Outlined" Style="max-width: 300px;" Clearable="true">
+            @foreach (var court in _allCourts)
+            {
+                <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSelect T="string" Value="_selectedLayout" ValueChanged="OnLayoutChanged" Label="Layout"
+                   Variant="Variant.Outlined" Style="max-width: 180px;">
+            <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
+            <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
+        </MudSelect>
+        <MudIconButton Icon="@Icons.Material.Filled.Fullscreen" Title="Enter fullscreen"
+                       OnClick="EnterFullscreen" Size="Size.Large" />
+    </div>
+}
+else
+{
+    <MudIconButton Icon="@Icons.Material.Filled.FullscreenExit" Title="Exit fullscreen (ESC)"
+                   OnClick="ExitFullscreen"
+                   Style="position: fixed; top: 8px; right: 8px; z-index: 9999; opacity: 0.3;"
+                   Size="Size.Large" />
+}
 
 @if (_selectedLayout == "wimbledon")
 {
@@ -112,27 +127,57 @@ else
     private CompetitionFixture? _activeFixture;
     GameState currentScore = new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "");
 
+    private bool _isFullscreen;
+    private DotNetObjectReference<Scoreboard>? _dotNetRef;
+    private IJSObjectReference? _jsModule;
+
     protected override async Task OnInitializedAsync()
     {
         _allCourts = await DbContext.Courts
             .Include(c => c.Club)
             .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
             .ToListAsync();
+
+        // Parse query string for kiosk mode
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+
+        if (query["layout"] is string layout && (layout == "default" || layout == "wimbledon"))
+            _selectedLayout = layout;
+
+        if (int.TryParse(query["court"], out int qsCourtId))
+            await OnCourtChanged(qsCourtId);
+
+        if (query["fullscreen"] == "true")
+            EnterFullscreen();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            var savedLayout = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-layout");
-            if (!string.IsNullOrEmpty(savedLayout))
-                _selectedLayout = savedLayout;
+            // Restore saved preferences (only if not overridden by query string)
+            var uri = new Uri(Navigation.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            bool hasQueryParams = query["fullscreen"] != null || query["court"] != null || query["layout"] != null;
 
-            var savedCourt = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-court");
-            if (int.TryParse(savedCourt, out int courtId))
-                await OnCourtChanged(courtId);
+            if (!hasQueryParams)
+            {
+                var savedLayout = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-layout");
+                if (!string.IsNullOrEmpty(savedLayout))
+                    _selectedLayout = savedLayout;
+
+                var savedCourt = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-court");
+                if (int.TryParse(savedCourt, out int courtId))
+                    await OnCourtChanged(courtId);
+            }
 
             StateHasChanged();
+
+            // Register ESC key handler
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/scoreboard.js");
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await _jsModule.InvokeVoidAsync("registerEscHandler", _dotNetRef);
         }
 
         if (firstRender && hubConnection is null)
@@ -153,7 +198,7 @@ else
                 if (gameState != null)
                     currentScore = gameState;
 
-                // Refresh match details when scoring starts (e.g. a new match just began on this court)
+                // Refresh match details when scoring starts
                 if (_activeMatch == null && _selectedCourtId.HasValue)
                 {
                     using var dbc = DbFactory.CreateDbContext();
@@ -165,12 +210,46 @@ else
                 await InvokeAsync(StateHasChanged);
             });
 
+            // Listen for display commands from admin
+            hubConnection.On<string, string>("ReceiveDisplayCommand", async (command, value) =>
+            {
+                switch (command)
+                {
+                    case "setFullscreen":
+                        if (value == "true")
+                            EnterFullscreen();
+                        else
+                            ExitFullscreen();
+                        break;
+                    case "setLayout":
+                        _selectedLayout = value;
+                        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", value);
+                        break;
+                }
+                await InvokeAsync(StateHasChanged);
+            });
+
+            // Re-join court group on reconnection
+            hubConnection.Reconnected += async _ =>
+            {
+                if (_selectedCourtId.HasValue)
+                    await hubConnection.SendAsync("JoinCourtGroup", _selectedCourtId.Value);
+            };
+
             await hubConnection.StartAsync();
+
+            // Join initial court group
+            if (_selectedCourtId.HasValue)
+                await hubConnection.SendAsync("JoinCourtGroup", _selectedCourtId.Value);
         }
     }
 
     private async Task OnCourtChanged(int? courtId)
     {
+        // Leave old court group
+        if (_selectedCourtId.HasValue && hubConnection?.State == HubConnectionState.Connected)
+            await hubConnection.SendAsync("LeaveCourtGroup", _selectedCourtId.Value);
+
         _selectedCourtId = courtId;
         await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-court", courtId?.ToString() ?? "");
         currentScore = new GameState(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "");
@@ -191,6 +270,10 @@ else
             }
 
             _activeFixture = await LoadFixtureForMatchAsync(_activeMatch);
+
+            // Join new court group
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.SendAsync("JoinCourtGroup", courtId.Value);
         }
     }
 
@@ -208,6 +291,28 @@ else
     {
         _selectedLayout = layout;
         await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", layout);
+    }
+
+    private void EnterFullscreen()
+    {
+        _isFullscreen = true;
+        LayoutState.SetFullscreen(true);
+    }
+
+    private void ExitFullscreen()
+    {
+        _isFullscreen = false;
+        LayoutState.SetFullscreen(false);
+    }
+
+    [JSInvokable]
+    public void ExitFullscreenFromJs()
+    {
+        if (_isFullscreen)
+        {
+            ExitFullscreen();
+            InvokeAsync(StateHasChanged);
+        }
     }
 
     private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak, bool isUser)
@@ -234,4 +339,28 @@ else
 
     public bool IsConnected =>
         hubConnection?.State == HubConnectionState.Connected;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_isFullscreen)
+            LayoutState.SetFullscreen(false);
+
+        if (_jsModule is not null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("unregisterEscHandler");
+                await _jsModule.DisposeAsync();
+            }
+            catch { }
+        }
+
+        _dotNetRef?.Dispose();
+
+        if (hubConnection is not null)
+        {
+            try { await hubConnection.DisposeAsync(); }
+            catch { }
+        }
+    }
 }
