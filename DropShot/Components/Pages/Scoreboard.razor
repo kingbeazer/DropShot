@@ -50,7 +50,7 @@
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowfullscreen></iframe>
 
-                @if (_activeMatch != null && !currentScore.isComplete)
+                @if (_activeMatch != null)
                 {
                     <div class="tv-overlay">
                         <div class="tv-row @(currentScore.IsUserServing ? "tv-serving" : "")">
