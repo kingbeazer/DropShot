@@ -1,0 +1,123 @@
+@page "/display-control"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin,ClubAdmin")]
+@using DropShot.Data
+@using DropShot.Models
+@using DropShot.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject NavigationManager Navigation
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudProviders />
+
+<MudText Typo="Typo.h4" Class="mb-2">Display Control</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color: var(--mud-palette-text-secondary);">
+    Control the scoreboard display for courts you manage. Changes are pushed live to all scoreboard screens showing that court.
+</MudText>
+
+@if (_courts.Count == 0 && _loaded)
+{
+    <MudAlert Severity="Severity.Info">No courts available for your account.</MudAlert>
+}
+
+<MudGrid>
+    @foreach (var court in _courts)
+    {
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">@court.Club.Name</MudText>
+                        <MudText Typo="Typo.subtitle2" Style="color: var(--mud-palette-text-secondary);">@court.Name</MudText>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudIcon Icon="@Icons.Material.Filled.Tv" />
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSwitch T="bool" Value="GetFullscreen(court.CourtId)"
+                               ValueChanged="@(v => ToggleFullscreen(court.CourtId, v))"
+                               Label="Fullscreen" Color="Color.Primary" />
+                    <MudSelect T="string" Value="GetLayout(court.CourtId)"
+                               ValueChanged="@(v => ChangeLayout(court.CourtId, v))"
+                               Label="Layout" Variant="Variant.Outlined" Class="mt-2">
+                        <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
+                        <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
+                    </MudSelect>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    private HubConnection? _hub;
+    private List<Court> _courts = [];
+    private Dictionary<int, bool> _fullscreenState = new();
+    private Dictionary<int, string> _layoutState = new();
+    private bool _loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAdmin = await AuthzService.IsAdminAsync(authState.User);
+
+        await using var db = DbFactory.CreateDbContext();
+
+        if (isAdmin)
+        {
+            _courts = await db.Courts.Include(c => c.Club)
+                .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
+                .ToListAsync();
+        }
+        else
+        {
+            var clubIds = await AuthzService.GetAdminClubIdsAsync(authState.User);
+            _courts = await db.Courts.Include(c => c.Club)
+                .Where(c => clubIds.Contains(c.ClubId))
+                .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
+                .ToListAsync();
+        }
+
+        foreach (var court in _courts)
+        {
+            _fullscreenState[court.CourtId] = false;
+            _layoutState[court.CourtId] = "default";
+        }
+
+        _loaded = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _hub = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+                .Build();
+            await _hub.StartAsync();
+        }
+    }
+
+    private bool GetFullscreen(int courtId) => _fullscreenState.GetValueOrDefault(courtId);
+    private string GetLayout(int courtId) => _layoutState.GetValueOrDefault(courtId, "default");
+
+    private async Task ToggleFullscreen(int courtId, bool value)
+    {
+        _fullscreenState[courtId] = value;
+        if (_hub?.State == HubConnectionState.Connected)
+            await _hub.SendAsync("SendDisplayCommand", courtId, "setFullscreen", value.ToString().ToLower());
+    }
+
+    private async Task ChangeLayout(int courtId, string layout)
+    {
+        _layoutState[courtId] = layout;
+        if (_hub?.State == HubConnectionState.Connected)
+            await _hub.SendAsync("SendDisplayCommand", courtId, "setLayout", layout);
+    }
+}

@@ -9,5 +9,20 @@
         {
             await Clients.All.SendAsync("ReceiveMessage", user, message);
         }
+
+        public async Task JoinCourtGroup(int courtId)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"court-{courtId}");
+        }
+
+        public async Task LeaveCourtGroup(int courtId)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"court-{courtId}");
+        }
+
+        public async Task SendDisplayCommand(int courtId, string command, string value)
+        {
+            await Clients.Group($"court-{courtId}").SendAsync("ReceiveDisplayCommand", command, value);
+        }
     }
 }

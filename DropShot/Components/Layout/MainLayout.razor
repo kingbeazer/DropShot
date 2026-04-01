@@ -1,18 +1,20 @@
 ﻿ <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
 @inherits LayoutComponentBase
+@inject DropShot.Services.LayoutState LayoutState
+@implements IDisposable
 <MudThemeProvider IsDarkMode="true" Theme="_theme" />
 @* Popover/Dialog/Snackbar providers are intentionally NOT here.
    Each @rendermode InteractiveServer page injects <MudProviders /> directly
    so the providers share the page's circuit DI scope.  Having them here too
    caused "duplicate subscriber" errors because SSR and circuit both rendered
    a MudPopoverProvider for the same page. *@
-<div class="page">
+<div class="page @(LayoutState.IsFullscreen ? "fullscreen" : "")">
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
-        
+
         <article class="content px-4">
             @Body
         </article>
@@ -27,4 +29,19 @@
 
 @code {
     private MudTheme _theme = new();
+
+    protected override void OnInitialized()
+    {
+        LayoutState.OnChange += OnLayoutStateChanged;
+    }
+
+    private void OnLayoutStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        LayoutState.OnChange -= OnLayoutStateChanged;
+    }
 }

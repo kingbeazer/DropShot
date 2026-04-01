@@ -103,3 +103,15 @@ main {
         top: 0.5rem;
     }
 
+.page.fullscreen .sidebar {
+    display: none !important;
+}
+
+.page.fullscreen main {
+    width: 100%;
+}
+
+.page.fullscreen .content {
+    padding: 0 !important;
+}
+
