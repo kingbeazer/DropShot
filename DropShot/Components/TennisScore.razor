@@ -716,12 +716,6 @@
             .Select(p => p.DisplayName)
             .ToList();
 
-        _courts = await DbContext.Courts
-            .Include(c => c.Club)
-            .Where(c => !DbContext.SavedMatch.Any(m => !m.Complete && m.CourtId == c.CourtId))
-            .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
-            .ToListAsync();
-
         if (MatchId > 0)
         {
             var savedMatch = await DbContext.SavedMatch
@@ -770,6 +764,13 @@
                 Label_Switch1 = _competitionFixture.Player3 != null;
             }
         }
+
+        _courts = await DbContext.Courts
+            .Include(c => c.Club)
+            .Where(c => c.CourtId == _selectedCourtId
+                        || !DbContext.SavedMatch.Any(m => !m.Complete && m.CourtId == c.CourtId))
+            .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
+            .ToListAsync();
 
         // Mark as loaded after DB queries so content renders immediately.
         // The hub connection is deferred to OnAfterRenderAsync so it only
