@@ -65,11 +65,12 @@ h1:focus {
 }
 
 .scoreboard-tiebreak {
-    margin-top: 16px;
-    font-size: 2rem;
+    margin-top: clamp(8px, 1.5vh, 16px);
+    font-size: clamp(1.2rem, 2.5vw, 2rem);
     font-weight: bold;
     color: gold;
     letter-spacing: 0.1em;
+    text-align: center;
 }
 
 /* Scoreboard fullscreen mode — hides sidebar and content padding */

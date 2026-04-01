@@ -14,106 +14,110 @@
 
 <MudProviders />
 
-@if (!_isFullscreen)
-{
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin: 12px;">
-        <MudSelect T="int?" Value="_selectedCourtId" ValueChanged="OnCourtChanged" Label="Select Court"
-                   Variant="Variant.Outlined" Style="max-width: 300px;" Clearable="true">
-            @foreach (var court in _allCourts)
-            {
-                <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
-            }
-        </MudSelect>
-        <MudSelect T="string" Value="_selectedLayout" ValueChanged="OnLayoutChanged" Label="Layout"
-                   Variant="Variant.Outlined" Style="max-width: 180px;">
-            <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
-            <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
-        </MudSelect>
-        <MudIconButton Icon="@Icons.Material.Filled.Fullscreen" aria-label="Enter fullscreen"
-                       OnClick="EnterFullscreenAsync" Size="Size.Large" />
-    </div>
-}
-else
-{
-    <MudIconButton Icon="@Icons.Material.Filled.FullscreenExit" aria-label="Exit fullscreen (ESC)"
-                   OnClick="ExitFullscreenAsync"
-                   Style="position: fixed; top: 8px; right: 8px; z-index: 9999; opacity: 0.3;"
-                   Size="Size.Large" />
-}
-
-@if (_selectedLayout == "wimbledon")
-{
-    <WimbledonScoreboard Score="currentScore" ActiveMatch="_activeMatch" SelectedCourt="_selectedCourt" ActiveFixture="_activeFixture" />
-}
-else
-{
-    @if (_selectedCourt != null)
+<div class="scoreboard-page">
+    @if (!_isFullscreen)
     {
-        <MudText Typo="Typo.h5" Align="Align.Center" Style="margin-top: 8px; letter-spacing: 2px; text-transform: uppercase;">
-            @_selectedCourt.Club.Name — @_selectedCourt.Name
-        </MudText>
-    }
-
-    @if (_activeFixture?.Competition != null)
-    {
-        <MudText Typo="Typo.caption" Align="Align.Center" Style="letter-spacing:1px; text-transform:uppercase; color:#FFD700; margin-top:4px;">
-            @_activeFixture.Competition.CompetitionName
-            @if (!string.IsNullOrEmpty(_activeFixture.FixtureLabel))
-            {
-                <span> — @_activeFixture.FixtureLabel</span>
-            }
-        </MudText>
-    }
-    @if (_activeMatch != null)
-    {
-        <MudText Typo="Typo.subtitle1" Align="Align.Center" Style="margin-bottom: 4px;">
-            @PlayerLabel(_activeMatch)
-        </MudText>
-    }
-
-    @if (!currentScore.isComplete)
-    {
-        <div style="display: flex; justify-content: center; gap: 40px; margin-top: 8px; margin-bottom: 4px; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 1.4rem; visibility: @(currentScore.IsUserServing ? "visible" : "hidden");">🎾</span>
-                <MudText Typo="Typo.h3" Style="font-weight: bold;">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</MudText>
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <MudText Typo="Typo.h3" Style="font-weight: bold;">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</MudText>
-                <span style="font-size: 1.4rem; visibility: @(!currentScore.IsUserServing ? "visible" : "hidden");">🎾</span>
-            </div>
+        <div class="scoreboard-toolbar">
+            <MudSelect T="int?" Value="_selectedCourtId" ValueChanged="OnCourtChanged" Label="Select Court"
+                       Variant="Variant.Outlined" Style="max-width: min(300px, 45vw);" Clearable="true">
+                @foreach (var court in _allCourts)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="string" Value="_selectedLayout" ValueChanged="OnLayoutChanged" Label="Layout"
+                       Variant="Variant.Outlined" Style="max-width: min(180px, 30vw);">
+                <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
+                <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
+            </MudSelect>
+            <MudIconButton Icon="@Icons.Material.Filled.Fullscreen" aria-label="Enter fullscreen"
+                           OnClick="EnterFullscreenAsync" Size="Size.Large" />
         </div>
     }
-
-    @if (currentScore.TieBreak)
+    else
     {
-        <div class="scoreboard-tiebreak">TIE BREAK</div>
+        <MudIconButton Icon="@Icons.Material.Filled.FullscreenExit" aria-label="Exit fullscreen (ESC)"
+                       OnClick="ExitFullscreenAsync"
+                       Style="position: fixed; top: 8px; right: 8px; z-index: 9999; opacity: 0.3;"
+                       Size="Size.Large" />
     }
 
-    <div style="display: flex; justify-content: center; margin-top: 4px; align-items: center;">
-        @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
+    <div class="scoreboard-content">
+        @if (_selectedLayout == "wimbledon")
         {
-            <DotDigit Number="@set.UserGames" />
+            <WimbledonScoreboard Score="currentScore" ActiveMatch="_activeMatch" SelectedCourt="_selectedCourt" ActiveFixture="_activeFixture" />
         }
-        <DotDigit Number="@currentScore.UserG" />
-        @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) - 1; i++)
+        else
         {
-            <DotDigit Number="0" />
-        }
-    </div>
+            @if (_selectedCourt != null)
+            {
+                <div class="score-court-name">
+                    @_selectedCourt.Club.Name — @_selectedCourt.Name
+                </div>
+            }
 
-    <div style="display: flex; justify-content: center; align-items: center;">
-        @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
-        {
-            <DotDigit Number="@set.OpponentGames" />
-        }
-        <DotDigit Number="@currentScore.OppG" />
-        @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) - 1; i++)
-        {
-            <DotDigit Number="0" />
+            @if (_activeFixture?.Competition != null)
+            {
+                <div class="score-competition">
+                    @_activeFixture.Competition.CompetitionName
+                    @if (!string.IsNullOrEmpty(_activeFixture.FixtureLabel))
+                    {
+                        <span> — @_activeFixture.FixtureLabel</span>
+                    }
+                </div>
+            }
+            @if (_activeMatch != null)
+            {
+                <div class="score-player-label">
+                    @PlayerLabel(_activeMatch)
+                </div>
+            }
+
+            @if (!currentScore.isComplete)
+            {
+                <div class="score-points-row">
+                    <div class="score-point-group">
+                        <span class="score-serve-indicator" style="visibility: @(currentScore.IsUserServing ? "visible" : "hidden");">🎾</span>
+                        <span class="score-point-value">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</span>
+                    </div>
+                    <div class="score-point-group">
+                        <span class="score-point-value">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</span>
+                        <span class="score-serve-indicator" style="visibility: @(!currentScore.IsUserServing ? "visible" : "hidden");">🎾</span>
+                    </div>
+                </div>
+            }
+
+            @if (currentScore.TieBreak)
+            {
+                <div class="scoreboard-tiebreak">TIE BREAK</div>
+            }
+
+            <div class="score-dot-row">
+                @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
+                {
+                    <DotDigit Number="@set.UserGames" />
+                }
+                <DotDigit Number="@currentScore.UserG" />
+                @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) - 1; i++)
+                {
+                    <DotDigit Number="0" />
+                }
+            </div>
+
+            <div class="score-dot-row">
+                @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
+                {
+                    <DotDigit Number="@set.OpponentGames" />
+                }
+                <DotDigit Number="@currentScore.OppG" />
+                @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) - 1; i++)
+                {
+                    <DotDigit Number="0" />
+                }
+            </div>
         }
     </div>
-}
+</div>
 
 @code {
     private HubConnection? hubConnection;
