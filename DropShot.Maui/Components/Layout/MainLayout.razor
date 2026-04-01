@@ -17,7 +17,7 @@
             <Authorized>
                 <MudText Typo="Typo.body2" Class="mr-2">@context.User.Identity?.Name</MudText>
                 <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"
-                               OnClick="LogoutAsync" Tooltip="Logout" />
+                               OnClick="LogoutAsync" aria-label="Logout" />
             </Authorized>
         </AuthorizeView>
     </MudAppBar>

@@ -31,13 +31,13 @@
             <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
             <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
         </MudSelect>
-        <MudIconButton Icon="@Icons.Material.Filled.Fullscreen" Title="Enter fullscreen"
+        <MudIconButton Icon="@Icons.Material.Filled.Fullscreen" aria-label="Enter fullscreen"
                        OnClick="EnterFullscreen" Size="Size.Large" />
     </div>
 }
 else
 {
-    <MudIconButton Icon="@Icons.Material.Filled.FullscreenExit" Title="Exit fullscreen (ESC)"
+    <MudIconButton Icon="@Icons.Material.Filled.FullscreenExit" aria-label="Exit fullscreen (ESC)"
                    OnClick="ExitFullscreen"
                    Style="position: fixed; top: 8px; right: 8px; z-index: 9999; opacity: 0.3;"
                    Size="Size.Large" />

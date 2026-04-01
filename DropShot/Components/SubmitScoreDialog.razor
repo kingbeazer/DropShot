@@ -218,7 +218,7 @@
 
             await db.SaveChangesAsync();
 
-            fx.Competition  = Fixture.Competition;
+            fx.Competition  = Fixture.Competition!;
             fx.Player1      = Fixture.Player1;
             fx.Player2      = Fixture.Player2;
             fx.Player3      = Fixture.Player3;

@@ -353,58 +353,6 @@ public class CompetitionsController(
         DateTime RandomSlot() =>
             SchedulingSlotPicker.PickSlot(matchWindows, startDate, endDate, rng);
 
-        // ── Local helper: top N players by round-robin league table ──────────
-        // Queries only completed fixtures that belong to a RoundRobin stage.
-        // If no results exist yet, returns the first `count` active players
-        // in registration order as a fallback so placeholders can still be created.
-        async Task<List<int>> TopFromRoundRobin(int count)
-        {
-            var rrStageIds = comp.Stages
-                .Where(s => s.StageType == DropShot.Models.StageType.RoundRobin)
-                .Select(s => s.CompetitionStageId)
-                .ToHashSet();
-
-            if (rrStageIds.Count == 0)
-                return activePlayers.Take(count).ToList();
-
-            // Completed RR fixtures are still in the DB (we only deleted non-completed ones above).
-            var rrFixtures = await db.CompetitionFixtures
-                .Where(f => f.CompetitionId == id
-                            && f.CompetitionStageId != null
-                            && rrStageIds.Contains(f.CompetitionStageId!.Value)
-                            && f.Status == DropShot.Models.FixtureStatus.Completed
-                            && f.WinnerPlayerId != null)
-                .ToListAsync();
-
-            if (rrFixtures.Count == 0)
-                return activePlayers.Take(count).ToList();
-
-            // Accumulate points (win = 3 pts) and win count for tiebreaking.
-            var pts = activePlayers.ToDictionary(pid => pid, _ => (Points: 0, Won: 0));
-
-            foreach (var f in rrFixtures)
-            {
-                var participants = new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
-                    .Where(pid => pid.HasValue && pts.ContainsKey(pid.Value))
-                    .Select(pid => pid!.Value)
-                    .Distinct();
-
-                foreach (var pid in participants)
-                {
-                    bool isWinner = pid == f.WinnerPlayerId;
-                    var cur = pts[pid];
-                    pts[pid] = (cur.Points + (isWinner ? 3 : 0), cur.Won + (isWinner ? 1 : 0));
-                }
-            }
-
-            return pts
-                .OrderByDescending(kv => kv.Value.Points)
-                .ThenByDescending(kv => kv.Value.Won)
-                .Take(count)
-                .Select(kv => kv.Key)
-                .ToList();
-        }
-
         foreach (var stage in comp.Stages)
         {
             switch (stage.StageType)

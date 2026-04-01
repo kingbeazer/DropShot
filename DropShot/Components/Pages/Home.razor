@@ -144,7 +144,7 @@
         var parameters = new DialogParameters<SubmitScoreDialog> { { x => x.Fixture, fixture } };
         var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
         var result = await dialog.Result;
-        if (!result.Canceled)
+        if (result is not null && !result.Canceled)
             await OnInitializedAsync();
     }
 

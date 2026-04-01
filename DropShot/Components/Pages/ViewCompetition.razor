@@ -222,7 +222,9 @@ else
     private record LeagueRow(int PlayerId, string PlayerName, int Played, int Won, int Lost, int Points);
     private List<LeagueRow> _leagueTable = [];
 
+#pragma warning disable CS8714 // Null keys are intentionally used for unstaged fixtures
     private Dictionary<string?, List<CompetitionFixture>> _fixturesByStage = [];
+#pragma warning restore CS8714
 
     protected override async Task OnParametersSetAsync()
     {
@@ -260,11 +262,13 @@ else
                 .ToList();
 
             // Group fixtures by stage name (preserve stage order)
+#pragma warning disable CS8714
             _fixturesByStage = _competition.Stages
                 .OrderBy(s => s.StageOrder)
                 .ToDictionary<CompetitionStage, string?, List<CompetitionFixture>>(
                     s => s.Name,
                     s => _fixtures.Where(f => f.CompetitionStageId == s.CompetitionStageId).ToList());
+#pragma warning restore CS8714
 
             // Add any fixtures with no stage assigned
             var unstaged = _fixtures.Where(f => f.CompetitionStageId == null).ToList();

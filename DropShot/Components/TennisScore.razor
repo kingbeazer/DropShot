@@ -74,14 +74,8 @@
                      ValueChanged="@((string v) => { _value = v; _ = CheckAndOfferFriendRequest(v); })"
                      Label="Player 1"
                      SearchFunc="@Search1"
-                     ResetValueOnEmptyText="@resetValueOnEmptyText"
                      Variant="Variant.Outlined"
-                     CoerceText="@coerceText"
-                     Margin="_margin"
-                     Dense="_dense"
                      CoerceValue="true"
-                     Placeholder="@(_placeholder ? "Placeholder" : null)"
-                     SelectValueOnTab="@selectedOnTab"
                      AdornmentColor="Color.Primary" />
     @if (!Label_Switch1)
     {
@@ -91,14 +85,8 @@
                      ValueChanged="@((string v) => { _value2 = v; _ = CheckAndOfferFriendRequest(v); })"
                      Label="Player 2"
                      SearchFunc="@Search1"
-                     ResetValueOnEmptyText="@resetValueOnEmptyText"
                      Variant="Variant.Outlined"
-                     CoerceText="@coerceText"
-                     Margin="_margin"
-                     Dense="_dense"
                      CoerceValue="true"
-                     Placeholder="@(_placeholder ? "Placeholder" : null)"
-                     SelectValueOnTab="@selectedOnTab"
                      AdornmentColor="Color.Primary" />
 
     @if (Label_Switch1)
@@ -112,28 +100,16 @@
                          ValueChanged="@((string v) => { _value3 = v; _ = CheckAndOfferFriendRequest(v); })"
                          Label="Player 3"
                          SearchFunc="@Search1"
-                         ResetValueOnEmptyText="@resetValueOnEmptyText"
                          Variant="Variant.Outlined"
-                         CoerceText="@coerceText"
-                         Margin="_margin"
-                         Dense="_dense"
                          CoerceValue="true"
-                         Placeholder="@(_placeholder ? "Placeholder" : null)"
-                         SelectValueOnTab="@selectedOnTab"
                          AdornmentColor="Color.Primary" />
 
         <MudAutocomplete Value="_value4"
                          ValueChanged="@((string v) => { _value4 = v; _ = CheckAndOfferFriendRequest(v); })"
                          Label="Player 4"
                          SearchFunc="@Search1"
-                         ResetValueOnEmptyText="@resetValueOnEmptyText"
                          Variant="Variant.Outlined"
-                         CoerceText="@coerceText"
-                         Margin="_margin"
-                         Dense="_dense"
                          CoerceValue="true"
-                         Placeholder="@(_placeholder ? "Placeholder" : null)"
-                         SelectValueOnTab="@selectedOnTab"
                          AdornmentColor="Color.Primary" />
     }
 
@@ -359,27 +335,11 @@
 }
 
 @code {
-    private string _value;
-    private string _value2;
-    private string _value3;
-    private string _value4;
-    private string _winner;
-    private Margin _margin;
-    private bool _dense;
-    private bool _disabled;
-    private bool _readonly;
-    private bool _placeholder;
-    private bool _helperText;
-    private bool _helperTextOnFocus;
-    private bool _clearable;
-    private bool _modal = true;
-    private string Image = "images/me.png";
-
-
-    private bool resetValueOnEmptyText;
-    private bool coerceText;
-    private bool coerceValue;
-    private bool selectedOnTab;
+    private string _value = string.Empty;
+    private string _value2 = string.Empty;
+    private string _value3 = string.Empty;
+    private string _value4 = string.Empty;
+    private string _winner = string.Empty;
 
     bool _expanded = false;
 
@@ -457,12 +417,12 @@
         var dialog = await DialogService.ShowAsync<EndMatch>("Delete Server", options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result is not null && !result.Canceled)
         {
             OnExpandCollapseClick();
             _state.IsMatchEnded = true;
             if (CurrentMatch != null)
-                _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1);
+                _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
             SaveHistory();
         }
     }
@@ -501,8 +461,8 @@
     private bool _showCoinToss;
     private bool _coinAnimating;
     private bool _coinTossUserServes;
-    private string _coinTossWinnerName;
-    private Match _pendingMatch;
+    private string _coinTossWinnerName = string.Empty;
+    private Match? _pendingMatch;
 
     private async Task ButtonOnClick()
     {
@@ -605,12 +565,13 @@
         if (hubConnection is not null)
         {
             await hubConnection.SendAsync("SendMessage",
-                JsonConvert.SerializeObject(initialState), CurrentMatch.CourtId?.ToString() ?? "");
+                JsonConvert.SerializeObject(initialState), CurrentMatch?.CourtId?.ToString() ?? "");
         }
     }
 
     private async Task SaveInitialMatchAsync()
     {
+        if (CurrentMatch == null) return;
         var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
         var initialState = new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, false, GetUserDisplayName(), GetOpponentDisplayName());
         history.Push(initialState);
@@ -680,11 +641,10 @@
     private TennisMatchState _state = new();
     private List<Score> scores = new();
     private HubConnection? hubConnection;
-    private bool matchGo = false;
     private bool loaded = false;
 
-    private Match _currentMatch;
-    public Match CurrentMatch
+    private Match? _currentMatch;
+    public Match? CurrentMatch
     {
         get => _currentMatch;
         set
@@ -833,11 +793,11 @@
 
 
 
-    [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; }
-    private bool isSaving;
+    [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; } = default!;
 
     private async Task PersistAndBroadcast()
     {
+        if (CurrentMatch == null) return;
         CurrentMatch.History = history;
         CurrentMatch.HistoryList = history.ToList();
 
@@ -907,7 +867,7 @@
         _state.UserPoints++;
         ScoreService.CheckGame(_state);
         if (_state.IsMatchEnded && CurrentMatch != null)
-            _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1);
+            _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
         SaveHistory();
     }
 
@@ -918,7 +878,7 @@
         _state.OppPoints++;
         ScoreService.CheckGame(_state);
         if (_state.IsMatchEnded && CurrentMatch != null)
-            _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1);
+            _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
         SaveHistory();
     }
 
@@ -951,7 +911,7 @@
         };
         var dialog = await DialogService.ShowAsync<EditScoreDialog>("Edit Score", parameters);
         var result = await dialog.Result;
-        if (!result.Canceled)
+        if (result is not null && !result.Canceled)
         {
             var edited = (EditScoreDialog.EditScoreResult)result.Data!;
             history.Clear();

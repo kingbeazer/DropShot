@@ -7,8 +7,8 @@ public class EmailService
 
     public EmailService(IConfiguration config)
     {
-        var connectionString = config["ACS:ConnectionString"];
-        _sender = config["ACS:SenderAddress"];
+        var connectionString = config["ACS:ConnectionString"] ?? throw new InvalidOperationException("ACS:ConnectionString not configured");
+        _sender = config["ACS:SenderAddress"] ?? throw new InvalidOperationException("ACS:SenderAddress not configured");
         _emailClient = new EmailClient(connectionString);
     }
 
