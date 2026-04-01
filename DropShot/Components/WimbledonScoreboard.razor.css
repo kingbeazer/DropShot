@@ -3,8 +3,9 @@
     background-color: #0d1117;
     color: #ffffff;
     font-family: Georgia, 'Times New Roman', serif;
-    max-width: 700px;
-    margin: 20px auto;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
     border: 1px solid #2a2a3a;
     border-radius: 4px;
     overflow: hidden;
@@ -15,7 +16,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 16px;
+    padding: clamp(4px, 0.8vh, 8px) clamp(8px, 1.5vw, 20px);
     background-color: #0a0e15;
     border-bottom: 1px solid #2a2a3a;
 }
@@ -23,7 +24,7 @@
 .wb-clock,
 .wb-elapsed {
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: 1.4rem;
+    font-size: clamp(1rem, 2.2vw, 2rem);
     font-weight: bold;
     color: #ffffff;
     letter-spacing: 0.05em;
@@ -37,7 +38,7 @@
 /* ── Court label ──────────────────────────────────────────────── */
 .wb-court-label {
     text-align: center;
-    font-size: 0.7rem;
+    font-size: clamp(0.55rem, 1.1vw, 0.85rem);
     font-family: 'Helvetica Neue', Arial, sans-serif;
     letter-spacing: 0.15em;
     color: #888888;
@@ -52,16 +53,16 @@
     align-items: center;
     background-color: #0a0e15;
     border-bottom: 2px solid #2a2a3a;
-    padding: 6px 12px;
+    padding: clamp(4px, 0.8vh, 8px) clamp(8px, 1.5vw, 16px);
 }
 
 .wb-prev-sets-label {
-    font-size: 0.62rem;
+    font-size: clamp(0.5rem, 1vw, 0.75rem);
     font-family: 'Helvetica Neue', Arial, sans-serif;
     letter-spacing: 0.14em;
     color: #c9a84c;
     text-transform: uppercase;
-    min-width: 150px;
+    min-width: clamp(80px, 18vw, 180px);
     flex-shrink: 0;
 }
 
@@ -71,9 +72,9 @@
 
 .wb-live-headers {
     display: flex;
-    min-width: 195px;
+    min-width: clamp(120px, 24vw, 240px);
     justify-content: space-around;
-    font-size: 0.62rem;
+    font-size: clamp(0.5rem, 1vw, 0.75rem);
     font-family: 'Helvetica Neue', Arial, sans-serif;
     letter-spacing: 0.14em;
     color: #c9a84c;
@@ -85,9 +86,9 @@
 .wb-player-row {
     display: flex;
     align-items: center;
-    padding: 10px 12px;
+    padding: clamp(6px, 1.2vh, 14px) clamp(8px, 1.5vw, 16px);
     border-bottom: 1px solid #1c1c2e;
-    min-height: 56px;
+    min-height: clamp(36px, 7vh, 72px);
 }
 
 .wb-player-row.wb-serving {
@@ -98,23 +99,23 @@
 .wb-prev-sets {
     display: flex;
     gap: 4px;
-    min-width: 150px;
+    min-width: clamp(80px, 18vw, 180px);
     flex-shrink: 0;
     align-items: center;
 }
 
 .wb-prev-score {
     display: inline-block;
-    width: 26px;
+    width: clamp(18px, 3.5vw, 32px);
     text-align: center;
-    font-size: 1.25rem;
+    font-size: clamp(0.9rem, 1.8vw, 1.5rem);
     color: #cccccc;
 }
 
 /* Player name */
 .wb-name {
     flex: 1;
-    font-size: 1.2rem;
+    font-size: clamp(0.85rem, 2vw, 1.6rem);
     font-weight: bold;
     letter-spacing: 0.03em;
     padding: 0 12px;
@@ -126,7 +127,7 @@
 /* Serve indicator dot */
 .wb-serve-dot {
     color: #c9a84c;
-    font-size: 0.65rem;
+    font-size: clamp(0.45rem, 0.9vw, 0.75rem);
     margin-right: 7px;
     vertical-align: middle;
 }
@@ -134,7 +135,7 @@
 /* Live score columns */
 .wb-live-scores {
     display: flex;
-    min-width: 195px;
+    min-width: clamp(120px, 24vw, 240px);
     justify-content: space-around;
     flex-shrink: 0;
     align-items: center;
@@ -142,9 +143,9 @@
 
 .wb-live-scores span {
     display: inline-block;
-    width: 65px;
+    width: clamp(40px, 8vw, 80px);
     text-align: center;
-    font-size: 1.5rem;
+    font-size: clamp(1rem, 2.5vw, 2.2rem);
     font-weight: bold;
 }
 
@@ -152,25 +153,25 @@
 .wb-separator {
     display: flex;
     align-items: center;
-    padding: 2px 12px;
+    padding: 2px clamp(8px, 1.5vw, 16px);
     border-bottom: 1px solid #1c1c2e;
 }
 
 .wb-prev-sets-spacer {
-    min-width: 150px;
+    min-width: clamp(80px, 18vw, 180px);
     flex-shrink: 0;
 }
 
 .wb-vs {
     flex: 1;
-    font-size: 0.8rem;
+    font-size: clamp(0.6rem, 1.2vw, 1rem);
     color: #777777;
     padding-left: 12px;
     font-style: italic;
 }
 
 .wb-live-scores-spacer {
-    min-width: 195px;
+    min-width: clamp(120px, 24vw, 240px);
     flex-shrink: 0;
 }
 
@@ -178,11 +179,20 @@
 .wb-tiebreak-badge {
     text-align: center;
     padding: 6px;
-    font-size: 0.72rem;
+    font-size: clamp(0.55rem, 1.1vw, 0.85rem);
     font-family: 'Helvetica Neue', Arial, sans-serif;
     letter-spacing: 0.16em;
     color: #c9a84c;
     text-transform: uppercase;
     background-color: #0a0e15;
     border-top: 1px solid #2a2a3a;
+}
+
+/* ── Mobile: hide previous sets column ───────────────────────── */
+@media (max-width: 480px) {
+    .wb-prev-sets,
+    .wb-prev-sets-label,
+    .wb-prev-sets-spacer {
+        display: none;
+    }
 }

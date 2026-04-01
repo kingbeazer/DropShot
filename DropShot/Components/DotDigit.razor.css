@@ -1,18 +1,18 @@
-﻿.digit-grid {
+.digit-grid {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin: 10px;
+    gap: clamp(2px, 0.5vw, 5px);
+    margin: clamp(4px, 1vw, 12px);
 }
 
 .digit-row {
     display: flex;
-    gap: 4px;
+    gap: clamp(2px, 0.5vw, 5px);
 }
 
 .dot {
-    width: 10px;
-    height: 10px;
+    width: clamp(6px, 1.3vw, 14px);
+    height: clamp(6px, 1.3vw, 14px);
     border-radius: 50%;
     background-color: #333; /* Off state */
 }
