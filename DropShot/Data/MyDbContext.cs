@@ -32,6 +32,7 @@ namespace DropShot.Data
         public DbSet<CompetitionTemplate> CompetitionTemplates { get; set; }
         public DbSet<CompetitionTemplateWindow> CompetitionTemplateWindows { get; set; }
         public DbSet<ClubEmailTemplate> ClubEmailTemplates { get; set; }
+        public DbSet<ScoreboardDisplaySetting> ScoreboardDisplaySettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -314,6 +315,20 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(m => m.CourtId)
                       .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── ScoreboardDisplaySetting ─────────────────────────────────────────
+            builder.Entity<ScoreboardDisplaySetting>(entity =>
+            {
+                entity.Property(s => s.Layout).HasMaxLength(20).HasDefaultValue("default");
+                entity.Property(s => s.LiveStreamUrl).HasMaxLength(500);
+
+                entity.HasIndex(s => s.CourtId).IsUnique();
+
+                entity.HasOne(s => s.Court)
+                      .WithOne()
+                      .HasForeignKey<ScoreboardDisplaySetting>(s => s.CourtId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── PlayerFriend (self-referential) ──────────────────────────────────

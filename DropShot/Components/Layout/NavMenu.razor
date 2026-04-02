@@ -27,11 +27,29 @@
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="score">
-                <MudIcon Icon="@Icons.Material.Filled.Leaderboard" Class="nav-icon" /> Scoreboard
-            </NavLink>
-        </div>
+        <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
+            <div class="nav-item px-3">
+                <button class="nav-link" @onclick="@(() => _scoreboardExpanded = !_scoreboardExpanded)" @onclick:stopPropagation="true">
+                    <MudIcon Icon="@Icons.Material.Filled.Leaderboard" Class="nav-icon" />
+                    Scoreboard
+                    <MudIcon Icon="@(_scoreboardExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                             Style="margin-left: auto;" Class="nav-icon" />
+                </button>
+            </div>
+            @if (_scoreboardExpanded)
+            {
+                <div class="nav-item px-3 nav-sub-item">
+                    <NavLink class="nav-link" href="score">
+                        <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" /> View
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 nav-sub-item">
+                    <NavLink class="nav-link" href="score/display-control">
+                        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" /> Display Control
+                    </NavLink>
+                </div>
+            }
+        </AuthorizeView>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="competitions">
@@ -62,14 +80,6 @@
                 <MudIcon Icon="@Icons.Material.Filled.Lock" Class="nav-icon" /> Auth Required
             </NavLink>
         </div>
-
-        <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="display-control">
-                    <MudIcon Icon="@Icons.Material.Filled.ScreenShare" Class="nav-icon" /> Display Control
-                </NavLink>
-            </div>
-        </AuthorizeView>
 
         <AuthorizeView Roles="Admin,SuperAdmin">
             <div class="nav-item px-3">
@@ -119,6 +129,7 @@
 
 @code {
     private string? currentUrl;
+    private bool _scoreboardExpanded;
 
     protected override void OnInitialized()
     {
