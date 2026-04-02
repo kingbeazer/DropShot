@@ -74,80 +74,10 @@
 
 @if (loaded && CurrentMatch == null && !_showCoinToss)
 {
-    <MudSwitch @bind-Value="Label_Switch1" Label="Doubles" Color="Color.Success" />
-
-    <MudAutocomplete Value="_value"
-                     ValueChanged="@((string v) => { _value = v; _ = CheckAndOfferFriendRequest(v); })"
-                     Label="Player 1"
-                     SearchFunc="@Search1"
-                     Variant="Variant.Outlined"
-                     CoerceValue="true"
-                     AdornmentColor="Color.Primary" />
-    @if (!Label_Switch1)
-    {
-        <MudText Typo="Typo.h1">vs</MudText>
-    }
-    <MudAutocomplete Value="_value2"
-                     ValueChanged="@((string v) => { _value2 = v; _ = CheckAndOfferFriendRequest(v); })"
-                     Label="Player 2"
-                     SearchFunc="@Search1"
-                     Variant="Variant.Outlined"
-                     CoerceValue="true"
-                     AdornmentColor="Color.Primary" />
-
-    @if (Label_Switch1)
-    {
-        <MudText Typo="Typo.h1">vs</MudText>
-    }
-
-    @if (Label_Switch1)
-    {
-        <MudAutocomplete Value="_value3"
-                         ValueChanged="@((string v) => { _value3 = v; _ = CheckAndOfferFriendRequest(v); })"
-                         Label="Player 3"
-                         SearchFunc="@Search1"
-                         Variant="Variant.Outlined"
-                         CoerceValue="true"
-                         AdornmentColor="Color.Primary" />
-
-        <MudAutocomplete Value="_value4"
-                         ValueChanged="@((string v) => { _value4 = v; _ = CheckAndOfferFriendRequest(v); })"
-                         Label="Player 4"
-                         SearchFunc="@Search1"
-                         Variant="Variant.Outlined"
-                         CoerceValue="true"
-                         AdornmentColor="Color.Primary" />
-    }
-
-    <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court (optional)" Variant="Variant.Outlined" Style="margin: 10px;" Clearable="true">
-        @foreach (var court in _courts)
-        {
-            <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
-        }
-    </MudSelect>
-
-    <MudSelect @bind-Value="_state.BestOf" Label="Best Of" Variant="Variant.Outlined" Style="margin: 10px;">
-        <MudSelectItem Value="1">1 Set</MudSelectItem>
-        <MudSelectItem Value="3">Best of 3</MudSelectItem>
-        <MudSelectItem Value="5">Best of 5</MudSelectItem>
-    </MudSelect>
-
-    <MudSelect @bind-Value="_state.GamesFirstTo" Label="Games Per Set" Variant="Variant.Outlined" Style="margin: 10px;">
-        <MudSelectItem Value="4">First to 4</MudSelectItem>
-        <MudSelectItem Value="6">First to 6</MudSelectItem>
-    </MudSelect>
-
-    <MudSwitch @bind-Value="_state.UnlimitedDeuce" Label="Unlimited Deuce" Color="Color.Success" Style="margin: 10px;" />
-    <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" Color="Color.Success" Style="margin: 10px;" />
-
-    <MudText Typo="Typo.subtitle2" Style="margin: 10px 10px 0;">Who serves first?</MudText>
-    <MudRadioGroup @bind-Value="_serverChoice" Style="margin: 0 10px;">
-        <MudRadio Value=@("random") Color="Color.Primary">Random Coin Toss</MudRadio>
-        <MudRadio Value=@("player1") Color="Color.Primary">@(Label_Switch1 ? $"{_value} & {_value2}" : _value) serves first</MudRadio>
-        <MudRadio Value=@("player2") Color="Color.Primary">@(Label_Switch1 ? $"{_value3} & {_value4}" : _value2) serves first</MudRadio>
-    </MudRadioGroup>
-
-    <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.PlayArrow" Style="margin: 10px;" OnClick="ButtonOnClick">Start Match</MudButton>
+    <MatchSetupWizard OnSetupComplete="HandleSetupComplete"
+                      PresetPlayer1="@_value" PresetPlayer2="@_value2"
+                      PresetPlayer3="@_value3" PresetPlayer4="@_value4"
+                      PresetIsDoubles="@(_competitionFixture != null ? Label_Switch1 : (bool?)null)" />
 }
 
 @if (loaded && @CurrentMatch != null)
@@ -476,6 +406,24 @@
     private bool _coinTossUserServes;
     private string _coinTossWinnerName = string.Empty;
     private Match? _pendingMatch;
+
+    private async Task HandleSetupComplete(MatchSetupWizard.MatchSetupResult result)
+    {
+        _value = result.Player1;
+        _value2 = result.Player2;
+        _value3 = result.Player3;
+        _value4 = result.Player4;
+        Label_Switch1 = result.IsDoubles;
+        _selectedCourtId = result.CourtId;
+
+        _state.GameScoring = result.GameScoring;
+        _state.BestOf = result.BestOf;
+        _state.GamesFirstTo = result.GamesPerSet;
+        _state.UnlimitedDeuce = result.UnlimitedDeuce;
+        _serverChoice = result.ServerChoice;
+
+        await ButtonOnClick();
+    }
 
     private async Task ButtonOnClick()
     {

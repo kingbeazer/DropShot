@@ -1,0 +1,433 @@
+@using System.Security.Claims
+@using DropShot.Data
+@using DropShot.Models
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudStack Spacing="3" Class="pa-2" Style="max-width: 600px;">
+
+    @* ── Step 0: Match Type ──────────────────────────────── *@
+    @if (_currentStep > 0)
+    {
+        <StepSummary Label="Match Type" Summary="@(_isDoubles ? "Doubles" : "Singles")" OnEdit="@(() => GoToStep(0))" />
+    }
+    else
+    {
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-3">Match Type</MudText>
+            <MudRadioGroup @bind-Value="_isDoubles">
+                <MudRadio Value="false" Color="Color.Primary">Singles</MudRadio>
+                <MudRadio Value="true" Color="Color.Primary">Doubles</MudRadio>
+            </MudRadioGroup>
+            <div class="d-flex justify-end mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           EndIcon="@Icons.Material.Filled.ArrowForward"
+                           OnClick="@(() => GoToStep(1))">Next</MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    @* ── Step 1: Player 1 ────────────────────────────────── *@
+    @if (_currentStep > 1)
+    {
+        <StepSummary Label="Player 1 (You)" Summary="@_player1Name" OnEdit="@(() => GoToStep(1))" />
+    }
+    else if (_currentStep == 1)
+    {
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-1">Player 1</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                This is your screen — other players will be added next.
+            </MudText>
+
+            @if (_myPlayer != null)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                    <MudText Typo="Typo.subtitle1">@_myPlayer.DisplayName</MudText>
+                </MudAlert>
+            }
+            else
+            {
+                <MudTextField @bind-Value="_player1Name" Label="Display Name"
+                              Variant="Variant.Outlined" Required="true" Immediate="true" Class="mb-2" />
+                <MudAlert Severity="Severity.Normal" Dense="true" Class="mb-2" Icon="@Icons.Material.Filled.Info">
+                    <MudText Typo="Typo.body2">
+                        Sign up to save scores, play with friends, enter competitions, and more — it's always free!
+                    </MudText>
+                </MudAlert>
+            }
+
+            <div class="d-flex justify-space-between mt-3">
+                <MudButton Variant="Variant.Text" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => GoToStep(0))">Back</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="@string.IsNullOrWhiteSpace(_player1Name)"
+                           EndIcon="@Icons.Material.Filled.ArrowForward"
+                           OnClick="NextFromPlayer1">Next</MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    @* ── Steps 2+: Other Players ─────────────────────────── *@
+    @for (int i = 0; i < PlayerStepCount; i++)
+    {
+        var idx = i;
+        var stepIndex = 2 + idx;
+        var playerNumber = 2 + idx;
+        var label = $"Player {playerNumber}";
+        var name = GetPlayerName(playerNumber);
+
+        @if (_currentStep > stepIndex)
+        {
+            <StepSummary Label="@label" Summary="@name" OnEdit="@(() => GoToStep(stepIndex))" />
+        }
+        else if (_currentStep == stepIndex)
+        {
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.h6" Class="mb-3">@label</MudText>
+
+                @if (_myPlayer != null && _friendNames.Count > 0)
+                {
+                    @switch (playerNumber)
+                    {
+                        case 2:
+                            <MudAutocomplete T="string" Label="Search friends or type a name"
+                                             @bind-Value="_player2Name"
+                                             SearchFunc="SearchFriends"
+                                             ResetValueOnEmptyText="true"
+                                             Immediate="true"
+                                             Variant="Variant.Outlined" CoerceValue="true" />;
+                            break;
+                        case 3:
+                            <MudAutocomplete T="string" Label="Search friends or type a name"
+                                             @bind-Value="_player3Name"
+                                             SearchFunc="SearchFriends"
+                                             ResetValueOnEmptyText="true"
+                                             Immediate="true"
+                                             Variant="Variant.Outlined" CoerceValue="true" />;
+                            break;
+                        case 4:
+                            <MudAutocomplete T="string" Label="Search friends or type a name"
+                                             @bind-Value="_player4Name"
+                                             SearchFunc="SearchFriends"
+                                             ResetValueOnEmptyText="true"
+                                             Immediate="true"
+                                             Variant="Variant.Outlined" CoerceValue="true" />;
+                            break;
+                    }
+                }
+                else
+                {
+                    @switch (playerNumber)
+                    {
+                        case 2:
+                            <MudTextField @bind-Value="_player2Name" Label="Player name" Variant="Variant.Outlined" Immediate="true" />;
+                            break;
+                        case 3:
+                            <MudTextField @bind-Value="_player3Name" Label="Player name" Variant="Variant.Outlined" Immediate="true" />;
+                            break;
+                        case 4:
+                            <MudTextField @bind-Value="_player4Name" Label="Player name" Variant="Variant.Outlined" Immediate="true" />;
+                            break;
+                    }
+                }
+
+                <div class="d-flex justify-space-between mt-3">
+                    <MudButton Variant="Variant.Text" Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.ArrowBack"
+                               OnClick="@(() => GoToStep(stepIndex - 1))">Back</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="@string.IsNullOrWhiteSpace(GetPlayerName(playerNumber))"
+                               EndIcon="@Icons.Material.Filled.ArrowForward"
+                               OnClick="@(() => GoToStep(stepIndex + 1))">Next</MudButton>
+                </div>
+            </MudPaper>
+        }
+    }
+
+    @* ── Court Selection ─────────────────────────────────── *@
+    @if (_currentStep > CourtStepIndex)
+    {
+        <StepSummary Label="Court" Summary="@CourtSummary()" OnEdit="@(() => GoToStep(CourtStepIndex))" />
+    }
+    else if (_currentStep == CourtStepIndex)
+    {
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-3">Court Selection</MudText>
+
+            <MudAutocomplete T="Club" Label="Search for a club"
+                             Value="_selectedClub"
+                             ValueChanged="OnClubChanged"
+                             SearchFunc="SearchClubs"
+                             ToStringFunc="@(c => c?.Name ?? "")"
+                             ResetValueOnEmptyText="true"
+                             Variant="Variant.Outlined"
+                             Clearable="true"
+                             Class="mb-2" />
+
+            @if (_filteredCourts.Count > 0)
+            {
+                <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court"
+                           Variant="Variant.Outlined" Clearable="true">
+                    @foreach (var court in _filteredCourts)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else if (_selectedClub != null)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">No courts found for this club.</MudText>
+            }
+
+            <div class="d-flex justify-space-between mt-3">
+                <MudButton Variant="Variant.Text" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => GoToStep(CourtStepIndex - 1))">Back</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           EndIcon="@Icons.Material.Filled.ArrowForward"
+                           OnClick="@(() => GoToStep(SettingsStepIndex))">
+                    @(_selectedCourtId == null ? "Skip" : "Next")
+                </MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    @* ── Match Settings ──────────────────────────────────── *@
+    @if (_currentStep == SettingsStepIndex)
+    {
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-3">Match Settings</MudText>
+
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Scoring Type</MudText>
+            <MudRadioGroup @bind-Value="_gameScoring">
+                <MudStack Row="true" Spacing="2">
+                    <MudTooltip Text="Each tap awards a full game. Fast scoring for casual play.">
+                        <MudRadio Value="true" Color="Color.Primary">Game Scoring</MudRadio>
+                    </MudTooltip>
+                    <MudTooltip Text="Track individual points (15, 30, 40, deuce). Traditional tennis scoring.">
+                        <MudRadio Value="false" Color="Color.Primary">Point Scoring</MudRadio>
+                    </MudTooltip>
+                </MudStack>
+            </MudRadioGroup>
+
+            <MudDivider Class="my-3" />
+
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Deuce</MudText>
+            <MudRadioGroup @bind-Value="_unlimitedDeuce">
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                    <MudRadio Value="true" Color="Color.Primary">Unlimited</MudRadio>
+                    <MudRadio Value="false" Color="Color.Primary">Limited</MudRadio>
+                    @if (!_unlimitedDeuce)
+                    {
+                        <MudNumericField @bind-Value="_deuceLimit" Label="Max deuces"
+                                         Variant="Variant.Outlined" Min="1" Max="99"
+                                         Style="max-width: 120px;" />
+                    }
+                </MudStack>
+            </MudRadioGroup>
+
+            <MudDivider Class="my-3" />
+
+            <MudNumericField @bind-Value="_bestOf" Label="Best of (sets)"
+                             Variant="Variant.Outlined" Min="1" Max="7"
+                             Style="max-width: 160px;" Class="mb-2" />
+
+            <MudNumericField @bind-Value="_gamesPerSet" Label="Games per set"
+                             Variant="Variant.Outlined" Min="1" Max="12"
+                             Style="max-width: 160px;" Class="mb-2" />
+
+            <MudDivider Class="my-3" />
+
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Who serves first?</MudText>
+            <MudRadioGroup @bind-Value="_serverChoice">
+                <MudRadio Value="@("random")" Color="Color.Primary">Random Coin Toss</MudRadio>
+                <MudRadio Value="@("player1")" Color="Color.Primary">@_player1Name serves first</MudRadio>
+                <MudRadio Value="@("player2")" Color="Color.Primary">@_player2Name serves first</MudRadio>
+            </MudRadioGroup>
+
+            <div class="d-flex justify-space-between mt-3">
+                <MudButton Variant="Variant.Text" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => GoToStep(CourtStepIndex))">Back</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                           EndIcon="@Icons.Material.Filled.PlayArrow"
+                           OnClick="StartMatch">Start Match</MudButton>
+            </div>
+        </MudPaper>
+    }
+
+</MudStack>
+
+@code {
+    [Parameter] public EventCallback<MatchSetupResult> OnSetupComplete { get; set; }
+    [Parameter] public string? PresetPlayer1 { get; set; }
+    [Parameter] public string? PresetPlayer2 { get; set; }
+    [Parameter] public string? PresetPlayer3 { get; set; }
+    [Parameter] public string? PresetPlayer4 { get; set; }
+    [Parameter] public bool? PresetIsDoubles { get; set; }
+
+    private int _currentStep;
+    private bool _isDoubles;
+    private string _player1Name = "";
+    private string _player2Name = "";
+    private string _player3Name = "";
+    private string _player4Name = "";
+
+    // Court
+    private Club? _selectedClub;
+    private int? _selectedCourtId;
+    private List<Club> _allClubs = [];
+    private List<Court> _filteredCourts = [];
+
+    // Settings
+    private bool _gameScoring = true;
+    private bool _unlimitedDeuce = true;
+    private int _deuceLimit = 1;
+    private int _bestOf = 3;
+    private string _serverChoice = "random";
+    private int _gamesPerSet = 6;
+
+    // Auth / friends
+    private Player? _myPlayer;
+    private List<string> _friendNames = [];
+    private List<string> _allPlayerNames = [];
+
+    private int PlayerStepCount => _isDoubles ? 3 : 1;
+    private int CourtStepIndex => 2 + PlayerStepCount;
+    private int SettingsStepIndex => CourtStepIndex + 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PresetIsDoubles.HasValue) _isDoubles = PresetIsDoubles.Value;
+        if (!string.IsNullOrWhiteSpace(PresetPlayer1)) _player1Name = PresetPlayer1;
+        if (!string.IsNullOrWhiteSpace(PresetPlayer2)) _player2Name = PresetPlayer2;
+        if (!string.IsNullOrWhiteSpace(PresetPlayer3)) _player3Name = PresetPlayer3;
+        if (!string.IsNullOrWhiteSpace(PresetPlayer4)) _player4Name = PresetPlayer4;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId != null)
+        {
+            _myPlayer = await db.Players.FirstOrDefaultAsync(p => p.UserId == userId);
+            if (_myPlayer != null)
+            {
+                _player1Name = _myPlayer.DisplayName;
+
+                var pid = _myPlayer.PlayerId;
+                var friendRelations = await db.PlayerFriends
+                    .Include(pf => pf.Player)
+                    .Include(pf => pf.Friend)
+                    .Where(pf => (pf.PlayerId == pid || pf.FriendPlayerId == pid)
+                                 && pf.Status == FriendStatus.Accepted)
+                    .ToListAsync();
+                _friendNames = friendRelations
+                    .Select(pf => pf.PlayerId == pid ? pf.Friend.DisplayName : pf.Player.DisplayName)
+                    .OrderBy(n => n)
+                    .ToList();
+            }
+        }
+
+        _allPlayerNames = await db.Players
+            .OrderBy(p => p.DisplayName)
+            .Select(p => p.DisplayName)
+            .ToListAsync();
+
+        _allClubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
+    }
+
+    private void GoToStep(int step) => _currentStep = step;
+
+    private void NextFromPlayer1()
+    {
+        if (_myPlayer != null) _player1Name = _myPlayer.DisplayName;
+        GoToStep(2);
+    }
+
+    private string GetPlayerName(int playerNumber) => playerNumber switch
+    {
+        1 => _player1Name,
+        2 => _player2Name,
+        3 => _player3Name,
+        4 => _player4Name,
+        _ => ""
+    };
+
+    private Task<IEnumerable<string>> SearchFriends(string value, CancellationToken ct)
+    {
+        var combined = _friendNames.Union(_allPlayerNames).Distinct();
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult(combined.Take(20));
+        return Task.FromResult(combined.Where(n => n.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private Task<IEnumerable<Club>> SearchClubs(string value, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult(_allClubs.AsEnumerable());
+        return Task.FromResult(_allClubs.Where(c => c.Name.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task OnClubChanged(Club? club)
+    {
+        _selectedClub = club;
+        _selectedCourtId = null;
+        _filteredCourts.Clear();
+
+        if (club != null)
+        {
+            await using var db = DbFactory.CreateDbContext();
+            _filteredCourts = await db.Courts
+                .Where(c => c.ClubId == club.ClubId)
+                .OrderBy(c => c.Name)
+                .ToListAsync();
+        }
+    }
+
+    private string CourtSummary()
+    {
+        if (_selectedCourtId == null) return "None selected";
+        var court = _filteredCourts.FirstOrDefault(c => c.CourtId == _selectedCourtId);
+        return court != null ? $"{_selectedClub?.Name} — {court.Name}" : "Selected";
+    }
+
+    private async Task StartMatch()
+    {
+        await OnSetupComplete.InvokeAsync(new MatchSetupResult
+        {
+            IsDoubles = _isDoubles,
+            Player1 = _player1Name,
+            Player2 = _player2Name,
+            Player3 = _isDoubles ? _player3Name : null,
+            Player4 = _isDoubles ? _player4Name : null,
+            CourtId = _selectedCourtId,
+            GameScoring = _gameScoring,
+            UnlimitedDeuce = _unlimitedDeuce,
+            DeuceLimit = _unlimitedDeuce ? 0 : _deuceLimit,
+            BestOf = _bestOf,
+            GamesPerSet = _gamesPerSet,
+            ServerChoice = _serverChoice
+        });
+    }
+
+    public class MatchSetupResult
+    {
+        public bool IsDoubles { get; set; }
+        public string Player1 { get; set; } = "";
+        public string Player2 { get; set; } = "";
+        public string? Player3 { get; set; }
+        public string? Player4 { get; set; }
+        public int? CourtId { get; set; }
+        public bool GameScoring { get; set; } = true;
+        public bool UnlimitedDeuce { get; set; } = true;
+        public int DeuceLimit { get; set; }
+        public int BestOf { get; set; } = 3;
+        public int GamesPerSet { get; set; } = 6;
+        public string ServerChoice { get; set; } = "random";
+    }
+}
