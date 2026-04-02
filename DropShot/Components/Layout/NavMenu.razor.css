@@ -69,6 +69,40 @@
     padding-left: 2.5rem !important;
 }
 
+/* ── Collapsible nav group (CSS-only, no JS) ─────────────── */
+.nav-group-toggle {
+    display: none;
+}
+
+.nav-group label {
+    cursor: pointer;
+    margin: 0;
+}
+
+.nav-group label .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.nav-expand-icon {
+    margin-left: auto;
+    display: flex;
+    transition: transform 0.2s;
+}
+
+.nav-group-toggle:checked ~ label .nav-expand-icon {
+    transform: rotate(180deg);
+}
+
+.nav-group-items {
+    display: none;
+}
+
+.nav-group-toggle:checked ~ .nav-group-items {
+    display: block;
+}
+
 .nav-item ::deep a.active {
     background-color: rgba(255,255,255,0.37);
     color: white;

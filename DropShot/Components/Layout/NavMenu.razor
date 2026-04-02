@@ -28,27 +28,30 @@
         </div>
 
         <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
-            <div class="nav-item px-3">
-                <button class="nav-link" @onclick="@(() => _scoreboardExpanded = !_scoreboardExpanded)" @onclick:stopPropagation="true">
-                    <MudIcon Icon="@Icons.Material.Filled.Leaderboard" Class="nav-icon" />
-                    Scoreboard
-                    <MudIcon Icon="@(_scoreboardExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
-                             Style="margin-left: auto;" Class="nav-icon" />
-                </button>
+            <div class="nav-group">
+                <input type="checkbox" id="scoreboard-toggle" class="nav-group-toggle" />
+                <label for="scoreboard-toggle" class="nav-item px-3">
+                    <span class="nav-link">
+                        <MudIcon Icon="@Icons.Material.Filled.Leaderboard" Class="nav-icon" />
+                        Scoreboard
+                        <span class="nav-expand-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
+                        </span>
+                    </span>
+                </label>
+                <div class="nav-group-items">
+                    <div class="nav-item px-3 nav-sub-item">
+                        <NavLink class="nav-link" href="score">
+                            <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" /> View
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 nav-sub-item">
+                        <NavLink class="nav-link" href="score/display-control">
+                            <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" /> Display Control
+                        </NavLink>
+                    </div>
+                </div>
             </div>
-            @if (_scoreboardExpanded)
-            {
-                <div class="nav-item px-3 nav-sub-item">
-                    <NavLink class="nav-link" href="score">
-                        <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" /> View
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3 nav-sub-item">
-                    <NavLink class="nav-link" href="score/display-control">
-                        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" /> Display Control
-                    </NavLink>
-                </div>
-            }
         </AuthorizeView>
 
         <div class="nav-item px-3">
@@ -129,7 +132,6 @@
 
 @code {
     private string? currentUrl;
-    private bool _scoreboardExpanded;
 
     protected override void OnInitialized()
     {
