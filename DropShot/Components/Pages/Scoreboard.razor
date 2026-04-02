@@ -371,13 +371,13 @@
         // Persist to DB and notify display control / other scoreboards
         if (_selectedCourtId.HasValue)
         {
-            await SaveLayoutToDbAsync(_selectedCourtId.Value, layout);
+            await SaveDisplaySettingToDbAsync(_selectedCourtId.Value, s => s.Layout = layout);
             if (hubConnection?.State == HubConnectionState.Connected)
                 await hubConnection.SendAsync("SendDisplayCommand", _selectedCourtId.Value, "setLayout", layout);
         }
     }
 
-    private async Task SaveLayoutToDbAsync(int courtId, string layout)
+    private async Task SaveDisplaySettingToDbAsync(int courtId, Action<ScoreboardDisplaySetting> update)
     {
         using var db = DbFactory.CreateDbContext();
         var setting = await db.ScoreboardDisplaySettings.FirstOrDefaultAsync(s => s.CourtId == courtId);
@@ -386,7 +386,7 @@
             setting = new ScoreboardDisplaySetting { CourtId = courtId };
             db.ScoreboardDisplaySettings.Add(setting);
         }
-        setting.Layout = layout;
+        update(setting);
         await db.SaveChangesAsync();
     }
 
@@ -395,6 +395,13 @@
         _isFullscreen = true;
         if (_jsModule is not null)
             await _jsModule.InvokeVoidAsync("setFullscreen", true);
+
+        if (_selectedCourtId.HasValue)
+        {
+            await SaveDisplaySettingToDbAsync(_selectedCourtId.Value, s => s.Fullscreen = true);
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.SendAsync("SendDisplayCommand", _selectedCourtId.Value, "setFullscreen", "true");
+        }
     }
 
     private async Task ExitFullscreenAsync()
@@ -402,6 +409,13 @@
         _isFullscreen = false;
         if (_jsModule is not null)
             await _jsModule.InvokeVoidAsync("setFullscreen", false);
+
+        if (_selectedCourtId.HasValue)
+        {
+            await SaveDisplaySettingToDbAsync(_selectedCourtId.Value, s => s.Fullscreen = false);
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.SendAsync("SendDisplayCommand", _selectedCourtId.Value, "setFullscreen", "false");
+        }
     }
 
     [JSInvokable]
