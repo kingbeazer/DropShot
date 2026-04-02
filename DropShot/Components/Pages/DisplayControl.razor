@@ -1,4 +1,4 @@
-@page "/display-control"
+@page "/score/display-control"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin,SuperAdmin,ClubAdmin")]
 @using DropShot.Data
@@ -57,6 +57,7 @@
                                   Label="YouTube URL" Variant="Variant.Outlined"
                                   Placeholder="https://youtube.com/watch?v=... or embed URL"
                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Custom.Brands.YouTube"
+                                  Immediate="true"
                                   Class="mt-2" />
                     <MudSwitch T="bool" Value="GetStreamEnabled(court.CourtId)"
                                ValueChanged="@(v => ToggleStream(court.CourtId, v))"
@@ -99,12 +100,27 @@
                 .ToListAsync();
         }
 
+        var courtIds = _courts.Select(c => c.CourtId).ToList();
+        var settings = await db.ScoreboardDisplaySettings
+            .Where(s => courtIds.Contains(s.CourtId))
+            .ToDictionaryAsync(s => s.CourtId);
+
         foreach (var court in _courts)
         {
-            _fullscreenState[court.CourtId] = false;
-            _layoutState[court.CourtId] = "default";
-            _streamUrlState[court.CourtId] = "";
-            _streamEnabledState[court.CourtId] = false;
+            if (settings.TryGetValue(court.CourtId, out var setting))
+            {
+                _fullscreenState[court.CourtId] = setting.Fullscreen;
+                _layoutState[court.CourtId] = setting.Layout ?? "default";
+                _streamUrlState[court.CourtId] = setting.LiveStreamUrl ?? "";
+                _streamEnabledState[court.CourtId] = setting.ShowLiveStream;
+            }
+            else
+            {
+                _fullscreenState[court.CourtId] = false;
+                _layoutState[court.CourtId] = "default";
+                _streamUrlState[court.CourtId] = "";
+                _streamEnabledState[court.CourtId] = false;
+            }
         }
 
         _loaded = true;
@@ -127,6 +143,7 @@
     private async Task ToggleFullscreen(int courtId, bool value)
     {
         _fullscreenState[courtId] = value;
+        await SaveSettingAsync(courtId);
         if (_hub?.State == HubConnectionState.Connected)
             await _hub.SendAsync("SendDisplayCommand", courtId, "setFullscreen", value.ToString().ToLower());
     }
@@ -134,6 +151,7 @@
     private async Task ChangeLayout(int courtId, string layout)
     {
         _layoutState[courtId] = layout;
+        await SaveSettingAsync(courtId);
         if (_hub?.State == HubConnectionState.Connected)
             await _hub.SendAsync("SendDisplayCommand", courtId, "setLayout", layout);
     }
@@ -144,18 +162,41 @@
     private async Task ChangeStreamUrl(int courtId, string url)
     {
         _streamUrlState[courtId] = url;
-        if (_hub?.State == HubConnectionState.Connected)
-            await _hub.SendAsync("SendDisplayCommand", courtId, "setStreamUrl", url ?? "");
 
         // Auto-disable stream if URL is cleared
         if (string.IsNullOrWhiteSpace(url) && _streamEnabledState.GetValueOrDefault(courtId))
-            await ToggleStream(courtId, false);
+            _streamEnabledState[courtId] = false;
+
+        await SaveSettingAsync(courtId);
+        if (_hub?.State == HubConnectionState.Connected)
+        {
+            await _hub.SendAsync("SendDisplayCommand", courtId, "setStreamUrl", url ?? "");
+            if (string.IsNullOrWhiteSpace(url))
+                await _hub.SendAsync("SendDisplayCommand", courtId, "setStreamEnabled", "false");
+        }
     }
 
     private async Task ToggleStream(int courtId, bool enabled)
     {
         _streamEnabledState[courtId] = enabled;
+        await SaveSettingAsync(courtId);
         if (_hub?.State == HubConnectionState.Connected)
             await _hub.SendAsync("SendDisplayCommand", courtId, "setStreamEnabled", enabled.ToString().ToLower());
+    }
+
+    private async Task SaveSettingAsync(int courtId)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var setting = await db.ScoreboardDisplaySettings.FirstOrDefaultAsync(s => s.CourtId == courtId);
+        if (setting is null)
+        {
+            setting = new ScoreboardDisplaySetting { CourtId = courtId };
+            db.ScoreboardDisplaySettings.Add(setting);
+        }
+        setting.Fullscreen = _fullscreenState.GetValueOrDefault(courtId);
+        setting.Layout = _layoutState.GetValueOrDefault(courtId, "default");
+        setting.LiveStreamUrl = _streamUrlState.GetValueOrDefault(courtId, "");
+        setting.ShowLiveStream = _streamEnabledState.GetValueOrDefault(courtId);
+        await db.SaveChangesAsync();
     }
 }

@@ -1,7 +1,10 @@
 @page "/score"
 @rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin,ClubAdmin")]
 @using DropShot.Data
 @using DropShot.Models
+@using DropShot.Services
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.EntityFrameworkCore
 @using Newtonsoft.Json
@@ -10,6 +13,8 @@
 @inject MyDbContext DbContext
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject IJSRuntime JS
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
 @implements IAsyncDisposable
 
 <MudProviders />
@@ -178,10 +183,16 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _allCourts = await DbContext.Courts
-            .Include(c => c.Club)
-            .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
-            .ToListAsync();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAdmin = await AuthzService.IsAdminAsync(authState.User);
+
+        var courtsQuery = DbContext.Courts.Include(c => c.Club).AsQueryable();
+        if (!isAdmin)
+        {
+            var clubIds = await AuthzService.GetAdminClubIdsAsync(authState.User);
+            courtsQuery = courtsQuery.Where(c => clubIds.Contains(c.ClubId));
+        }
+        _allCourts = await courtsQuery.OrderBy(c => c.Club.Name).ThenBy(c => c.Name).ToListAsync();
 
         // Parse query string for kiosk mode
         var uri = new Uri(Navigation.Uri);
