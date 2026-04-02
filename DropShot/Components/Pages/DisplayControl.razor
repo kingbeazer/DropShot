@@ -133,7 +133,23 @@
             _hub = new HubConnectionBuilder()
                 .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
                 .Build();
+
+            // Listen for display commands from other admins or scoreboard viewers
+            _hub.On<string, string>("ReceiveDisplayCommand", async (command, value) =>
+            {
+                // Determine which court this came from by reloading from DB
+                // (SignalR group delivers to the court, but we need the courtId)
+                await ReloadSettingsFromDbAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+
             await _hub.StartAsync();
+
+            // Join all court groups so we receive updates
+            foreach (var court in _courts)
+            {
+                await _hub.SendAsync("JoinCourtGroup", court.CourtId);
+            }
         }
     }
 
@@ -184,19 +200,51 @@
             await _hub.SendAsync("SendDisplayCommand", courtId, "setStreamEnabled", enabled.ToString().ToLower());
     }
 
+    private bool _isSaving;
+
     private async Task SaveSettingAsync(int courtId)
     {
-        await using var db = DbFactory.CreateDbContext();
-        var setting = await db.ScoreboardDisplaySettings.FirstOrDefaultAsync(s => s.CourtId == courtId);
-        if (setting is null)
+        _isSaving = true;
+        try
         {
-            setting = new ScoreboardDisplaySetting { CourtId = courtId };
-            db.ScoreboardDisplaySettings.Add(setting);
+            await using var db = DbFactory.CreateDbContext();
+            var setting = await db.ScoreboardDisplaySettings.FirstOrDefaultAsync(s => s.CourtId == courtId);
+            if (setting is null)
+            {
+                setting = new ScoreboardDisplaySetting { CourtId = courtId };
+                db.ScoreboardDisplaySettings.Add(setting);
+            }
+            setting.Fullscreen = _fullscreenState.GetValueOrDefault(courtId);
+            setting.Layout = _layoutState.GetValueOrDefault(courtId, "default");
+            setting.LiveStreamUrl = _streamUrlState.GetValueOrDefault(courtId, "");
+            setting.ShowLiveStream = _streamEnabledState.GetValueOrDefault(courtId);
+            await db.SaveChangesAsync();
         }
-        setting.Fullscreen = _fullscreenState.GetValueOrDefault(courtId);
-        setting.Layout = _layoutState.GetValueOrDefault(courtId, "default");
-        setting.LiveStreamUrl = _streamUrlState.GetValueOrDefault(courtId, "");
-        setting.ShowLiveStream = _streamEnabledState.GetValueOrDefault(courtId);
-        await db.SaveChangesAsync();
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task ReloadSettingsFromDbAsync()
+    {
+        if (_isSaving) return; // ignore our own echoed SignalR messages
+
+        await using var db = DbFactory.CreateDbContext();
+        var courtIds = _courts.Select(c => c.CourtId).ToList();
+        var settings = await db.ScoreboardDisplaySettings
+            .Where(s => courtIds.Contains(s.CourtId))
+            .ToDictionaryAsync(s => s.CourtId);
+
+        foreach (var court in _courts)
+        {
+            if (settings.TryGetValue(court.CourtId, out var setting))
+            {
+                _fullscreenState[court.CourtId] = setting.Fullscreen;
+                _layoutState[court.CourtId] = setting.Layout ?? "default";
+                _streamUrlState[court.CourtId] = setting.LiveStreamUrl ?? "";
+                _streamEnabledState[court.CourtId] = setting.ShowLiveStream;
+            }
+        }
     }
 }

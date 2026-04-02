@@ -367,6 +367,27 @@
     {
         _selectedLayout = layout;
         await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", layout);
+
+        // Persist to DB and notify display control / other scoreboards
+        if (_selectedCourtId.HasValue)
+        {
+            await SaveLayoutToDbAsync(_selectedCourtId.Value, layout);
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.SendAsync("SendDisplayCommand", _selectedCourtId.Value, "setLayout", layout);
+        }
+    }
+
+    private async Task SaveLayoutToDbAsync(int courtId, string layout)
+    {
+        using var db = DbFactory.CreateDbContext();
+        var setting = await db.ScoreboardDisplaySettings.FirstOrDefaultAsync(s => s.CourtId == courtId);
+        if (setting is null)
+        {
+            setting = new ScoreboardDisplaySetting { CourtId = courtId };
+            db.ScoreboardDisplaySettings.Add(setting);
+        }
+        setting.Layout = layout;
+        await db.SaveChangesAsync();
     }
 
     private async Task EnterFullscreenAsync()
