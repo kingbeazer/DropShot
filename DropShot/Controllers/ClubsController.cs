@@ -16,10 +16,14 @@ public class ClubsController(
     ClubAuthorizationService authzService) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<ClubDto>>> GetAll()
+    public async Task<ActionResult<List<ClubDto>>> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         await using var db = dbFactory.CreateDbContext();
-        var clubs = await db.Clubs.Include(c => c.Courts).OrderBy(c => c.Name).ToListAsync();
+        var clubs = await db.Clubs.Include(c => c.Courts)
+            .OrderBy(c => c.Name)
+            .Skip(skip)
+            .Take(Math.Min(take, 200))
+            .ToListAsync();
         return clubs.Select(c => new ClubDto(
             c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
             c.Town, c.Postcode, c.Phone, c.Email, c.Website,

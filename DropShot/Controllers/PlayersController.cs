@@ -13,10 +13,14 @@ namespace DropShot.Controllers;
 public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<PlayerDto>>> GetAll()
+    public async Task<ActionResult<List<PlayerDto>>> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         await using var db = dbFactory.CreateDbContext();
-        var players = await db.Players.OrderBy(p => p.DisplayName).ToListAsync();
+        var players = await db.Players
+            .OrderBy(p => p.DisplayName)
+            .Skip(skip)
+            .Take(Math.Min(take, 200))
+            .ToListAsync();
         return players.Select(ToDto).ToList();
     }
 
