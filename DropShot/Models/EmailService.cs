@@ -2,18 +2,30 @@
 
 public class EmailService
 {
-    private readonly EmailClient _emailClient;
-    private readonly string _sender;
+    private readonly EmailClient? _emailClient;
+    private readonly string? _sender;
 
     public EmailService(IConfiguration config)
     {
-        var connectionString = config["ACS:ConnectionString"] ?? throw new InvalidOperationException("ACS:ConnectionString not configured");
+        var connectionString = config["ACS:ConnectionString"];
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            Console.WriteLine("[Email] ACS:ConnectionString not configured. Email sending will be simulated.");
+            return;
+        }
+
         _sender = config["ACS:SenderAddress"] ?? throw new InvalidOperationException("ACS:SenderAddress not configured");
         _emailClient = new EmailClient(connectionString);
     }
 
     public async Task SendEmailAsync(string recipient, string subject, string body)
     {
+        if (_emailClient is null || _sender is null)
+        {
+            Console.WriteLine($"[Email] ACS not configured. Would send to {recipient}: {subject}");
+            return;
+        }
+
         var emailContent = new EmailContent(subject)
         {
             PlainText = body,
