@@ -188,7 +188,8 @@ else
         await db.SaveChangesAsync();
         Snackbar.Add($"Friend request sent to {_selectedPlayer.DisplayName}.", Severity.Success);
         _selectedPlayer = null;
-        await LoadAll(db);
+        await using var freshDb = DbFactory.CreateDbContext();
+        await LoadAll(freshDb);
     }
 
     private async Task AcceptRequest(PlayerFriend req)
@@ -197,7 +198,8 @@ else
         var pf = await db.PlayerFriends.FindAsync(req.PlayerId, req.FriendPlayerId);
         if (pf != null) { pf.Status = FriendStatus.Accepted; await db.SaveChangesAsync(); }
         Snackbar.Add("Friend request accepted.", Severity.Success);
-        await LoadAll(db);
+        await using var freshDb = DbFactory.CreateDbContext();
+        await LoadAll(freshDb);
     }
 
     private async Task DeclineRequest(PlayerFriend req)
@@ -206,7 +208,8 @@ else
         var pf = await db.PlayerFriends.FindAsync(req.PlayerId, req.FriendPlayerId);
         if (pf != null) { db.PlayerFriends.Remove(pf); await db.SaveChangesAsync(); }
         Snackbar.Add("Request declined.", Severity.Warning);
-        await LoadAll(db);
+        await using var freshDb = DbFactory.CreateDbContext();
+        await LoadAll(freshDb);
     }
 
     private async Task CancelRequest(PlayerFriend req)
@@ -215,7 +218,8 @@ else
         var pf = await db.PlayerFriends.FindAsync(req.PlayerId, req.FriendPlayerId);
         if (pf != null) { db.PlayerFriends.Remove(pf); await db.SaveChangesAsync(); }
         Snackbar.Add("Request cancelled.", Severity.Warning);
-        await LoadAll(db);
+        await using var freshDb = DbFactory.CreateDbContext();
+        await LoadAll(freshDb);
     }
 
     private async Task RemoveFriend(PlayerFriend pf)
@@ -224,6 +228,7 @@ else
         var record = await db.PlayerFriends.FindAsync(pf.PlayerId, pf.FriendPlayerId);
         if (record != null) { db.PlayerFriends.Remove(record); await db.SaveChangesAsync(); }
         Snackbar.Add("Friend removed.", Severity.Warning);
-        await LoadAll(db);
+        await using var freshDb = DbFactory.CreateDbContext();
+        await LoadAll(freshDb);
     }
 }
