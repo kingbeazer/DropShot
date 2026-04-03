@@ -36,6 +36,13 @@ public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : Contr
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<PlayerDto>> Create([FromBody] CreatePlayerRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.DisplayName))
+            return BadRequest(new { message = "DisplayName is required." });
+        if (req.DisplayName.Length > 100)
+            return BadRequest(new { message = "DisplayName must be 100 characters or less." });
+        if (req.Email != null && !req.Email.Contains('@'))
+            return BadRequest(new { message = "Invalid email format." });
+
         await using var db = dbFactory.CreateDbContext();
         var player = new Player
         {
@@ -57,6 +64,13 @@ public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : Contr
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<PlayerDto>> Update(int id, [FromBody] UpdatePlayerRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.DisplayName))
+            return BadRequest(new { message = "DisplayName is required." });
+        if (req.DisplayName.Length > 100)
+            return BadRequest(new { message = "DisplayName must be 100 characters or less." });
+        if (req.Email != null && !req.Email.Contains('@'))
+            return BadRequest(new { message = "Invalid email format." });
+
         await using var db = dbFactory.CreateDbContext();
         var p = await db.Players.FindAsync(id);
         if (p is null) return NotFound();
