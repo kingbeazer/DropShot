@@ -11,8 +11,8 @@ public class ApiService(HttpClient http)
 {
     // ── Players ──────────────────────────────────────────────────────────────
 
-    public Task<List<PlayerDto>?> GetPlayersAsync() =>
-        http.GetFromJsonAsync<List<PlayerDto>>("api/players");
+    public async Task<List<PlayerDto>> GetPlayersAsync() =>
+        await http.GetFromJsonAsync<List<PlayerDto>>("api/players") ?? [];
 
     public Task<PlayerDto?> GetPlayerAsync(int id) =>
         http.GetFromJsonAsync<PlayerDto>($"api/players/{id}");
@@ -39,8 +39,8 @@ public class ApiService(HttpClient http)
 
     // ── Competitions ─────────────────────────────────────────────────────────
 
-    public Task<List<CompetitionDto>?> GetCompetitionsAsync() =>
-        http.GetFromJsonAsync<List<CompetitionDto>>("api/competitions");
+    public async Task<List<CompetitionDto>> GetCompetitionsAsync() =>
+        await http.GetFromJsonAsync<List<CompetitionDto>>("api/competitions") ?? [];
 
     public Task<CompetitionDetailDto?> GetCompetitionAsync(int id) =>
         http.GetFromJsonAsync<CompetitionDetailDto>($"api/competitions/{id}");
@@ -95,8 +95,8 @@ public class ApiService(HttpClient http)
 
     // ── Clubs ─────────────────────────────────────────────────────────────────
 
-    public Task<List<ClubDto>?> GetClubsAsync() =>
-        http.GetFromJsonAsync<List<ClubDto>>("api/clubs");
+    public async Task<List<ClubDto>> GetClubsAsync() =>
+        await http.GetFromJsonAsync<List<ClubDto>>("api/clubs") ?? [];
 
     public Task<ClubDetailDto?> GetClubAsync(int id) =>
         http.GetFromJsonAsync<ClubDetailDto>($"api/clubs/{id}");
@@ -138,8 +138,8 @@ public class ApiService(HttpClient http)
 
     // ── Rules Sets ────────────────────────────────────────────────────────────
 
-    public Task<List<RulesSetDto>?> GetRulesSetsAsync() =>
-        http.GetFromJsonAsync<List<RulesSetDto>>("api/rulessets");
+    public async Task<List<RulesSetDto>> GetRulesSetsAsync() =>
+        await http.GetFromJsonAsync<List<RulesSetDto>>("api/rulessets") ?? [];
 
     public Task<RulesSetDetailDto?> GetRulesSetAsync(int id) =>
         http.GetFromJsonAsync<RulesSetDetailDto>($"api/rulessets/{id}");
