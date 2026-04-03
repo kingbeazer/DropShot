@@ -10,13 +10,16 @@ public static class SchedulingSlotPicker
     /// <summary>
     /// Picks a random valid DateTime within [windowStart, windowEnd].
     /// When match windows are defined, only days and times inside those windows are used.
-    /// Falls back to hardcoded default slots when no windows are defined or none fit.
+    /// Falls back to default slots when no windows are defined or none fit.
+    /// Custom fallback time slots (in minutes from midnight) can be provided to
+    /// override the built-in defaults for courts with different operating hours.
     /// </summary>
     public static DateTime PickSlot(
         IReadOnlyList<CompetitionMatchWindow> windows,
         DateTime windowStart,
         DateTime windowEnd,
-        Random rng)
+        Random rng,
+        int[]? fallbackTimeSlots = null)
     {
         if (windows.Count > 0)
         {
@@ -37,14 +40,14 @@ public static class SchedulingSlotPicker
             }
         }
 
-        return FallbackSlot(windowStart, windowEnd, rng);
+        return FallbackSlot(windowStart, windowEnd, rng, fallbackTimeSlots ?? DefaultTimeSlots);
     }
 
-    private static DateTime FallbackSlot(DateTime start, DateTime end, Random rng)
+    private static DateTime FallbackSlot(DateTime start, DateTime end, Random rng, int[] timeSlots)
     {
         var days = Math.Max(0, (end.Date - start.Date).Days);
         return start.Date
             .AddDays(days > 0 ? rng.Next(0, days + 1) : 0)
-            .AddMinutes(DefaultTimeSlots[rng.Next(DefaultTimeSlots.Length)]);
+            .AddMinutes(timeSlots[rng.Next(timeSlots.Length)]);
     }
 }
