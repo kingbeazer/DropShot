@@ -11,16 +11,16 @@
 
         <MudText Typo="Typo.subtitle2" Class="mb-2">@UserName</MudText>
         <MudStack Row="true" Spacing="2" Class="mb-3">
-            <MudNumericField @bind-Value="UserSets" Label="Sets" Min="0" Max="9" Variant="Variant.Outlined" Style="max-width:100px;" />
+            <MudNumericField @bind-Value="UserSets" Label="Sets" Min="0" Max="3" Variant="Variant.Outlined" Style="max-width:100px;" />
             <MudNumericField @bind-Value="UserGames" Label="Games" Min="0" Max="13" Variant="Variant.Outlined" Style="max-width:100px;" />
-            <MudNumericField @bind-Value="UserPoints" Label="Points" Min="0" Max="99" Variant="Variant.Outlined" Style="max-width:100px;" />
+            <MudNumericField @bind-Value="UserPoints" Label="Points" Min="0" Max="20" Variant="Variant.Outlined" Style="max-width:100px;" />
         </MudStack>
 
         <MudText Typo="Typo.subtitle2" Class="mb-2">@OpponentName</MudText>
         <MudStack Row="true" Spacing="2" Class="mb-3">
-            <MudNumericField @bind-Value="OppSets" Label="Sets" Min="0" Max="9" Variant="Variant.Outlined" Style="max-width:100px;" />
+            <MudNumericField @bind-Value="OppSets" Label="Sets" Min="0" Max="3" Variant="Variant.Outlined" Style="max-width:100px;" />
             <MudNumericField @bind-Value="OppGames" Label="Games" Min="0" Max="13" Variant="Variant.Outlined" Style="max-width:100px;" />
-            <MudNumericField @bind-Value="OppPoints" Label="Points" Min="0" Max="99" Variant="Variant.Outlined" Style="max-width:100px;" />
+            <MudNumericField @bind-Value="OppPoints" Label="Points" Min="0" Max="20" Variant="Variant.Outlined" Style="max-width:100px;" />
         </MudStack>
 
         <MudSwitch @bind-Value="IsUserServing" Label="@($"{UserName} is serving")" Color="Color.Primary" />
