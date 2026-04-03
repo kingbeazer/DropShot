@@ -11,7 +11,9 @@ public record PlayerDto(
     string? ContactPreferences,
     string? ProfileImagePath,
     string? UserId,
-    string? MobileNumber);
+    string? MobileNumber,
+    bool IsLight = false,
+    string? CreatedByUserId = null);
 
 public record CreatePlayerRequest(
     string DisplayName,
@@ -21,7 +23,8 @@ public record CreatePlayerRequest(
     DateOnly? DateOfBirth,
     PlayerSex? Sex,
     string? ContactPreferences,
-    string? MobileNumber);
+    string? MobileNumber,
+    bool IsLight = false);
 
 public record UpdatePlayerRequest(
     string DisplayName,

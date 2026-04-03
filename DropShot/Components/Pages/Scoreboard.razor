@@ -486,6 +486,15 @@
             if (liveIdx >= 0 && liveIdx + 1 < segments.Length)
                 videoId = segments[liveIdx + 1];
         }
+        // studio.youtube.com/video/VIDEO_ID/livestreaming
+        else if (url.Contains("studio.youtube.com/video/"))
+        {
+            var uri = new Uri(url);
+            var segments = uri.AbsolutePath.Split('/');
+            var videoIdx = Array.IndexOf(segments, "video");
+            if (videoIdx >= 0 && videoIdx + 1 < segments.Length)
+                videoId = segments[videoIdx + 1];
+        }
 
         if (!string.IsNullOrEmpty(videoId))
             return $"https://www.youtube.com/embed/{videoId}?autoplay=1";
