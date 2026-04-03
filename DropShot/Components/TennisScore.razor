@@ -815,7 +815,7 @@
         }
     }
 
-    private async void SaveHistory()
+    private async Task SaveHistory()
     {
         var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
 
@@ -846,7 +846,7 @@
         SaveHistory();
     }
 
-    private async void UndoLastPoint()
+    private async Task UndoLastPoint()
     {
         if (history.Any())
             history.Pop();
