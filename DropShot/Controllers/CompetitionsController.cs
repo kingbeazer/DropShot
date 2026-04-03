@@ -16,13 +16,15 @@ public class CompetitionsController(
     ClubAuthorizationService authzService) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<CompetitionDto>>> GetAll()
+    public async Task<ActionResult<List<CompetitionDto>>> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         await using var db = dbFactory.CreateDbContext();
         var comps = await db.Competition
             .Include(c => c.HostClub)
             .Include(c => c.Rules)
             .OrderBy(c => c.CompetitionName)
+            .Skip(skip)
+            .Take(Math.Min(take, 200))
             .ToListAsync();
         return comps.Select(ToDto).ToList();
     }
