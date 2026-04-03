@@ -282,6 +282,13 @@ public class CompetitionsController(
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
+        if (req.CompetitionStageId.HasValue)
+        {
+            var stage = await db.CompetitionStages.FindAsync(req.CompetitionStageId.Value);
+            if (stage is null || stage.CompetitionId != id)
+                return BadRequest(new { message = "Stage does not belong to this competition." });
+        }
+
         var fixture = new CompetitionFixture { CompetitionId = id };
         ApplyFixture(fixture, req);
         db.CompetitionFixtures.Add(fixture);
@@ -296,6 +303,13 @@ public class CompetitionsController(
         var comp = await db.Competition.FindAsync(id);
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        if (req.CompetitionStageId.HasValue)
+        {
+            var stage = await db.CompetitionStages.FindAsync(req.CompetitionStageId.Value);
+            if (stage is null || stage.CompetitionId != id)
+                return BadRequest(new { message = "Stage does not belong to this competition." });
+        }
 
         var fixture = await db.CompetitionFixtures.FindAsync(fixtureId);
         if (fixture is null || fixture.CompetitionId != id) return NotFound();
