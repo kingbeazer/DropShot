@@ -360,9 +360,12 @@ public class CompetitionsController(
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
-        // Delete existing non-completed fixtures
+        // Delete existing fixtures that are not completed, in progress, or awaiting verification
         var existing = await db.CompetitionFixtures
-            .Where(f => f.CompetitionId == id && f.Status != DropShot.Models.FixtureStatus.Completed)
+            .Where(f => f.CompetitionId == id
+                && f.Status != DropShot.Models.FixtureStatus.Completed
+                && f.Status != DropShot.Models.FixtureStatus.AwaitingVerification
+                && f.Status != DropShot.Models.FixtureStatus.InProgress)
             .ToListAsync();
         db.CompetitionFixtures.RemoveRange(existing);
 
