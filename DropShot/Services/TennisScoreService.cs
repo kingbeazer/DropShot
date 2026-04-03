@@ -214,6 +214,6 @@ public class TennisScoreService
         3 => 2,
         5 => 3,
         7 => 4,
-        _ => 0
+        _ => Math.Max(1, (bestOf + 1) / 2)
     };
 }
