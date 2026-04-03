@@ -255,54 +255,68 @@
 
             hubConnection.On<string, string>("ReceiveMessage", async (user, message) =>
             {
-                if (_selectedCourtId.HasValue)
+                try
                 {
-                    if (!int.TryParse(message, out int msgCourtId) || msgCourtId != _selectedCourtId.Value)
-                        return;
+                    if (_selectedCourtId.HasValue)
+                    {
+                        if (!int.TryParse(message, out int msgCourtId) || msgCourtId != _selectedCourtId.Value)
+                            return;
+                    }
+
+                    GameState? gameState = JsonConvert.DeserializeObject<GameState>(user);
+                    if (gameState != null)
+                        currentScore = gameState;
+
+                    // Refresh match details when scoring starts
+                    if (_activeMatch == null && _selectedCourtId.HasValue)
+                    {
+                        using var dbc = DbFactory.CreateDbContext();
+                        _activeMatch = await dbc.SavedMatch
+                            .FirstOrDefaultAsync(m => m.CourtId == _selectedCourtId && !m.Complete);
+                        _activeFixture = await LoadFixtureForMatchAsync(_activeMatch);
+                    }
+
+                    await InvokeAsync(StateHasChanged);
                 }
-
-                GameState? gameState = JsonConvert.DeserializeObject<GameState>(user);
-                if (gameState != null)
-                    currentScore = gameState;
-
-                // Refresh match details when scoring starts
-                if (_activeMatch == null && _selectedCourtId.HasValue)
+                catch (Exception)
                 {
-                    using var dbc = DbFactory.CreateDbContext();
-                    _activeMatch = await dbc.SavedMatch
-                        .FirstOrDefaultAsync(m => m.CourtId == _selectedCourtId && !m.Complete);
-                    _activeFixture = await LoadFixtureForMatchAsync(_activeMatch);
+                    // Silently handle — component may be disposed or state inconsistent
                 }
-
-                await InvokeAsync(StateHasChanged);
             });
 
             // Listen for display commands from admin
             hubConnection.On<string, string>("ReceiveDisplayCommand", async (command, value) =>
             {
-                switch (command)
+                try
                 {
-                    case "setFullscreen":
-                        if (value == "true")
-                            await EnterFullscreenAsync();
-                        else
-                            await ExitFullscreenAsync();
-                        break;
-                    case "setLayout":
-                        _selectedLayout = value;
-                        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", value);
-                        break;
-                    case "setStreamUrl":
-                        _streamUrl = value ?? "";
-                        _streamEmbedUrl = BuildYouTubeEmbedUrl(_streamUrl);
-                        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-stream-url", _streamUrl);
-                        break;
-                    case "setStreamEnabled":
-                        _streamEnabled = value == "true";
-                        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-stream-enabled", _streamEnabled.ToString().ToLower());
-                        break;
+                    switch (command)
+                    {
+                        case "setFullscreen":
+                            if (value == "true")
+                                await EnterFullscreenAsync();
+                            else
+                                await ExitFullscreenAsync();
+                            break;
+                        case "setLayout":
+                            _selectedLayout = value;
+                            await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", value);
+                            break;
+                        case "setStreamUrl":
+                            _streamUrl = value ?? "";
+                            _streamEmbedUrl = BuildYouTubeEmbedUrl(_streamUrl);
+                            await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-stream-url", _streamUrl);
+                            break;
+                        case "setStreamEnabled":
+                            _streamEnabled = value == "true";
+                            await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-stream-enabled", _streamEnabled.ToString().ToLower());
+                            break;
+                    }
+                    await InvokeAsync(StateHasChanged);
                 }
-                await InvokeAsync(StateHasChanged);
+                catch (Exception)
+                {
+                    // Silently handle — component may be disposed or state inconsistent
+                }
             });
 
             // Re-join court group on reconnection
