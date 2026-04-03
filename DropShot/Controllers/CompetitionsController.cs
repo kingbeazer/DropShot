@@ -570,10 +570,6 @@ public class CompetitionsController(
             .Include(cp => cp.Player)
             .ToListAsync();
 
-        var table = participants.ToDictionary(
-            cp => cp.PlayerId,
-            cp => new { Name = cp.Player?.DisplayName ?? "", Played = 0, Won = 0, Lost = 0 });
-
         // Mutable counters
         var played = participants.ToDictionary(cp => cp.PlayerId, _ => 0);
         var won = participants.ToDictionary(cp => cp.PlayerId, _ => 0);
