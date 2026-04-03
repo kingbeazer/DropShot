@@ -21,6 +21,7 @@ public class TennisScoreService
                     s.OppGames++;
                 }
                 EndSet(s);
+                return;
             }
 
             var dsd = (s.UserPoints + s.OppPoints) % 2;
