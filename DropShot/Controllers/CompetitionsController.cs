@@ -564,6 +564,17 @@ public class CompetitionsController(
             }
         }
 
+        // Build head-to-head lookup for tiebreaking
+        var h2h = new HashSet<(int winner, int loser)>();
+        foreach (var f in fixtures)
+        {
+            var loserIds = new[] { f.Player1Id, f.Player2Id }
+                .Where(pid => pid.HasValue && pid.Value != f.WinnerPlayerId!.Value)
+                .Select(pid => pid!.Value);
+            foreach (var lid in loserIds)
+                h2h.Add((f.WinnerPlayerId!.Value, lid));
+        }
+
         var entries = participants
             .Select(cp => new LeagueTableEntryDto(
                 cp.PlayerId,
@@ -574,6 +585,7 @@ public class CompetitionsController(
                 won[cp.PlayerId] * 3))
             .OrderByDescending(e => e.Points)
             .ThenByDescending(e => e.Won)
+            .ThenByDescending(e => h2h.Count(h => h.winner == e.PlayerId))
             .ThenBy(e => e.Lost)
             .ToList();
 
