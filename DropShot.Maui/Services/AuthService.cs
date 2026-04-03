@@ -28,10 +28,17 @@ public class AuthService : AuthenticationStateProvider
     public bool CanEditCompetition(int? hostClubId) =>
         IsAdmin || (hostClubId.HasValue && AdminClubIds.Contains(hostClubId.Value));
 
+    /// <summary>
+    /// Contains the error message from the last failed login attempt, or null if the last login succeeded.
+    /// </summary>
+    public string? LastError { get; private set; }
+
     // ── Login / Logout ───────────────────────────────────────────────────────
 
     public async Task<bool> LoginAsync(string email, string password)
     {
+        LastError = null;
+
         try
         {
             var response = await _http.PostAsJsonAsync("api/auth/login",
@@ -52,8 +59,14 @@ public class AuthService : AuthenticationStateProvider
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
             return true;
         }
-        catch
+        catch (HttpRequestException)
         {
+            LastError = "Network error. Please check your connection.";
+            return false;
+        }
+        catch (Exception)
+        {
+            LastError = "An unexpected error occurred.";
             return false;
         }
     }
