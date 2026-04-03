@@ -33,6 +33,7 @@ namespace DropShot.Data
         public DbSet<CompetitionTemplateWindow> CompetitionTemplateWindows { get; set; }
         public DbSet<ClubEmailTemplate> ClubEmailTemplates { get; set; }
         public DbSet<ScoreboardDisplaySetting> ScoreboardDisplaySettings { get; set; }
+        public DbSet<UserPlayer> UserPlayers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -54,6 +55,15 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(p => p.UserId)
                       .OnDelete(DeleteBehavior.SetNull);
+
+                entity.Property(p => p.IsLight).HasDefaultValue(false);
+                entity.Property(p => p.CreatedByUserId).HasMaxLength(450);
+                entity.HasIndex(p => p.CreatedByUserId);
+
+                entity.HasOne(p => p.CreatedByUser)
+                      .WithMany()
+                      .HasForeignKey(p => p.CreatedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // ── Competition ──────────────────────────────────────────────────────
@@ -378,6 +388,22 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(le => le.PlayerId)
                       .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── UserPlayer (My Players bookmark) ────────────────────────────────
+            builder.Entity<UserPlayer>(entity =>
+            {
+                entity.HasKey(up => new { up.UserId, up.PlayerId });
+
+                entity.HasOne(up => up.User)
+                      .WithMany()
+                      .HasForeignKey(up => up.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(up => up.Player)
+                      .WithMany()
+                      .HasForeignKey(up => up.PlayerId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

@@ -1,0 +1,518 @@
+@page "/players/mine"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using DropShot.Models
+@using DropShot.Data
+@using DropShot.Services
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject FuzzySearchService FuzzySearch
+
+<MudProviders />
+
+<MudText Typo="Typo.h4" Class="mb-4">My Players</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+           OnClick="OpenCreateDialog" Class="mb-4">
+    Add Player
+</MudButton>
+
+<MudTextField @bind-Value="_searchText" Placeholder="Search my players..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+          Filter="@(row => FilterPlayers(row))">
+    <HeaderContent>
+        <MudTh>Player</MudTh>
+        <MudTh>First Name</MudTh>
+        <MudTh>Last Name</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Player">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudText>@context.DisplayName</MudText>
+                @if (context.IsLight)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Light</MudChip>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small"
+                             Title="Verified player" />
+                }
+            </MudStack>
+        </MudTd>
+        <MudTd DataLabel="First Name">@(context.FirstName ?? "—")</MudTd>
+        <MudTd DataLabel="Last Name">@(context.LastName ?? "—")</MudTd>
+        <MudTd DataLabel="Actions">
+            @if (context.IsLight)
+            {
+                <MudTooltip Text="Edit">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context))" />
+                </MudTooltip>
+                <MudTooltip Text="Link to verified player">
+                    <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Info"
+                                   OnClick="@(() => OpenLinkDialog(context))" />
+                </MudTooltip>
+                <MudTooltip Text="Delete">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteLightPlayer(context))" />
+                </MudTooltip>
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No players yet. Add a player to get started.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@* ── Create / Edit Light Player Dialog ─────────────────────── *@
+<MudDialog @bind-Visible="_showPlayerDialog">
+    <TitleContent>@(_editingPlayerId.HasValue ? "Edit Player" : "Add Player")</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.DisplayName" Label="Display Name" Variant="Variant.Outlined"
+                              Required="true" Immediate="true" TextChanged="OnDisplayNameChanged" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.FirstName" Label="First Name" Variant="Variant.Outlined"
+                              Immediate="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined"
+                              Immediate="true" />
+            </MudItem>
+        </MudGrid>
+
+        @if (_suggestions.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Similar verified players:</MudText>
+            <MudList T="FuzzySearchResult" Dense="true">
+                @foreach (var s in _suggestions)
+                {
+                    <MudListItem T="FuzzySearchResult">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                                <MudText>@s.DisplayName</MudText>
+                                @if (!string.IsNullOrEmpty(s.FirstName) || !string.IsNullOrEmpty(s.LastName))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        (@(string.Join(" ", new[] { s.FirstName, s.LastName }.Where(x => !string.IsNullOrEmpty(x)))))
+                                    </MudText>
+                                }
+                            </MudStack>
+                            @if (_editingPlayerId.HasValue)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
+                                           OnClick="@(() => LinkToFullPlayer(s))">
+                                    Link
+                                </MudButton>
+                            }
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showPlayerDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_form.DisplayName)"
+                   OnClick="SaveLightPlayer">
+            @(_editingPlayerId.HasValue ? "Save" : "Add")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Link to Full Player Dialog ────────────────────────────── *@
+<MudDialog @bind-Visible="_showLinkDialog">
+    <TitleContent>Link "@_linkingPlayer?.DisplayName" to a Verified Player</TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Linking will replace this player with the verified player record. The light player will be deleted.
+        </MudText>
+
+        <MudTextField @bind-Value="_linkSearch" Label="Search verified players" Variant="Variant.Outlined"
+                      Immediate="true" TextChanged="OnLinkSearchChanged"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-2" />
+
+        @if (_linkSuggestions.Count > 0)
+        {
+            <MudList T="FuzzySearchResult" Dense="true">
+                @foreach (var s in _linkSuggestions)
+                {
+                    <MudListItem T="FuzzySearchResult" OnClick="@(() => _selectedLinkPlayer = s)"
+                                 Class="@(_selectedLinkPlayer?.PlayerId == s.PlayerId ? "mud-selected-item" : "")">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                            <MudText>@s.DisplayName</MudText>
+                            @if (!string.IsNullOrEmpty(s.FirstName) || !string.IsNullOrEmpty(s.LastName))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    (@(string.Join(" ", new[] { s.FirstName, s.LastName }.Where(x => !string.IsNullOrEmpty(x)))))
+                                </MudText>
+                            }
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        else if (!string.IsNullOrWhiteSpace(_linkSearch))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary">No matching verified players found.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showLinkDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Info"
+                   Disabled="@(_selectedLinkPlayer == null)"
+                   OnClick="ConfirmLink">Link</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight);
+
+    private bool _loading = true;
+    private List<PlayerRow> _players = [];
+    private string _searchText = "";
+    private string? _userId;
+    private bool _fuzzyInitialized;
+
+    // Create/Edit dialog
+    private bool _showPlayerDialog;
+    private int? _editingPlayerId;
+    private LightPlayerForm _form = new();
+    private bool _firstNamePreFilled;
+    private bool _lastNamePreFilled;
+    private List<FuzzySearchResult> _suggestions = [];
+    private CancellationTokenSource? _debounce;
+
+    // Link dialog
+    private bool _showLinkDialog;
+    private PlayerRow? _linkingPlayer;
+    private string _linkSearch = "";
+    private List<FuzzySearchResult> _linkSuggestions = [];
+    private FuzzySearchResult? _selectedLinkPlayer;
+    private CancellationTokenSource? _linkDebounce;
+
+    private sealed class LightPlayerForm
+    {
+        public string DisplayName { get; set; } = "";
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+    }
+
+    private bool FilterPlayers(PlayerRow row) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        row.DisplayName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.FirstName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.LastName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await LoadPlayers();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_fuzzyInitialized)
+        {
+            await InitFuzzyIndex();
+            _fuzzyInitialized = true;
+        }
+    }
+
+    private async Task InitFuzzyIndex()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var fullPlayers = await db.Players
+            .Where(p => !p.IsLight)
+            .OrderBy(p => p.DisplayName)
+            .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false))
+            .ToListAsync();
+        await FuzzySearch.InitializeAsync(fullPlayers);
+    }
+
+    private async Task LoadPlayers()
+    {
+        _loading = true;
+        await using var db = DbFactory.CreateDbContext();
+
+        // My light players (created by me)
+        var lightPlayers = await db.Players
+            .Where(p => p.IsLight && p.CreatedByUserId == _userId)
+            .OrderBy(p => p.DisplayName)
+            .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, true))
+            .ToListAsync();
+
+        // Verified players I've bookmarked (via UserPlayer), excluding myself
+        var bookmarkedIds = await db.UserPlayers
+            .Where(up => up.UserId == _userId)
+            .Select(up => up.PlayerId)
+            .ToListAsync();
+
+        var bookmarkedPlayers = bookmarkedIds.Count > 0
+            ? await db.Players
+                .Where(p => bookmarkedIds.Contains(p.PlayerId) && p.UserId != _userId)
+                .OrderBy(p => p.DisplayName)
+                .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false))
+                .ToListAsync()
+            : [];
+
+        _players = lightPlayers.Concat(bookmarkedPlayers).OrderBy(p => p.DisplayName).ToList();
+        _loading = false;
+    }
+
+    // ── Create / Edit ───────────────────────────────────────────
+
+    private void OpenCreateDialog()
+    {
+        _editingPlayerId = null;
+        _form = new LightPlayerForm();
+        _firstNamePreFilled = false;
+        _lastNamePreFilled = false;
+        _suggestions = [];
+        _showPlayerDialog = true;
+    }
+
+    private void OpenEditDialog(PlayerRow player)
+    {
+        _editingPlayerId = player.PlayerId;
+        _form = new LightPlayerForm
+        {
+            DisplayName = player.DisplayName,
+            FirstName = player.FirstName,
+            LastName = player.LastName
+        };
+        _firstNamePreFilled = !string.IsNullOrEmpty(player.FirstName);
+        _lastNamePreFilled = !string.IsNullOrEmpty(player.LastName);
+        _suggestions = [];
+        _showPlayerDialog = true;
+    }
+
+    private async Task OnDisplayNameChanged(string value)
+    {
+        _form.DisplayName = value;
+        AutoFillNames(value);
+
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, _debounce.Token);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _suggestions = (await FuzzySearch.SearchAsync(value, 5))
+                    .Where(s => !s.IsLight)
+                    .ToList();
+            }
+            else
+            {
+                _suggestions = [];
+            }
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void AutoFillNames(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName)) return;
+
+        var words = displayName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length >= 1 && !_firstNamePreFilled)
+            _form.FirstName = words[0];
+        if (words.Length >= 2 && !_lastNamePreFilled)
+            _form.LastName = string.Join(" ", words.Skip(1));
+    }
+
+    private async Task SaveLightPlayer()
+    {
+        if (string.IsNullOrWhiteSpace(_form.DisplayName)) return;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        if (_editingPlayerId.HasValue)
+        {
+            var p = await db.Players.FindAsync(_editingPlayerId.Value);
+            if (p is { IsLight: true, CreatedByUserId: var cuid } && cuid == _userId)
+            {
+                p.DisplayName = _form.DisplayName.Trim();
+                p.FirstName = NullIfEmpty(_form.FirstName);
+                p.LastName = NullIfEmpty(_form.LastName);
+                await db.SaveChangesAsync();
+                Snackbar.Add("Player updated.", Severity.Success);
+            }
+        }
+        else
+        {
+            db.Players.Add(new Player
+            {
+                DisplayName = _form.DisplayName.Trim(),
+                FirstName = NullIfEmpty(_form.FirstName),
+                LastName = NullIfEmpty(_form.LastName),
+                IsLight = true,
+                CreatedByUserId = _userId
+            });
+            await db.SaveChangesAsync();
+            Snackbar.Add("Player added.", Severity.Success);
+        }
+
+        _showPlayerDialog = false;
+        await LoadPlayers();
+    }
+
+    // ── Delete ──────────────────────────────────────────────────
+
+    private async Task DeleteLightPlayer(PlayerRow player)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Delete Player?",
+            $"Are you sure you want to delete \"{player.DisplayName}\"? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var p = await db.Players.FindAsync(player.PlayerId);
+        if (p is { IsLight: true, CreatedByUserId: var cuid } && cuid == _userId)
+        {
+            db.Players.Remove(p);
+            await db.SaveChangesAsync();
+            Snackbar.Add("Player deleted.", Severity.Warning);
+            await LoadPlayers();
+        }
+    }
+
+    // ── Link ────────────────────────────────────────────────────
+
+    private async Task OpenLinkDialog(PlayerRow player)
+    {
+        _linkingPlayer = player;
+        _linkSearch = player.DisplayName;
+        _selectedLinkPlayer = null;
+        _showLinkDialog = true;
+
+        // Pre-populate suggestions
+        _linkSuggestions = (await FuzzySearch.SearchAsync(player.DisplayName, 10))
+            .Where(s => !s.IsLight)
+            .ToList();
+        StateHasChanged();
+    }
+
+    private async Task OnLinkSearchChanged(string value)
+    {
+        _linkSearch = value;
+        _selectedLinkPlayer = null;
+
+        _linkDebounce?.Cancel();
+        _linkDebounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, _linkDebounce.Token);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _linkSuggestions = (await FuzzySearch.SearchAsync(value, 10))
+                    .Where(s => !s.IsLight)
+                    .ToList();
+            }
+            else
+            {
+                _linkSuggestions = [];
+            }
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task ConfirmLink()
+    {
+        if (_linkingPlayer == null || _selectedLinkPlayer == null) return;
+
+        var confirmed = await DialogService.ShowMessageBox(
+            "Link Player?",
+            $"This will delete the player \"{_linkingPlayer.DisplayName}\" and use \"{_selectedLinkPlayer.DisplayName}\" (verified) in its place.",
+            yesText: "Link", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var lightPlayer = await db.Players.FindAsync(_linkingPlayer.PlayerId);
+        if (lightPlayer is { IsLight: true, CreatedByUserId: var cuid } && cuid == _userId)
+        {
+            db.Players.Remove(lightPlayer);
+
+            // Bookmark the verified player so they appear in My Players
+            var alreadyBookmarked = await db.UserPlayers
+                .AnyAsync(up => up.UserId == _userId && up.PlayerId == _selectedLinkPlayer.PlayerId);
+            if (!alreadyBookmarked)
+            {
+                db.UserPlayers.Add(new UserPlayer
+                {
+                    UserId = _userId!,
+                    PlayerId = _selectedLinkPlayer.PlayerId
+                });
+            }
+
+            await db.SaveChangesAsync();
+            Snackbar.Add($"Linked to \"{_selectedLinkPlayer.DisplayName}\".", Severity.Success);
+        }
+
+        _showLinkDialog = false;
+        await LoadPlayers();
+    }
+
+    private async Task LinkToFullPlayer(FuzzySearchResult fullPlayer)
+    {
+        if (_editingPlayerId == null) return;
+
+        var confirmed = await DialogService.ShowMessageBox(
+            "Link Player?",
+            $"This will delete this player and use \"{fullPlayer.DisplayName}\" (verified) in its place.",
+            yesText: "Link", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var lightPlayer = await db.Players.FindAsync(_editingPlayerId.Value);
+        if (lightPlayer is { IsLight: true, CreatedByUserId: var cuid } && cuid == _userId)
+        {
+            db.Players.Remove(lightPlayer);
+
+            // Bookmark the verified player so they appear in My Players
+            var alreadyBookmarked = await db.UserPlayers
+                .AnyAsync(up => up.UserId == _userId && up.PlayerId == fullPlayer.PlayerId);
+            if (!alreadyBookmarked)
+            {
+                db.UserPlayers.Add(new UserPlayer
+                {
+                    UserId = _userId!,
+                    PlayerId = fullPlayer.PlayerId
+                });
+            }
+
+            await db.SaveChangesAsync();
+            Snackbar.Add($"Linked to \"{fullPlayer.DisplayName}\".", Severity.Success);
+        }
+
+        _showPlayerDialog = false;
+        await LoadPlayers();
+    }
+
+    private static string? NullIfEmpty(string? s) =>
+        string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}

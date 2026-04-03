@@ -18,6 +18,10 @@ public class Player
     public ApplicationUser? User { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    public bool IsLight { get; set; }
+    public string? CreatedByUserId { get; set; }
+    public ApplicationUser? CreatedByUser { get; set; }
+
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public DateOnly? DateOfBirth { get; set; }

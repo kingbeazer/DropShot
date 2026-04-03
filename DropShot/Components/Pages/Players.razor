@@ -233,6 +233,7 @@
         await using var dbc = DbFactory.CreateDbContext();
         var players = await dbc.Players
             .Include(p => p.User)
+            .Where(p => !p.IsLight)
             .OrderBy(p => p.DisplayName)
             .ToListAsync();
 

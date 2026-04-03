@@ -84,5 +84,6 @@ public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : Contr
     private static PlayerDto ToDto(Player p) => new(
         p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.Email,
         p.DateOfBirth, (DropShot.Shared.PlayerSex?)p.Sex,
-        p.ContactPreferences, p.ProfileImagePath, p.UserId, p.MobileNumber);
+        p.ContactPreferences, p.ProfileImagePath, p.UserId, p.MobileNumber,
+        p.IsLight, p.CreatedByUserId);
 }

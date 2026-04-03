@@ -1,10 +1,14 @@
 @using System.Security.Claims
 @using DropShot.Data
 @using DropShot.Models
+@using DropShot.Services
 @using Microsoft.EntityFrameworkCore
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject AuthenticationStateProvider AuthStateProvider
+@inject FuzzySearchService FuzzySearch
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudStack Spacing="3" Class="pa-2" Style="max-width: 600px;">
 
@@ -78,69 +82,71 @@
         var stepIndex = 2 + idx;
         var playerNumber = 2 + idx;
         var label = $"Player {playerNumber}";
-        var name = GetPlayerName(playerNumber);
+        var selection = GetSelection(playerNumber);
 
         @if (_currentStep > stepIndex)
         {
-            <StepSummary Label="@label" Summary="@name" OnEdit="@(() => GoToStep(stepIndex))" />
+            <StepSummary Label="@label" Summary="@(selection?.DisplayName ?? "")" OnEdit="@(() => GoToStep(stepIndex))" />
         }
         else if (_currentStep == stepIndex)
         {
             <MudPaper Class="pa-4" Elevation="2">
                 <MudText Typo="Typo.h6" Class="mb-3">@label</MudText>
 
-                @if (_myPlayer != null && _friendNames.Count > 0)
-                {
-                    @switch (playerNumber)
+                <MudAutocomplete T="PlayerSelection" Label="Search players or type a name"
+                                 Value="@selection"
+                                 ValueChanged="@(val => OnPlayerSelected(playerNumber, val))"
+                                 SearchFunc="SearchPlayers"
+                                 ToStringFunc="@(p => p?.DisplayName ?? "")"
+                                 ResetValueOnEmptyText="true"
+                                 Immediate="true"
+                                 Variant="Variant.Outlined" CoerceValue="true">
+                    <ItemTemplate Context="item">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            @if (item.IsVerified)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                            }
+                            else if (item.IsLight)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
+                            }
+                            <MudText>@item.DisplayName</MudText>
+                        </MudStack>
+                    </ItemTemplate>
+                </MudAutocomplete>
+
+                @* "Did you mean?" nudge *@
+                @{
+                    var nudge = GetNudge(playerNumber);
+                    if (nudge != null)
                     {
-                        case 2:
-                            <MudAutocomplete T="string" Label="Search friends or type a name"
-                                             @bind-Value="_player2Name"
-                                             SearchFunc="SearchFriends"
-                                             ResetValueOnEmptyText="true"
-                                             Immediate="true"
-                                             Variant="Variant.Outlined" CoerceValue="true" />;
-                            break;
-                        case 3:
-                            <MudAutocomplete T="string" Label="Search friends or type a name"
-                                             @bind-Value="_player3Name"
-                                             SearchFunc="SearchFriends"
-                                             ResetValueOnEmptyText="true"
-                                             Immediate="true"
-                                             Variant="Variant.Outlined" CoerceValue="true" />;
-                            break;
-                        case 4:
-                            <MudAutocomplete T="string" Label="Search friends or type a name"
-                                             @bind-Value="_player4Name"
-                                             SearchFunc="SearchFriends"
-                                             ResetValueOnEmptyText="true"
-                                             Immediate="true"
-                                             Variant="Variant.Outlined" CoerceValue="true" />;
-                            break;
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudText Typo="Typo.body2">
+                                    Did you mean <strong>@nudge.DisplayName</strong> (verified)?
+                                </MudText>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
+                                           OnClick="@(() => AcceptNudge(playerNumber, nudge))">
+                                    Use this player
+                                </MudButton>
+                            </MudStack>
+                        </MudAlert>
                     }
                 }
-                else
-                {
-                    @switch (playerNumber)
-                    {
-                        case 2:
-                            <MudTextField @bind-Value="_player2Name" Label="Player name" Variant="Variant.Outlined" Immediate="true" />;
-                            break;
-                        case 3:
-                            <MudTextField @bind-Value="_player3Name" Label="Player name" Variant="Variant.Outlined" Immediate="true" />;
-                            break;
-                        case 4:
-                            <MudTextField @bind-Value="_player4Name" Label="Player name" Variant="Variant.Outlined" Immediate="true" />;
-                            break;
-                    }
-                }
+
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.Add" Class="mt-2"
+                           OnClick="@(() => CreateLightPlayerInline(playerNumber))">
+                    Create new player
+                </MudButton>
 
                 <div class="d-flex justify-space-between mt-3">
                     <MudButton Variant="Variant.Text" Color="Color.Default"
                                StartIcon="@Icons.Material.Filled.ArrowBack"
                                OnClick="@(() => GoToStep(stepIndex - 1))">Back</MudButton>
                     <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               Disabled="@string.IsNullOrWhiteSpace(GetPlayerName(playerNumber))"
+                               Disabled="@(selection == null || string.IsNullOrWhiteSpace(selection.DisplayName))"
                                EndIcon="@Icons.Material.Filled.ArrowForward"
                                OnClick="@(() => GoToStep(stepIndex + 1))">Next</MudButton>
                 </div>
@@ -246,7 +252,7 @@
             <MudRadioGroup @bind-Value="_serverChoice">
                 <MudRadio Value="@("random")" Color="Color.Primary">Random Coin Toss</MudRadio>
                 <MudRadio Value="@("player1")" Color="Color.Primary">@_player1Name serves first</MudRadio>
-                <MudRadio Value="@("player2")" Color="Color.Primary">@_player2Name serves first</MudRadio>
+                <MudRadio Value="@("player2")" Color="Color.Primary">@(_player2?.DisplayName ?? "Player 2") serves first</MudRadio>
             </MudRadioGroup>
 
             <div class="d-flex justify-space-between mt-3">
@@ -262,6 +268,51 @@
 
 </MudStack>
 
+@* ── Inline Light Player Creation Dialog ──────────────────── *@
+<MudDialog @bind-Visible="_showInlineCreate">
+    <TitleContent>Create Player</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_inlineForm.DisplayName" Label="Display Name" Variant="Variant.Outlined"
+                              Required="true" Immediate="true" TextChanged="OnInlineDisplayNameChanged" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_inlineForm.FirstName" Label="First Name" Variant="Variant.Outlined"
+                              Immediate="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_inlineForm.LastName" Label="Last Name" Variant="Variant.Outlined"
+                              Immediate="true" />
+            </MudItem>
+        </MudGrid>
+
+        @if (_inlineSuggestions.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Did you mean one of these verified players?</MudText>
+            <MudList T="FuzzySearchResult" Dense="true">
+                @foreach (var s in _inlineSuggestions)
+                {
+                    var suggestion = s;
+                    <MudListItem T="FuzzySearchResult" OnClick="@(() => UseVerifiedPlayerInstead(suggestion))">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                            <MudText>@suggestion.DisplayName</MudText>
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Color="Color.Secondary" />
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showInlineCreate = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_inlineForm.DisplayName)"
+                   OnClick="SaveInlineLightPlayer">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     [Parameter] public EventCallback<MatchSetupResult> OnSetupComplete { get; set; }
     [Parameter] public string? PresetPlayer1 { get; set; }
@@ -273,9 +324,15 @@
     private int _currentStep;
     private bool _isDoubles;
     private string _player1Name = "";
-    private string _player2Name = "";
-    private string _player3Name = "";
-    private string _player4Name = "";
+
+    private PlayerSelection? _player2;
+    private PlayerSelection? _player3;
+    private PlayerSelection? _player4;
+
+    // Nudges
+    private FuzzySearchResult? _nudge2;
+    private FuzzySearchResult? _nudge3;
+    private FuzzySearchResult? _nudge4;
 
     // Court
     private Club? _selectedClub;
@@ -291,55 +348,144 @@
     private string _serverChoice = "random";
     private int _gamesPerSet = 6;
 
-    // Auth / friends
+    // Auth / players
     private Player? _myPlayer;
-    private List<string> _friendNames = [];
-    private List<string> _allPlayerNames = [];
+    private string? _userId;
+    private List<PlayerSelection> _searchablePlayers = [];
+    private bool _fuzzyInitialized;
+
+    // Inline light player creation
+    private bool _showInlineCreate;
+    private int _inlineTargetPlayerNumber;
+    private InlineForm _inlineForm = new();
+    private bool _inlineFirstNamePreFilled;
+    private bool _inlineLastNamePreFilled;
+    private List<FuzzySearchResult> _inlineSuggestions = [];
+    private CancellationTokenSource? _inlineDebounce;
 
     private int PlayerStepCount => _isDoubles ? 3 : 1;
     private int CourtStepIndex => 2 + PlayerStepCount;
     private int SettingsStepIndex => CourtStepIndex + 1;
 
+    private sealed class InlineForm
+    {
+        public string DisplayName { get; set; } = "";
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+    }
+
+    public class PlayerSelection
+    {
+        public int? PlayerId { get; set; }
+        public string DisplayName { get; set; } = "";
+        public bool IsLight { get; set; }
+        public bool IsVerified => PlayerId.HasValue && !IsLight;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         if (PresetIsDoubles.HasValue) _isDoubles = PresetIsDoubles.Value;
         if (!string.IsNullOrWhiteSpace(PresetPlayer1)) _player1Name = PresetPlayer1;
-        if (!string.IsNullOrWhiteSpace(PresetPlayer2)) _player2Name = PresetPlayer2;
-        if (!string.IsNullOrWhiteSpace(PresetPlayer3)) _player3Name = PresetPlayer3;
-        if (!string.IsNullOrWhiteSpace(PresetPlayer4)) _player4Name = PresetPlayer4;
+        if (!string.IsNullOrWhiteSpace(PresetPlayer2)) _player2 = new PlayerSelection { DisplayName = PresetPlayer2 };
+        if (!string.IsNullOrWhiteSpace(PresetPlayer3)) _player3 = new PlayerSelection { DisplayName = PresetPlayer3 };
+        if (!string.IsNullOrWhiteSpace(PresetPlayer4)) _player4 = new PlayerSelection { DisplayName = PresetPlayer4 };
 
         await using var db = DbFactory.CreateDbContext();
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId != null)
-        {
-            _myPlayer = await db.Players.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (_myPlayer != null)
-            {
-                _player1Name = _myPlayer.DisplayName;
+        _userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-                var pid = _myPlayer.PlayerId;
-                var friendRelations = await db.PlayerFriends
-                    .Include(pf => pf.Player)
-                    .Include(pf => pf.Friend)
-                    .Where(pf => (pf.PlayerId == pid || pf.FriendPlayerId == pid)
-                                 && pf.Status == FriendStatus.Accepted)
-                    .ToListAsync();
-                _friendNames = friendRelations
-                    .Select(pf => pf.PlayerId == pid ? pf.Friend.DisplayName : pf.Player.DisplayName)
-                    .OrderBy(n => n)
-                    .ToList();
-            }
+        if (_userId != null)
+        {
+            _myPlayer = await db.Players.FirstOrDefaultAsync(p => p.UserId == _userId);
+            if (_myPlayer != null)
+                _player1Name = _myPlayer.DisplayName;
         }
 
-        _allPlayerNames = await db.Players
+        // Build searchable player list: my light players + my bookmarked verified players, excluding myself
+        var myLightPlayers = await db.Players
+            .Where(p => p.IsLight && p.CreatedByUserId == _userId)
             .OrderBy(p => p.DisplayName)
-            .Select(p => p.DisplayName)
+            .Select(p => new { p.PlayerId, p.DisplayName, p.IsLight })
             .ToListAsync();
+
+        var bookmarkedIds = _userId != null
+            ? await db.UserPlayers
+                .Where(up => up.UserId == _userId)
+                .Select(up => up.PlayerId)
+                .ToListAsync()
+            : [];
+
+        var bookmarkedPlayers = bookmarkedIds.Count > 0
+            ? await db.Players
+                .Where(p => bookmarkedIds.Contains(p.PlayerId) && p.UserId != _userId)
+                .OrderBy(p => p.DisplayName)
+                .Select(p => new { p.PlayerId, p.DisplayName, p.IsLight })
+                .ToListAsync()
+            : [];
+
+        _searchablePlayers = myLightPlayers
+            .Concat(bookmarkedPlayers)
+            .OrderBy(p => p.DisplayName)
+            .Select(p => new PlayerSelection
+            {
+                PlayerId = p.PlayerId,
+                DisplayName = p.DisplayName,
+                IsLight = p.IsLight
+            })
+            .ToList();
 
         _allClubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_fuzzyInitialized)
+        {
+            await InitFuzzyIndex();
+            _fuzzyInitialized = true;
+        }
+    }
+
+    private async Task InitFuzzyIndex()
+    {
+        await using var db = DbFactory.CreateDbContext();
+
+        // Index my light players
+        var lightItems = await db.Players
+            .Where(p => p.IsLight && p.CreatedByUserId == _userId)
+            .OrderBy(p => p.DisplayName)
+            .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, true))
+            .ToListAsync();
+
+        // Index my bookmarked verified players, excluding myself
+        var bookmarkedIds = _userId != null
+            ? await db.UserPlayers.Where(up => up.UserId == _userId).Select(up => up.PlayerId).ToListAsync()
+            : new List<int>();
+
+        var verifiedItems = bookmarkedIds.Count > 0
+            ? await db.Players
+                .Where(p => bookmarkedIds.Contains(p.PlayerId) && p.UserId != _userId)
+                .OrderBy(p => p.DisplayName)
+                .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false))
+                .ToListAsync()
+            : new List<FuzzyPlayerItem>();
+
+        // Also index ALL full players for the "Create Player" dialog suggestions (so we can suggest verified players even if not bookmarked)
+        var allFullPlayers = await db.Players
+            .Where(p => !p.IsLight && p.UserId != _userId)
+            .OrderBy(p => p.DisplayName)
+            .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false))
+            .ToListAsync();
+
+        // Merge: my players first, then remaining full players for suggestions
+        var myPlayerIds = lightItems.Select(i => i.PlayerId).Concat(verifiedItems.Select(i => i.PlayerId)).ToHashSet();
+        var additionalFull = allFullPlayers.Where(p => !myPlayerIds.Contains(p.PlayerId)).ToList();
+
+        await FuzzySearch.InitializeAsync(lightItems.Concat(verifiedItems).Concat(additionalFull));
+    }
+
+    // ── Navigation ──────────────────────────────────────────
 
     private void GoToStep(int step) => _currentStep = step;
 
@@ -349,22 +495,200 @@
         GoToStep(2);
     }
 
-    private string GetPlayerName(int playerNumber) => playerNumber switch
+    // ── Player Selection ────────────────────────────────────
+
+    private PlayerSelection? GetSelection(int playerNumber) => playerNumber switch
     {
-        1 => _player1Name,
-        2 => _player2Name,
-        3 => _player3Name,
-        4 => _player4Name,
-        _ => ""
+        2 => _player2,
+        3 => _player3,
+        4 => _player4,
+        _ => null
     };
 
-    private Task<IEnumerable<string>> SearchFriends(string value, CancellationToken ct)
+    private void SetSelection(int playerNumber, PlayerSelection? val)
     {
-        var combined = _friendNames.Union(_allPlayerNames).Distinct();
-        if (string.IsNullOrWhiteSpace(value))
-            return Task.FromResult(combined.Take(20));
-        return Task.FromResult(combined.Where(n => n.Contains(value, StringComparison.OrdinalIgnoreCase)));
+        switch (playerNumber)
+        {
+            case 2: _player2 = val; break;
+            case 3: _player3 = val; break;
+            case 4: _player4 = val; break;
+        }
     }
+
+    private async Task OnPlayerSelected(int playerNumber, PlayerSelection? val)
+    {
+        SetSelection(playerNumber, val);
+
+        // Clear any existing nudge
+        SetNudge(playerNumber, null);
+
+        // Check for "Did you mean?" nudge if a light player was selected
+        if (val is { IsLight: true } && !string.IsNullOrWhiteSpace(val.DisplayName))
+        {
+            var results = await FuzzySearch.SearchAsync(val.DisplayName, 1);
+            var topMatch = results.FirstOrDefault(r => !r.IsLight && r.Score < 0.3);
+            if (topMatch != null)
+                SetNudge(playerNumber, topMatch);
+        }
+    }
+
+    private FuzzySearchResult? GetNudge(int playerNumber) => playerNumber switch
+    {
+        2 => _nudge2,
+        3 => _nudge3,
+        4 => _nudge4,
+        _ => null
+    };
+
+    private void SetNudge(int playerNumber, FuzzySearchResult? nudge)
+    {
+        switch (playerNumber)
+        {
+            case 2: _nudge2 = nudge; break;
+            case 3: _nudge3 = nudge; break;
+            case 4: _nudge4 = nudge; break;
+        }
+    }
+
+    private void AcceptNudge(int playerNumber, FuzzySearchResult nudge)
+    {
+        SetSelection(playerNumber, new PlayerSelection
+        {
+            PlayerId = nudge.PlayerId,
+            DisplayName = nudge.DisplayName,
+            IsLight = false
+        });
+        SetNudge(playerNumber, null);
+    }
+
+    private async Task<IEnumerable<PlayerSelection>> SearchPlayers(string value, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return _searchablePlayers.Take(20);
+
+        if (_fuzzyInitialized)
+        {
+            // Fuzzy index has all players, but autocomplete should only show my players
+            var myPlayerIds = _searchablePlayers
+                .Where(p => p.PlayerId.HasValue)
+                .Select(p => p.PlayerId!.Value)
+                .ToHashSet();
+
+            var results = await FuzzySearch.SearchAsync(value, 30);
+            return results
+                .Where(r => myPlayerIds.Contains(r.PlayerId))
+                .Take(15)
+                .Select(r => new PlayerSelection
+                {
+                    PlayerId = r.PlayerId,
+                    DisplayName = r.DisplayName,
+                    IsLight = r.IsLight
+                });
+        }
+
+        // Fallback before fuzzy index is ready
+        return _searchablePlayers
+            .Where(p => p.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .Take(15);
+    }
+
+    // ── Inline Light Player Creation ────────────────────────
+
+    private void CreateLightPlayerInline(int playerNumber)
+    {
+        _inlineTargetPlayerNumber = playerNumber;
+        _inlineForm = new InlineForm();
+        _inlineFirstNamePreFilled = false;
+        _inlineLastNamePreFilled = false;
+        _inlineSuggestions = [];
+        _showInlineCreate = true;
+    }
+
+    private async Task OnInlineDisplayNameChanged(string value)
+    {
+        _inlineForm.DisplayName = value;
+        AutoFillInlineNames(value);
+
+        _inlineDebounce?.Cancel();
+        _inlineDebounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, _inlineDebounce.Token);
+            if (!string.IsNullOrWhiteSpace(value) && _fuzzyInitialized)
+            {
+                _inlineSuggestions = (await FuzzySearch.SearchAsync(value, 5))
+                    .Where(s => !s.IsLight)
+                    .ToList();
+            }
+            else
+            {
+                _inlineSuggestions = [];
+            }
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void AutoFillInlineNames(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName)) return;
+        var words = displayName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length >= 1 && !_inlineFirstNamePreFilled)
+            _inlineForm.FirstName = words[0];
+        if (words.Length >= 2 && !_inlineLastNamePreFilled)
+            _inlineForm.LastName = string.Join(" ", words.Skip(1));
+    }
+
+    private void UseVerifiedPlayerInstead(FuzzySearchResult suggestion)
+    {
+        SetSelection(_inlineTargetPlayerNumber, new PlayerSelection
+        {
+            PlayerId = suggestion.PlayerId,
+            DisplayName = suggestion.DisplayName,
+            IsLight = false
+        });
+        _showInlineCreate = false;
+    }
+
+    private async Task SaveInlineLightPlayer()
+    {
+        if (string.IsNullOrWhiteSpace(_inlineForm.DisplayName) || _userId == null) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var player = new Player
+        {
+            DisplayName = _inlineForm.DisplayName.Trim(),
+            FirstName = string.IsNullOrWhiteSpace(_inlineForm.FirstName) ? null : _inlineForm.FirstName.Trim(),
+            LastName = string.IsNullOrWhiteSpace(_inlineForm.LastName) ? null : _inlineForm.LastName.Trim(),
+            IsLight = true,
+            CreatedByUserId = _userId
+        };
+        db.Players.Add(player);
+        await db.SaveChangesAsync();
+
+        // Set as selected player
+        var sel = new PlayerSelection
+        {
+            PlayerId = player.PlayerId,
+            DisplayName = player.DisplayName,
+            IsLight = true
+        };
+        SetSelection(_inlineTargetPlayerNumber, sel);
+
+        // Update searchable list and fuzzy index
+        _searchablePlayers.Add(sel);
+        var items = await db.Players
+            .Where(p => !p.IsLight || p.CreatedByUserId == _userId)
+            .OrderBy(p => p.DisplayName)
+            .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight))
+            .ToListAsync();
+        await FuzzySearch.UpdateCollectionAsync(items);
+
+        _showInlineCreate = false;
+        Snackbar.Add("Player created.", Severity.Success);
+    }
+
+    // ── Court ───────────────────────────────────────────────
 
     private Task<IEnumerable<Club>> SearchClubs(string value, CancellationToken ct)
     {
@@ -396,15 +720,45 @@
         return court != null ? $"{_selectedClub?.Name} — {court.Name}" : "Selected";
     }
 
+    // ── Start Match ─────────────────────────────────────────
+
     private async Task StartMatch()
     {
+        // Auto-bookmark any verified players to "My Players"
+        if (_userId != null)
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var selections = new[] { _player2, _player3, _player4 }
+                .Where(s => s is { PlayerId: not null, IsLight: false })
+                .ToList();
+
+            foreach (var sel in selections)
+            {
+                var exists = await db.UserPlayers
+                    .AnyAsync(up => up.UserId == _userId && up.PlayerId == sel!.PlayerId!.Value);
+                if (!exists)
+                {
+                    db.UserPlayers.Add(new UserPlayer
+                    {
+                        UserId = _userId,
+                        PlayerId = sel!.PlayerId!.Value
+                    });
+                }
+            }
+            await db.SaveChangesAsync();
+        }
+
         await OnSetupComplete.InvokeAsync(new MatchSetupResult
         {
             IsDoubles = _isDoubles,
             Player1 = _player1Name,
-            Player2 = _player2Name,
-            Player3 = _isDoubles ? _player3Name : null,
-            Player4 = _isDoubles ? _player4Name : null,
+            Player2 = _player2?.DisplayName ?? "",
+            Player3 = _isDoubles ? _player3?.DisplayName : null,
+            Player4 = _isDoubles ? _player4?.DisplayName : null,
+            Player1Id = _myPlayer?.PlayerId,
+            Player2Id = _player2?.PlayerId,
+            Player3Id = _isDoubles ? _player3?.PlayerId : null,
+            Player4Id = _isDoubles ? _player4?.PlayerId : null,
             CourtId = _selectedCourtId,
             GameScoring = _gameScoring,
             UnlimitedDeuce = _unlimitedDeuce,
@@ -422,6 +776,10 @@
         public string Player2 { get; set; } = "";
         public string? Player3 { get; set; }
         public string? Player4 { get; set; }
+        public int? Player1Id { get; set; }
+        public int? Player2Id { get; set; }
+        public int? Player3Id { get; set; }
+        public int? Player4Id { get; set; }
         public int? CourtId { get; set; }
         public bool GameScoring { get; set; } = true;
         public bool UnlimitedDeuce { get; set; } = true;
