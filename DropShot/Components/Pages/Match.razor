@@ -65,9 +65,9 @@ else if (_loaded)
 
             if (_userId != null)
             {
-                // Logged-in users see all authenticated matches + their own
+                // Logged-in users see only their own matches
                 _matches = await db.SavedMatch
-                    .Where(m => !m.Complete && (m.UserId != null || (m.UserId == null && m.DeviceToken == null)))
+                    .Where(m => !m.Complete && m.UserId == _userId)
                     .OrderByDescending(m => m.CreatedAt)
                     .ToListAsync();
             }
