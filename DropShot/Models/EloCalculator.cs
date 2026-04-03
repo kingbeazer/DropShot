@@ -24,9 +24,10 @@
             double pointsA, double pointsB, double ratingA, double ratingB)
         {
             double PD = pointsA - pointsB;
-            double diff = Math.Abs(PD);
-            double factor = 2.2 / ((Math.Min(ratingA, ratingB) - Math.Max(ratingA, ratingB)) * 0.001 + 2.2);
-            return Math.Log(diff + 1) * factor;
+            double pointDiff = Math.Abs(PD);
+            double ratingDiff = Math.Abs(ratingA - ratingB);
+            double factor = 2.2 / (ratingDiff * 0.001 + 2.2);
+            return Math.Log(pointDiff + 1) * factor;
         }
     }
 }
