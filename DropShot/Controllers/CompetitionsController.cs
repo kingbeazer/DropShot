@@ -157,6 +157,10 @@ public class CompetitionsController(
         int id, int playerId, [FromBody] UpdateParticipantStatusRequest req)
     {
         await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
         var cp = await db.CompetitionParticipants.FindAsync(id, playerId);
         if (cp is null) return NotFound();
         cp.Status = (DropShot.Models.ParticipantStatus)req.Status;
@@ -168,6 +172,10 @@ public class CompetitionsController(
     public async Task<IActionResult> RemoveParticipant(int id, int playerId)
     {
         await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
         var cp = await db.CompetitionParticipants.FindAsync(id, playerId);
         if (cp is null) return NotFound();
         db.CompetitionParticipants.Remove(cp);
