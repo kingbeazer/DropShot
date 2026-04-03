@@ -58,9 +58,9 @@ public class AdminEmailService(
 
     private static string SubstituteVariables(string template, string playerName, string competitionName, string matchLink)
         => template
-            .Replace("{PlayerName}", playerName)
-            .Replace("{CompetitionName}", competitionName)
-            .Replace("{MatchLink}", matchLink);
+            .Replace("{PlayerName}", System.Net.WebUtility.HtmlEncode(playerName))
+            .Replace("{CompetitionName}", System.Net.WebUtility.HtmlEncode(competitionName))
+            .Replace("{MatchLink}", System.Net.WebUtility.HtmlEncode(matchLink));
 
     private async Task SendSafe(string email, string subject, string body, string context)
     {
