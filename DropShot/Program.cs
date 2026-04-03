@@ -20,9 +20,11 @@ builder.Services.AddRazorComponents()
 builder.Services.AddControllers();
 
 // ── CORS (allow MAUI app to call the API) ────────────────────────────────────
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["https://localhost:7000", "https://localhost:5001"];
 builder.Services.AddCors(options =>
     options.AddPolicy("MauiPolicy", policy =>
-        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
 // ── Database ─────────────────────────────────────────────────────────────────
 builder.Services.AddDbContextFactory<MyDbContext>(options =>
