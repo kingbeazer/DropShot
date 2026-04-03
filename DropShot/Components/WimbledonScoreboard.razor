@@ -103,6 +103,7 @@
     private string _currentTime = "";
     private string _elapsedTime = "";
     private System.Timers.Timer? _timer;
+    private bool _disposed;
 
     protected override void OnInitialized()
     {
@@ -110,6 +111,7 @@
         _timer = new System.Timers.Timer(30_000);
         _timer.Elapsed += async (_, _) =>
         {
+            if (_disposed) return;
             UpdateTimes();
             await InvokeAsync(StateHasChanged);
         };
@@ -137,7 +139,12 @@
         }
     }
 
-    public void Dispose() => _timer?.Dispose();
+    public void Dispose()
+    {
+        _disposed = true;
+        _timer?.Stop();
+        _timer?.Dispose();
+    }
 
     private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak)
     {
