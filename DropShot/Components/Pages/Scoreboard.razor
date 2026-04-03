@@ -336,6 +336,12 @@
 
     private async Task OnCourtChanged(int? courtId)
     {
+        // Verify the user is authorized for this court's club.
+        // _allCourts is already filtered to clubs the user can admin,
+        // so reject any courtId not in that list to prevent query-string bypass.
+        if (courtId.HasValue && !_allCourts.Any(c => c.CourtId == courtId.Value))
+            return;
+
         // Leave old court group
         if (_selectedCourtId.HasValue && hubConnection?.State == HubConnectionState.Connected)
             await hubConnection.SendAsync("LeaveCourtGroup", _selectedCourtId.Value);
@@ -393,6 +399,10 @@
 
     private async Task SaveDisplaySettingToDbAsync(int courtId, Action<ScoreboardDisplaySetting> update)
     {
+        // Verify club-level authorization before persisting display settings
+        if (!_allCourts.Any(c => c.CourtId == courtId))
+            return;
+
         using var db = DbFactory.CreateDbContext();
         var setting = await db.ScoreboardDisplaySettings.FirstOrDefaultAsync(s => s.CourtId == courtId);
         if (setting is null)
