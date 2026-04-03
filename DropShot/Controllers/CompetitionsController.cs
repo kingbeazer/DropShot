@@ -142,6 +142,11 @@ public class CompetitionsController(
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
+        var alreadyRegistered = await db.CompetitionParticipants
+            .AnyAsync(cp => cp.CompetitionId == id && cp.PlayerId == req.PlayerId);
+        if (alreadyRegistered)
+            return Conflict(new { message = "Player is already registered in this competition." });
+
         var cp = new CompetitionParticipant
         {
             CompetitionId = id, PlayerId = req.PlayerId,
