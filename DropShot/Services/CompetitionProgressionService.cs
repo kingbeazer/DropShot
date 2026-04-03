@@ -103,9 +103,21 @@ public static class CompetitionProgressionService
             }
         }
 
+        // Build head-to-head lookup: (winnerPid, loserPid) pairs
+        var h2h = new HashSet<(int winner, int loser)>();
+        foreach (var f in rrFixtures.Where(f => f.Status == FixtureStatus.Completed && f.WinnerPlayerId.HasValue))
+        {
+            var loserIds = new[] { f.Player1Id, f.Player2Id }
+                .Where(pid => pid.HasValue && pid.Value != f.WinnerPlayerId!.Value)
+                .Select(pid => pid!.Value);
+            foreach (var lid in loserIds)
+                h2h.Add((f.WinnerPlayerId!.Value, lid));
+        }
+
         var seeded = pts
             .OrderByDescending(kv => kv.Value.Points)
             .ThenByDescending(kv => kv.Value.Won)
+            .ThenByDescending(kv => h2h.Count(h => h.winner == kv.Key))
             .Take(targetFixtures.Count * 2)
             .Select(kv => kv.Key)
             .ToList();
