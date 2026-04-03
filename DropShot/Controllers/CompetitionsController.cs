@@ -559,8 +559,10 @@ public class CompetitionsController(
             foreach (var pid in ids)
             {
                 played[pid]++;
-                if (pid == f.WinnerPlayerId) won[pid]++;
-                else lost[pid]++;
+                if (pid == f.WinnerPlayerId)
+                    won[pid]++;
+                else if (f.WinnerPlayerId.HasValue)
+                    lost[pid]++;
             }
         }
 
