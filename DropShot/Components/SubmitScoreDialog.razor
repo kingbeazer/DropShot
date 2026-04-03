@@ -5,6 +5,7 @@
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ResultVerificationService ResultVerificationService
+@inject ISnackbar Snackbar
 
 <MudDialog>
     <TitleContent>
@@ -195,53 +196,69 @@
         }
 
         _saving = true;
-        var resultSummary = string.Join(", ", enteredSets);
-
-        await using var db = DbFactory.CreateDbContext();
-        var fx = await db.CompetitionFixtures.FindAsync(Fixture.CompetitionFixtureId);
-        if (fx != null)
+        try
         {
-            fx.ResultSummary  = resultSummary;
-            fx.WinnerPlayerId = _winnerPlayerId;
+            var resultSummary = string.Join(", ", enteredSets);
 
-            bool requireVerification = !AdminOverride && (Fixture.Competition?.RequireVerification ?? false);
-            if (requireVerification)
+            await using var db = DbFactory.CreateDbContext();
+            var fx = await db.CompetitionFixtures.FindAsync(Fixture.CompetitionFixtureId);
+            if (fx != null)
             {
-                fx.Status            = FixtureStatus.AwaitingVerification;
-                fx.VerificationToken = Guid.NewGuid();
+                fx.ResultSummary  = resultSummary;
+                fx.WinnerPlayerId = _winnerPlayerId;
+
+                bool requireVerification = !AdminOverride && (Fixture.Competition?.RequireVerification ?? false);
+                if (requireVerification)
+                {
+                    fx.Status            = FixtureStatus.AwaitingVerification;
+                    fx.VerificationToken = Guid.NewGuid();
+                }
+                else
+                {
+                    fx.Status            = FixtureStatus.Completed;
+                    fx.VerificationToken = null;
+                }
+
+                await db.SaveChangesAsync();
+
+                fx.Competition  = Fixture.Competition!;
+                fx.Player1      = Fixture.Player1;
+                fx.Player2      = Fixture.Player2;
+                fx.Player3      = Fixture.Player3;
+                fx.Player4      = Fixture.Player4;
+                fx.FixtureLabel = Fixture.FixtureLabel;
+
+                try
+                {
+                    if (requireVerification)
+                    {
+                        var adminEmailsTask = ResultVerificationService.GetAdminEmailsForCompetitionAsync(Fixture.CompetitionId, db);
+                        await Task.WhenAll(ResultVerificationService.SendResultNotificationAsync(fx), adminEmailsTask);
+                        await ResultVerificationService.SendAdminVerificationEmailsAsync(fx, adminEmailsTask.Result);
+                    }
+                    else
+                    {
+                        await Task.WhenAll(
+                            ResultVerificationService.SendResultNotificationAsync(fx),
+                            CompetitionProgressionService.TryAdvanceAsync(db, Fixture.CompetitionId, Fixture.CompetitionFixtureId));
+                    }
+                }
+                catch (Exception)
+                {
+                    Snackbar.Add("Score saved, but notifications or bracket progression failed. An admin may need to follow up.", Severity.Warning);
+                }
             }
-            else
-            {
-                fx.Status            = FixtureStatus.Completed;
-                fx.VerificationToken = null;
-            }
 
-            await db.SaveChangesAsync();
-
-            fx.Competition  = Fixture.Competition!;
-            fx.Player1      = Fixture.Player1;
-            fx.Player2      = Fixture.Player2;
-            fx.Player3      = Fixture.Player3;
-            fx.Player4      = Fixture.Player4;
-            fx.FixtureLabel = Fixture.FixtureLabel;
-
-            if (requireVerification)
-            {
-                var adminEmailsTask = ResultVerificationService.GetAdminEmailsForCompetitionAsync(Fixture.CompetitionId, db);
-                await Task.WhenAll(ResultVerificationService.SendResultNotificationAsync(fx), adminEmailsTask);
-                await ResultVerificationService.SendAdminVerificationEmailsAsync(fx, adminEmailsTask.Result);
-                _saving = false;
-                MudDialog.Close(DialogResult.Ok(true));
-                return;
-            }
-
-            await Task.WhenAll(
-                ResultVerificationService.SendResultNotificationAsync(fx),
-                CompetitionProgressionService.TryAdvanceAsync(db, Fixture.CompetitionId, Fixture.CompetitionFixtureId));
+            MudDialog.Close(DialogResult.Ok(true));
         }
-
-        _saving = false;
-        MudDialog.Close(DialogResult.Ok(true));
+        catch (Exception)
+        {
+            _error = "Failed to save the score. Please try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private void Cancel() => MudDialog.Cancel();
