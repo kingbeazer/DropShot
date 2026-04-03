@@ -200,6 +200,15 @@ public static class CompetitionProgressionService
     internal static void AssignWinners(List<CompetitionFixture> targets, List<int> winners)
     {
         int n = targets.Count;
+        if (winners.Count <= n)
+        {
+            // Not enough winners for seeded pairing — assign sequentially
+            for (int i = 0; i < n; i++)
+                targets[i].Player1Id = i < winners.Count ? winners[i] : null;
+            return;
+        }
+
+        // Standard seeded pairing: seed[i] vs seed[2n-1-i]
         for (int i = 0; i < n; i++)
         {
             int p2Idx = 2 * n - 1 - i;
