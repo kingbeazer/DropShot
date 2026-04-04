@@ -263,7 +263,9 @@
                             return;
                     }
 
-                    GameState? gameState = JsonConvert.DeserializeObject<GameState>(user);
+                    GameState? gameState;
+                    try { gameState = JsonConvert.DeserializeObject<GameState>(user); }
+                    catch (JsonException) { return; }
                     if (gameState != null)
                         currentScore = gameState;
 
@@ -359,7 +361,9 @@
 
             if (_activeMatch?.MatchJson is { } json)
             {
-                var match = JsonConvert.DeserializeObject<DropShot.Models.Match>(json);
+                DropShot.Models.Match? match;
+                try { match = JsonConvert.DeserializeObject<DropShot.Models.Match>(json); }
+                catch (JsonException) { match = null; }
                 var latest = match?.HistoryList?.LastOrDefault();
                 if (latest != null)
                     currentScore = latest;
