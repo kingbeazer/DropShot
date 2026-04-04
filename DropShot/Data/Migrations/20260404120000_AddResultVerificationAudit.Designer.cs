@@ -4,6 +4,7 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DropShot.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260404120000_AddResultVerificationAudit")]
+    partial class AddResultVerificationAudit
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -482,9 +485,6 @@ namespace DropShot.Migrations
                     b.Property<int>("CompetitionId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("CourtId")
-                        .HasColumnType("int");
-
                     b.Property<int>("DayOfWeek")
                         .HasColumnType("int");
 
@@ -497,8 +497,6 @@ namespace DropShot.Migrations
                     b.HasKey("CompetitionMatchWindowId");
 
                     b.HasIndex("CompetitionId");
-
-                    b.HasIndex("CourtId");
 
                     b.ToTable("CompetitionMatchWindows");
                 });
@@ -1296,14 +1294,7 @@ namespace DropShot.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("DropShot.Models.Court", "Court")
-                        .WithMany()
-                        .HasForeignKey("CourtId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Competition");
-
-                    b.Navigation("Court");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionParticipant", b =>
