@@ -243,6 +243,11 @@ namespace DropShot.Data
                       .WithMany(c => c.MatchWindows)
                       .HasForeignKey(w => w.CompetitionId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(w => w.Court)
+                      .WithMany()
+                      .HasForeignKey(w => w.CourtId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // ── ClubSchedulingTemplate / ClubSchedulingTemplateWindow ────────────

@@ -574,8 +574,10 @@
 
     [Parameter] public int MatchId { get; set; }
     [SupplyParameterFromQuery] public int? FixtureId { get; set; }
+    [SupplyParameterFromQuery] public bool? AutoStart { get; set; }
     private int _savedMatchId;
     private CompetitionFixture? _competitionFixture;
+    private bool _autoStartPending;
 
     private List<string> _states = [];
     private List<Court> _courts = [];
@@ -713,6 +715,19 @@
             }
         }
 
+        // Auto-start: skip wizard and go straight to match when all info is available
+        if (AutoStart == true && _competitionFixture != null
+            && !string.IsNullOrEmpty(_value) && !string.IsNullOrEmpty(_value2))
+        {
+            _state.BestOf = _competitionFixture.Competition?.BestOf ?? 3;
+            _state.GameScoring = true;
+            _state.UnlimitedDeuce = true;
+            _state.GamesFirstTo = 6;
+            _selectedCourtId = _competitionFixture.CourtId;
+            _serverChoice = "random";
+            _autoStartPending = true;
+        }
+
         _courts = await DbContext.Courts
             .Include(c => c.Club)
             .Where(c => c.CourtId == _selectedCourtId
@@ -748,6 +763,13 @@
                     .Build();
 
                 await hubConnection.StartAsync();
+            }
+
+            if (_autoStartPending)
+            {
+                _autoStartPending = false;
+                await ButtonOnClick();
+                await InvokeAsync(StateHasChanged);
             }
         }
     }

@@ -395,7 +395,7 @@ public class CompetitionsController(
         var comp = await db.Competition
             .Include(c => c.Stages.OrderBy(s => s.StageOrder))
             .Include(c => c.Participants)
-            .Include(c => c.MatchWindows)
+            .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
             .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
@@ -421,9 +421,30 @@ public class CompetitionsController(
 
         var rng = new Random();
         IReadOnlyList<DropShot.Models.CompetitionMatchWindow> matchWindows = comp.MatchWindows.ToList();
+        var courts = comp.HostClubId.HasValue
+            ? await db.Courts.Where(c => c.ClubId == comp.HostClubId.Value).ToListAsync()
+            : new List<DropShot.Models.Court>();
+        var occupied = new HashSet<(DateTime, int?)>();
 
-        DateTime RandomSlot() =>
-            SchedulingSlotPicker.PickSlot(matchWindows, startDate, endDate, rng);
+        (DateTime, int?) RandomCourtSlot()
+        {
+            var result = SchedulingSlotPicker.PickCourtSlot(matchWindows, courts, occupied, startDate, endDate, rng);
+            occupied.Add(result);
+            return result;
+        }
+
+        CompetitionFixture NewFixture(int compId, int stageId)
+        {
+            var (slot, courtId) = RandomCourtSlot();
+            return new CompetitionFixture
+            {
+                CompetitionId = compId,
+                CompetitionStageId = stageId,
+                ScheduledAt = slot,
+                CourtId = courtId,
+                Status = DropShot.Models.FixtureStatus.Scheduled
+            };
+        }
 
         foreach (var stage in comp.Stages)
         {
@@ -436,15 +457,10 @@ public class CompetitionsController(
                     {
                         for (int j = i + 1; j < players.Count; j++)
                         {
-                            db.CompetitionFixtures.Add(new CompetitionFixture
-                            {
-                                CompetitionId = id,
-                                CompetitionStageId = stage.CompetitionStageId,
-                                Player1Id = players[i],
-                                Player2Id = players[j],
-                                ScheduledAt = RandomSlot(),
-                                Status = DropShot.Models.FixtureStatus.Scheduled
-                            });
+                            var fixture = NewFixture(id, stage.CompetitionStageId);
+                            fixture.Player1Id = players[i];
+                            fixture.Player2Id = players[j];
+                            db.CompetitionFixtures.Add(fixture);
                         }
                     }
                     break;
@@ -470,29 +486,19 @@ public class CompetitionsController(
                         // ── Quarter-Finals (players assigned automatically when RR completes) ──
                         for (int m = 0; m < 4; m++)
                         {
-                            db.CompetitionFixtures.Add(new CompetitionFixture
-                            {
-                                CompetitionId = id,
-                                CompetitionStageId = stage.CompetitionStageId,
-                                FixtureLabel = $"Quarter-Final {m + 1}",
-                                RoundNumber = 1,
-                                ScheduledAt = RandomSlot(),
-                                Status = DropShot.Models.FixtureStatus.Scheduled
-                            });
+                            var qf = NewFixture(id, stage.CompetitionStageId);
+                            qf.FixtureLabel = $"Quarter-Final {m + 1}";
+                            qf.RoundNumber = 1;
+                            db.CompetitionFixtures.Add(qf);
                         }
 
                         // ── Semi-Finals (players assigned automatically when QF completes) ───
                         for (int m = 0; m < 2; m++)
                         {
-                            db.CompetitionFixtures.Add(new CompetitionFixture
-                            {
-                                CompetitionId = id,
-                                CompetitionStageId = stage.CompetitionStageId,
-                                FixtureLabel = $"Semi-Final {m + 1}",
-                                RoundNumber = 2,
-                                ScheduledAt = RandomSlot(),
-                                Status = DropShot.Models.FixtureStatus.Scheduled
-                            });
+                            var sf = NewFixture(id, stage.CompetitionStageId);
+                            sf.FixtureLabel = $"Semi-Final {m + 1}";
+                            sf.RoundNumber = 2;
+                            db.CompetitionFixtures.Add(sf);
                         }
                     }
                     else
@@ -500,42 +506,27 @@ public class CompetitionsController(
                         // ── Semi-Finals (players assigned automatically when RR completes) ────
                         for (int m = 0; m < 2; m++)
                         {
-                            db.CompetitionFixtures.Add(new CompetitionFixture
-                            {
-                                CompetitionId = id,
-                                CompetitionStageId = stage.CompetitionStageId,
-                                FixtureLabel = $"Semi-Final {m + 1}",
-                                RoundNumber = 1,
-                                ScheduledAt = RandomSlot(),
-                                Status = DropShot.Models.FixtureStatus.Scheduled
-                            });
+                            var sf = NewFixture(id, stage.CompetitionStageId);
+                            sf.FixtureLabel = $"Semi-Final {m + 1}";
+                            sf.RoundNumber = 1;
+                            db.CompetitionFixtures.Add(sf);
                         }
                     }
 
                     // ── Final (always a placeholder) ─────────────────────────────
-                    db.CompetitionFixtures.Add(new CompetitionFixture
-                    {
-                        CompetitionId = id,
-                        CompetitionStageId = stage.CompetitionStageId,
-                        FixtureLabel = "Final",
-                        RoundNumber = n >= 8 ? 3 : 2,
-                        ScheduledAt = RandomSlot(),
-                        Status = DropShot.Models.FixtureStatus.Scheduled
-                    });
+                    var final1 = NewFixture(id, stage.CompetitionStageId);
+                    final1.FixtureLabel = "Final";
+                    final1.RoundNumber = n >= 8 ? 3 : 2;
+                    db.CompetitionFixtures.Add(final1);
                     break;
                 }
 
                 case DropShot.Models.StageType.Final:
                 {
-                    db.CompetitionFixtures.Add(new CompetitionFixture
-                    {
-                        CompetitionId = id,
-                        CompetitionStageId = stage.CompetitionStageId,
-                        FixtureLabel = "Final",
-                        RoundNumber = 1,
-                        ScheduledAt = RandomSlot(),
-                        Status = DropShot.Models.FixtureStatus.Scheduled
-                    });
+                    var final2 = NewFixture(id, stage.CompetitionStageId);
+                    final2.FixtureLabel = "Final";
+                    final2.RoundNumber = 1;
+                    db.CompetitionFixtures.Add(final2);
                     break;
                 }
 
@@ -543,15 +534,10 @@ public class CompetitionsController(
                 {
                     for (int m = 0; m < 4; m++)
                     {
-                        db.CompetitionFixtures.Add(new CompetitionFixture
-                        {
-                            CompetitionId = id,
-                            CompetitionStageId = stage.CompetitionStageId,
-                            FixtureLabel = $"Quarter-Final {m + 1}",
-                            RoundNumber = 1,
-                            ScheduledAt = RandomSlot(),
-                            Status = DropShot.Models.FixtureStatus.Scheduled
-                        });
+                        var qf = NewFixture(id, stage.CompetitionStageId);
+                        qf.FixtureLabel = $"Quarter-Final {m + 1}";
+                        qf.RoundNumber = 1;
+                        db.CompetitionFixtures.Add(qf);
                     }
                     break;
                 }
@@ -560,15 +546,10 @@ public class CompetitionsController(
                 {
                     for (int m = 0; m < 2; m++)
                     {
-                        db.CompetitionFixtures.Add(new CompetitionFixture
-                        {
-                            CompetitionId = id,
-                            CompetitionStageId = stage.CompetitionStageId,
-                            FixtureLabel = $"Semi-Final {m + 1}",
-                            RoundNumber = 1,
-                            ScheduledAt = RandomSlot(),
-                            Status = DropShot.Models.FixtureStatus.Scheduled
-                        });
+                        var sf = NewFixture(id, stage.CompetitionStageId);
+                        sf.FixtureLabel = $"Semi-Final {m + 1}";
+                        sf.RoundNumber = 1;
+                        db.CompetitionFixtures.Add(sf);
                     }
                     break;
                 }

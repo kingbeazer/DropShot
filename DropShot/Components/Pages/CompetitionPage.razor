@@ -16,6 +16,8 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDialogService DialogService
 @inject AdminEmailService AdminEmailSvc
+@inject IConfiguration Configuration
+@inject IJSRuntime JS
 
 <MudProviders />
 
@@ -170,7 +172,7 @@
                 <MudText Typo="Typo.h6" Class="mb-3">Match Windows</MudText>
 
                 <MudGrid Spacing="1" Class="mb-2">
-                    <MudItem xs="4">
+                    <MudItem xs="3">
                         <MudSelect @bind-Value="_newMatchWindowDay" Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
                             @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
                             {
@@ -179,10 +181,19 @@
                         </MudSelect>
                     </MudItem>
                     <MudItem xs="3">
+                        <MudSelect @bind-Value="_newMatchWindowCourtId" Label="Court" Variant="Variant.Outlined"
+                                   Margin="Margin.Dense" Clearable="true">
+                            @foreach (var c in _courts)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="2">
                         <MudTimePicker @bind-Time="_newMatchWindowStart" Label="From" Variant="Variant.Outlined"
                                        Margin="Margin.Dense" AmPm="false" />
                     </MudItem>
-                    <MudItem xs="3">
+                    <MudItem xs="2">
                         <MudTimePicker @bind-Time="_newMatchWindowEnd" Label="To" Variant="Variant.Outlined"
                                        Margin="Margin.Dense" AmPm="false" />
                     </MudItem>
@@ -196,13 +207,14 @@
                 {
                     <MudSimpleTable Dense="true" Class="mb-2">
                         <thead>
-                            <tr><th>Day</th><th>From</th><th>To</th><th></th></tr>
+                            <tr><th>Day</th><th>Court</th><th>From</th><th>To</th><th></th></tr>
                         </thead>
                         <tbody>
                             @foreach (var w in _matchWindows)
                             {
                                 <tr>
                                     <td>@w.DayOfWeek</td>
+                                    <td>@(w.Court?.Name ?? "All courts")</td>
                                     <td>@w.StartTime.ToString(@"hh\:mm")</td>
                                     <td>@w.EndTime.ToString(@"hh\:mm")</td>
                                     <td>
@@ -517,6 +529,12 @@
                                                Color="Color.Warning" aria-label="Override / Enter Result"
                                                OnClick="@(() => OpenOverrideResultAsync(context))" />
                             }
+                            @if (context.Player1Id.HasValue && context.Player2Id.HasValue)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.QrCode2" Size="Size.Small"
+                                               Color="Color.Info" aria-label="QR Code"
+                                               OnClick="@(() => ShowQrCode(context))" />
+                            }
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                            OnClick="@(() => OpenEditFixtureDialog(context))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
@@ -711,6 +729,34 @@
     </DialogActions>
 </MudDialog>
 
+@* ── QR Code Dialog ──────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showQrDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>Match QR Code</TitleContent>
+    <DialogContent>
+        @if (_qrFixture != null)
+        {
+            <MudStack AlignItems="AlignItems.Center" Spacing="3">
+                <MudText Typo="Typo.subtitle1">@FixturePlayers(_qrFixture)</MudText>
+                @if (_qrFixture.ScheduledAt.HasValue)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_qrFixture.ScheduledAt.Value.ToString("dd MMM yyyy HH:mm")</MudText>
+                }
+                @if (_qrFixture.Court != null)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_qrFixture.Court.Name</MudText>
+                }
+                <QrCodeDisplay Url="@_qrUrl" CssClass="d-flex justify-center" />
+                <MudTextField Value="@_qrUrl" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.ContentCopy"
+                              OnAdornmentClick="CopyQrUrl" FullWidth="true" />
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showQrDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     [Parameter] public int Id { get; set; }
 
@@ -733,6 +779,11 @@
     private List<CompetitionTeam> _teams = [];
     private List<Court> _courts = [];
 
+    // QR code dialog
+    private bool _showQrDialog;
+    private CompetitionFixture? _qrFixture;
+    private string _qrUrl = "";
+
     // Stage dialog
     private bool _showStageDialog;
     private StageForm _stageForm = new();
@@ -754,6 +805,7 @@
     // Match windows
     private List<CompetitionMatchWindow> _matchWindows = [];
     private DayOfWeek _newMatchWindowDay = DayOfWeek.Monday;
+    private int? _newMatchWindowCourtId;
     private TimeSpan? _newMatchWindowStart;
     private TimeSpan? _newMatchWindowEnd;
     private List<ClubSchedulingTemplate> _clubTemplates = [];
@@ -844,7 +896,7 @@
                 .Include(c => c.Fixtures).ThenInclude(f => f.Player3)
                 .Include(c => c.Fixtures).ThenInclude(f => f.Player4)
                 .Include(c => c.Teams)
-                .Include(c => c.MatchWindows)
+                .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.CompetitionID == Id);
 
@@ -1246,6 +1298,20 @@
             await OnParametersSetAsync();
     }
 
+    private void ShowQrCode(CompetitionFixture fixture)
+    {
+        _qrFixture = fixture;
+        var baseUrl = (Configuration["App:BaseUrl"] ?? "").TrimEnd('/');
+        _qrUrl = $"{baseUrl}/match/0?fixtureId={fixture.CompetitionFixtureId}&autostart=true";
+        _showQrDialog = true;
+    }
+
+    private async Task CopyQrUrl()
+    {
+        await JS.InvokeVoidAsync("copyToClipboard", _qrUrl);
+        Snackbar.Add("Link copied to clipboard.", Severity.Success);
+    }
+
     private async Task DeleteFixture(CompetitionFixture fixture)
     {
         await using var db = DbFactory.CreateDbContext();
@@ -1262,14 +1328,17 @@
         var w = new CompetitionMatchWindow
         {
             CompetitionId = Id,
+            CourtId       = _newMatchWindowCourtId,
             DayOfWeek     = _newMatchWindowDay,
             StartTime     = _newMatchWindowStart.Value,
             EndTime       = _newMatchWindowEnd.Value
         };
         db.CompetitionMatchWindows.Add(w);
         await db.SaveChangesAsync();
+        w.Court = _courts.FirstOrDefault(c => c.CourtId == _newMatchWindowCourtId);
         _matchWindows.Add(w);
         _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
+        _newMatchWindowCourtId = null;
         _newMatchWindowStart = null;
         _newMatchWindowEnd = null;
         Snackbar.Add("Window added.", Severity.Success);
