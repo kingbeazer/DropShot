@@ -43,6 +43,77 @@ public static class SchedulingSlotPicker
         return FallbackSlot(windowStart, windowEnd, rng, fallbackTimeSlots ?? DefaultTimeSlots);
     }
 
+    /// <summary>
+    /// Picks a random valid (DateTime, CourtId) pair that does not collide with
+    /// already-occupied slots. Two fixtures may share the same time only when
+    /// they are on different courts.
+    /// Falls back to <see cref="PickSlot"/> with no court when no courts are
+    /// provided or all court-specific candidates are exhausted.
+    /// </summary>
+    public static (DateTime slot, int? courtId) PickCourtSlot(
+        IReadOnlyList<CompetitionMatchWindow> windows,
+        IReadOnlyList<Court> courts,
+        HashSet<(DateTime, int?)> occupied,
+        DateTime windowStart,
+        DateTime windowEnd,
+        Random rng)
+    {
+        if (courts.Count == 0)
+            return (PickSlot(windows, windowStart, windowEnd, rng), null);
+
+        var candidates = new List<(DateTime time, int courtId)>();
+
+        for (var d = windowStart.Date; d <= windowEnd.Date; d = d.AddDays(1))
+        {
+            foreach (var court in courts)
+            {
+                // Court-specific windows for this court and day
+                var courtWindows = windows
+                    .Where(w => w.DayOfWeek == d.DayOfWeek && w.CourtId == court.CourtId)
+                    .ToList();
+
+                // If no court-specific windows, use global windows (CourtId == null)
+                if (courtWindows.Count == 0)
+                {
+                    courtWindows = windows
+                        .Where(w => w.DayOfWeek == d.DayOfWeek && w.CourtId == null)
+                        .ToList();
+                }
+
+                foreach (var w in courtWindows)
+                {
+                    for (var t = w.StartTime; t < w.EndTime; t = t.Add(TimeSpan.FromMinutes(30)))
+                        candidates.Add((d + t, court.CourtId));
+                }
+            }
+        }
+
+        // Fall back to default slots per court when no windows defined
+        if (candidates.Count == 0 && windows.Count == 0)
+        {
+            foreach (var court in courts)
+            {
+                for (var d = windowStart.Date; d <= windowEnd.Date; d = d.AddDays(1))
+                {
+                    foreach (var mins in DefaultTimeSlots)
+                        candidates.Add((d.AddMinutes(mins), court.CourtId));
+                }
+            }
+        }
+
+        // Remove occupied slots
+        var available = candidates.Where(c => !occupied.Contains((c.time, c.courtId))).ToList();
+
+        if (available.Count > 0)
+        {
+            var pick = available[rng.Next(available.Count)];
+            return (pick.time, pick.courtId);
+        }
+
+        // All court slots exhausted — fall back to time-only
+        return (PickSlot(windows, windowStart, windowEnd, rng), null);
+    }
+
     private static DateTime FallbackSlot(DateTime start, DateTime end, Random rng, int[] timeSlots)
     {
         var days = Math.Max(0, (end.Date - start.Date).Days);

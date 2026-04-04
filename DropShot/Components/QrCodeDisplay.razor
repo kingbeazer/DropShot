@@ -1,0 +1,20 @@
+@inject IJSRuntime JS
+
+<div id="@_elementId" class="@CssClass"></div>
+
+@code {
+    [Parameter, EditorRequired] public string Url { get; set; } = "";
+    [Parameter] public string? CssClass { get; set; }
+
+    private readonly string _elementId = $"qr-{Guid.NewGuid():N}";
+    private string? _renderedUrl;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!string.IsNullOrEmpty(Url) && Url != _renderedUrl)
+        {
+            _renderedUrl = Url;
+            await JS.InvokeVoidAsync("generateQrCode", _elementId, Url);
+        }
+    }
+}

@@ -4,11 +4,13 @@ public class CompetitionMatchWindow
 {
     public int CompetitionMatchWindowId { get; set; }
     public int CompetitionId { get; set; }
+    public int? CourtId { get; set; }
     public DayOfWeek DayOfWeek { get; set; }
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
 
     public Competition Competition { get; set; } = null!;
+    public Court? Court { get; set; }
 }
 
 public class ClubSchedulingTemplate
