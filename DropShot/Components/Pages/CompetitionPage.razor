@@ -501,6 +501,7 @@
                         <MudTh>Date / Time</MudTh>
                         <MudTh>Players</MudTh>
                         <MudTh>Court</MudTh>
+                        <MudTh>Result</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh></MudTh>
                     </HeaderContent>
@@ -510,6 +511,22 @@
                         <MudTd>@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
                         <MudTd>@FixturePlayers(context)</MudTd>
                         <MudTd>@(context.Court?.Name ?? "—")</MudTd>
+                        <MudTd>
+                            @if (!string.IsNullOrEmpty(context.ResultSummary))
+                            {
+                                <MudText Typo="Typo.body2">@context.ResultSummary</MudText>
+                                @if (context.ResultModifiedByAdmin)
+                                {
+                                    <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Modified</MudChip>
+                                    </MudTooltip>
+                                }
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                            }
+                        </MudTd>
                         <MudTd>
                             <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
                                 @context.Status

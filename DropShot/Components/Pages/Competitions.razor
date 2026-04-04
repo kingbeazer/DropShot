@@ -12,20 +12,82 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ClubAuthorizationService AuthzService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
-@if (_pendingVerifications.Count > 0)
+@if (_pendingFixtures.Count > 0)
 {
-    <MudAlert Severity="Severity.Warning" Class="mb-4">
-        <MudText><strong>Results awaiting verification (@_pendingVerifications.Count)</strong></MudText>
-        <MudList T="string" Dense="true">
-            @foreach (var (label, compId) in _pendingVerifications)
-            {
-                <MudListItem T="string">
-                    <MudLink Href="@($"/competition/{compId}")">@label</MudLink>
-                </MudListItem>
-            }
-        </MudList>
-    </MudAlert>
+    <MudCard Class="mb-4" Elevation="2">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.RateReview" Color="Color.Warning" />
+                    <MudText Typo="Typo.h6">Results Awaiting Verification (@_pendingFixtures.Count)</MudText>
+                </MudStack>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent Class="pa-0">
+            <MudTable Items="@_pendingFixtures" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
+                      GroupBy="@(new TableGroupDefinition<CompetitionFixture>
+                      {
+                          GroupName = "Competition",
+                          Selector = f => f.Competition?.CompetitionName ?? "Unknown",
+                          Expandable = true,
+                          IsInitiallyExpanded = true
+                      })">
+                <HeaderContent>
+                    <MudTh>Match</MudTh>
+                    <MudTh>Players</MudTh>
+                    <MudTh>Submitted Score</MudTh>
+                    <MudTh>Winner</MudTh>
+                    <MudTh Style="width:180px"></MudTh>
+                </HeaderContent>
+                <GroupHeaderTemplate>
+                    <MudTh colspan="5">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Small" Color="Color.Primary" />
+                            <MudText Typo="Typo.subtitle1" Style="font-weight:600">@context.Key</MudText>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">@context.Items.Count() pending</MudChip>
+                        </MudStack>
+                    </MudTh>
+                </GroupHeaderTemplate>
+                <RowTemplate>
+                    <MudTd DataLabel="Match">
+                        <MudText Typo="Typo.body2">@(context.FixtureLabel ?? "Match")</MudText>
+                        @if (context.ScheduledAt.HasValue)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.ScheduledAt.Value.ToString("dd MMM yyyy")</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Players">
+                        <MudText Typo="Typo.body2">@FixturePlayers(context)</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Score">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Dark">
+                            @(context.ResultSummary ?? "—")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Winner">
+                        <MudText Typo="Typo.body2" Style="font-weight:500">@FixtureWinnerName(context)</MudText>
+                    </MudTd>
+                    <MudTd>
+                        <MudStack Row="true" Spacing="1">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                                       OnClick="@(() => QuickApproveAsync(context))">
+                                Approve
+                            </MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                       StartIcon="@Icons.Material.Filled.Edit"
+                                       OnClick="@(() => OpenReviewDialogAsync(context))">
+                                Review
+                            </MudButton>
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudCardContent>
+    </MudCard>
 }
 
 <MudTextField @bind-Value="_searchText" Placeholder="Search competitions..."
@@ -71,7 +133,7 @@
     private List<Competition> _competitions = [];
     private string _searchText = "";
     private bool _isAdmin;
-    private List<(string Label, int CompetitionId)> _pendingVerifications = [];
+    private List<CompetitionFixture> _pendingFixtures = [];
     private HashSet<int> _editableClubIds = [];
     private HashSet<int> _competitionAdminIds = [];
 
@@ -101,21 +163,19 @@
         // Load pending verifications for admins / club admins / competition admins
         if (_isAdmin || _editableClubIds.Count > 0 || _competitionAdminIds.Count > 0)
         {
-            _pendingVerifications = (await dbc.CompetitionFixtures
+            _pendingFixtures = await dbc.CompetitionFixtures
+                .Include(f => f.Competition)
+                .Include(f => f.Player1)
+                .Include(f => f.Player2)
+                .Include(f => f.Player3)
+                .Include(f => f.Player4)
                 .Where(f => f.Status == FixtureStatus.AwaitingVerification
                     && (_isAdmin
                         || (f.Competition.HostClubId.HasValue && _editableClubIds.Contains(f.Competition.HostClubId.Value))
                         || _competitionAdminIds.Contains(f.CompetitionId)))
-                .Select(f => new
-                {
-                    f.CompetitionId,
-                    Label = f.FixtureLabel != null
-                        ? f.Competition.CompetitionName + " — " + f.FixtureLabel
-                        : f.Competition.CompetitionName
-                })
-                .ToListAsync())
-                .Select(f => (f.Label, f.CompetitionId))
-                .ToList();
+                .OrderBy(f => f.Competition.CompetitionName)
+                .ThenBy(f => f.ScheduledAt)
+                .ToListAsync();
         }
     }
 
@@ -123,4 +183,59 @@
         _isAdmin ||
         (c.HostClubId.HasValue && _editableClubIds.Contains(c.HostClubId.Value)) ||
         _competitionAdminIds.Contains(c.CompetitionID);
+
+    private static string FixturePlayers(CompetitionFixture f)
+    {
+        var s1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
+            .Where(n => n != null).DefaultIfEmpty("TBD");
+        var s2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
+            .Where(n => n != null).DefaultIfEmpty("TBD");
+        return $"{string.Join(" & ", s1)} vs {string.Join(" & ", s2)}";
+    }
+
+    private static string FixtureWinnerName(CompetitionFixture f)
+    {
+        if (f.WinnerPlayerId == f.Player1Id) return f.Player1?.DisplayName ?? "Player 1";
+        if (f.WinnerPlayerId == f.Player2Id) return f.Player2?.DisplayName ?? "Player 2";
+        if (f.WinnerPlayerId == f.Player3Id) return f.Player3?.DisplayName ?? "Player 3";
+        if (f.WinnerPlayerId == f.Player4Id) return f.Player4?.DisplayName ?? "Player 4";
+        return "—";
+    }
+
+    private async Task QuickApproveAsync(CompetitionFixture fixture)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures.FindAsync(fixture.CompetitionFixtureId);
+        if (fx == null) return;
+
+        fx.Status = FixtureStatus.Completed;
+        fx.VerificationToken = null;
+        await db.SaveChangesAsync();
+
+        await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+
+        _pendingFixtures.Remove(fixture);
+        Snackbar.Add("Result approved.", Severity.Success);
+    }
+
+    private async Task OpenReviewDialogAsync(CompetitionFixture fixture)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var loaded = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Player1).Include(f => f.Player2)
+            .Include(f => f.Player3).Include(f => f.Player4)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixture.CompetitionFixtureId);
+        if (loaded == null) return;
+
+        var parameters = new DialogParameters<ReviewResultDialog> { { x => x.Fixture, loaded } };
+        var dialog = await DialogService.ShowAsync<ReviewResultDialog>("Review Result", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            _pendingFixtures.Remove(fixture);
+            Snackbar.Add("Result verified.", Severity.Success);
+        }
+    }
 }

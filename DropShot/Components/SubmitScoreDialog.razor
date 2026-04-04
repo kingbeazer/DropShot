@@ -204,6 +204,14 @@
             var fx = await db.CompetitionFixtures.FindAsync(Fixture.CompetitionFixtureId);
             if (fx != null)
             {
+                // If admin is overriding an existing result, preserve the original for audit
+                if (AdminOverride && fx.ResultSummary != null)
+                {
+                    fx.OriginalResultSummary = fx.ResultSummary;
+                    fx.OriginalWinnerPlayerId = fx.WinnerPlayerId;
+                    fx.ResultModifiedByAdmin = true;
+                }
+
                 fx.ResultSummary  = resultSummary;
                 fx.WinnerPlayerId = _winnerPlayerId;
 

@@ -32,6 +32,11 @@ public class CompetitionFixture
     public int? WinnerPlayerId { get; set; }
     public Guid? VerificationToken { get; set; }
 
+    // Audit trail for admin-modified results
+    public string? OriginalResultSummary { get; set; }
+    public int? OriginalWinnerPlayerId { get; set; }
+    public bool ResultModifiedByAdmin { get; set; }
+
     public Competition Competition { get; set; } = null!;
     public CompetitionStage? Stage { get; set; }
     public Court? Court { get; set; }
