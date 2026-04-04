@@ -149,6 +149,14 @@ public class CompetitionsController(
         if (alreadyRegistered)
             return Conflict(new { message = "Player is already registered in this competition." });
 
+        if (comp.MaxParticipants.HasValue)
+        {
+            var currentCount = await db.CompetitionParticipants
+                .CountAsync(p => p.CompetitionId == id);
+            if (currentCount >= comp.MaxParticipants.Value)
+                return BadRequest(new { message = "Competition has reached its maximum number of participants." });
+        }
+
         var cp = new CompetitionParticipant
         {
             CompetitionId = id, PlayerId = req.PlayerId,
