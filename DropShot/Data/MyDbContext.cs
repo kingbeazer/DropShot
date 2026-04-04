@@ -205,6 +205,7 @@ namespace DropShot.Data
             {
                 entity.Property(f => f.Status).HasConversion<byte>();
                 entity.Property(f => f.ResultSummary).HasMaxLength(200);
+                entity.Property(f => f.OriginalResultSummary).HasMaxLength(200);
                 entity.Property(f => f.FixtureLabel).HasMaxLength(50);
 
                 entity.HasOne(f => f.Competition)

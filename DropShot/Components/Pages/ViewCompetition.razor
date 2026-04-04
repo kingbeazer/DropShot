@@ -94,11 +94,21 @@ else
                         <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
                     </MudTd>
                     <MudTd DataLabel="Result">
-                        @if (context.Status == FixtureStatus.Completed)
+                        @if (context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification)
                         {
                             <MudText Typo="Typo.body2" Style="font-weight:500">
                                 @(context.ResultSummary ?? WinnerName(context))
                             </MudText>
+                            @if (context.ResultModifiedByAdmin)
+                            {
+                                <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Modified</MudChip>
+                                </MudTooltip>
+                            }
+                            @if (context.Status == FixtureStatus.AwaitingVerification)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
+                            }
                         }
                         else
                         {

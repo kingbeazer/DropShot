@@ -1,0 +1,231 @@
+@using DropShot.Data
+@using DropShot.Models
+@using DropShot.Services
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+
+<MudDialog>
+    <TitleContent>
+        Review Result
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @* Competition & fixture info *@
+            <MudText Typo="Typo.subtitle2" Color="Color.Primary">
+                @(Fixture.Competition?.CompetitionName ?? "Competition")
+            </MudText>
+            @if (!string.IsNullOrEmpty(Fixture.FixtureLabel))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@Fixture.FixtureLabel</MudText>
+            }
+
+            <MudDivider />
+
+            @* Players *@
+            <MudText Typo="Typo.body1">
+                <strong>@_side1</strong> vs <strong>@_side2</strong>
+            </MudText>
+
+            @* Submitted score display *@
+            <MudAlert Severity="Severity.Info" Dense="true" NoIcon="true">
+                <MudText Typo="Typo.subtitle2">Submitted Score</MudText>
+                <MudText Typo="Typo.h6">@Fixture.ResultSummary</MudText>
+                <MudText Typo="Typo.body2">
+                    Winner: <strong>@WinnerName()</strong>
+                </MudText>
+            </MudAlert>
+
+            @* Edit toggle *@
+            <MudSwitch @bind-Value="_editing" Label="Modify score" Color="Color.Warning" />
+
+            @if (_editing)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true">
+                    The original submission will be preserved for audit purposes.
+                </MudAlert>
+
+                <MudText Typo="Typo.subtitle2">Updated Set Scores</MudText>
+                <MudSimpleTable Dense="true" Style="max-width:300px">
+                    <thead>
+                        <tr>
+                            <th style="width:50px"></th>
+                            <th style="text-align:center; font-size:0.8rem">@_side1</th>
+                            <th style="width:20px"></th>
+                            <th style="text-align:center; font-size:0.8rem">@_side2</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < _bestOf; i++)
+                        {
+                            int idx = i;
+                            <tr>
+                                <td style="color:#888; font-size:0.8rem; padding-right:8px">Set @(idx + 1)</td>
+                                <td>
+                                    <MudNumericField T="int?" @bind-Value="_score1[idx]"
+                                                    Min="0" Max="13" Variant="Variant.Outlined"
+                                                    Style="width:65px" HideSpinButtons="true" />
+                                </td>
+                                <td style="text-align:center; padding:0 4px; font-weight:bold">-</td>
+                                <td>
+                                    <MudNumericField T="int?" @bind-Value="_score2[idx]"
+                                                    Min="0" Max="13" Variant="Variant.Outlined"
+                                                    Style="width:65px" HideSpinButtons="true" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+
+                <MudSelect T="int?" @bind-Value="_winnerPlayerId" Label="Winner" Variant="Variant.Outlined">
+                    @if (Fixture.Player1Id.HasValue)
+                    {
+                        <MudSelectItem T="int?" Value="@Fixture.Player1Id">@_side1</MudSelectItem>
+                    }
+                    @if (Fixture.Player2Id.HasValue)
+                    {
+                        <MudSelectItem T="int?" Value="@Fixture.Player2Id">@_side2</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Success" Variant="Variant.Filled"
+                   OnClick="ApproveAsync" Disabled="_saving"
+                   StartIcon="@Icons.Material.Filled.CheckCircle">
+            @(_editing ? "Approve with Changes" : "Approve")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public CompetitionFixture Fixture { get; set; } = default!;
+
+    private int _bestOf = 3;
+    private int?[] _score1 = new int?[3];
+    private int?[] _score2 = new int?[3];
+    private int? _winnerPlayerId;
+    private bool _editing;
+    private bool _saving;
+    private string? _error;
+    private string _side1 = "";
+    private string _side2 = "";
+
+    protected override void OnParametersSet()
+    {
+        _bestOf = Math.Max(1, Fixture.Competition?.BestOf ?? 3);
+        _score1 = new int?[_bestOf];
+        _score2 = new int?[_bestOf];
+
+        var s1Parts = new[] { Fixture.Player1?.DisplayName, Fixture.Player3?.DisplayName }
+            .Where(n => n != null).ToList();
+        var s2Parts = new[] { Fixture.Player2?.DisplayName, Fixture.Player4?.DisplayName }
+            .Where(n => n != null).ToList();
+        _side1 = s1Parts.Any() ? string.Join(" & ", s1Parts) : "Player 1";
+        _side2 = s2Parts.Any() ? string.Join(" & ", s2Parts) : "Player 2";
+
+        // Pre-fill edit fields from submitted result
+        _winnerPlayerId = Fixture.WinnerPlayerId;
+        ParseResultSummary(Fixture.ResultSummary);
+    }
+
+    private void ParseResultSummary(string? summary)
+    {
+        if (string.IsNullOrEmpty(summary)) return;
+        var sets = summary.Split(',', StringSplitOptions.TrimEntries);
+        for (int i = 0; i < Math.Min(sets.Length, _bestOf); i++)
+        {
+            // Expect format "6-4" or "6\u20134"
+            var parts = sets[i].Split(new[] { '-', '\u2013' }, StringSplitOptions.TrimEntries);
+            if (parts.Length == 2 && int.TryParse(parts[0], out var s1) && int.TryParse(parts[1], out var s2))
+            {
+                _score1[i] = s1;
+                _score2[i] = s2;
+            }
+        }
+    }
+
+    private string WinnerName()
+    {
+        if (Fixture.WinnerPlayerId == Fixture.Player1Id) return _side1;
+        if (Fixture.WinnerPlayerId == Fixture.Player2Id) return _side2;
+        return "Unknown";
+    }
+
+    private async Task ApproveAsync()
+    {
+        _error = null;
+
+        if (_editing)
+        {
+            var enteredSets = Enumerable.Range(0, _bestOf)
+                .Where(i => _score1[i].HasValue || _score2[i].HasValue)
+                .Select(i => $"{_score1[i] ?? 0}\u2013{_score2[i] ?? 0}")
+                .ToList();
+
+            if (!enteredSets.Any())
+            {
+                _error = "Please enter at least one set score.";
+                return;
+            }
+
+            if (_winnerPlayerId == null)
+            {
+                _error = "Please select a winner.";
+                return;
+            }
+        }
+
+        _saving = true;
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var fx = await db.CompetitionFixtures
+                .Include(f => f.Competition)
+                .FirstOrDefaultAsync(f => f.CompetitionFixtureId == Fixture.CompetitionFixtureId);
+            if (fx == null) { _error = "Fixture not found."; return; }
+
+            if (_editing)
+            {
+                var newSummary = string.Join(", ", Enumerable.Range(0, _bestOf)
+                    .Where(i => _score1[i].HasValue || _score2[i].HasValue)
+                    .Select(i => $"{_score1[i] ?? 0}\u2013{_score2[i] ?? 0}"));
+
+                // Store original before overwriting
+                fx.OriginalResultSummary = fx.ResultSummary;
+                fx.OriginalWinnerPlayerId = fx.WinnerPlayerId;
+                fx.ResultModifiedByAdmin = true;
+                fx.ResultSummary = newSummary;
+                fx.WinnerPlayerId = _winnerPlayerId;
+            }
+
+            fx.Status = FixtureStatus.Completed;
+            fx.VerificationToken = null;
+
+            await db.SaveChangesAsync();
+            await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+        }
+        catch (Exception)
+        {
+            _error = "Failed to save. Please try again.";
+            return;
+        }
+        finally
+        {
+            _saving = false;
+        }
+
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
