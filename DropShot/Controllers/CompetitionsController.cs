@@ -304,6 +304,22 @@ public class CompetitionsController(
                 return BadRequest(new { message = "Stage does not belong to this competition." });
         }
 
+        if (req.CourtId.HasValue)
+        {
+            var court = await db.Courts.FindAsync(req.CourtId.Value);
+            if (court is null || court.ClubId != comp.HostClubId)
+                return BadRequest(new { message = "Court does not belong to the competition's host club." });
+        }
+
+        var playerIds = new[] { req.Player1Id, req.Player2Id, req.Player3Id, req.Player4Id }
+            .Where(id => id.HasValue).Select(id => id!.Value).ToList();
+        if (playerIds.Count > 0)
+        {
+            var existingCount = await db.Players.CountAsync(p => playerIds.Contains(p.PlayerId));
+            if (existingCount != playerIds.Count)
+                return BadRequest(new { message = "One or more player IDs are invalid." });
+        }
+
         var fixture = new CompetitionFixture { CompetitionId = id };
         ApplyFixture(fixture, req);
         db.CompetitionFixtures.Add(fixture);
@@ -324,6 +340,22 @@ public class CompetitionsController(
             var stage = await db.CompetitionStages.FindAsync(req.CompetitionStageId.Value);
             if (stage is null || stage.CompetitionId != id)
                 return BadRequest(new { message = "Stage does not belong to this competition." });
+        }
+
+        if (req.CourtId.HasValue)
+        {
+            var court = await db.Courts.FindAsync(req.CourtId.Value);
+            if (court is null || court.ClubId != comp.HostClubId)
+                return BadRequest(new { message = "Court does not belong to the competition's host club." });
+        }
+
+        var playerIds = new[] { req.Player1Id, req.Player2Id, req.Player3Id, req.Player4Id }
+            .Where(id => id.HasValue).Select(id => id!.Value).ToList();
+        if (playerIds.Count > 0)
+        {
+            var existingCount = await db.Players.CountAsync(p => playerIds.Contains(p.PlayerId));
+            if (existingCount != playerIds.Count)
+                return BadRequest(new { message = "One or more player IDs are invalid." });
         }
 
         var fixture = await db.CompetitionFixtures.FindAsync(fixtureId);
