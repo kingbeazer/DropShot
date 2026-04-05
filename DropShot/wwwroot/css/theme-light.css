@@ -1,0 +1,247 @@
+/* ══════════════════════════════════════════════════════════════════════
+   DropShot – Light Theme (Alternative Stylesheet)
+   Applied when <html data-theme="light"> is set.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Base overrides ─────────────────────────────────────────────────── */
+[data-theme="light"] body {
+    background-color: #f5f5f5 !important;
+    color: #212121 !important;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────── */
+[data-theme="light"] .sidebar {
+    background-image: none !important;
+    background-color: #ffffff !important;
+    border-right: 1px solid #e0e0e0;
+}
+
+/* ── Top navbar ─────────────────────────────────────────────────────── */
+[data-theme="light"] .top-row {
+    background-color: #1565c0 !important;
+}
+
+[data-theme="light"] .navbar-brand {
+    color: #ffffff !important;
+}
+
+/* ── Nav links ──────────────────────────────────────────────────────── */
+[data-theme="light"] .nav-item .nav-link,
+[data-theme="light"] .nav-item a.nav-link,
+[data-theme="light"] .nav-item button.nav-link,
+[data-theme="light"] .nav-group label .nav-link {
+    color: #424242 !important;
+}
+
+[data-theme="light"] .nav-item .nav-link:hover,
+[data-theme="light"] .nav-item a.nav-link:hover,
+[data-theme="light"] .nav-item button.nav-link:hover {
+    background-color: rgba(21, 101, 192, 0.08) !important;
+    color: #1565c0 !important;
+}
+
+[data-theme="light"] .nav-item a.active {
+    background-color: rgba(21, 101, 192, 0.15) !important;
+    color: #1565c0 !important;
+}
+
+[data-theme="light"] .nav-icon {
+    color: #616161 !important;
+}
+
+[data-theme="light"] .nav-item a.active .nav-icon,
+[data-theme="light"] .nav-item .nav-link:hover .nav-icon {
+    color: #1565c0 !important;
+}
+
+/* ── Mobile nav overlay ─────────────────────────────────────────────── */
+@media (max-width: 640.98px) {
+    [data-theme="light"] .nav-scrollable {
+        background-image: none !important;
+        background-color: #ffffff !important;
+        border-bottom: 1px solid #e0e0e0;
+    }
+}
+
+/* ── Nav toggler (mobile) ───────────────────────────────────────────── */
+[data-theme="light"] .navbar-toggler {
+    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.9%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.75rem rgba(255, 255, 255, 0.2) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* ── Content area ───────────────────────────────────────────────────── */
+[data-theme="light"] .content {
+    background-color: #f5f5f5;
+}
+
+[data-theme="light"] a,
+[data-theme="light"] .btn-link {
+    color: #1565c0;
+}
+
+/* ── MudBlazor overrides for light mode ─────────────────────────────── */
+[data-theme="light"] .mud-theme-dark {
+    --mud-palette-black: #272c34;
+    --mud-palette-white: #ffffff;
+    --mud-palette-primary: #1565c0;
+    --mud-palette-primary-text: #ffffff;
+    --mud-palette-secondary: #00897b;
+    --mud-palette-secondary-text: #ffffff;
+    --mud-palette-tertiary: #7b1fa2;
+    --mud-palette-tertiary-text: #ffffff;
+    --mud-palette-info: #1976d2;
+    --mud-palette-info-text: #ffffff;
+    --mud-palette-success: #2e7d32;
+    --mud-palette-success-text: #ffffff;
+    --mud-palette-warning: #f57c00;
+    --mud-palette-warning-text: #ffffff;
+    --mud-palette-error: #d32f2f;
+    --mud-palette-error-text: #ffffff;
+    --mud-palette-dark: #424242;
+    --mud-palette-dark-text: #ffffff;
+    --mud-palette-text-primary: #212121;
+    --mud-palette-text-secondary: #616161;
+    --mud-palette-text-disabled: rgba(0,0,0,0.38);
+    --mud-palette-action-default: #616161;
+    --mud-palette-action-disabled: rgba(0,0,0,0.26);
+    --mud-palette-action-disabled-background: rgba(0,0,0,0.12);
+    --mud-palette-background: #f5f5f5;
+    --mud-palette-background-gray: #eeeeee;
+    --mud-palette-surface: #ffffff;
+    --mud-palette-drawer-background: #ffffff;
+    --mud-palette-drawer-text: #424242;
+    --mud-palette-drawer-icon: #616161;
+    --mud-palette-appbar-background: #1565c0;
+    --mud-palette-appbar-text: #ffffff;
+    --mud-palette-lines-default: #e0e0e0;
+    --mud-palette-lines-inputs: #bdbdbd;
+    --mud-palette-table-lines: #e0e0e0;
+    --mud-palette-table-striped: #fafafa;
+    --mud-palette-table-hover: #f5f5f5;
+    --mud-palette-divider: #e0e0e0;
+    --mud-palette-divider-light: rgba(0,0,0,0.08);
+    --mud-palette-overlay-dark: rgba(33,33,33,0.5);
+    --mud-palette-overlay-light: rgba(255,255,255,0.5);
+}
+
+/* ── MudBlazor component backgrounds ────────────────────────────────── */
+[data-theme="light"] .mud-paper,
+[data-theme="light"] .mud-card,
+[data-theme="light"] .mud-dialog {
+    background-color: #ffffff !important;
+    color: #212121 !important;
+}
+
+[data-theme="light"] .mud-table {
+    background-color: #ffffff !important;
+}
+
+[data-theme="light"] .mud-table .mud-table-head .mud-table-cell {
+    background-color: #fafafa !important;
+    color: #424242 !important;
+}
+
+[data-theme="light"] .mud-table .mud-table-body .mud-table-cell {
+    color: #212121 !important;
+}
+
+[data-theme="light"] .mud-input,
+[data-theme="light"] .mud-input-control {
+    color: #212121 !important;
+}
+
+[data-theme="light"] .mud-chip {
+    color: #212121 !important;
+}
+
+/* ── Nav avatar border ──────────────────────────────────────────────── */
+[data-theme="light"] .nav-avatar {
+    border-color: #1565c0 !important;
+}
+
+/* ── QR code panel ──────────────────────────────────────────────────── */
+[data-theme="light"] .qr-code-wrapper {
+    border-color: #e0e0e0 !important;
+}
+
+/* ── Role banner ────────────────────────────────────────────────────── */
+[data-theme="light"] .role-banner {
+    background-color: #e3f2fd !important;
+    color: #1565c0 !important;
+}
+
+/* ── Blazor error UI ────────────────────────────────────────────────── */
+[data-theme="light"] #blazor-error-ui {
+    background: #fff3cd;
+    color: #856404;
+}
+
+/* ── Scrollbar styling ──────────────────────────────────────────────── */
+[data-theme="light"] ::-webkit-scrollbar-track {
+    background: #f5f5f5;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: #bdbdbd;
+    border-radius: 4px;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: #9e9e9e;
+}
+
+/* ── Theme toggle icon visibility ───────────────────────────────────── */
+/* Dark theme (default): show sun icon, hide moon */
+.theme-icon-dark {
+    display: none;
+}
+.theme-icon-light {
+    display: inline-block;
+}
+
+/* Light theme: show moon icon, hide sun */
+[data-theme="light"] .theme-icon-light {
+    display: none;
+}
+[data-theme="light"] .theme-icon-dark {
+    display: inline-block;
+}
+
+/* ── Theme toggle button ────────────────────────────────────────────── */
+.theme-toggle-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.5rem 10px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: #d7d7d7;
+    height: 3rem;
+    line-height: 3rem;
+}
+
+.theme-toggle-btn:hover {
+    background-color: rgba(255,255,255,0.1);
+    color: white;
+}
+
+[data-theme="light"] .theme-toggle-btn {
+    color: #424242 !important;
+}
+
+[data-theme="light"] .theme-toggle-btn:hover {
+    background-color: rgba(21, 101, 192, 0.08) !important;
+    color: #1565c0 !important;
+}
+
+[data-theme="light"] .theme-toggle-btn .nav-icon {
+    color: #616161 !important;
+}
+
+[data-theme="light"] .theme-toggle-btn:hover .nav-icon {
+    color: #1565c0 !important;
+}
