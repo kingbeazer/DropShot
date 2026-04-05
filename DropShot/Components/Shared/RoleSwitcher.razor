@@ -1,7 +1,6 @@
-@* Pure SSR component — uses a form POST like logout, no interactive circuit needed *@
+@* Pure SSR — native <select> auto-submits on change via inline JS *@
 
 @using System.Security.Claims
-@using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using DropShot.Data
 
@@ -11,22 +10,19 @@
 
 @if (_grantedRoles.Count > 1)
 {
-    <div class="role-switcher-section">
-        <span class="role-switcher-label nav-link" style="font-size: 0.75rem; opacity: 0.7; padding-bottom: 0;">
-            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Class="nav-icon" /> Role: @_activeRole
-        </span>
-        @foreach (var role in _grantedRoles.Where(r => r != _activeRole))
-        {
-            <form action="Account/SwitchRole" method="post" data-enhance-nav="false">
-                <AntiforgeryToken />
-                <input type="hidden" name="role" value="@role" />
-                <input type="hidden" name="returnUrl" value="@_currentUrl" />
-                <button type="submit" class="nav-link role-switch-btn">
-                    <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Class="nav-icon" /> Switch to @role
-                </button>
-            </form>
-        }
-    </div>
+    <form action="Account/SwitchRole" method="post" data-enhance-nav="false">
+        <AntiforgeryToken />
+        <input type="hidden" name="returnUrl" value="@_currentUrl" />
+        <div class="role-switcher-row">
+            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Class="nav-icon" />
+            <select name="role" class="role-switcher-select" onchange="this.form.submit()">
+                @foreach (var role in _grantedRoles)
+                {
+                    <option value="@role" selected="@(role == _activeRole)">@role</option>
+                }
+            </select>
+        </div>
+    </form>
 }
 
 @code {
@@ -44,7 +40,6 @@
         var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId is null) return;
 
-        // Use a dedicated DbContext to avoid concurrency with other SSR components
         await using var db = DbFactory.CreateDbContext();
         _grantedRoles = await db.UserRoles
             .Where(ur => ur.UserId == userId)
