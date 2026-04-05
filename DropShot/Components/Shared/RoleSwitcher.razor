@@ -2,9 +2,11 @@
 
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using DropShot.Data
 
 @inject IHttpContextAccessor HttpContextAccessor
-@inject UserManager<DropShot.Data.ApplicationUser> UserManager
+@inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
 @if (_grantedRoles.Count > 1)
@@ -39,13 +41,18 @@
 
         _currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
 
-        var user = await UserManager.GetUserAsync(httpContext.User);
-        if (user is null) return;
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return;
 
-        _grantedRoles = (await UserManager.GetRolesAsync(user)).ToList();
+        // Use a dedicated DbContext to avoid concurrency with other SSR components
+        await using var db = DbFactory.CreateDbContext();
+        _grantedRoles = await db.UserRoles
+            .Where(ur => ur.UserId == userId)
+            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+            .ToListAsync();
+
         if (_grantedRoles.Count <= 1) return;
 
-        // Read active role from cookie, default to first granted role
         _activeRole = httpContext.Request.Cookies["ActiveRole"] ?? _grantedRoles[0];
         if (!_grantedRoles.Contains(_activeRole, StringComparer.OrdinalIgnoreCase))
             _activeRole = _grantedRoles[0];
