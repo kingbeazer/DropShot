@@ -1,6 +1,7 @@
 using DropShot.Components;
 using DropShot.Components.Account;
 using DropShot.Data;
+using DropShot.Hubs;
 using DropShot.Models;
 using DropShot.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -80,6 +81,8 @@ builder.Services.AddSingleton<EmailService>();
 builder.Services.AddScoped<ResultVerificationService>();
 builder.Services.AddScoped<AdminEmailService>();
 builder.Services.AddScoped<FuzzySearchService>();
+builder.Services.AddSingleton<QrLoginService>();
+builder.Services.AddHostedService<QrSessionCleanupService>();
 builder.Services.AddMudServices();
 
 var app = builder.Build();
@@ -104,6 +107,31 @@ app.MapControllers();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.MapAdditionalIdentityEndpoints();
 app.MapHub<ChatHub>("/chathub");
+app.MapHub<QrAuthHub>("/qrauthub");
+
+// ── QR code login callback (sets identity cookie, redirects desktop) ─────────
+app.MapGet("/Account/QrLogin", async (
+    string token,
+    QrLoginService qrLoginService,
+    UserManager<ApplicationUser> userManager,
+    SignInManager<ApplicationUser> signInManager) =>
+{
+    var session = qrLoginService.GetSession(token);
+    if (session is null || session.Status != QrSessionStatus.Authenticated || string.IsNullOrEmpty(session.UserId))
+        return Results.Redirect("/Account/Login");
+
+    var user = await userManager.FindByIdAsync(session.UserId);
+    if (user is null)
+        return Results.Redirect("/Account/Login");
+
+    await signInManager.SignInAsync(user, isPersistent: false);
+    qrLoginService.RemoveSession(token);
+
+    if (session.CourtId.HasValue)
+        return Results.Redirect($"/score?courtId={session.CourtId.Value}");
+
+    return Results.Redirect("/");
+});
 
 // ── Seed roles ────────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
