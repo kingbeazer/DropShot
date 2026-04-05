@@ -889,7 +889,7 @@
     private async Task SetScoringFullscreen(bool enabled)
     {
         var action = enabled ? "add" : "remove";
-        await JS.InvokeVoidAsync("eval", $"document.body.classList.{action}('scoreboard-fullscreen')");
+        await JS.InvokeVoidAsync("eval", $"document.body.classList.{action}('scoring-active')");
     }
 
     private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "") });
