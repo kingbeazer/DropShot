@@ -306,7 +306,7 @@
 @* #11 — Match complete as full-screen overlay instead of below the fold *@
 @if (CurrentMatch != null && CurrentMatch.Complete)
 {
-    <div class="match-complete-overlay">
+    <div class="match-complete-overlay" @onclick="NavigateAfterMatch">
         <div class="match-complete-trophy">🏆</div>
         @if (!string.IsNullOrWhiteSpace(_winner) && !_winner.Equals("Congratulations "))
         {
@@ -315,17 +315,17 @@
         <div class="match-complete-score">
             @string.Join("  ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}"))
         </div>
-        <MudButton Style="margin-top: 16px;" FullWidth="false" Variant="Variant.Filled"
-                   StartIcon="@Icons.Material.Filled.FiberNew" Color="Color.Secondary" Size="Size.Large"
-                   OnClick="@ReloadPage">Start New Match</MudButton>
-        @if (_competitionFixture != null)
-        {
-            <MudButton Style="margin-top: 8px;" FullWidth="false" Variant="Variant.Filled"
-                       StartIcon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" Size="Size.Large"
-                       OnClick="@(() => Navigation.NavigateTo($"/competition/{_competitionFixture.CompetitionId}/view"))">
-                Back to @(_competitionFixture.Competition?.CompetitionName ?? "Competition")
-            </MudButton>
-        }
+        <div class="match-complete-countdown">
+            @if (_competitionFixture != null)
+            {
+                <span>Returning to @(_competitionFixture.Competition?.CompetitionName ?? "competition") in @_countdownSeconds…</span>
+            }
+            else
+            {
+                <span>New match in @_countdownSeconds…</span>
+            }
+        </div>
+        <div class="match-complete-tap-hint">Tap anywhere to skip</div>
     </div>
 }
 
@@ -344,6 +344,10 @@
     private System.Threading.Timer? _timerHandle;
     private string _elapsedDisplay = "00:00";
     private DateTime _matchStartUtc;
+
+    // Match-end countdown auto-redirect
+    private int _countdownSeconds = 5;
+    private System.Threading.Timer? _countdownHandle;
 
     // #9 — Tap feedback animation flags
     private bool _userTapAnim;
@@ -438,14 +442,12 @@
             _state.IsMatchEnded = true;
             if (CurrentMatch != null)
                 _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
+            StopTimer();
+            StartMatchEndCountdown();
             SaveHistory();
         }
     }
 
-    public void ReloadPage()
-    {
-        Navigation.NavigateTo("/match");
-    }
 
     private async Task<IEnumerable<string>> Search1(string value, CancellationToken token)
     {
@@ -962,6 +964,7 @@
         {
             _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
             StopTimer();
+            StartMatchEndCountdown();
         }
         await SaveHistory();
     }
@@ -984,6 +987,7 @@
         {
             _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
             StopTimer();
+            StartMatchEndCountdown();
         }
         await SaveHistory();
     }
@@ -1010,9 +1014,39 @@
         _timerHandle = null;
     }
 
+    private void StartMatchEndCountdown()
+    {
+        _countdownSeconds = 5;
+        _countdownHandle = new System.Threading.Timer(CountdownTick, null, 1000, 1000);
+    }
+
+    private void CountdownTick(object? _)
+    {
+        _countdownSeconds--;
+        if (_countdownSeconds <= 0)
+        {
+            _countdownHandle?.Dispose();
+            _countdownHandle = null;
+            InvokeAsync(NavigateAfterMatch);
+        }
+        else
+        {
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void NavigateAfterMatch()
+    {
+        if (_competitionFixture != null)
+            Navigation.NavigateTo($"/competition/{_competitionFixture.CompetitionId}/view");
+        else
+            Navigation.NavigateTo("/match");
+    }
+
     public void Dispose()
     {
         _timerHandle?.Dispose();
+        _countdownHandle?.Dispose();
     }
 
     private async Task UndoLastPoint()
@@ -1025,6 +1059,8 @@
             CurrentMatch.Complete = false;
         _state.IsMatchEnded = false;
         _winner = "";
+        _countdownHandle?.Dispose();
+        _countdownHandle = null;
         await PersistAndBroadcast();
     }
 
