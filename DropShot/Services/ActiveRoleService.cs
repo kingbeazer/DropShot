@@ -33,7 +33,8 @@ public class ActiveRoleService
                 "SuperAdmin" => 0,
                 "Admin" => 1,
                 "ClubAdmin" => 2,
-                _ => 3
+                "User" => 3,
+                _ => 4
             })
             .ToList();
 

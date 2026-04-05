@@ -96,6 +96,9 @@
 
         Logger.LogInformation("User created a new account with password.");
 
+        // Assign the base "User" role to every new account
+        await UserManager.AddToRoleAsync(user, "User");
+
         // Auto-link to an existing unlinked Player record with the same email
         var linkedPlayer = false;
         await using (var db = await DbFactory.CreateDbContextAsync())
