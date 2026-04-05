@@ -24,19 +24,38 @@
         });
     }
 
-    // Apply saved theme immediately to prevent flash
+    // Apply saved theme immediately
     applyTheme(getPreferred());
 
-    // Re-apply after Blazor enhanced navigation (which patches the DOM and
-    // strips the data-theme attribute because the server doesn't set it).
-    document.addEventListener('blazor:enhanced-navigation-end', function () {
-        applyTheme(getPreferred());
-    });
+    // Re-apply after Blazor enhanced navigation. Blazor patches the DOM to
+    // match the server response, which strips the data-theme attribute.
+    // The correct API is Blazor.addEventListener, NOT document.addEventListener.
+    function hookBlazorNavigation() {
+        if (typeof Blazor !== 'undefined' && Blazor.addEventListener) {
+            Blazor.addEventListener('enhancedload', function () {
+                applyTheme(getPreferred());
+            });
+        } else {
+            // Blazor not ready yet, retry shortly
+            setTimeout(hookBlazorNavigation, 100);
+        }
+    }
+    hookBlazorNavigation();
 
-    // Fallback for older Blazor versions that use 'enhancedload'
-    document.addEventListener('enhancedload', function () {
-        applyTheme(getPreferred());
+    // Belt-and-suspenders: watch for the attribute being removed and restore it.
+    // This catches any edge case where enhanced navigation strips it before
+    // the enhancedload event fires.
+    var observer = new MutationObserver(function (mutations) {
+        var theme = getPreferred();
+        if (theme === 'light' && !document.documentElement.hasAttribute('data-theme')) {
+            // Temporarily disconnect to avoid infinite loop
+            observer.disconnect();
+            document.documentElement.setAttribute('data-theme', 'light');
+            updateToggleLabels('light');
+            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        }
     });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
     // Expose toggle function globally for onclick
     window.toggleDropShotTheme = function () {
