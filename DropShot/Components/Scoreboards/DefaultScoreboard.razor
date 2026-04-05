@@ -1,0 +1,99 @@
+@using DropShot.Models
+
+<div class="default-scoreboard">
+    @if (SelectedCourt != null)
+    {
+        <div class="score-court-name">
+            @SelectedCourt.Club.Name — @SelectedCourt.Name
+        </div>
+    }
+
+    @if (ActiveFixture?.Competition != null)
+    {
+        <div class="score-competition">
+            @ActiveFixture.Competition.CompetitionName
+            @if (!string.IsNullOrEmpty(ActiveFixture.FixtureLabel))
+            {
+                <span> — @ActiveFixture.FixtureLabel</span>
+            }
+        </div>
+    }
+    @if (ActiveMatch != null)
+    {
+        <div class="score-player-label">
+            @PlayerLabel(ActiveMatch)
+        </div>
+    }
+
+    @if (!Score.isComplete)
+    {
+        <div class="score-points-row">
+            <div class="score-point-group">
+                <span class="score-serve-indicator" style="visibility: @(Score.IsUserServing ? "visible" : "hidden");">🎾</span>
+                <span class="score-point-value">@PointDisplay(Score.UserPts, Score.OppPts, Score.DeuceCount, Score.TieBreak, true)</span>
+            </div>
+            <div class="score-point-group">
+                <span class="score-point-value">@PointDisplay(Score.OppPts, Score.UserPts, Score.DeuceCount, Score.TieBreak, false)</span>
+                <span class="score-serve-indicator" style="visibility: @(!Score.IsUserServing ? "visible" : "hidden");">🎾</span>
+            </div>
+        </div>
+    }
+
+    @if (Score.TieBreak)
+    {
+        <div class="scoreboard-tiebreak">TIE BREAK</div>
+    }
+
+    <div class="score-dot-row">
+        @foreach (var set in Score.SetScores ?? Enumerable.Empty<SetScore>())
+        {
+            <DotDigit Number="@set.UserGames" />
+        }
+        <DotDigit Number="@Score.UserG" />
+        @for (int i = 0; i < 5 - (Score.SetScores?.Count() ?? 0) - 1; i++)
+        {
+            <DotDigit Number="0" />
+        }
+    </div>
+
+    <div class="score-dot-row">
+        @foreach (var set in Score.SetScores ?? Enumerable.Empty<SetScore>())
+        {
+            <DotDigit Number="@set.OpponentGames" />
+        }
+        <DotDigit Number="@Score.OppG" />
+        @for (int i = 0; i < 5 - (Score.SetScores?.Count() ?? 0) - 1; i++)
+        {
+            <DotDigit Number="0" />
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public GameState Score { get; set; } = default!;
+    [Parameter] public SavedMatch? ActiveMatch { get; set; }
+    [Parameter] public Court? SelectedCourt { get; set; }
+    [Parameter] public CompetitionFixture? ActiveFixture { get; set; }
+
+    private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak, bool isUser)
+    {
+        if (tieBreak)
+            return myPts.ToString();
+
+        if (deuceCount > 0)
+        {
+            if (myPts > oppPts) return "Ad";
+            if (myPts < oppPts) return "";
+            return "40";
+        }
+
+        return myPts switch { 0 => "0", 1 => "15", 2 => "30", _ => "40" };
+    }
+
+    private static string PlayerLabel(SavedMatch m)
+    {
+        if (!string.IsNullOrWhiteSpace(m.Player3) && !string.IsNullOrWhiteSpace(m.Player4))
+            return $"{m.Player1} & {m.Player2}  vs  {m.Player3} & {m.Player4}";
+        return $"{m.Player1}  vs  {m.Player2}";
+    }
+}
