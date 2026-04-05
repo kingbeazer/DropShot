@@ -30,24 +30,6 @@
 
 <MudProviders />
 
-@* #8 — Settings as a slide-out drawer instead of a collapse that pushes content *@
-<MudDrawer @bind-Open="_expanded" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Width="320px" Elevation="4">
-    <MudDrawerHeader>
-        <MudText Typo="Typo.h6">Settings</MudText>
-    </MudDrawerHeader>
-    <MudStack Spacing="2" Class="pa-4">
-        <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
-        <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court (optional)" Variant="Variant.Outlined" Clearable="true">
-            @foreach (var court in _courts)
-            {
-                <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
-            }
-        </MudSelect>
-        <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@SaveSettings">Save</MudButton>
-        <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => OpenDialogAsync(_fullScreen))">End Match</MudButton>
-    </MudStack>
-</MudDrawer>
-
 @if (_showCoinToss)
 {
     <div class="coin-toss-overlay">
@@ -83,6 +65,23 @@
 @if (loaded && @CurrentMatch != null)
 {
     <section class="bg-tennis overlay-dark">
+        @* #8 — Settings as a slide-out drawer instead of a collapse that pushes content *@
+        <MudDrawer @bind-Open="_expanded" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Width="320px" Elevation="4">
+            <MudDrawerHeader>
+                <MudText Typo="Typo.h6">Settings</MudText>
+            </MudDrawerHeader>
+            <MudStack Spacing="2" Class="pa-4">
+                <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
+                <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court (optional)" Variant="Variant.Outlined" Clearable="true">
+                    @foreach (var court in _courts)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@SaveSettings">Save</MudButton>
+                <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => OpenDialogAsync(_fullScreen))">End Match</MudButton>
+            </MudStack>
+        </MudDrawer>
         <div class="score-container">
             @* #3 — Match header with CSS classes instead of inline styles *@
             @{
