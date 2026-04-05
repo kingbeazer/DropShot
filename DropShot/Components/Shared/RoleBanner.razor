@@ -39,7 +39,7 @@
         var httpContext = HttpContextAccessor.HttpContext;
         if (httpContext?.User.Identity?.IsAuthenticated != true) return;
 
-        _currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        _currentUrl = "/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
 
         var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId is null) return;
