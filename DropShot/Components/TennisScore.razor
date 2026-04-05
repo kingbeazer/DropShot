@@ -30,23 +30,23 @@
 
 <MudProviders />
 
-<MudCollapse Expanded="_expanded" Style="margin-top: 10px;">
-    <MudPaper Class="pa-4">
-        <MudStack Spacing="2">
-            <MudText>Settings</MudText>
-            <MudDivider />
-            <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
-            <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court (optional)" Variant="Variant.Outlined" Clearable="true">
-                @foreach (var court in _courts)
-                {
-                    <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
-                }
-            </MudSelect>
-            <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@SaveSettings">Save</MudButton>
-            <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => OpenDialogAsync(_fullScreen))">End Match</MudButton>
-        </MudStack>
-    </MudPaper>
-</MudCollapse>
+@* #8 — Settings as a slide-out drawer instead of a collapse that pushes content *@
+<MudDrawer @bind-Open="_expanded" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Width="320px" Elevation="4">
+    <MudDrawerHeader>
+        <MudText Typo="Typo.h6">Settings</MudText>
+    </MudDrawerHeader>
+    <MudStack Spacing="2" Class="pa-4">
+        <MudSwitch @bind-Value="_state.GameScoring" Label="Game Scoring" LabelPlacement="Placement.Start" Color="Color.Success" />
+        <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court (optional)" Variant="Variant.Outlined" Clearable="true">
+            @foreach (var court in _courts)
+            {
+                <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@SaveSettings">Save</MudButton>
+        <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => OpenDialogAsync(_fullScreen))">End Match</MudButton>
+    </MudStack>
+</MudDrawer>
 
 @if (_showCoinToss)
 {
@@ -84,14 +84,14 @@
 {
     <section class="bg-tennis overlay-dark">
         <div class="score-container">
-            <!-- Match Header -->
+            @* #3 — Match header with CSS classes instead of inline styles *@
             @{
                 var _headerCourt = _courts.FirstOrDefault(c => c.CourtId == _selectedCourtId);
             }
-            <div style="text-align: center; padding: 4px 8px;">
+            <div class="match-header">
                 @if (_competitionFixture?.Competition != null)
                 {
-                    <div style="font-size: 0.75rem; color: #FFD700; letter-spacing: 1px; text-transform: uppercase; font-weight: bold;">
+                    <div class="match-header-competition">
                         @_competitionFixture.Competition.CompetitionName
                         @if (!string.IsNullOrEmpty(_competitionFixture.FixtureLabel))
                         {
@@ -101,175 +101,197 @@
                 }
                 @if (_headerCourt != null)
                 {
-                    <div style="font-size: 0.85rem; color: #aaa; letter-spacing: 1px; text-transform: uppercase;">
+                    <div class="match-header-court">
                         @_headerCourt.Club.Name — @_headerCourt.Name
                     </div>
                 }
-                <div style="font-size: 1rem; color: white; font-weight: bold;">
-                    @GetUserDisplayName() <span style="color: #aaa;">vs</span> @GetOpponentDisplayName()
+                <div class="match-header-players">
+                    @GetUserDisplayName() <span class="match-header-vs">vs</span> @GetOpponentDisplayName()
                 </div>
+                @* #7 — Match elapsed timer *@
+                <div class="match-timer">@_elapsedDisplay</div>
             </div>
 
+            @* #2 — Larger tap targets (80px avatars) + #9 tap feedback + #10 doubles badge *@
             <!-- Top Player Button -->
-            <div style="display: flex">
+            <div class="player-row">
                 <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
-                    <MudAvatar @onclick="UserWinsPoint" disabled="@_state.IsMatchEnded" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
+                    <MudAvatar @onclick="UserWinsPoint" disabled="@_state.IsMatchEnded"
+                               Class="@($"no-zoom-element {(_userTapAnim ? "avatar-tap" : "")}")"
+                               Style="border: solid 2px lightseagreen; width:80px; height: 80px;">
                         <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
-                        <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                        color:white; font-size:20px; font-weight:bold;">
+                        <div class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                        color:white; font-size:22px; font-weight:bold;">
                             @CurrentMatch.Player1.GetInitials()
                         </div>
-                    </MudAvatar>
-                    <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
-                        <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
                     </MudAvatar>
                 </MudAvatarGroup>
 
                 @if (Label_Switch1)
                 {
-                    <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded" Style="border: solid 2px lightseagreen; width:60px; height: 60px; margin-left: -15px;">
-                        <MudImage Class="no-zoom-element" Src="images/me.png" @onclick="UserWinsPoint"></MudImage>
-                        <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                                    color:white; font-size:20px; font-weight:bold;">
+                    <span class="doubles-partner-badge">&</span>
+                    <MudAvatar @onclick="UserWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded"
+                               Style="border: solid 2px lightseagreen; width:80px; height: 80px;">
+                        <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
+                        <div class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                                    color:white; font-size:22px; font-weight:bold;">
                             @CurrentMatch.Player2.GetInitials()
                         </div>
                     </MudAvatar>
                 }
             </div>
-            <!-- Score Display -->
+
+            @* #1 + #5 + #6 — Score display with visual hierarchy, set dividers, styled serve indicator *@
             <div class="score-display">
                 <div class="score-row">
-
+                    @* #6 — Serve indicator as pulsing dot *@
                     @if (_state.IsUserServing)
                     {
-                        <span class="sets serve-indicator">🎾</span>
+                        <span class="serve-indicator"><span class="serve-dot"></span></span>
                     }
                     else
                     {
-                        <span class="sets serve-indicator"></span>
+                        <span class="serve-indicator-empty"></span>
                     }
 
+                    @* Completed set scores (muted) *@
                     @foreach (var set in _state.SetScores)
                     {
-                        <span class="sets">@set.UserGames</span>
+                        <span class="set-score">@set.UserGames</span>
                     }
+
+                    @* #5 — Divider between completed sets and live score *@
+                    @if (_state.SetScores.Any() && !_state.IsMatchEnded)
+                    {
+                        <span class="set-divider"></span>
+                    }
+
+                    @* #1 — Current games larger *@
                     @if (!_state.IsMatchEnded)
                     {
-                        <span class="sets">@_state.UserGames</span>
+                        <span class="current-games">@_state.UserGames</span>
                     }
                     @if (!_state.GameScoring || _state.IsTieBreak)
                     {
-                        <span class="sets">@ScoreService.GetScoreDisplayUser(_state)</span>
+                        <span class="current-points">@ScoreService.GetScoreDisplayUser(_state)</span>
                     }
                 </div>
                 <div class="score-row">
-
                     @if (!_state.IsUserServing)
                     {
-                        <span class="sets serve-indicator">🎾</span>
+                        <span class="serve-indicator"><span class="serve-dot"></span></span>
                     }
                     else
                     {
-                        <span class="sets serve-indicator"></span>
+                        <span class="serve-indicator-empty"></span>
                     }
 
                     @foreach (var set in _state.SetScores)
                     {
-                        <span class="sets">@set.OpponentGames </span>
+                        <span class="set-score">@set.OpponentGames</span>
+                    }
+
+                    @if (_state.SetScores.Any() && !_state.IsMatchEnded)
+                    {
+                        <span class="set-divider"></span>
                     }
 
                     @if (!_state.IsMatchEnded)
                     {
-                        <span class="sets">@_state.OppGames</span>
+                        <span class="current-games">@_state.OppGames</span>
                     }
 
                     @if (!_state.GameScoring || _state.IsTieBreak)
                     {
-                        <span class="sets">@ScoreService.GetScoreDisplayOpp(_state)</span>
+                        <span class="current-points">@ScoreService.GetScoreDisplayOpp(_state)</span>
                     }
                 </div>
             </div>
 
-            <!-- Bottom Player Button -->
-            <div style="display: flex">
+            @* #2 + #9 + #10 — Bottom Player with larger avatars, tap feedback, doubles badge *@
+            <div class="player-row">
                 @if (Label_Switch1)
                 {
                     <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
-                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="@($"no-zoom-element {(_oppTapAnim ? "avatar-tap" : "")}")"
+                                   disabled="@_state.IsMatchEnded"
+                                   Style="border: solid 2px orangered; width:80px; height: 80px;">
                             <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
-                            <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                        color:white; font-size:20px; font-weight:bold;">
+                            <div class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                        color:white; font-size:22px; font-weight:bold;">
                                 @CurrentMatch.Player3.GetInitials()
                             </div>
                         </MudAvatar>
-                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
-                            <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
-                        </MudAvatar>
-                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px; margin-left: -15px;">
-                            <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
-                            <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                        color:white; font-size:20px; font-weight:bold;">
-                                @CurrentMatch.Player4.GetInitials()
-                            </div>
-                        </MudAvatar>
                     </MudAvatarGroup>
+                    <span class="doubles-partner-badge">&</span>
+                    <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded"
+                               Style="border: solid 2px orangered; width:80px; height: 80px;">
+                        <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
+                        <div class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                    color:white; font-size:22px; font-weight:bold;">
+                            @CurrentMatch.Player4.GetInitials()
+                        </div>
+                    </MudAvatar>
                 }
                 else
                 {
                     <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
-                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" disabled="@_state.IsMatchEnded" Style="border: solid 2px orangered; width:60px; height: 60px;">
+                        <MudAvatar @onclick="OpponentWinsPoint" Class="@($"no-zoom-element {(_oppTapAnim ? "avatar-tap" : "")}")"
+                                   disabled="@_state.IsMatchEnded"
+                                   Style="border: solid 2px orangered; width:80px; height: 80px;">
                             <MudImage Class="no-zoom-element" Src="images/me.png"></MudImage>
-                            <div Class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                color:white; font-size:20px; font-weight:bold;">
+                            <div class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+                                color:white; font-size:22px; font-weight:bold;">
                                 @CurrentMatch.Player2.GetInitials()
                             </div>
                         </MudAvatar>
-                        <MudAvatar @onclick="OpponentWinsPoint" Class="no-zoom-element" Style="border: solid 1px lightseagreen; width:60px; height: 60px;">
-                            <MudIcon Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" />
-                        </MudAvatar>
                     </MudAvatarGroup>
-                    @*   <button name="btnOppWinsPoint" class="initial-circle" style="color: lightseagreen; border-color: lightseagreen" >
-                    <MudImage Src="images/me.png" Alt="Mony the dog" ObjectFit="@ObjectFit.Contain" Elevation="25" Class="rounded-lg" />
-                </button> *@
-
                 }
             </div>
 
-            <!-- Controls Row -->
+            @* #4 — Controls with visual hierarchy: undo is prominent *@
             <div class="controls-row">
-                <button class="settings-btn no-zoom-element" @onclick="@OnExpandCollapseClick">
+                <button class="control-btn no-zoom-element" @onclick="@OnExpandCollapseClick">
                     <MudIcon Icon="@Icons.Material.Filled.Settings" Title="Settings" Size="Size.Large" />
                 </button>
-                <button class="undo-btn no-zoom-element" @onclick="UndoLastPoint">
+                <button class="control-btn-undo no-zoom-element" @onclick="UndoLastPoint">
                     <MudIcon Icon="@Icons.Material.Filled.Undo" Title="Undo" Size="Size.Large" />
                 </button>
-                <button class="settings-btn no-zoom-element" @onclick="OpenScoreEditor">
+                <button class="control-btn no-zoom-element" @onclick="OpenScoreEditor">
                     <MudIcon Icon="@Icons.Material.Filled.Edit" Title="Edit Score" Size="Size.Large" />
                 </button>
             </div>
         </div>
     </section>
-
 }
 
-<div style="margin: 10px;"></div>
-
-@if (@CurrentMatch != null && @CurrentMatch.Complete)
+@* #11 — Match complete as full-screen overlay instead of below the fold *@
+@if (CurrentMatch != null && CurrentMatch.Complete)
 {
-    if (!string.IsNullOrWhiteSpace(_winner) && !_winner.Equals("Congratulations "))
-    {
-        <MudAlert Style="margin-top: 10px;" Severity="Severity.Success">@_winner</MudAlert>
-    }
-    <MudButton Style="margin-top: 10px;" FullWidth=true Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.FiberNew" Color="Color.Secondary" Size="Size.Large" OnClick="@ReloadPage">Start New Match</MudButton>
-    @if (_competitionFixture != null)
-    {
-        <MudButton Style="margin-top: 10px;" FullWidth="true" Variant="Variant.Filled"
-                   StartIcon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" Size="Size.Large"
-                   OnClick="@(() => Navigation.NavigateTo($"/competition/{_competitionFixture.CompetitionId}/view"))">
-            Back to @(_competitionFixture.Competition?.CompetitionName ?? "Competition")
-        </MudButton>
-    }
+    <div class="match-complete-overlay">
+        <div class="match-complete-trophy">🏆</div>
+        @if (!string.IsNullOrWhiteSpace(_winner) && !_winner.Equals("Congratulations "))
+        {
+            <div class="match-complete-winner">@_winner</div>
+        }
+        <div class="match-complete-score">
+            @string.Join("  ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}"))
+        </div>
+        <MudButton Style="margin-top: 16px;" FullWidth="false" Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.FiberNew" Color="Color.Secondary" Size="Size.Large"
+                   OnClick="@ReloadPage">Start New Match</MudButton>
+        @if (_competitionFixture != null)
+        {
+            <MudButton Style="margin-top: 8px;" FullWidth="false" Variant="Variant.Filled"
+                       StartIcon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" Size="Size.Large"
+                       OnClick="@(() => Navigation.NavigateTo($"/competition/{_competitionFixture.CompetitionId}/view"))">
+                Back to @(_competitionFixture.Competition?.CompetitionName ?? "Competition")
+            </MudButton>
+        }
+    </div>
 }
+
+@implements IDisposable
 
 @code {
     private string _value = string.Empty;
@@ -279,6 +301,15 @@
     private string _winner = string.Empty;
 
     bool _expanded = false;
+
+    // #7 — Match elapsed timer
+    private System.Threading.Timer? _timerHandle;
+    private string _elapsedDisplay = "00:00";
+    private DateTime _matchStartUtc;
+
+    // #9 — Tap feedback animation flags
+    private bool _userTapAnim;
+    private bool _oppTapAnim;
 
     private void OnExpandCollapseClick()
     {
@@ -511,6 +542,9 @@
         CurrentMatch = _pendingMatch;
         _showCoinToss = false;
 
+        // #7 — Start the match timer
+        StartTimer();
+
         // Persist the new match immediately so we get a stable SavedMatchId for the URL.
         await SaveInitialMatchAsync();
 
@@ -681,6 +715,13 @@
                 _savedMatchId = savedMatch.SavedMatchId;
                 _selectedCourtId = savedMatch.CourtId;
 
+                // #7 — Resume timer from original start time
+                if (!_state.IsMatchEnded)
+                {
+                    _matchStartUtc = savedMatch.CreatedAt;
+                    _timerHandle = new System.Threading.Timer(TimerTick, null, 0, 1000);
+                }
+
                 // Load linked competition fixture if any
                 _competitionFixture = await DbContext.CompetitionFixtures
                     .Include(f => f.Competition)
@@ -846,26 +887,73 @@
         await PersistAndBroadcast();
     }
 
-    private void UserWinsPoint()
+    private async void UserWinsPoint()
     {
         if (_state.IsMatchEnded) return;
+
+        // #9 — Tap feedback
+        _userTapAnim = true;
+        StateHasChanged();
+        #pragma warning disable CS4014
+        Task.Delay(350).ContinueWith(_ => { _userTapAnim = false; InvokeAsync(StateHasChanged); });
+        #pragma warning restore CS4014
 
         _state.UserPoints++;
         ScoreService.CheckGame(_state);
         if (_state.IsMatchEnded && CurrentMatch != null)
+        {
             _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
-        SaveHistory();
+            StopTimer();
+        }
+        await SaveHistory();
     }
 
-    private void OpponentWinsPoint()
+    private async void OpponentWinsPoint()
     {
         if (_state.IsMatchEnded) return;
+
+        // #9 — Tap feedback
+        _oppTapAnim = true;
+        StateHasChanged();
+        #pragma warning disable CS4014
+        Task.Delay(350).ContinueWith(_ => { _oppTapAnim = false; InvokeAsync(StateHasChanged); });
+        #pragma warning restore CS4014
 
         _state.OppPoints++;
         ScoreService.CheckGame(_state);
         if (_state.IsMatchEnded && CurrentMatch != null)
+        {
             _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
-        SaveHistory();
+            StopTimer();
+        }
+        await SaveHistory();
+    }
+
+    // #7 — Timer helpers
+    private void StartTimer()
+    {
+        _matchStartUtc = DateTime.UtcNow;
+        _timerHandle = new System.Threading.Timer(TimerTick, null, 0, 1000);
+    }
+
+    private void TimerTick(object? _)
+    {
+        var elapsed = DateTime.UtcNow - _matchStartUtc;
+        _elapsedDisplay = elapsed.TotalHours >= 1
+            ? elapsed.ToString(@"h\:mm\:ss")
+            : elapsed.ToString(@"mm\:ss");
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void StopTimer()
+    {
+        _timerHandle?.Dispose();
+        _timerHandle = null;
+    }
+
+    public void Dispose()
+    {
+        _timerHandle?.Dispose();
     }
 
     private async Task UndoLastPoint()
