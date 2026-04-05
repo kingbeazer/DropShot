@@ -1,0 +1,38 @@
+.role-banner {
+    background: var(--mud-palette-info);
+    color: white;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.85rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.role-banner-select {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+    .role-banner-select:hover {
+        background: rgba(255, 255, 255, 0.25);
+    }
+
+    .role-banner-select:focus {
+        outline: none;
+        border-color: rgba(255, 255, 255, 0.6);
+    }
+
+    .role-banner-select option {
+        background: #1e1e2e;
+        color: #d7d7d7;
+    }
