@@ -19,6 +19,9 @@
     font-family: sans-serif;
     position: relative;
     z-index: 1;
+    height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 /* ── Background with overlay ───────────────────────────────── */
@@ -34,7 +37,7 @@
     --content-padding: clamp(1.25rem, 3vw, 3rem);
     --text-color: #ffffff;
     position: relative;
-    min-height: 100dvh;
+    height: 100dvh;
     background-color: var(--bg-fallback);
     background-image: var(--bg-image);
     background-repeat: no-repeat;
@@ -172,7 +175,7 @@
 .score-display {
     text-align: center;
     font-size: 24px;
-    margin: 20px 0;
+    margin: 10px 0;
     width: 100%;
 }
 
@@ -285,7 +288,7 @@
     align-items: center;
     width: 100%;
     padding: 4px 20px;
-    margin-top: 24px;
+    margin-top: 12px;
     box-sizing: border-box;
     gap: 8px;
 }
