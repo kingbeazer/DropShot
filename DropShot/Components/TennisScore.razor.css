@@ -18,6 +18,7 @@
     padding: 20px;
     font-family: sans-serif;
     position: relative;
+    z-index: 1;
 }
 
 /* ── Background with overlay ───────────────────────────────── */
@@ -259,13 +260,14 @@
 /* ── Tap-to-score hint ─────────────────────────────────────── */
 
 .tap-hint {
-    font-size: 0.7rem;
-    color: rgba(255,255,255,0.4);
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.6);
     letter-spacing: 0.5px;
     text-transform: uppercase;
-    margin-top: 2px;
+    margin-top: 4px;
+    margin-bottom: 4px;
     text-align: center;
-    animation: hintFade 4s ease-out forwards;
+    animation: hintFade 6s ease-out forwards;
     pointer-events: none;
 }
 
