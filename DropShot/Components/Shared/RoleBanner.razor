@@ -1,0 +1,88 @@
+@using DropShot.Components.Account
+@using DropShot.Services
+
+@inject ActiveRoleService ActiveRoleService
+@inject RoleSwitchService RoleSwitchService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IHttpContextAccessor HttpContextAccessor
+
+@implements IDisposable
+
+@if (_showBanner)
+{
+    <MudAlert Severity="Severity.Info"
+              Variant="Variant.Filled"
+              Dense="true"
+              Class="role-banner"
+              NoIcon="false">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+            <MudText Typo="Typo.body2">
+                You are browsing as a standard user
+            </MudText>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Inherit"
+                       Size="Size.Small"
+                       OnClick="SwitchToAdmin"
+                       StartIcon="@Icons.Material.Filled.AdminPanelSettings">
+                Switch to @_highestAdminRole
+            </MudButton>
+        </div>
+    </MudAlert>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private bool _showBanner;
+    private string? _userId;
+    private string _highestAdminRole = "Admin";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _userId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        }
+
+        ActiveRoleService.OnChange += UpdateBanner;
+        UpdateBanner();
+    }
+
+    private void UpdateBanner()
+    {
+        var granted = ActiveRoleService.GrantedRoles;
+        var active = ActiveRoleService.ActiveRole;
+
+        // Show the banner when the user has an admin-level granted role
+        // but is currently operating in a non-admin role
+        var hasAdminRole = granted.Any(r => r is "SuperAdmin" or "Admin");
+        var isInAdminRole = active is "SuperAdmin" or "Admin";
+
+        _showBanner = hasAdminRole && !isInAdminRole && ActiveRoleService.CanSwitchRole;
+
+        if (_showBanner)
+        {
+            _highestAdminRole = granted.Contains("SuperAdmin") ? "SuperAdmin" : "Admin";
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SwitchToAdmin()
+    {
+        if (_userId is null) return;
+
+        var ip = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+        await RoleSwitchService.SwitchRoleAsync(_userId, _highestAdminRole, ip);
+
+        if (AuthStateProvider is ActiveRoleAuthenticationStateProvider activeProvider)
+            activeProvider.NotifyRoleChanged();
+    }
+
+    public void Dispose()
+    {
+        ActiveRoleService.OnChange -= UpdateBanner;
+    }
+}

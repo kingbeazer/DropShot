@@ -18,8 +18,10 @@ public class AuthService : AuthenticationStateProvider
     public AuthService(HttpClient http) => _http = http;
 
     public LoginResponse? Session => _session;
-    public bool IsAdmin => _session?.Roles.Contains("Admin") ?? false;
-    public bool IsClubAdmin => _session?.Roles.Contains("ClubAdmin") ?? false;
+    public string ActiveRole => _session?.ActiveRole ?? "";
+    public List<string> GrantedRoles => _session?.GrantedRoles ?? [];
+    public bool IsAdmin => _session?.ActiveRole is "Admin" or "SuperAdmin";
+    public bool IsClubAdmin => _session?.ActiveRole == "ClubAdmin";
     public List<int> AdminClubIds => _session?.AdminClubIds ?? [];
 
     public bool CanEditClub(int clubId) =>
@@ -94,12 +96,46 @@ public class AuthService : AuthenticationStateProvider
             var info = await _http.GetFromJsonAsync<UserInfoDto>("api/auth/me");
             if (info is null) { await LogoutAsync(); return; }
 
-            _session = new LoginResponse(token, info.UserName, info.Email, info.Roles, info.AdminClubIds);
+            _session = new LoginResponse(token, info.UserName, info.Email, info.Roles, info.AdminClubIds, info.ActiveRole, info.GrantedRoles);
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
         catch
         {
             await LogoutAsync();
+        }
+    }
+
+    /// <summary>Switch active role via the API. Returns true on success.</summary>
+    public async Task<bool> SwitchRoleAsync(string role)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync("api/auth/switch-role",
+                new SwitchRoleRequest(role));
+
+            if (!response.IsSuccessStatusCode) return false;
+
+            var result = await response.Content.ReadFromJsonAsync<SwitchRoleResponse>();
+            if (result is null || _session is null) return false;
+
+            // Update session with new token and active role
+            _session = _session with
+            {
+                AccessToken = result.AccessToken,
+                ActiveRole = result.ActiveRole,
+                GrantedRoles = result.GrantedRoles
+            };
+
+            await SecureStorage.SetAsync("access_token", result.AccessToken);
+            _http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", result.AccessToken);
+
+            NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

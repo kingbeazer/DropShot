@@ -39,7 +39,8 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
-builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+builder.Services.AddScoped<ActiveRoleService>();
+builder.Services.AddScoped<AuthenticationStateProvider, ActiveRoleAuthenticationStateProvider>();
 
 builder.Services.AddAuthentication(options =>
     {
@@ -105,6 +106,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
     .AddDefaultTokenProviders();
 
 // ── App services ─────────────────────────────────────────────────────────────
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<RoleSwitchService>();
 builder.Services.AddScoped<UserState>();
 builder.Services.AddScoped<TennisScoreService>();
 builder.Services.AddScoped<ClubAuthorizationService>();

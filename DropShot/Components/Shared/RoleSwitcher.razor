@@ -1,0 +1,85 @@
+@using DropShot.Components.Account
+@using DropShot.Services
+
+@inject ActiveRoleService ActiveRoleService
+@inject RoleSwitchService RoleSwitchService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IHttpContextAccessor HttpContextAccessor
+
+@implements IDisposable
+
+@if (ActiveRoleService.CanSwitchRole)
+{
+    <div class="role-switcher">
+        <MudMenu Icon="@Icons.Material.Filled.SwapHoriz"
+                 Color="Color.Inherit"
+                 Dense="true"
+                 AnchorOrigin="Origin.BottomLeft">
+            <ActivatorContent>
+                <MudChip T="string"
+                         Size="Size.Small"
+                         Color="@GetRoleColor(ActiveRoleService.ActiveRole)"
+                         Variant="Variant.Filled"
+                         Icon="@Icons.Material.Filled.SwapHoriz">
+                    @ActiveRoleService.ActiveRole
+                </MudChip>
+            </ActivatorContent>
+            <ChildContent>
+                @foreach (var role in ActiveRoleService.GrantedRoles)
+                {
+                    <MudMenuItem OnClick="@(() => SwitchToRole(role))"
+                                 Disabled="@(role == ActiveRoleService.ActiveRole)">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@(role == ActiveRoleService.ActiveRole ? Icons.Material.Filled.RadioButtonChecked : Icons.Material.Filled.RadioButtonUnchecked)"
+                                     Size="Size.Small" />
+                            <MudText>@role</MudText>
+                        </div>
+                    </MudMenuItem>
+                }
+            </ChildContent>
+        </MudMenu>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private string? _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _userId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        }
+
+        ActiveRoleService.OnChange += StateHasChanged;
+    }
+
+    private async Task SwitchToRole(string role)
+    {
+        if (_userId is null || role == ActiveRoleService.ActiveRole) return;
+
+        var ip = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+        await RoleSwitchService.SwitchRoleAsync(_userId, role, ip);
+
+        // Notify the auth state provider so all AuthorizeView components re-evaluate
+        if (AuthStateProvider is ActiveRoleAuthenticationStateProvider activeProvider)
+            activeProvider.NotifyRoleChanged();
+    }
+
+    private Color GetRoleColor(string role) => role switch
+    {
+        "SuperAdmin" => Color.Error,
+        "Admin" => Color.Warning,
+        "ClubAdmin" => Color.Info,
+        _ => Color.Default
+    };
+
+    public void Dispose()
+    {
+        ActiveRoleService.OnChange -= StateHasChanged;
+    }
+}
