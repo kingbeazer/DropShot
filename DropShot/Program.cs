@@ -221,9 +221,16 @@ app.MapPost("/Account/SwitchRole", async (
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    foreach (var roleName in new[] { "SuperAdmin", "Admin", "ClubAdmin" })
+    foreach (var roleName in new[] { "SuperAdmin", "Admin", "ClubAdmin", "User" })
         if (!await roleManager.RoleExistsAsync(roleName))
             await roleManager.CreateAsync(new IdentityRole(roleName));
+
+    // Ensure every existing user has the base "User" role
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var usersWithoutRole = (await userManager.GetUsersInRoleAsync("User")).Select(u => u.Id).ToHashSet();
+    var allUsers = userManager.Users.ToList();
+    foreach (var user in allUsers.Where(u => !usersWithoutRole.Contains(u.Id)))
+        await userManager.AddToRoleAsync(user, "User");
 }
 
 app.Run();
