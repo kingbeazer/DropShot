@@ -593,6 +593,7 @@
         _state.IsUserServing = _coinTossUserServes;
         CurrentMatch = _pendingMatch;
         _showCoinToss = false;
+        await SetScoringFullscreen(true);
 
         // #7 — Start the match timer
         StartTimer();
@@ -772,6 +773,7 @@
                 _state.GameScoring = CurrentMatch.GameScoring;
                 _savedMatchId = savedMatch.SavedMatchId;
                 _selectedCourtId = savedMatch.CourtId;
+                _restoreFullscreen = true;
 
                 // Already in progress — hide the tap hint
                 _tapHintDismissed = true;
@@ -848,8 +850,6 @@
     {
         if (firstRender)
         {
-            await JS.InvokeVoidAsync("eval", "document.body.classList.add('scoreboard-fullscreen')");
-
             if (_currentUserId == null)
             {
                 _deviceToken = await JS.InvokeAsync<string?>("localStorage.getItem", "dropshot-device-token");
@@ -875,7 +875,21 @@
                 await ButtonOnClick();
                 await InvokeAsync(StateHasChanged);
             }
+
+            if (_restoreFullscreen)
+            {
+                _restoreFullscreen = false;
+                await SetScoringFullscreen(true);
+            }
         }
+    }
+
+    private bool _restoreFullscreen;
+
+    private async Task SetScoringFullscreen(bool enabled)
+    {
+        var action = enabled ? "add" : "remove";
+        await JS.InvokeVoidAsync("eval", $"document.body.classList.{action}('scoreboard-fullscreen')");
     }
 
     private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "") });
@@ -1051,7 +1065,7 @@
     {
         _timerHandle?.Dispose();
         _countdownHandle?.Dispose();
-        try { await JS.InvokeVoidAsync("eval", "document.body.classList.remove('scoreboard-fullscreen')"); } catch { }
+        try { await SetScoringFullscreen(false); } catch { }
     }
 
     private async Task UndoLastPoint()
