@@ -112,7 +112,12 @@
                 <div class="match-timer">@_elapsedDisplay</div>
             </div>
 
-            @* #2 — Larger tap targets (80px avatars) + #9 tap feedback + #10 doubles badge *@
+            @* Tap-to-score hint — fades out after a few seconds *@
+            @if (!_tapHintDismissed)
+            {
+                <div class="tap-hint">Tap a player to score a point</div>
+            }
+
             <!-- Top Player Button -->
             <div class="player-row">
                 <MudAvatarGroup Max="3" Spacing="2" MaxColor="Color.Primary">
@@ -310,6 +315,9 @@
     // #9 — Tap feedback animation flags
     private bool _userTapAnim;
     private bool _oppTapAnim;
+
+    // Tap-to-score hint — shown until first point scored
+    private bool _tapHintDismissed;
 
     private void OnExpandCollapseClick()
     {
@@ -715,6 +723,9 @@
                 _savedMatchId = savedMatch.SavedMatchId;
                 _selectedCourtId = savedMatch.CourtId;
 
+                // Already in progress — hide the tap hint
+                _tapHintDismissed = true;
+
                 // #7 — Resume timer from original start time
                 if (!_state.IsMatchEnded)
                 {
@@ -890,6 +901,7 @@
     private async void UserWinsPoint()
     {
         if (_state.IsMatchEnded) return;
+        _tapHintDismissed = true;
 
         // #9 — Tap feedback
         _userTapAnim = true;
@@ -911,6 +923,7 @@
     private async void OpponentWinsPoint()
     {
         if (_state.IsMatchEnded) return;
+        _tapHintDismissed = true;
 
         // #9 — Tap feedback
         _oppTapAnim = true;
