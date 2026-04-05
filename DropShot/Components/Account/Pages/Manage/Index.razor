@@ -1,4 +1,4 @@
-﻿@page "/Account/Manage"
+@page "/Account/Manage"
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
@@ -8,6 +8,7 @@
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityUserAccessor UserAccessor
 @inject IdentityRedirectManager RedirectManager
+@inject IWebHostEnvironment Environment
 
 <PageTitle>Profile</PageTitle>
 
@@ -16,6 +17,30 @@
 
 <div class="row">
     <div class="col-md-6">
+        <div class="text-center mb-4">
+            @if (!string.IsNullOrEmpty(user?.ProfileImagePath))
+            {
+                <img src="@user.ProfileImagePath" alt="Profile avatar" class="profile-avatar" />
+            }
+            else
+            {
+                <div class="profile-avatar-placeholder">
+                    <span>@(username?.Substring(0, 1).ToUpper() ?? "?")</span>
+                </div>
+            }
+            <div class="mt-2">
+                <label for="avatarUpload" class="btn btn-outline-primary btn-sm" style="cursor:pointer;">
+                    Change Avatar
+                </label>
+                <InputFile id="avatarUpload" OnChange="OnAvatarSelected" style="display:none;"
+                           accept=".jpg,.jpeg,.png,.gif,.webp" />
+            </div>
+            @if (!string.IsNullOrEmpty(avatarError))
+            {
+                <div class="text-danger mt-1">@avatarError</div>
+            }
+        </div>
+
         <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" role="alert" />
@@ -33,10 +58,41 @@
     </div>
 </div>
 
+<style>
+    .profile-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid lightseagreen;
+    }
+
+    .profile-avatar-placeholder {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #056267, #052767);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid lightseagreen;
+    }
+
+        .profile-avatar-placeholder span {
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+        }
+</style>
+
 @code {
     private ApplicationUser user = default!;
     private string? username;
     private string? phoneNumber;
+    private string? avatarError;
+
+    private const long MaxFileSize = 2 * 1024 * 1024; // 2 MB
+    private static readonly HashSet<string> AllowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -53,6 +109,44 @@
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
 
         Input.PhoneNumber ??= phoneNumber;
+    }
+
+    private async Task OnAvatarSelected(InputFileChangeEventArgs e)
+    {
+        avatarError = null;
+        var file = e.File;
+
+        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+        if (!AllowedExtensions.Contains(ext))
+        {
+            avatarError = "Please upload a JPG, PNG, GIF, or WebP image.";
+            return;
+        }
+
+        if (file.Size > MaxFileSize)
+        {
+            avatarError = "Image must be less than 2 MB.";
+            return;
+        }
+
+        var fileName = $"{user.Id}{ext}";
+        var uploadsDir = Path.Combine(Environment.WebRootPath, "uploads", "avatars");
+        Directory.CreateDirectory(uploadsDir);
+
+        // Remove any existing avatar with a different extension
+        foreach (var existing in Directory.GetFiles(uploadsDir, $"{user.Id}.*"))
+        {
+            File.Delete(existing);
+        }
+
+        var filePath = Path.Combine(uploadsDir, fileName);
+        await using var stream = new FileStream(filePath, FileMode.Create);
+        await file.OpenReadStream(MaxFileSize).CopyToAsync(stream);
+
+        user.ProfileImagePath = $"/uploads/avatars/{fileName}";
+        await UserManager.UpdateAsync(user);
+
+        RedirectManager.RedirectToCurrentPageWithStatus("Profile picture updated.", HttpContext);
     }
 
     private async Task OnValidSubmitAsync()

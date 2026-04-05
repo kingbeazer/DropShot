@@ -1,6 +1,10 @@
 ﻿@implements IDisposable
 
+@using Microsoft.AspNetCore.Identity
+@using DropShot.Data
+
 @inject NavigationManager NavigationManager
+@inject UserManager<ApplicationUser> UserManager
 
 <div class="top-row navbar navbar-dark">
     <div class="container-fluid">
@@ -102,7 +106,15 @@
                 </div>
                 <div class="nav-item px-3">
                     <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
-                        <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" /> @context.User.Identity?.Name
+                        @if (!string.IsNullOrEmpty(_avatarPath))
+                        {
+                            <img src="@_avatarPath" alt="Avatar" class="nav-avatar" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                        }
+                        @context.User.Identity?.Name
                     </a>
                 </div>
                 <div class="nav-item px-3">
@@ -136,11 +148,21 @@
 
 @code {
     private string? currentUrl;
+    private string? _avatarPath;
 
-    protected override void OnInitialized()
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    protected override async Task OnInitializedAsync()
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
+
+        if (HttpContext?.User.Identity?.IsAuthenticated == true)
+        {
+            var user = await UserManager.GetUserAsync(HttpContext.User);
+            _avatarPath = user?.ProfileImagePath;
+        }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)

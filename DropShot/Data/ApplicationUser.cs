@@ -11,5 +11,6 @@ namespace DropShot.Data
         public DateTime? SubscriptionEndDate { get; set; }
         public string? PaypalSubscriptionId { get; set; }
         public string? PaypalPayerId { get; set; }
+        public string? ProfileImagePath { get; set; }
     }
 }
