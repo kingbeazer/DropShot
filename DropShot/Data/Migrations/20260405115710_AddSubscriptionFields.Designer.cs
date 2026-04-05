@@ -4,6 +4,7 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DropShot.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260405115710_AddSubscriptionFields")]
+    partial class AddSubscriptionFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -435,16 +438,6 @@ namespace DropShot.Migrations
 
                     b.Property<int?>("Player4Id")
                         .HasColumnType("int");
-
-                    b.Property<string>("OriginalResultSummary")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int?>("OriginalWinnerPlayerId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("ResultModifiedByAdmin")
-                        .HasColumnType("bit");
 
                     b.Property<string>("ResultSummary")
                         .HasMaxLength(200)
