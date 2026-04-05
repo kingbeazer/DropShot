@@ -12,12 +12,30 @@
 @inject IDialogService DialogService
 @inject ClubAuthorizationService AuthzService
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 @using System.Text.RegularExpressions
 @using System.ComponentModel.DataAnnotations
 @using DropShot.Services
 
 <MudProviders />
+
+@if (_showUpgradeBanner)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mb-4"
+              ShowCloseIcon="true" CloseIconClicked="DismissBanner">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Style="flex-wrap: wrap;">
+            <MudIcon Icon="@Icons.Material.Filled.Star" />
+            <MudText>
+                <strong>Go Premium</strong> — Ad-free experience, priority support, increased limits &amp; early access to new features.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Warning" Size="Size.Small"
+                       Href="/upgrade">
+                Upgrade Now
+            </MudButton>
+        </MudStack>
+    </MudAlert>
+}
 
 @if (LinkedPlayer)
 {
@@ -193,6 +211,7 @@
 
     private List<CompetitionFixture> _upcomingFixtures = [];
     private List<CompetitionFixture> _pendingReviews = [];
+    private bool _showUpgradeBanner;
 
     protected override async Task OnInitializedAsync()
     {
@@ -201,6 +220,11 @@
         if (string.IsNullOrEmpty(userId)) return;
 
         await using var db = DbFactory.CreateDbContext();
+
+        // Check subscription status for promo banner
+        var appUser = await db.Users.FindAsync(userId);
+        if (appUser is not null && !appUser.IsSubscribed)
+            _showUpgradeBanner = true; // will be refined in OnAfterRenderAsync via localStorage
 
         // Load pending reviews for admins
         var isAdmin = await AuthzService.IsAdminAsync(authState.User);
@@ -257,6 +281,31 @@
         var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
             .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
         return $"{side1} vs {side2}";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _showUpgradeBanner)
+        {
+            // Check localStorage for dismiss timestamp; re-show after 7 days
+            var dismissed = await JS.InvokeAsync<string?>("localStorage.getItem", "upgradeBannerDismissed");
+            if (!string.IsNullOrEmpty(dismissed) && long.TryParse(dismissed, out var ts))
+            {
+                var dismissedAt = DateTimeOffset.FromUnixTimeMilliseconds(ts);
+                if (DateTimeOffset.UtcNow - dismissedAt < TimeSpan.FromDays(7))
+                {
+                    _showUpgradeBanner = false;
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task DismissBanner()
+    {
+        _showUpgradeBanner = false;
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+        await JS.InvokeVoidAsync("localStorage.setItem", "upgradeBannerDismissed", now);
     }
 
     private static Color StatusColor(FixtureStatus s) => s switch
