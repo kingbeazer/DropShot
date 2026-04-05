@@ -5,6 +5,7 @@
 @using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.AspNetCore.Authentication
 @using DropShot.Data
 @using Microsoft.EntityFrameworkCore
 
@@ -47,17 +48,21 @@
             <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
         </EditForm>
     </div>
-    <div class="col-md-6 col-md-offset-2">
-        <section>
-            <h3>Use another service to register.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
-    </div>
+    @if (externalLogins.Length > 0)
+    {
+        <div class="col-md-6 col-md-offset-2">
+            <section>
+                <h3>Use another service to register.</h3>
+                <hr />
+                <ExternalLoginPicker />
+            </section>
+        </div>
+    }
 </div>
 
 @code {
     private IEnumerable<IdentityError>? identityErrors;
+    private AuthenticationScheme[] externalLogins = [];
 
     private InputModel _input = new();
 
@@ -68,6 +73,11 @@
     private string? ReturnUrl { get; set; }
 
     private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        externalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).ToArray();
+    }
 
     public async Task RegisterUser(EditContext editContext)
     {
