@@ -37,7 +37,7 @@
     --content-padding: clamp(1.25rem, 3vw, 3rem);
     --text-color: #ffffff;
     position: relative;
-    height: 100dvh;
+    height: 100svh;
     background-color: var(--bg-fallback);
     background-image: var(--bg-image);
     background-repeat: no-repeat;
