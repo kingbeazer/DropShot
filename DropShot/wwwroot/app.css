@@ -100,7 +100,8 @@ body.scoring-active .content {
 }
 
 /* Legacy — keep for external scoreboard page if still used */
-body.scoreboard-fullscreen .sidebar {
+body.scoreboard-fullscreen .sidebar,
+body.scoreboard-fullscreen .role-banner {
     display: none !important;
 }
 
