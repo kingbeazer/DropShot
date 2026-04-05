@@ -98,7 +98,6 @@ body.scoreboard-fullscreen .content {
 }
 
 .qr-loading,
-.qr-expired,
 .qr-success {
     display: flex;
     flex-direction: column;
@@ -111,13 +110,7 @@ body.scoreboard-fullscreen .content {
     padding: 12px;
     background: white;
     border-radius: 8px;
-    border: 3px solid var(--mud-palette-primary, #1b6ec2);
-    animation: qr-pulse 2s ease-in-out infinite;
-}
-
-@keyframes qr-pulse {
-    0%, 100% { border-color: var(--mud-palette-primary, #1b6ec2); }
-    50% { border-color: var(--mud-palette-primary-lighten, #4a9aea); }
+    border: 2px solid var(--mud-palette-lines-default, #e0e0e0);
 }
 
 .qr-code-login svg {

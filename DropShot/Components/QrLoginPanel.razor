@@ -24,25 +24,12 @@
             <div class="qr-code-wrapper">
                 <QrCodeDisplay Url="@_qrUrl" CssClass="qr-code-login" />
             </div>
-            <div class="qr-status-indicator mt-3">
-                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Size="Size.Small" />
-                <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="mt-1">
+            <MudStack Row="true" Justify="Justify.Center" AlignItems="AlignItems.Center" Spacing="2" Class="mt-3">
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
                     Waiting for mobile login...
                 </MudText>
-            </div>
-            <MudText Typo="Typo.caption" Color="Color.Tertiary" Align="Align.Center" Class="mt-2">
-                Expires in @_remainingSeconds seconds
-            </MudText>
-        </div>
-    }
-    else if (_status == "expired")
-    {
-        <div class="qr-expired">
-            <MudIcon Icon="@Icons.Material.Filled.TimerOff" Size="Size.Large" Color="Color.Warning" />
-            <MudText Typo="Typo.body2" Class="mt-2">QR code expired</MudText>
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="GenerateNewSession" Class="mt-2">
-                Generate new QR code
-            </MudButton>
+            </MudStack>
         </div>
     }
     else if (_status == "confirmed")
@@ -59,7 +46,6 @@
     private string _status = "loading";
     private string? _currentToken;
     private string _qrUrl = "";
-    private int _remainingSeconds = 300;
     private System.Threading.Timer? _expiryTimer;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -112,21 +98,14 @@
         await _hubConnection.StartAsync();
         await _hubConnection.InvokeAsync("JoinSession", _currentToken);
 
-        // Start expiry countdown
-        _remainingSeconds = 300;
         _status = "pending";
         StateHasChanged();
 
+        // Silently refresh the QR code when the token expires
         _expiryTimer = new System.Threading.Timer(async _ =>
         {
-            _remainingSeconds--;
-            if (_remainingSeconds <= 0)
-            {
-                _status = "expired";
-                _expiryTimer?.Dispose();
-            }
-            await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+            await InvokeAsync(GenerateNewSession);
+        }, null, TimeSpan.FromMinutes(5), Timeout.InfiniteTimeSpan);
     }
 
     public async ValueTask DisposeAsync()
