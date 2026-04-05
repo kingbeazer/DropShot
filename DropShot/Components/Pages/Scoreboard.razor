@@ -94,72 +94,7 @@
         }
         else
         {
-            @if (_selectedCourt != null)
-            {
-                <div class="score-court-name">
-                    @_selectedCourt.Club.Name — @_selectedCourt.Name
-                </div>
-            }
-
-            @if (_activeFixture?.Competition != null)
-            {
-                <div class="score-competition">
-                    @_activeFixture.Competition.CompetitionName
-                    @if (!string.IsNullOrEmpty(_activeFixture.FixtureLabel))
-                    {
-                        <span> — @_activeFixture.FixtureLabel</span>
-                    }
-                </div>
-            }
-            @if (_activeMatch != null)
-            {
-                <div class="score-player-label">
-                    @PlayerLabel(_activeMatch)
-                </div>
-            }
-
-            @if (!currentScore.isComplete)
-            {
-                <div class="score-points-row">
-                    <div class="score-point-group">
-                        <span class="score-serve-indicator" style="visibility: @(currentScore.IsUserServing ? "visible" : "hidden");">🎾</span>
-                        <span class="score-point-value">@PointDisplay(currentScore.UserPts, currentScore.OppPts, currentScore.DeuceCount, currentScore.TieBreak, true)</span>
-                    </div>
-                    <div class="score-point-group">
-                        <span class="score-point-value">@PointDisplay(currentScore.OppPts, currentScore.UserPts, currentScore.DeuceCount, currentScore.TieBreak, false)</span>
-                        <span class="score-serve-indicator" style="visibility: @(!currentScore.IsUserServing ? "visible" : "hidden");">🎾</span>
-                    </div>
-                </div>
-            }
-
-            @if (currentScore.TieBreak)
-            {
-                <div class="scoreboard-tiebreak">TIE BREAK</div>
-            }
-
-            <div class="score-dot-row">
-                @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
-                {
-                    <DotDigit Number="@set.UserGames" />
-                }
-                <DotDigit Number="@currentScore.UserG" />
-                @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) - 1; i++)
-                {
-                    <DotDigit Number="0" />
-                }
-            </div>
-
-            <div class="score-dot-row">
-                @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
-                {
-                    <DotDigit Number="@set.OpponentGames" />
-                }
-                <DotDigit Number="@currentScore.OppG" />
-                @for (int i = 0; i < 5 - (currentScore.SetScores?.Count() ?? 0) - 1; i++)
-                {
-                    <DotDigit Number="0" />
-                }
-            </div>
+            <DefaultScoreboard Score="currentScore" ActiveMatch="_activeMatch" SelectedCourt="_selectedCourt" ActiveFixture="_activeFixture" />
         }
     </div>
 </div>
@@ -469,13 +404,6 @@
         }
 
         return myPts switch { 0 => "0", 1 => "15", 2 => "30", _ => "40" };
-    }
-
-    private static string PlayerLabel(SavedMatch m)
-    {
-        if (!string.IsNullOrWhiteSpace(m.Player3) && !string.IsNullOrWhiteSpace(m.Player4))
-            return $"{m.Player1} & {m.Player2}  vs  {m.Player3} & {m.Player4}";
-        return $"{m.Player1}  vs  {m.Player2}";
     }
 
     private static string BuildYouTubeEmbedUrl(string url)

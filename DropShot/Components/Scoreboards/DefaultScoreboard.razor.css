@@ -1,0 +1,54 @@
+/* ── Default layout text styles (fluid) ────────────────────── */
+.score-court-name {
+    margin-top: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    font-size: clamp(1.2rem, 3vw, 2rem);
+    font-weight: 500;
+}
+
+.score-competition {
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #FFD700;
+    margin-top: 4px;
+    text-align: center;
+    font-size: clamp(0.65rem, 1.5vw, 1rem);
+}
+
+.score-player-label {
+    margin-bottom: 4px;
+    text-align: center;
+    font-size: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.score-points-row {
+    display: flex;
+    justify-content: center;
+    gap: clamp(20px, 5vw, 60px);
+    margin-top: 8px;
+    margin-bottom: 4px;
+    align-items: center;
+}
+
+.score-point-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.score-point-value {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: bold;
+}
+
+.score-serve-indicator {
+    font-size: clamp(1.2rem, 2.5vw, 2rem);
+}
+
+.score-dot-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
