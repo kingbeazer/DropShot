@@ -24,12 +24,6 @@
             <div class="qr-code-wrapper">
                 <QrCodeDisplay Url="@_qrUrl" CssClass="qr-code-login" />
             </div>
-            <MudStack Row="true" Justify="Justify.Center" AlignItems="AlignItems.Center" Spacing="2" Class="mt-3">
-                <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
-                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    Waiting for mobile login...
-                </MudText>
-            </MudStack>
         </div>
     }
     else if (_status == "confirmed")
