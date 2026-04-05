@@ -1,5 +1,8 @@
+@rendermode InteractiveServer
+
 @using DropShot.Components.Account
 @using DropShot.Services
+@using System.Security.Claims
 
 @inject ActiveRoleService ActiveRoleService
 @inject RoleSwitchService RoleSwitchService
@@ -43,7 +46,16 @@
         if (AuthState is not null)
         {
             var state = await AuthState;
-            _userId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var user = state.User;
+            _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            // Initialize ActiveRoleService from claims if not already done
+            if (!ActiveRoleService.CanSwitchRole)
+            {
+                var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+                if (roles.Count > 0)
+                    ActiveRoleService.Initialize(roles);
+            }
         }
 
         ActiveRoleService.OnChange += UpdateBanner;

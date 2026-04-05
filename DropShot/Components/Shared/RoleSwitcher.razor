@@ -1,5 +1,8 @@
+@rendermode InteractiveServer
+
 @using DropShot.Components.Account
 @using DropShot.Services
+@using System.Security.Claims
 
 @inject ActiveRoleService ActiveRoleService
 @inject RoleSwitchService RoleSwitchService
@@ -10,35 +13,33 @@
 
 @if (ActiveRoleService.CanSwitchRole)
 {
-    <div class="role-switcher">
-        <MudMenu Icon="@Icons.Material.Filled.SwapHoriz"
-                 Color="Color.Inherit"
-                 Dense="true"
-                 AnchorOrigin="Origin.BottomLeft">
-            <ActivatorContent>
-                <MudChip T="string"
-                         Size="Size.Small"
-                         Color="@GetRoleColor(ActiveRoleService.ActiveRole)"
-                         Variant="Variant.Filled"
-                         Icon="@Icons.Material.Filled.SwapHoriz">
-                    @ActiveRoleService.ActiveRole
-                </MudChip>
-            </ActivatorContent>
-            <ChildContent>
-                @foreach (var role in ActiveRoleService.GrantedRoles)
-                {
-                    <MudMenuItem OnClick="@(() => SwitchToRole(role))"
-                                 Disabled="@(role == ActiveRoleService.ActiveRole)">
-                        <div class="d-flex align-center gap-2">
-                            <MudIcon Icon="@(role == ActiveRoleService.ActiveRole ? Icons.Material.Filled.RadioButtonChecked : Icons.Material.Filled.RadioButtonUnchecked)"
-                                     Size="Size.Small" />
-                            <MudText>@role</MudText>
-                        </div>
-                    </MudMenuItem>
-                }
-            </ChildContent>
-        </MudMenu>
-    </div>
+    <MudMenu Icon="@Icons.Material.Filled.SwapHoriz"
+             Color="Color.Inherit"
+             Dense="true"
+             AnchorOrigin="Origin.BottomLeft">
+        <ActivatorContent>
+            <MudChip T="string"
+                     Size="Size.Small"
+                     Color="@GetRoleColor(ActiveRoleService.ActiveRole)"
+                     Variant="Variant.Filled"
+                     Icon="@Icons.Material.Filled.SwapHoriz">
+                @ActiveRoleService.ActiveRole
+            </MudChip>
+        </ActivatorContent>
+        <ChildContent>
+            @foreach (var role in ActiveRoleService.GrantedRoles)
+            {
+                <MudMenuItem OnClick="@(() => SwitchToRole(role))"
+                             Disabled="@(role == ActiveRoleService.ActiveRole)">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@(role == ActiveRoleService.ActiveRole ? Icons.Material.Filled.RadioButtonChecked : Icons.Material.Filled.RadioButtonUnchecked)"
+                                 Size="Size.Small" />
+                        <MudText>@role</MudText>
+                    </div>
+                </MudMenuItem>
+            }
+        </ChildContent>
+    </MudMenu>
 }
 
 @code {
@@ -52,10 +53,21 @@
         if (AuthState is not null)
         {
             var state = await AuthState;
-            _userId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var user = state.User;
+            _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            // Initialize ActiveRoleService from the user's role claims
+            // (needed because the layout renders in SSR before the
+            //  interactive auth state provider kicks in)
+            if (!ActiveRoleService.CanSwitchRole)
+            {
+                var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+                if (roles.Count > 0)
+                    ActiveRoleService.Initialize(roles);
+            }
         }
 
-        ActiveRoleService.OnChange += StateHasChanged;
+        ActiveRoleService.OnChange += OnRoleChanged;
     }
 
     private async Task SwitchToRole(string role)
@@ -70,6 +82,11 @@
             activeProvider.NotifyRoleChanged();
     }
 
+    private void OnRoleChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
     private Color GetRoleColor(string role) => role switch
     {
         "SuperAdmin" => Color.Error,
@@ -80,6 +97,6 @@
 
     public void Dispose()
     {
-        ActiveRoleService.OnChange -= StateHasChanged;
+        ActiveRoleService.OnChange -= OnRoleChanged;
     }
 }
