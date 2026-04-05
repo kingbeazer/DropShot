@@ -134,6 +134,42 @@ app.UseHttpsRedirection();
 app.UseCors("MauiPolicy");
 app.UseStaticFiles();
 app.UseAuthentication();
+
+// ── Active-role middleware ────────────────────────────────────────────────────
+// Reads the ActiveRole cookie and rebuilds HttpContext.User with only that role
+// claim, so SSR AuthorizeView, [Authorize(Roles=...)], and all downstream checks
+// see the active role instead of all granted roles.
+app.Use(async (context, next) =>
+{
+    var user = context.User;
+    if (user.Identity?.IsAuthenticated == true)
+    {
+        var activeRole = context.Request.Cookies["ActiveRole"];
+        var allRoles = user.FindAll(System.Security.Claims.ClaimTypes.Role)
+            .Select(c => c.Value).ToList();
+
+        if (!string.IsNullOrEmpty(activeRole) && allRoles.Count > 1 &&
+            allRoles.Contains(activeRole, StringComparer.OrdinalIgnoreCase))
+        {
+            var filteredClaims = user.Claims
+                .Where(c => c.Type != System.Security.Claims.ClaimTypes.Role)
+                .Append(new System.Security.Claims.Claim(
+                    System.Security.Claims.ClaimTypes.Role, activeRole))
+                .ToList();
+
+            var identity = new System.Security.Claims.ClaimsIdentity(
+                filteredClaims,
+                user.Identity.AuthenticationType,
+                System.Security.Claims.ClaimsIdentity.DefaultNameClaimType,
+                System.Security.Claims.ClaimTypes.Role);
+
+            context.User = new System.Security.Claims.ClaimsPrincipal(identity);
+        }
+    }
+
+    await next();
+});
+
 app.UseAuthorization();
 app.UseAntiforgery();
 
