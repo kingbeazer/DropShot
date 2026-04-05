@@ -11,7 +11,13 @@
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="DropShot.styles.css" />
     <link rel="stylesheet" href="css/theme-light.css" />
-    <script src="js/theme-switcher.js"></script>
+    <script>
+        // Apply saved theme immediately to prevent flash of wrong theme
+        (function() {
+            var t = localStorage.getItem('dropshot-theme');
+            if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        })();
+    </script>
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#121212" />
@@ -31,6 +37,7 @@
     <script src="js/qrcode-helper.js"></script>
     <script src="js/paypal-interop.js"></script>
     <script src="_framework/blazor.web.js"></script>
+    <script src="js/theme-switcher.js"></script>
     <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js');</script>
 </body>
 

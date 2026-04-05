@@ -1,5 +1,6 @@
 // DropShot – Theme Switcher
 // Persists user preference in localStorage and toggles data-theme attribute.
+// Re-applies after Blazor enhanced navigation to prevent reset.
 
 (function () {
     var STORAGE_KEY = 'dropshot-theme';
@@ -25,6 +26,17 @@
 
     // Apply saved theme immediately to prevent flash
     applyTheme(getPreferred());
+
+    // Re-apply after Blazor enhanced navigation (which patches the DOM and
+    // strips the data-theme attribute because the server doesn't set it).
+    document.addEventListener('blazor:enhanced-navigation-end', function () {
+        applyTheme(getPreferred());
+    });
+
+    // Fallback for older Blazor versions that use 'enhancedload'
+    document.addEventListener('enhancedload', function () {
+        applyTheme(getPreferred());
+    });
 
     // Expose toggle function globally for onclick
     window.toggleDropShotTheme = function () {
