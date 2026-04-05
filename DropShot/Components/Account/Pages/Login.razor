@@ -55,13 +55,16 @@
             </EditForm>
         </section>
     </div>
-    <div class="col-md-4">
-        <section>
-            <h3>Use another service to log in.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
-    </div>
+    @if (externalLogins.Length > 0)
+    {
+        <div class="col-md-4">
+            <section>
+                <h3>Use another service to log in.</h3>
+                <hr />
+                <ExternalLoginPicker />
+            </section>
+        </div>
+    }
     <div class="col-md-4">
         <section>
             <h3>Scan QR code to log in</h3>
@@ -73,6 +76,7 @@
 
 @code {
     private string? errorMessage;
+    private AuthenticationScheme[] externalLogins = [];
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -92,6 +96,8 @@
             // Clear the existing external cookie to ensure a clean login process
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
         }
+
+        externalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).ToArray();
     }
 
     public async Task LoginUser()
