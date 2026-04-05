@@ -74,21 +74,32 @@ h1:focus {
 }
 
 /* Scoreboard fullscreen mode — hides sidebar and content padding */
+body.scoreboard-fullscreen {
+    overflow: hidden !important;
+    height: 100svh !important;
+}
+
 body.scoreboard-fullscreen .sidebar {
     display: none !important;
 }
 
 body.scoreboard-fullscreen .page {
     flex-direction: column;
+    height: 100% !important;
+    overflow: hidden !important;
 }
 
 body.scoreboard-fullscreen main {
     width: 100%;
+    height: 100% !important;
     padding-top: 0 !important;
+    overflow: hidden !important;
 }
 
 body.scoreboard-fullscreen .content {
     padding: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
 }
 
 /* ── QR Login Panel ──────────────────────────────────────────────────────── */
