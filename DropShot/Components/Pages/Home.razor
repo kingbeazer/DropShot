@@ -44,6 +44,26 @@
     </MudAlert>
 }
 
+@if (!_isAuthenticated)
+{
+    <MudCard Class="mb-4">
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2">
+                        Scan the QR code with your phone to log in, or
+                        <MudLink Href="/Account/Login">use email and password</MudLink>.
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <QrLoginPanel />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+}
+
 @if (_pendingReviews.Count > 0)
 {
     <MudCard Class="mb-4" Elevation="2">
@@ -212,12 +232,14 @@
     private List<CompetitionFixture> _upcomingFixtures = [];
     private List<CompetitionFixture> _pendingReviews = [];
     private bool _showUpgradeBanner;
+    private bool _isAuthenticated;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId)) return;
+        _isAuthenticated = !string.IsNullOrEmpty(userId);
+        if (!_isAuthenticated) return;
 
         await using var db = DbFactory.CreateDbContext();
 

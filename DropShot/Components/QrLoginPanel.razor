@@ -1,0 +1,144 @@
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.SignalR.Client
+@using DropShot.Services
+@inject QrLoginService QrLoginService
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@implements IAsyncDisposable
+
+<div class="qr-login-panel">
+    @if (_status == "loading")
+    {
+        <div class="qr-loading">
+            <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+            <MudText Typo="Typo.body2" Class="mt-2">Generating QR code...</MudText>
+        </div>
+    }
+    else if (_status == "pending")
+    {
+        <div class="qr-waiting">
+            <MudText Typo="Typo.h6" Align="Align.Center" Class="mb-2">Scan to log in</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center" Class="mb-3">
+                Use your phone camera to scan this QR code
+            </MudText>
+            <div class="qr-code-wrapper">
+                <QrCodeDisplay Url="@_qrUrl" CssClass="qr-code-login" />
+            </div>
+            <div class="qr-status-indicator mt-3">
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Size="Size.Small" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="mt-1">
+                    Waiting for mobile login...
+                </MudText>
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Tertiary" Align="Align.Center" Class="mt-2">
+                Expires in @_remainingSeconds seconds
+            </MudText>
+        </div>
+    }
+    else if (_status == "expired")
+    {
+        <div class="qr-expired">
+            <MudIcon Icon="@Icons.Material.Filled.TimerOff" Size="Size.Large" Color="Color.Warning" />
+            <MudText Typo="Typo.body2" Class="mt-2">QR code expired</MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="GenerateNewSession" Class="mt-2">
+                Generate new QR code
+            </MudButton>
+        </div>
+    }
+    else if (_status == "confirmed")
+    {
+        <div class="qr-success">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Color="Color.Success" />
+            <MudText Typo="Typo.body1" Class="mt-2">Login confirmed! Redirecting...</MudText>
+        </div>
+    }
+</div>
+
+@code {
+    private HubConnection? _hubConnection;
+    private string _status = "loading";
+    private string? _currentToken;
+    private string _qrUrl = "";
+    private int _remainingSeconds = 300;
+    private System.Threading.Timer? _expiryTimer;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await GenerateNewSession();
+        }
+    }
+
+    private async Task GenerateNewSession()
+    {
+        _status = "loading";
+        StateHasChanged();
+
+        // Clean up previous hub connection
+        if (_hubConnection is not null)
+        {
+            if (_currentToken is not null)
+                await _hubConnection.InvokeAsync("LeaveSession", _currentToken);
+            await _hubConnection.DisposeAsync();
+            _hubConnection = null;
+        }
+
+        _expiryTimer?.Dispose();
+
+        // Generate a new session
+        var session = QrLoginService.GenerateSession();
+        _currentToken = session.Token;
+
+        var baseUrl = (Configuration["App:BaseUrl"] ?? Navigation.BaseUri).TrimEnd('/');
+        _qrUrl = $"{baseUrl}/mobile-auth?session={_currentToken}";
+
+        // Connect to SignalR hub
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/qrauthub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<object>("QrAuthConfirmed", async (data) =>
+        {
+            _status = "confirmed";
+            await InvokeAsync(StateHasChanged);
+
+            // Navigate to the cookie-setting endpoint which will redirect appropriately
+            var redirectUrl = $"/Account/QrLogin?token={_currentToken}";
+            await InvokeAsync(() => Navigation.NavigateTo(redirectUrl, forceLoad: true));
+        });
+
+        await _hubConnection.StartAsync();
+        await _hubConnection.InvokeAsync("JoinSession", _currentToken);
+
+        // Start expiry countdown
+        _remainingSeconds = 300;
+        _status = "pending";
+        StateHasChanged();
+
+        _expiryTimer = new System.Threading.Timer(async _ =>
+        {
+            _remainingSeconds--;
+            if (_remainingSeconds <= 0)
+            {
+                _status = "expired";
+                _expiryTimer?.Dispose();
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _expiryTimer?.Dispose();
+        if (_hubConnection is not null)
+        {
+            if (_currentToken is not null)
+            {
+                try { await _hubConnection.InvokeAsync("LeaveSession", _currentToken); } catch { }
+            }
+            await _hubConnection.DisposeAsync();
+        }
+    }
+}

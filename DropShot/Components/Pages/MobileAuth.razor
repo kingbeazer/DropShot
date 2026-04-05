@@ -1,0 +1,206 @@
+@page "/mobile-auth"
+@rendermode InteractiveServer
+@using DropShot.Data
+@using DropShot.Hubs
+@using DropShot.Models
+@using DropShot.Services
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.SignalR
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@inject QrLoginService QrLoginService
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject IHubContext<QrAuthHub> HubContext
+@inject NavigationManager Navigation
+
+<MudProviders />
+
+<div class="mobile-auth-container pa-4" style="max-width: 400px; margin: 0 auto;">
+    <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-4">Mobile Login</MudText>
+
+    @if (_state == MobileAuthState.InvalidToken)
+    {
+        <MudAlert Severity="Severity.Error">
+            This login link is invalid or has expired. Please scan a new QR code.
+        </MudAlert>
+    }
+    else if (_state == MobileAuthState.LoginForm)
+    {
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.body2" Class="mb-3" Color="Color.Secondary">
+                    Log in to authenticate the desktop session.
+                </MudText>
+                <MudTextField @bind-Value="_email" Label="Email" Variant="Variant.Outlined"
+                              InputType="InputType.Email" Required="true" Class="mb-3" />
+                <MudTextField @bind-Value="_password" Label="Password" Variant="Variant.Outlined"
+                              InputType="InputType.Password" Required="true" Class="mb-3" />
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">@_errorMessage</MudAlert>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                           OnClick="LoginAsync" Disabled="_isLoading">
+                    @if (_isLoading)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                    }
+                    Log in
+                </MudButton>
+            </MudCardContent>
+        </MudCard>
+    }
+    else if (_state == MobileAuthState.CourtSelection)
+    {
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.body1" Class="mb-2">
+                    Welcome, @_userName!
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                    Select a court to direct the desktop to its scoreboard, or skip to go to the home page.
+                </MudText>
+                <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Select Court"
+                           Variant="Variant.Outlined" Clearable="true" Class="mb-3">
+                    @foreach (var court in _courts)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)court.CourtId)">
+                            @court.Club.Name — @court.Name
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+                <MudStack Row="true" Spacing="2">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true"
+                               OnClick="() => ConfirmAsync(null)">
+                        Skip
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                               OnClick="() => ConfirmAsync(_selectedCourtId)" Disabled="_selectedCourtId is null">
+                        Confirm
+                    </MudButton>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    }
+    else if (_state == MobileAuthState.Success)
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">
+            <MudText Typo="Typo.h6">You are now logged in on the other device.</MudText>
+            <MudText Typo="Typo.body2" Class="mt-1">You can close this page.</MudText>
+        </MudAlert>
+    }
+</div>
+
+@code {
+    private enum MobileAuthState { Loading, InvalidToken, LoginForm, CourtSelection, Success }
+
+    [SupplyParameterFromQuery(Name = "session")]
+    private string? SessionToken { get; set; }
+
+    private MobileAuthState _state = MobileAuthState.Loading;
+    private string _email = "";
+    private string _password = "";
+    private string? _errorMessage;
+    private bool _isLoading;
+    private string? _userId;
+    private string? _userName;
+    private List<string> _roles = [];
+    private List<Court> _courts = [];
+    private int? _selectedCourtId;
+
+    protected override void OnInitialized()
+    {
+        if (string.IsNullOrEmpty(SessionToken))
+        {
+            _state = MobileAuthState.InvalidToken;
+            return;
+        }
+
+        var session = QrLoginService.GetSession(SessionToken);
+        if (session is null || session.Status != QrSessionStatus.Pending || session.IsExpired)
+        {
+            _state = MobileAuthState.InvalidToken;
+            return;
+        }
+
+        _state = MobileAuthState.LoginForm;
+    }
+
+    private async Task LoginAsync()
+    {
+        _errorMessage = null;
+        _isLoading = true;
+
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _errorMessage = "Email and password are required.";
+            _isLoading = false;
+            return;
+        }
+
+        // Re-validate token before proceeding
+        var session = QrLoginService.GetSession(SessionToken!);
+        if (session is null || session.Status != QrSessionStatus.Pending || session.IsExpired)
+        {
+            _state = MobileAuthState.InvalidToken;
+            _isLoading = false;
+            return;
+        }
+
+        var user = await UserManager.FindByEmailAsync(_email);
+        if (user is null)
+        {
+            _errorMessage = "Invalid email or password.";
+            _isLoading = false;
+            return;
+        }
+
+        var result = await SignInManager.CheckPasswordSignInAsync(user, _password, lockoutOnFailure: true);
+        if (!result.Succeeded)
+        {
+            _errorMessage = "Invalid email or password.";
+            _isLoading = false;
+            return;
+        }
+
+        _userId = user.Id;
+        _userName = user.UserName;
+        _roles = (await UserManager.GetRolesAsync(user)).ToList();
+        _isLoading = false;
+
+        var isAdmin = _roles.Any(r => r is "Admin" or "SuperAdmin" or "ClubAdmin");
+        if (isAdmin)
+        {
+            await using var db = DbFactory.CreateDbContext();
+            _courts = await db.Courts.Include(c => c.Club).OrderBy(c => c.Club.Name).ThenBy(c => c.Name).ToListAsync();
+            _state = MobileAuthState.CourtSelection;
+        }
+        else
+        {
+            await ConfirmAsync(null);
+        }
+    }
+
+    private async Task ConfirmAsync(int? courtId)
+    {
+        var confirmed = QrLoginService.ConfirmSession(SessionToken!, _userId!, _userName!, _roles, courtId);
+        if (!confirmed)
+        {
+            _state = MobileAuthState.InvalidToken;
+            return;
+        }
+
+        await HubContext.Clients.Group($"qr-{SessionToken}")
+            .SendAsync("QrAuthConfirmed", new
+            {
+                userId = _userId,
+                userName = _userName,
+                roles = _roles,
+                courtId
+            });
+
+        _state = MobileAuthState.Success;
+    }
+}
