@@ -306,7 +306,7 @@
 @* #11 — Match complete as full-screen overlay instead of below the fold *@
 @if (CurrentMatch != null && CurrentMatch.Complete)
 {
-    <div class="match-complete-overlay" @onclick="NavigateAfterMatch">
+    <div class="match-complete-overlay">
         <div class="match-complete-trophy">🏆</div>
         @if (!string.IsNullOrWhiteSpace(_winner) && !_winner.Equals("Congratulations "))
         {
@@ -325,7 +325,9 @@
                 <span>New match in @_countdownSeconds…</span>
             }
         </div>
-        <div class="match-complete-tap-hint">Tap anywhere to skip</div>
+        <MudButton Style="margin-top: 12px;" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
+                   StartIcon="@Icons.Material.Filled.SkipNext"
+                   OnClick="@NavigateAfterMatch">Skip</MudButton>
     </div>
 }
 

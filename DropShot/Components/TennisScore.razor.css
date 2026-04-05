@@ -366,7 +366,6 @@
     gap: 16px;
     padding: 24px;
     text-align: center;
-    cursor: pointer;
 }
 
 .match-complete-trophy {
@@ -399,12 +398,6 @@
     color: rgba(255, 255, 255, 0.7);
     margin-top: 16px;
     animation: fadeUp 0.4s ease-out 0.5s both;
-}
-
-.match-complete-tap-hint {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.35);
-    animation: fadeUp 0.4s ease-out 0.65s both;
 }
 
 /* ── Coin Toss Overlay ─────────────────────────────────────── */
