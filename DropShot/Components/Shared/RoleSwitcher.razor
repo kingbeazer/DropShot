@@ -1,102 +1,53 @@
-@rendermode InteractiveServer
+@* Pure SSR component — uses a form POST like logout, no interactive circuit needed *@
 
-@using DropShot.Components.Account
-@using DropShot.Services
 @using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
 
-@inject ActiveRoleService ActiveRoleService
-@inject RoleSwitchService RoleSwitchService
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IHttpContextAccessor HttpContextAccessor
+@inject UserManager<DropShot.Data.ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
 
-@implements IDisposable
-
-@if (ActiveRoleService.CanSwitchRole)
+@if (_grantedRoles.Count > 1)
 {
-    <MudMenu Icon="@Icons.Material.Filled.SwapHoriz"
-             Color="Color.Inherit"
-             Dense="true"
-             AnchorOrigin="Origin.BottomLeft">
-        <ActivatorContent>
-            <MudChip T="string"
-                     Size="Size.Small"
-                     Color="@GetRoleColor(ActiveRoleService.ActiveRole)"
-                     Variant="Variant.Filled"
-                     Icon="@Icons.Material.Filled.SwapHoriz">
-                @ActiveRoleService.ActiveRole
-            </MudChip>
-        </ActivatorContent>
-        <ChildContent>
-            @foreach (var role in ActiveRoleService.GrantedRoles)
-            {
-                <MudMenuItem OnClick="@(() => SwitchToRole(role))"
-                             Disabled="@(role == ActiveRoleService.ActiveRole)">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@(role == ActiveRoleService.ActiveRole ? Icons.Material.Filled.RadioButtonChecked : Icons.Material.Filled.RadioButtonUnchecked)"
-                                 Size="Size.Small" />
-                        <MudText>@role</MudText>
-                    </div>
-                </MudMenuItem>
-            }
-        </ChildContent>
-    </MudMenu>
+    <div class="role-switcher-section">
+        <span class="role-switcher-label nav-link" style="font-size: 0.75rem; opacity: 0.7; padding-bottom: 0;">
+            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Class="nav-icon" /> Role: @_activeRole
+        </span>
+        @foreach (var role in _grantedRoles.Where(r => r != _activeRole))
+        {
+            <form action="Account/SwitchRole" method="post" data-enhance-nav="false">
+                <AntiforgeryToken />
+                <input type="hidden" name="role" value="@role" />
+                <input type="hidden" name="returnUrl" value="@_currentUrl" />
+                <button type="submit" class="nav-link role-switch-btn">
+                    <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Class="nav-icon" /> Switch to @role
+                </button>
+            </form>
+        }
+    </div>
 }
 
 @code {
-    [CascadingParameter]
-    private Task<AuthenticationState>? AuthState { get; set; }
-
-    private string? _userId;
+    private List<string> _grantedRoles = [];
+    private string _activeRole = "";
+    private string _currentUrl = "/";
 
     protected override async Task OnInitializedAsync()
     {
-        if (AuthState is not null)
-        {
-            var state = await AuthState;
-            var user = state.User;
-            _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext?.User.Identity?.IsAuthenticated != true) return;
 
-            // Initialize ActiveRoleService from the user's role claims
-            // (needed because the layout renders in SSR before the
-            //  interactive auth state provider kicks in)
-            if (!ActiveRoleService.CanSwitchRole)
-            {
-                var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
-                if (roles.Count > 0)
-                    ActiveRoleService.Initialize(roles);
-            }
-        }
+        _currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
 
-        ActiveRoleService.OnChange += OnRoleChanged;
-    }
+        var user = await UserManager.GetUserAsync(httpContext.User);
+        if (user is null) return;
 
-    private async Task SwitchToRole(string role)
-    {
-        if (_userId is null || role == ActiveRoleService.ActiveRole) return;
+        _grantedRoles = (await UserManager.GetRolesAsync(user)).ToList();
+        if (_grantedRoles.Count <= 1) return;
 
-        var ip = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
-        await RoleSwitchService.SwitchRoleAsync(_userId, role, ip);
-
-        // Notify the auth state provider so all AuthorizeView components re-evaluate
-        if (AuthStateProvider is ActiveRoleAuthenticationStateProvider activeProvider)
-            activeProvider.NotifyRoleChanged();
-    }
-
-    private void OnRoleChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
-
-    private Color GetRoleColor(string role) => role switch
-    {
-        "SuperAdmin" => Color.Error,
-        "Admin" => Color.Warning,
-        "ClubAdmin" => Color.Info,
-        _ => Color.Default
-    };
-
-    public void Dispose()
-    {
-        ActiveRoleService.OnChange -= OnRoleChanged;
+        // Read active role from cookie, default to first granted role
+        _activeRole = httpContext.Request.Cookies["ActiveRole"] ?? _grantedRoles[0];
+        if (!_grantedRoles.Contains(_activeRole, StringComparer.OrdinalIgnoreCase))
+            _activeRole = _grantedRoles[0];
     }
 }

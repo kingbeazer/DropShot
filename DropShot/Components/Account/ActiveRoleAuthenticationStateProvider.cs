@@ -10,13 +10,15 @@ namespace DropShot.Components.Account;
 
 /// <summary>
 /// Wraps the Identity revalidating auth state provider to filter role claims
-/// based on the user's active role. This ensures [Authorize(Roles=...)] and
-/// AuthorizeView automatically respect the active role selection.
+/// based on the user's active role (stored in an HttpOnly cookie).
+/// This ensures [Authorize(Roles=...)] and AuthorizeView automatically
+/// respect the active role selection.
 /// </summary>
 internal sealed class ActiveRoleAuthenticationStateProvider(
     ILoggerFactory loggerFactory,
     IServiceScopeFactory scopeFactory,
     IOptions<IdentityOptions> options,
+    IHttpContextAccessor httpContextAccessor,
     ActiveRoleService activeRoleService)
     : RevalidatingServerAuthenticationStateProvider(loggerFactory)
 {
@@ -51,17 +53,24 @@ internal sealed class ActiveRoleAuthenticationStateProvider(
         if (user.Identity?.IsAuthenticated != true)
             return state;
 
-        // Initialize the active role service with all granted roles
+        // Get all granted roles from the Identity claims
         var allRoleClaims = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
-        if (allRoleClaims.Count > 0)
-            activeRoleService.Initialize(allRoleClaims);
-
-        // If there's only one role (or none), no filtering needed
         if (allRoleClaims.Count <= 1)
-            return state;
+            return state; // No filtering needed for single-role users
+
+        // Initialize ActiveRoleService with all granted roles
+        activeRoleService.Initialize(allRoleClaims);
+
+        // Read the active role from the cookie (set by POST /Account/SwitchRole)
+        var cookieRole = httpContextAccessor.HttpContext?.Request.Cookies["ActiveRole"];
+        if (!string.IsNullOrEmpty(cookieRole) && allRoleClaims.Contains(cookieRole, StringComparer.OrdinalIgnoreCase))
+        {
+            activeRoleService.TrySwitch(cookieRole);
+        }
+
+        var activeRole = activeRoleService.ActiveRole;
 
         // Build a new identity with only the active role claim
-        var activeRole = activeRoleService.ActiveRole;
         var filteredClaims = user.Claims
             .Where(c => c.Type != ClaimTypes.Role)
             .Append(new Claim(ClaimTypes.Role, activeRole))
@@ -74,14 +83,5 @@ internal sealed class ActiveRoleAuthenticationStateProvider(
             ClaimTypes.Role);
 
         return new AuthenticationState(new ClaimsPrincipal(filteredIdentity));
-    }
-
-    /// <summary>
-    /// Call this after a role switch to force all Blazor components
-    /// to re-evaluate authorization.
-    /// </summary>
-    public void NotifyRoleChanged()
-    {
-        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
     }
 }

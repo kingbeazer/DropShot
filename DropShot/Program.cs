@@ -107,7 +107,6 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
 
 // ── App services ─────────────────────────────────────────────────────────────
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<RoleSwitchService>();
 builder.Services.AddScoped<UserState>();
 builder.Services.AddScoped<TennisScoreService>();
 builder.Services.AddScoped<ClubAuthorizationService>();
@@ -167,6 +166,56 @@ app.MapGet("/Account/QrLogin", async (
 
     return Results.Redirect("/");
 });
+
+// ── Role switching (SSR form POST, mirrors the logout pattern) ───────────────
+app.MapPost("/Account/SwitchRole", async (
+    HttpContext httpContext,
+    UserManager<ApplicationUser> userManager,
+    IDbContextFactory<MyDbContext> dbFactory,
+    ILogger<Program> logger) =>
+{
+    var form = await httpContext.Request.ReadFormAsync();
+    var role = form["role"].ToString();
+    var returnUrl = form["returnUrl"].ToString();
+    if (string.IsNullOrEmpty(returnUrl)) returnUrl = "/";
+
+    var user = await userManager.GetUserAsync(httpContext.User);
+    if (user is null) return Results.Redirect("/Account/Login");
+
+    var grantedRoles = await userManager.GetRolesAsync(user);
+    if (!grantedRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
+        return Results.Redirect(returnUrl);
+
+    var previousRole = httpContext.Request.Cookies["ActiveRole"]
+                       ?? grantedRoles.FirstOrDefault() ?? "";
+
+    // Persist the active role in an HttpOnly cookie
+    httpContext.Response.Cookies.Append("ActiveRole", role, new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = true,
+        SameSite = SameSiteMode.Strict,
+        Expires = DateTimeOffset.UtcNow.AddDays(30)
+    });
+
+    // Audit log
+    var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+    await using var db = dbFactory.CreateDbContext();
+    db.RoleSwitchLogs.Add(new RoleSwitchLog
+    {
+        UserId = user.Id,
+        FromRole = previousRole,
+        ToRole = role,
+        Timestamp = DateTime.UtcNow,
+        IpAddress = ip
+    });
+    await db.SaveChangesAsync();
+
+    logger.LogInformation("Role switch: User {UserId} from {FromRole} to {ToRole} (IP: {Ip})",
+        user.Id, previousRole, role, ip);
+
+    return Results.Redirect(returnUrl);
+}).RequireAuthorization();
 
 // ── Seed roles ────────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
