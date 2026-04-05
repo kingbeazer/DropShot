@@ -6,55 +6,63 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
 @using MudBlazor
+@using DropShot.Services
 @inject NavigationManager Navigation
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
+@inject ClubAuthorizationService AuthzService
 
 <MudProviders />
 
-<MudText Typo="Typo.h5" Class="pa-4">Active Matches</MudText>
-
-@if (_loaded && _matches.Count == 0)
+@if (_loaded && !_redirecting)
 {
-    <MudText Class="px-4 pb-2" Color="Color.Secondary">No active matches.</MudText>
-}
-else if (_loaded)
-{
-    <MudList T="SavedMatch" Class="px-2">
-        @foreach (var m in _matches)
-        {
-            <MudListItem T="SavedMatch">
-                <MudCard Outlined="true" Class="mb-2" Style="cursor:pointer" @onclick="@(() => Navigation.NavigateTo($"/match/{m.SavedMatchId}"))">
-                    <MudCardContent Class="py-2 px-3">
-                        <MudText Typo="Typo.subtitle1">
-                            @PlayerLabel(m)
-                        </MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            @(m.CourtId.HasValue && _courtNames.TryGetValue(m.CourtId.Value, out var cname) ? cname : "No court") &middot; Started @m.CreatedAt.ToLocalTime().ToString("g")
-                        </MudText>
-                    </MudCardContent>
-                </MudCard>
-            </MudListItem>
-        }
-    </MudList>
-}
+    <MudText Typo="Typo.h5" Class="pa-4">Active Matches</MudText>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-           Class="ma-4" OnClick="@(() => Navigation.NavigateTo("/match/0"))">
-    Start New Match
-</MudButton>
+    @if (_matches.Count == 0)
+    {
+        <MudText Class="px-4 pb-2" Color="Color.Secondary">No active matches.</MudText>
+    }
+    else
+    {
+        <MudList T="SavedMatch" Class="px-2">
+            @foreach (var m in _matches)
+            {
+                <MudListItem T="SavedMatch">
+                    <MudCard Outlined="true" Class="mb-2" Style="cursor:pointer" @onclick="@(() => Navigation.NavigateTo($"/match/{m.SavedMatchId}"))">
+                        <MudCardContent Class="py-2 px-3">
+                            <MudText Typo="Typo.subtitle1">
+                                @PlayerLabel(m)
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @(m.CourtId.HasValue && _courtNames.TryGetValue(m.CourtId.Value, out var cname) ? cname : "No court") &middot; Started @m.CreatedAt.ToLocalTime().ToString("g")
+                            </MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudListItem>
+            }
+        </MudList>
+    }
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               Class="ma-4" OnClick="@(() => Navigation.NavigateTo("/match/0"))">
+        Start New Match
+    </MudButton>
+}
 
 @code {
     private List<SavedMatch> _matches = [];
     private Dictionary<int, string> _courtNames = [];
     private bool _loaded;
+    private bool _redirecting;
     private string? _userId;
+    private bool _isAdmin;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _isAdmin = AuthzService.IsAdmin(authState.User);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -81,6 +89,25 @@ else if (_loaded)
                         .Where(m => !m.Complete && m.DeviceToken == deviceToken && m.UserId == null)
                         .OrderByDescending(m => m.CreatedAt)
                         .ToListAsync();
+                }
+            }
+
+            // Non-admin users skip the match list:
+            // - If they have an active match, go straight to it
+            // - If they don't, go straight to match setup
+            if (!_isAdmin)
+            {
+                if (_matches.Count > 0)
+                {
+                    _redirecting = true;
+                    Navigation.NavigateTo($"/match/{_matches[0].SavedMatchId}", replace: true);
+                    return;
+                }
+                else
+                {
+                    _redirecting = true;
+                    Navigation.NavigateTo("/match/0", replace: true);
+                    return;
                 }
             }
 
