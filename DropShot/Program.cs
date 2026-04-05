@@ -50,7 +50,7 @@ builder.Services.AddAuthentication(options =>
 
 // JWT bearer — used by the MAUI app (separate AddAuthentication call)
 var jwtCfg = builder.Configuration.GetSection("Jwt");
-builder.Services.AddAuthentication()
+var authBuilder = builder.Services.AddAuthentication()
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -64,6 +64,38 @@ builder.Services.AddAuthentication()
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtCfg["Key"]!))
         };
+    });
+
+// ── External OAuth providers (only registered when credentials are configured) ──
+var authCfg = builder.Configuration.GetSection("Authentication");
+
+if (!string.IsNullOrEmpty(authCfg["Google:ClientId"]))
+    authBuilder.AddGoogle(options =>
+    {
+        options.ClientId = authCfg["Google:ClientId"]!;
+        options.ClientSecret = authCfg["Google:ClientSecret"]!;
+    });
+
+if (!string.IsNullOrEmpty(authCfg["Facebook:AppId"]))
+    authBuilder.AddFacebook(options =>
+    {
+        options.AppId = authCfg["Facebook:AppId"]!;
+        options.AppSecret = authCfg["Facebook:AppSecret"]!;
+    });
+
+if (!string.IsNullOrEmpty(authCfg["Twitter:ConsumerKey"]))
+    authBuilder.AddTwitter(options =>
+    {
+        options.ConsumerKey = authCfg["Twitter:ConsumerKey"]!;
+        options.ConsumerSecret = authCfg["Twitter:ConsumerSecret"]!;
+        options.RetrieveUserDetails = true;
+    });
+
+if (!string.IsNullOrEmpty(authCfg["Microsoft:ClientId"]))
+    authBuilder.AddMicrosoftAccount(options =>
+    {
+        options.ClientId = authCfg["Microsoft:ClientId"]!;
+        options.ClientSecret = authCfg["Microsoft:ClientSecret"]!;
     });
 
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
