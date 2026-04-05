@@ -17,7 +17,6 @@
 @rendermode InteractiveServer
 
 @using DropShot.Services
-@inject MyDbContext DbContext
 @inject NavigationManager Navigation
 @inject UserState State
 @inject IDialogService DialogService
@@ -705,6 +704,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        using var DbContext = DbFactory.CreateDbContext();
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
