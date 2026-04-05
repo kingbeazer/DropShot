@@ -331,7 +331,7 @@
     </div>
 }
 
-@implements IDisposable
+@implements IAsyncDisposable
 
 @code {
     private string _value = string.Empty;
@@ -848,6 +848,8 @@
     {
         if (firstRender)
         {
+            await JS.InvokeVoidAsync("eval", "document.body.classList.add('scoreboard-fullscreen')");
+
             if (_currentUserId == null)
             {
                 _deviceToken = await JS.InvokeAsync<string?>("localStorage.getItem", "dropshot-device-token");
@@ -1045,10 +1047,11 @@
             Navigation.NavigateTo("/match");
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         _timerHandle?.Dispose();
         _countdownHandle?.Dispose();
+        try { await JS.InvokeVoidAsync("eval", "document.body.classList.remove('scoreboard-fullscreen')"); } catch { }
     }
 
     private async Task UndoLastPoint()
