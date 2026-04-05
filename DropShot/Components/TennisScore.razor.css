@@ -38,14 +38,13 @@
     --content-max-width: 72rem;
     --content-padding: clamp(1.25rem, 3vw, 3rem);
     --text-color: #ffffff;
-    position: relative;
-    height: 100svh;
+    position: fixed;
+    inset: 0;
     background-color: var(--bg-fallback);
     background-image: var(--bg-image);
     background-repeat: no-repeat;
     background-size: var(--bg-size);
     background-position: var(--bg-position);
-    background-attachment: fixed;
     overflow: hidden;
     display: flex;
     align-items: center;
