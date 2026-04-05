@@ -149,6 +149,14 @@
     }
 }
 
+.nav-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid lightseagreen;
+}
+
 @media (min-width: 641px) {
     .navbar-toggler {
         display: none;
