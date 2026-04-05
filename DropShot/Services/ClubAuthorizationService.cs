@@ -8,32 +8,42 @@ namespace DropShot.Services;
 /// <summary>
 /// Provides fine-grained authorization checks for club and competition editing.
 /// Inject into Blazor pages and pass the current ClaimsPrincipal.
+///
+/// Role checks read from the ClaimsPrincipal's Role claims, which are filtered
+/// by ActiveRoleAuthenticationStateProvider to contain only the active role.
+/// This means all checks automatically respect the user's active role selection.
 /// </summary>
 public class ClubAuthorizationService(
     UserManager<ApplicationUser> userManager,
     IDbContextFactory<MyDbContext> dbFactory)
 {
-    private async Task<(ApplicationUser? user, IList<string> roles)> GetUserAndRolesAsync(ClaimsPrincipal principal)
+    private (string? userId, IList<string> roles) GetUserAndRoles(ClaimsPrincipal principal)
     {
-        var user = await userManager.GetUserAsync(principal);
-        if (user is null) return (null, Array.Empty<string>());
-        var roles = await userManager.GetRolesAsync(user);
-        return (user, roles);
+        var userId = userManager.GetUserId(principal);
+        if (userId is null) return (null, Array.Empty<string>());
+
+        // Read roles from claims (filtered to active role by the auth state provider)
+        var roles = principal.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+        return (userId, roles);
     }
 
-    /// <summary>Returns true if the user holds the SuperAdmin role.</summary>
-    public async Task<bool> IsSuperAdminAsync(ClaimsPrincipal user)
+    /// <summary>Returns true if the user's active role is SuperAdmin.</summary>
+    public bool IsSuperAdmin(ClaimsPrincipal user)
     {
-        var (appUser, roles) = await GetUserAndRolesAsync(user);
-        return appUser is not null && roles.Contains("SuperAdmin");
+        var (userId, roles) = GetUserAndRoles(user);
+        return userId is not null && roles.Contains("SuperAdmin");
     }
 
-    /// <summary>Returns true if the user holds the Admin or SuperAdmin role.</summary>
-    public async Task<bool> IsAdminAsync(ClaimsPrincipal user)
+    /// <summary>Returns true if the user's active role is Admin or SuperAdmin.</summary>
+    public bool IsAdmin(ClaimsPrincipal user)
     {
-        var (appUser, roles) = await GetUserAndRolesAsync(user);
-        return appUser is not null && (roles.Contains("Admin") || roles.Contains("SuperAdmin"));
+        var (userId, roles) = GetUserAndRoles(user);
+        return userId is not null && (roles.Contains("Admin") || roles.Contains("SuperAdmin"));
     }
+
+    // Keep async overloads for backward compatibility with existing callers
+    public Task<bool> IsSuperAdminAsync(ClaimsPrincipal user) => Task.FromResult(IsSuperAdmin(user));
+    public Task<bool> IsAdminAsync(ClaimsPrincipal user) => Task.FromResult(IsAdmin(user));
 
     /// <summary>Returns the list of ClubIds the user is an administrator of.</summary>
     public async Task<List<int>> GetAdminClubIdsAsync(ClaimsPrincipal user)
@@ -48,16 +58,16 @@ public class ClubAuthorizationService(
             .ToListAsync();
     }
 
-    /// <summary>Returns true if the user can edit the given club (Admin or assigned ClubAdmin).</summary>
+    /// <summary>Returns true if the user can edit the given club (Admin active role or assigned ClubAdmin).</summary>
     public async Task<bool> CanEditClubAsync(ClaimsPrincipal user, int clubId)
     {
-        var (appUser, roles) = await GetUserAndRolesAsync(user);
-        if (appUser is null) return false;
+        var (userId, roles) = GetUserAndRoles(user);
+        if (userId is null) return false;
         if (roles.Contains("Admin") || roles.Contains("SuperAdmin")) return true;
 
         await using var db = dbFactory.CreateDbContext();
         return await db.ClubAdministrators
-            .AnyAsync(ca => ca.UserId == appUser.Id && ca.ClubId == clubId);
+            .AnyAsync(ca => ca.UserId == userId && ca.ClubId == clubId);
     }
 
     /// <summary>
@@ -70,15 +80,15 @@ public class ClubAuthorizationService(
     public async Task<bool> CanEditCompetitionAsync(
         ClaimsPrincipal user, int? hostClubId, int? competitionId = null)
     {
-        var (appUser, roles) = await GetUserAndRolesAsync(user);
-        if (appUser is null) return false;
+        var (userId, roles) = GetUserAndRoles(user);
+        if (userId is null) return false;
         if (roles.Contains("Admin") || roles.Contains("SuperAdmin")) return true;
 
         if (competitionId.HasValue)
         {
             await using var db = dbFactory.CreateDbContext();
             if (await db.CompetitionAdmins.AnyAsync(ca =>
-                    ca.CompetitionId == competitionId.Value && ca.UserId == appUser.Id))
+                    ca.CompetitionId == competitionId.Value && ca.UserId == userId))
                 return true;
         }
 
@@ -86,7 +96,7 @@ public class ClubAuthorizationService(
 
         await using var db2 = dbFactory.CreateDbContext();
         return await db2.ClubAdministrators
-            .AnyAsync(ca => ca.UserId == appUser.Id && ca.ClubId == hostClubId.Value);
+            .AnyAsync(ca => ca.UserId == userId && ca.ClubId == hostClubId.Value);
     }
 
     /// <summary>Returns the set of CompetitionIds the user is a per-competition admin of.</summary>

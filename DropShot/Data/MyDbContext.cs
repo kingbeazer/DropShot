@@ -34,6 +34,7 @@ namespace DropShot.Data
         public DbSet<ClubEmailTemplate> ClubEmailTemplates { get; set; }
         public DbSet<ScoreboardDisplaySetting> ScoreboardDisplaySettings { get; set; }
         public DbSet<UserPlayer> UserPlayers { get; set; }
+        public DbSet<RoleSwitchLog> RoleSwitchLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -410,6 +411,17 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(up => up.PlayerId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── RoleSwitchLog ───────────────────────────────────────────────────
+            builder.Entity<RoleSwitchLog>(entity =>
+            {
+                entity.Property(r => r.UserId).HasMaxLength(450).IsRequired();
+                entity.Property(r => r.FromRole).HasMaxLength(50).IsRequired();
+                entity.Property(r => r.ToRole).HasMaxLength(50).IsRequired();
+                entity.Property(r => r.IpAddress).HasMaxLength(45);
+                entity.HasIndex(r => r.UserId);
+                entity.HasIndex(r => r.Timestamp);
             });
         }
     }
