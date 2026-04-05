@@ -73,33 +73,39 @@ h1:focus {
     text-align: center;
 }
 
-/* Scoreboard fullscreen mode — hides sidebar and content padding */
-body.scoreboard-fullscreen {
+/* Scoring-active mode — fills remaining viewport below banner, no scroll */
+body.scoring-active {
     overflow: hidden !important;
     height: 100svh !important;
 }
 
+body.scoring-active .page {
+    height: 100% !important;
+    overflow: hidden !important;
+}
+
+body.scoring-active main {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    height: 100% !important;
+}
+
+body.scoring-active .content {
+    padding: 0 !important;
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+
+/* Legacy — keep for external scoreboard page if still used */
 body.scoreboard-fullscreen .sidebar {
     display: none !important;
 }
 
-body.scoreboard-fullscreen .page {
-    flex-direction: column;
-    height: 100% !important;
-    overflow: hidden !important;
-}
-
-body.scoreboard-fullscreen main {
-    width: 100%;
-    height: 100% !important;
-    padding-top: 0 !important;
-    overflow: hidden !important;
-}
-
 body.scoreboard-fullscreen .content {
     padding: 0 !important;
-    height: 100% !important;
-    overflow: hidden !important;
 }
 
 /* ── QR Login Panel ──────────────────────────────────────────────────────── */
