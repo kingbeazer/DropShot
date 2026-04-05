@@ -33,13 +33,17 @@
     --content-padding: clamp(1.25rem, 3vw, 3rem);
     --text-color: #ffffff;
     position: relative;
-    min-height: var(--section-min-height);
+    min-height: 100dvh;
     background-color: var(--bg-fallback);
     background-image: var(--bg-image);
     background-repeat: no-repeat;
     background-size: var(--bg-size);
     background-position: var(--bg-position);
+    background-attachment: fixed;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
     .bg-tennis::before {
@@ -252,6 +256,25 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* ── Tap-to-score hint ─────────────────────────────────────── */
+
+.tap-hint {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-top: 2px;
+    text-align: center;
+    animation: hintFade 4s ease-out forwards;
+    pointer-events: none;
+}
+
+@keyframes hintFade {
+    0%   { opacity: 1; }
+    70%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+
 /* ── Controls Row ──────────────────────────────────────────── */
 
 .controls-row {
@@ -260,6 +283,7 @@
     align-items: center;
     width: 100%;
     padding: 4px 20px;
+    margin-top: 24px;
     box-sizing: border-box;
     gap: 8px;
 }
