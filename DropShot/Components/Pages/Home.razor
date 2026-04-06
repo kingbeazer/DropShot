@@ -119,23 +119,6 @@
     </MudCard>
 }
 
-<MudCarousel Class="mud-width-full" Style="height:400px; touch-action:pan-y;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" TData="object">
-    <MudCarouselItem Transition="transition" Color="@Color.Primary">
-        <div class="d-flex" style="height:100%">
-            <MudImage Class="mx-auto my-auto" Src="images/Logo.png" Style="height: 300px;"></MudImage>
-        </div>
-    </MudCarouselItem>
-    <MudCarouselItem Transition="transition" Color="@Color.Secondary">
-        <div class="d-flex" style="height:100%">
-            <MudImage Class="mx-auto my-auto" Src="images/Logo.png" Style="height: 300px;"></MudImage>
-        </div>
-    </MudCarouselItem>
-    <MudCarouselItem Transition="transition">
-        <div class="d-flex" style="height:100%">
-            <MudImage Class="mx-auto my-auto" Src="images/Logo.png" Style="height: 300px;"></MudImage>
-        </div>
-    </MudCarouselItem>
-</MudCarousel>
 
 @if (_upcomingFixtures.Any())
 {
@@ -187,21 +170,10 @@
     </MudCard>
 }
 
-<MudCard Class="mt-4">
-    <MudCardMedia Image="images/background.png" Height="200" />
-    <MudCardContent>
-        <MudText Typo="Typo.h5">Welcome</MudText>
-        <MudText Typo="Typo.body2">Ipsum loreum</MudText>
-    </MudCardContent>
-    <MudCardActions>
-        <MudButton Variant="Variant.Text" Color="Color.Primary">Share</MudButton>
-        <MudButton Variant="Variant.Text" Color="Color.Primary">Learn more</MudButton>
-    </MudCardActions>
-</MudCard>
 
 @if (!_isAuthenticated)
 {
-    <MudCard Class="mt-4">
+    <MudCard Class="mt-4 mb-8">
         <MudCardContent>
             <MudGrid>
                 <MudItem xs="12" md="6">
@@ -223,12 +195,6 @@
 }
 
 @code {
-    private bool arrows = true;
-    private bool bullets = true;
-    private bool enableSwipeGesture = true;
-    private bool autocycle = true;
-    private Transition transition = Transition.Slide;
-
     [SupplyParameterFromQuery]
     private bool LinkedPlayer { get; set; }
 
