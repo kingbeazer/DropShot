@@ -593,6 +593,7 @@
         _state.IsUserServing = _coinTossUserServes;
         CurrentMatch = _pendingMatch;
         _showCoinToss = false;
+        await InvokeAsync(StateHasChanged);
         await SetScoringFullscreen(true);
 
         // #7 — Start the match timer
@@ -771,6 +772,7 @@
                 if (history.Any())
                     ScoreService.RestoreFromGameState(_state, history.Peek());
                 _state.GameScoring = CurrentMatch.GameScoring;
+                Label_Switch1 = !string.IsNullOrEmpty(CurrentMatch.Player3);
                 _savedMatchId = savedMatch.SavedMatchId;
                 _selectedCourtId = savedMatch.CourtId;
                 _restoreFullscreen = true;

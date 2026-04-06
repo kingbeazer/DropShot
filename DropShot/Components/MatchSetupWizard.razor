@@ -36,12 +36,12 @@
     @* ── Step 1: Player 1 ────────────────────────────────── *@
     @if (_currentStep > 1)
     {
-        <StepSummary Label="Player 1 (You)" Summary="@_player1Name" OnEdit="@(() => GoToStep(1))" />
+        <StepSummary Label="@(_isDoubles ? "Team A - Player 1 (You)" : "Player 1 (You)")" Summary="@_player1Name" OnEdit="@(() => GoToStep(1))" />
     }
     else if (_currentStep == 1)
     {
         <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.h6" Class="mb-1">Player 1</MudText>
+            <MudText Typo="Typo.h6" Class="mb-1">@(_isDoubles ? "Team A - Player 1" : "Player 1")</MudText>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
                 This is your screen — other players will be added next.
             </MudText>
@@ -81,7 +81,13 @@
         var idx = i;
         var stepIndex = 2 + idx;
         var playerNumber = 2 + idx;
-        var label = $"Player {playerNumber}";
+        var label = _isDoubles ? playerNumber switch
+        {
+            2 => "Team A - Player 2",
+            3 => "Team B - Player 1",
+            4 => "Team B - Player 2",
+            _ => $"Player {playerNumber}"
+        } : $"Player {playerNumber}";
         var selection = GetSelection(playerNumber);
 
         @if (_currentStep > stepIndex)
@@ -96,7 +102,7 @@
                 <MudAutocomplete T="PlayerSelection" Label="Search players or type a name"
                                  Value="@selection"
                                  ValueChanged="@(val => OnPlayerSelected(playerNumber, val))"
-                                 SearchFunc="SearchPlayers"
+                                 SearchFunc="@((value, ct) => SearchPlayers(value, ct, playerNumber))"
                                  ToStringFunc="@(p => p?.DisplayName ?? "")"
                                  ResetValueOnEmptyText="true"
                                  Immediate="true"
@@ -251,8 +257,16 @@
             <MudText Typo="Typo.subtitle2" Class="mb-1">Who serves first?</MudText>
             <MudRadioGroup @bind-Value="_serverChoice">
                 <MudRadio Value="@("random")" Color="Color.Primary">Random Coin Toss</MudRadio>
-                <MudRadio Value="@("player1")" Color="Color.Primary">@_player1Name serves first</MudRadio>
-                <MudRadio Value="@("player2")" Color="Color.Primary">@(_player2?.DisplayName ?? "Player 2") serves first</MudRadio>
+                @if (_isDoubles)
+                {
+                    <MudRadio Value="@("player1")" Color="Color.Primary">Team A (@_player1Name & @(_player2?.DisplayName ?? "Player 2")) serves first</MudRadio>
+                    <MudRadio Value="@("player2")" Color="Color.Primary">Team B (@(_player3?.DisplayName ?? "Player 3") & @(_player4?.DisplayName ?? "Player 4")) serves first</MudRadio>
+                }
+                else
+                {
+                    <MudRadio Value="@("player1")" Color="Color.Primary">@_player1Name serves first</MudRadio>
+                    <MudRadio Value="@("player2")" Color="Color.Primary">@(_player2?.DisplayName ?? "Player 2") serves first</MudRadio>
+                }
             </MudRadioGroup>
 
             <div class="d-flex justify-space-between mt-3">
@@ -530,6 +544,13 @@
             if (topMatch != null)
                 SetNudge(playerNumber, topMatch);
         }
+
+        // Auto-advance to next step when a player is selected
+        if (val != null && !string.IsNullOrWhiteSpace(val.DisplayName))
+        {
+            var stepIndex = playerNumber; // step index == player number (player 2 = step 2, etc.)
+            GoToStep(stepIndex + 1);
+        }
     }
 
     private FuzzySearchResult? GetNudge(int playerNumber) => playerNumber switch
@@ -561,10 +582,28 @@
         SetNudge(playerNumber, null);
     }
 
-    private async Task<IEnumerable<PlayerSelection>> SearchPlayers(string value, CancellationToken ct)
+    private HashSet<int> GetAlreadySelectedPlayerIds(int currentPlayerNumber)
     {
+        var ids = new HashSet<int>();
+        if (_myPlayer != null) ids.Add(_myPlayer.PlayerId);
+        PlayerSelection?[] others = { _player2, _player3, _player4 };
+        int[] numbers = { 2, 3, 4 };
+        for (int i = 0; i < others.Length; i++)
+        {
+            if (numbers[i] != currentPlayerNumber && others[i]?.PlayerId is int id)
+                ids.Add(id);
+        }
+        return ids;
+    }
+
+    private async Task<IEnumerable<PlayerSelection>> SearchPlayers(string value, CancellationToken ct, int currentPlayerNumber)
+    {
+        var excluded = GetAlreadySelectedPlayerIds(currentPlayerNumber);
+
         if (string.IsNullOrWhiteSpace(value))
-            return _searchablePlayers.Take(20);
+            return _searchablePlayers
+                .Where(p => !p.PlayerId.HasValue || !excluded.Contains(p.PlayerId.Value))
+                .Take(20);
 
         if (_fuzzyInitialized)
         {
@@ -576,7 +615,7 @@
 
             var results = await FuzzySearch.SearchAsync(value, 30);
             return results
-                .Where(r => myPlayerIds.Contains(r.PlayerId))
+                .Where(r => myPlayerIds.Contains(r.PlayerId) && !excluded.Contains(r.PlayerId))
                 .Take(15)
                 .Select(r => new PlayerSelection
                 {
@@ -588,7 +627,8 @@
 
         // Fallback before fuzzy index is ready
         return _searchablePlayers
-            .Where(p => p.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .Where(p => p.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase)
+                        && (!p.PlayerId.HasValue || !excluded.Contains(p.PlayerId.Value)))
             .Take(15);
     }
 
