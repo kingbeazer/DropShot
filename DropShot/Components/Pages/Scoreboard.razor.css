@@ -33,11 +33,6 @@
     aspect-ratio: 16 / 9;
 }
 
-.stream-container iframe {
-    position: relative;
-    z-index: 1;
-}
-
 /* ── TV-style score overlay ──────────────────────────────────── */
 .tv-overlay {
     position: absolute;
