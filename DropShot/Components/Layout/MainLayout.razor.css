@@ -12,6 +12,7 @@ main {
 
     main ::deep .content {
         flex: 1;
+        padding-bottom: 3rem;
     }
 
 .sidebar {
