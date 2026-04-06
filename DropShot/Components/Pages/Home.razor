@@ -44,26 +44,6 @@
     </MudAlert>
 }
 
-@if (!_isAuthenticated)
-{
-    <MudCard Class="mb-8">
-        <MudCardContent>
-            <MudGrid>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
-                    <MudText Typo="Typo.body1" Class="mt-2">
-                        Scan the QR code with your phone to log in, or
-                        <MudLink Href="/Account/Login">use email and password</MudLink>.
-                    </MudText>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <QrLoginPanel />
-                </MudItem>
-            </MudGrid>
-        </MudCardContent>
-    </MudCard>
-}
-
 @if (_pendingReviews.Count > 0)
 {
     <MudCard Class="mb-4" Elevation="2">
@@ -190,6 +170,29 @@
     </MudCard>
 }
 
+
+@if (!_isAuthenticated)
+{
+    <MudCard Class="mt-4 mb-8">
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
+                        Scan the QR code with your phone to log in, or
+                        <MudLink Href="/Account/Login">use email and password</MudLink>.
+                    </MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
+                        <MudLink Href="/Account/Login">Log in with email and password</MudLink> to get started.
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" md="6" Class="d-none d-md-block">
+                    <QrLoginPanel />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+}
 
 @code {
     [SupplyParameterFromQuery]

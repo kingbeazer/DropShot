@@ -150,6 +150,26 @@
     color: #212121 !important;
 }
 
+[data-theme="light"] .mud-input-outlined .mud-input-outlined-border {
+    border-color: #bdbdbd !important;
+}
+
+[data-theme="light"] .mud-input-outlined:hover .mud-input-outlined-border {
+    border-color: #424242 !important;
+}
+
+[data-theme="light"] .mud-input-outlined.mud-focused .mud-input-outlined-border {
+    border-color: #1565c0 !important;
+}
+
+[data-theme="light"] .mud-input-label {
+    color: #616161 !important;
+}
+
+[data-theme="light"] .mud-input-label-outlined.mud-input-label-inputcontrol {
+    background-color: #ffffff;
+}
+
 [data-theme="light"] .mud-chip {
     color: #212121 !important;
 }
