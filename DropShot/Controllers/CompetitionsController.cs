@@ -16,12 +16,20 @@ public class CompetitionsController(
     ClubAuthorizationService authzService) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<CompetitionDto>>> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 50)
+    public async Task<ActionResult<List<CompetitionDto>>> GetAll(
+        [FromQuery] int skip = 0, [FromQuery] int take = 50, [FromQuery] int? eventId = null)
     {
         await using var db = dbFactory.CreateDbContext();
-        var comps = await db.Competition
+        var query = db.Competition
             .Include(c => c.HostClub)
             .Include(c => c.Rules)
+            .Include(c => c.Event)
+            .AsQueryable();
+
+        if (eventId.HasValue)
+            query = query.Where(c => c.EventId == eventId.Value);
+
+        var comps = await query
             .OrderBy(c => c.CompetitionName)
             .Skip(skip)
             .Take(Math.Min(take, 200))
@@ -36,6 +44,7 @@ public class CompetitionsController(
         var c = await db.Competition
             .Include(x => x.HostClub)
             .Include(x => x.Rules)
+            .Include(x => x.Event)
             .Include(x => x.Stages.OrderBy(s => s.StageOrder))
             .Include(x => x.Participants).ThenInclude(p => p.Player)
             .Include(x => x.Participants).ThenInclude(p => p.Team)
@@ -46,9 +55,10 @@ public class CompetitionsController(
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
             (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
-            c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge,
+            c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
             (DropShot.Shared.PlayerSex?)c.EligibleSex,
             c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
+            c.EventId, c.Event?.Name,
             c.Stages.Select(s => new CompetitionStageDto(
                 s.CompetitionStageId, s.Name, s.StageOrder,
                 (DropShot.Shared.StageType)s.StageType)).ToList(),
@@ -653,9 +663,11 @@ public class CompetitionsController(
         c.StartDate = r.StartDate;
         c.EndDate = r.EndDate;
         c.MaxAge = r.MaxAge;
+        c.MinAge = r.MinAge;
         c.EligibleSex = (DropShot.Models.PlayerSex?)r.EligibleSex;
         c.HostClubId = r.HostClubId;
         c.RulesSetId = r.RulesSetId;
+        c.EventId = r.EventId;
     }
 
     private static void ApplyFixture(CompetitionFixture f, SaveFixtureRequest r)
@@ -677,9 +689,10 @@ public class CompetitionsController(
     private static CompetitionDto ToDto(Competition c) => new(
         c.CompetitionID, c.CompetitionName,
         (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
-        c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge,
+        c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
         (DropShot.Shared.PlayerSex?)c.EligibleSex,
-        c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name);
+        c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
+        c.EventId, c.Event?.Name);
 
     private static CompetitionFixtureDto ToFixtureDto(CompetitionFixture f) => new(
         f.CompetitionFixtureId, f.CompetitionId,

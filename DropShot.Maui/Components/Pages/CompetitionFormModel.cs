@@ -11,9 +11,11 @@ public class CompetitionFormModel
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public int? MaxAge { get; set; }
+    public int? MinAge { get; set; }
     public PlayerSex? EligibleSex { get; set; }
     public int? HostClubId { get; set; }
     public int? RulesSetId { get; set; }
+    public int? EventId { get; set; }
 
     public static CompetitionFormModel From(CompetitionDto dto) => new()
     {
@@ -23,8 +25,10 @@ public class CompetitionFormModel
         StartDate = dto.StartDate,
         EndDate = dto.EndDate,
         MaxAge = dto.MaxAge,
+        MinAge = dto.MinAge,
         EligibleSex = dto.EligibleSex,
         HostClubId = dto.HostClubId,
-        RulesSetId = dto.RulesSetId
+        RulesSetId = dto.RulesSetId,
+        EventId = dto.EventId
     };
 }

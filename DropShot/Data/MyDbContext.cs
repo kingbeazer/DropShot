@@ -35,6 +35,7 @@ namespace DropShot.Data
         public DbSet<ScoreboardDisplaySetting> ScoreboardDisplaySettings { get; set; }
         public DbSet<UserPlayer> UserPlayers { get; set; }
         public DbSet<RoleSwitchLog> RoleSwitchLogs { get; set; }
+        public DbSet<Event> Events { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -81,6 +82,23 @@ namespace DropShot.Data
                 entity.HasOne(c => c.HostClub)
                       .WithMany(cl => cl.Competitions)
                       .HasForeignKey(c => c.HostClubId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(c => c.Event)
+                      .WithMany(e => e.Competitions)
+                      .HasForeignKey(c => c.EventId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── Event ───────────────────────────────────────────────────────────────
+            builder.Entity<Event>(entity =>
+            {
+                entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+                entity.Property(e => e.Description).HasMaxLength(1000);
+
+                entity.HasOne(e => e.HostClub)
+                      .WithMany(c => c.Events)
+                      .HasForeignKey(e => e.HostClubId)
                       .OnDelete(DeleteBehavior.SetNull);
             });
 

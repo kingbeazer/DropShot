@@ -18,14 +18,17 @@
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public int? MaxAge { get; set; }
+        public int? MinAge { get; set; }
         public PlayerSex? EligibleSex { get; set; }
         public int? RulesSetId { get; set; }
         public int? HostClubId { get; set; }
+        public int? EventId { get; set; }
         public int BestOf { get; set; } = 3;
         public bool RequireVerification { get; set; } = false;
 
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
+        public Event? Event { get; set; }
         public ICollection<CompetitionParticipant> Participants { get; set; } = [];
         public ICollection<CompetitionFixture> Fixtures { get; set; } = [];
         public ICollection<CompetitionStage> Stages { get; set; } = [];
