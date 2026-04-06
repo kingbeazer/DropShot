@@ -60,7 +60,7 @@
                     <div class="tv-overlay">
                         <div class="tv-row @(currentScore.IsUserServing ? "tv-serving" : "")">
                             <span class="tv-serve">@(currentScore.IsUserServing ? "\u25CF" : "")</span>
-                            <span class="tv-name">@(string.IsNullOrWhiteSpace(currentScore.UserName) ? _activeMatch.Player1 : currentScore.UserName)</span>
+                            <span class="tv-name">@(OverlayName(string.IsNullOrWhiteSpace(currentScore.UserName) ? _activeMatch.Player1 : currentScore.UserName))</span>
                             @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
                             {
                                 <span class="tv-set">@set.UserGames</span>
@@ -73,7 +73,7 @@
                         </div>
                         <div class="tv-row @(!currentScore.IsUserServing ? "tv-serving" : "")">
                             <span class="tv-serve">@(!currentScore.IsUserServing ? "\u25CF" : "")</span>
-                            <span class="tv-name">@(string.IsNullOrWhiteSpace(currentScore.OpponentName) ? _activeMatch.Player2 : currentScore.OpponentName)</span>
+                            <span class="tv-name">@(OverlayName(string.IsNullOrWhiteSpace(currentScore.OpponentName) ? _activeMatch.Player2 : currentScore.OpponentName))</span>
                             @foreach (var set in currentScore.SetScores ?? Enumerable.Empty<SetScore>())
                             {
                                 <span class="tv-set">@set.OpponentGames</span>
@@ -390,6 +390,9 @@
             await InvokeAsync(StateHasChanged);
         }
     }
+
+    private static string OverlayName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? "" : name.Replace(" & ", " / ");
 
     private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak, bool isUser)
     {

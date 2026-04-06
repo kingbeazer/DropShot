@@ -76,7 +76,7 @@
 
 .tv-name {
     flex: 1;
-    width: clamp(80px, 14vw, 200px);
+    width: clamp(100px, 20vw, 300px);
     min-width: 0;
     font-weight: 600;
     color: #ffffff;
