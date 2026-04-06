@@ -273,7 +273,11 @@
             @string.Join("  ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}"))
         </div>
         <div class="match-complete-countdown">
-            @if (_competitionFixture != null)
+            @if (_teamMatchFixtureId.HasValue)
+            {
+                <span>Returning to team match in @_countdownSeconds…</span>
+            }
+            else if (_competitionFixture != null)
             {
                 <span>Returning to @(_competitionFixture.Competition?.CompetitionName ?? "competition") in @_countdownSeconds…</span>
             }
@@ -620,9 +624,11 @@
     [Parameter] public int MatchId { get; set; }
     [SupplyParameterFromQuery] public int? FixtureId { get; set; }
     [SupplyParameterFromQuery] public bool? AutoStart { get; set; }
+    [SupplyParameterFromQuery] public int? BestOf { get; set; }
     private int _savedMatchId;
     private CompetitionFixture? _competitionFixture;
     private bool _autoStartPending;
+    private int? _teamMatchFixtureId; // set when this match is a TeamMatchSet
 
     private List<string> _states = [];
     private List<Court> _courts = [];
@@ -753,6 +759,12 @@
                     .Include(f => f.Player3)
                     .Include(f => f.Player4)
                     .FirstOrDefaultAsync(f => f.SavedMatchId == savedMatch.SavedMatchId);
+
+                // Check if this match is linked to a TeamMatchSet
+                var teamSet = await DbContext.TeamMatchSets
+                    .FirstOrDefaultAsync(s => s.SavedMatchId == savedMatch.SavedMatchId);
+                if (teamSet != null)
+                    _teamMatchFixtureId = teamSet.CompetitionFixtureId;
             }
         }
 
@@ -778,11 +790,15 @@
             }
         }
 
+        // Apply BestOf query parameter if provided (e.g. from team match sets)
+        if (BestOf.HasValue)
+            _state.BestOf = BestOf.Value;
+
         // Auto-start: skip wizard and go straight to match when all info is available
         if (AutoStart == true && _competitionFixture != null
             && !string.IsNullOrEmpty(_value) && !string.IsNullOrEmpty(_value2))
         {
-            _state.BestOf = _competitionFixture.Competition?.BestOf ?? 3;
+            _state.BestOf = BestOf ?? _competitionFixture.Competition?.BestOf ?? 3;
             _state.GameScoring = true;
             _state.UnlimitedDeuce = true;
             _state.GamesFirstTo = 6;
@@ -892,6 +908,41 @@
             await hubConnection.SendAsync("SendMessage",
                 JsonConvert.SerializeObject(history.Peek()),
                 CurrentMatch.CourtId?.ToString() ?? "");
+        }
+
+        // When match ends, record the result on the linked TeamMatchSet
+        if (_state.IsMatchEnded && _teamMatchFixtureId.HasValue)
+        {
+            using var dbc4 = DbFactory.CreateDbContext();
+            var teamSet = await dbc4.TeamMatchSets
+                .FirstOrDefaultAsync(s => s.SavedMatchId == _savedMatchId);
+            if (teamSet != null && !teamSet.IsComplete)
+            {
+                // For best-of-1, the final set score is the last entry in SetScores
+                if (_state.SetScores.Count > 0)
+                {
+                    var finalSet = _state.SetScores.Last();
+                    teamSet.HomeGames = finalSet.UserGames;
+                    teamSet.AwayGames = finalSet.OpponentGames;
+                }
+                else
+                {
+                    teamSet.HomeGames = _state.UserGames;
+                    teamSet.AwayGames = _state.OppGames;
+                }
+
+                teamSet.IsComplete = true;
+
+                // Load the parent fixture to determine team IDs
+                var parentFixture = await dbc4.CompetitionFixtures.FindAsync(_teamMatchFixtureId.Value);
+                if (parentFixture != null)
+                {
+                    bool userSideWon = _state.UserSets > _state.OppSets
+                        || (_state.UserSets == _state.OppSets && _state.UserGames > _state.OppGames);
+                    teamSet.WinnerTeamId = userSideWon ? parentFixture.HomeTeamId : parentFixture.AwayTeamId;
+                }
+                await dbc4.SaveChangesAsync();
+            }
         }
 
         // When match ends, record the result on the linked competition fixture
@@ -1014,7 +1065,9 @@
 
     private void NavigateAfterMatch()
     {
-        if (_competitionFixture != null)
+        if (_teamMatchFixtureId.HasValue)
+            Navigation.NavigateTo($"/team-match/{_teamMatchFixtureId.Value}");
+        else if (_competitionFixture != null)
             Navigation.NavigateTo($"/competition/{_competitionFixture.CompetitionId}/view");
         else
             Navigation.NavigateTo("/match");
