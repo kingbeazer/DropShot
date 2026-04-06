@@ -188,10 +188,10 @@
 }
 
 
-@if (!_isAuthenticated)
-{
-    <MudCard Class="mt-4 mb-8">
-        <MudCardContent>
+<MudCard Class="mt-4 mb-8">
+    <MudCardContent>
+        @if (!_isAuthenticated)
+        {
             <MudGrid>
                 <MudItem xs="12" md="6">
                     <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
@@ -207,9 +207,16 @@
                     <QrLoginPanel />
                 </MudItem>
             </MudGrid>
-        </MudCardContent>
-    </MudCard>
-}
+        }
+        else
+        {
+            <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+            <MudText Typo="Typo.body1" Class="mt-2">
+                Your home for managing competitions, tracking results, and staying on top of your game.
+            </MudText>
+        }
+    </MudCardContent>
+</MudCard>
 
 @code {
     private bool arrows = true;
