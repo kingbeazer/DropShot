@@ -253,6 +253,47 @@ app.MapPost("/Account/SwitchRole", async (
     return Results.Redirect(returnUrl);
 }).RequireAuthorization();
 
+// ── Avatar upload (SSR form POST) ──────────────────────────────────────────
+app.MapPost("/Account/Manage/UploadAvatar", async (
+    HttpContext httpContext,
+    UserManager<ApplicationUser> userManager,
+    IWebHostEnvironment env) =>
+{
+    var user = await userManager.GetUserAsync(httpContext.User);
+    if (user is null) return Results.Redirect("/Account/Login");
+
+    var form = await httpContext.Request.ReadFormAsync();
+    var file = form.Files.GetFile("avatarFile");
+    if (file is null || file.Length == 0)
+        return Results.Redirect("/Account/Manage");
+
+    var allowedExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+    var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+    if (!allowedExtensions.Contains(ext))
+        return Results.Redirect("/Account/Manage?error=Invalid+file+type");
+
+    const long maxSize = 2 * 1024 * 1024;
+    if (file.Length > maxSize)
+        return Results.Redirect("/Account/Manage?error=Image+must+be+less+than+2+MB");
+
+    var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "avatars");
+    Directory.CreateDirectory(uploadsDir);
+
+    foreach (var existing in Directory.GetFiles(uploadsDir, $"{user.Id}.*"))
+        File.Delete(existing);
+
+    var fileName = $"{user.Id}{ext}";
+    var filePath = Path.Combine(uploadsDir, fileName);
+    await using var stream = new FileStream(filePath, FileMode.Create);
+    await file.CopyToAsync(stream);
+
+    user.ProfileImagePath = $"/uploads/avatars/{fileName}";
+    await userManager.UpdateAsync(user);
+
+    return Results.Redirect("/Account/Manage");
+}).RequireAuthorization()
+  .DisableAntiforgery();
+
 // ── Seed roles ────────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {

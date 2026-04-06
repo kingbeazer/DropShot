@@ -8,7 +8,7 @@
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityUserAccessor UserAccessor
 @inject IdentityRedirectManager RedirectManager
-@inject IWebHostEnvironment Environment
+@inject NavigationManager NavigationManager
 
 <PageTitle>Profile</PageTitle>
 
@@ -28,13 +28,13 @@
                     <span>@(username?.Substring(0, 1).ToUpper() ?? "?")</span>
                 </div>
             }
-            <div class="mt-2">
+            <form method="post" enctype="multipart/form-data" action="/Account/Manage/UploadAvatar" class="mt-2">
                 <label for="avatarUpload" class="btn btn-outline-primary btn-sm" style="cursor:pointer;">
                     Change Avatar
                 </label>
-                <InputFile id="avatarUpload" OnChange="OnAvatarSelected" style="display:none;"
-                           accept=".jpg,.jpeg,.png,.gif,.webp" />
-            </div>
+                <input type="file" id="avatarUpload" name="avatarFile" style="display:none;"
+                       accept=".jpg,.jpeg,.png,.gif,.webp" onchange="this.form.submit();" />
+            </form>
             @if (!string.IsNullOrEmpty(avatarError))
             {
                 <div class="text-danger mt-1">@avatarError</div>
@@ -91,9 +91,6 @@
     private string? phoneNumber;
     private string? avatarError;
 
-    private const long MaxFileSize = 2 * 1024 * 1024; // 2 MB
-    private static readonly HashSet<string> AllowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
-
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
@@ -109,44 +106,11 @@
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
 
         Input.PhoneNumber ??= phoneNumber;
-    }
 
-    private async Task OnAvatarSelected(InputFileChangeEventArgs e)
-    {
-        avatarError = null;
-        var file = e.File;
-
-        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
-        if (!AllowedExtensions.Contains(ext))
-        {
-            avatarError = "Please upload a JPG, PNG, GIF, or WebP image.";
-            return;
-        }
-
-        if (file.Size > MaxFileSize)
-        {
-            avatarError = "Image must be less than 2 MB.";
-            return;
-        }
-
-        var fileName = $"{user.Id}{ext}";
-        var uploadsDir = Path.Combine(Environment.WebRootPath, "uploads", "avatars");
-        Directory.CreateDirectory(uploadsDir);
-
-        // Remove any existing avatar with a different extension
-        foreach (var existing in Directory.GetFiles(uploadsDir, $"{user.Id}.*"))
-        {
-            File.Delete(existing);
-        }
-
-        var filePath = Path.Combine(uploadsDir, fileName);
-        await using var stream = new FileStream(filePath, FileMode.Create);
-        await file.OpenReadStream(MaxFileSize).CopyToAsync(stream);
-
-        user.ProfileImagePath = $"/uploads/avatars/{fileName}";
-        await UserManager.UpdateAsync(user);
-
-        RedirectManager.RedirectToCurrentPageWithStatus("Profile picture updated.", HttpContext);
+        // Read avatar upload error from query string if redirected back from endpoint
+        var uri = new Uri(NavigationManager.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        avatarError = query["error"];
     }
 
     private async Task OnValidSubmitAsync()
