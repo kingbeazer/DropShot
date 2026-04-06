@@ -65,7 +65,6 @@
 .match-header {
     text-align: center;
     padding: 4px 8px;
-    margin-bottom: auto;
 }
 
 .match-header-competition {
@@ -155,6 +154,23 @@
 
 .team-avatar-overlap {
     margin-left: -20px;
+}
+
+.avatar-initials {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 22px;
+    font-weight: bold;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 50%;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 
@@ -324,7 +340,6 @@
     align-items: center;
     width: 100%;
     padding: 4px 20px;
-    margin-top: auto;
     box-sizing: border-box;
     gap: 8px;
 }
