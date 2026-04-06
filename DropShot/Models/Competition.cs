@@ -5,7 +5,8 @@
         Singles = 1,
         Doubles = 2,
         Team = 3,
-        MixedDoubles = 4
+        MixedDoubles = 4,
+        MixedTeam = 5
     }
 
     public class Competition
@@ -35,5 +36,6 @@
         public ICollection<CompetitionTeam> Teams { get; set; } = [];
         public ICollection<CompetitionMatchWindow> MatchWindows { get; set; } = [];
         public ICollection<CompetitionAdmin> Admins { get; set; } = [];
+        public ICollection<CourtPair> CourtPairs { get; set; } = [];
     }
 }

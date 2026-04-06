@@ -8,6 +8,12 @@ public enum ParticipantStatus : byte
     Disqualified = 4
 }
 
+public enum PlayerGrade : byte
+{
+    A = 1,
+    B = 2
+}
+
 public class CompetitionParticipant
 {
     public int CompetitionId { get; set; }
@@ -15,6 +21,7 @@ public class CompetitionParticipant
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
     public ParticipantStatus Status { get; set; } = ParticipantStatus.Registered;
     public int? TeamId { get; set; }
+    public PlayerGrade? Grade { get; set; }
 
     public Competition Competition { get; set; } = null!;
     public Player Player { get; set; } = null!;

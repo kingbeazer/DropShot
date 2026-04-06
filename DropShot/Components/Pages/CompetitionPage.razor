@@ -310,9 +310,14 @@
                         <MudTh>Player</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh>Registered</MudTh>
-                        @if (Model.CompetitionFormat == CompetitionFormat.Team)
+                        @if (Model.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
                         {
                             <MudTh>Team</MudTh>
+                        }
+                        @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                        {
+                            <MudTh>Gender</MudTh>
+                            <MudTh>Grade</MudTh>
                         }
                         <MudTh></MudTh>
                     </HeaderContent>
@@ -329,7 +334,7 @@
                             </MudSelect>
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
-                        @if (Model.CompetitionFormat == CompetitionFormat.Team)
+                        @if (Model.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
                         {
                             <MudTd>
                                 <MudSelect T="int?" Value="context.TeamId" Dense="true" Variant="Variant.Text"
@@ -339,6 +344,23 @@
                                     {
                                         <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
                                     }
+                                </MudSelect>
+                            </MudTd>
+                        }
+                        @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                        {
+                            <MudTd>
+                                <MudText Typo="Typo.body2">@(context.Player?.Sex?.ToString() ?? "—")</MudText>
+                            </MudTd>
+                            <MudTd>
+                                @{
+                                    var currentGrade = context.Grade.HasValue ? (DropShot.Shared.PlayerGrade)(byte)context.Grade.Value : (DropShot.Shared.PlayerGrade?)null;
+                                }
+                                <MudSelect T="DropShot.Shared.PlayerGrade?" Value="currentGrade" Dense="true"
+                                           Variant="Variant.Text" Clearable="true"
+                                           ValueChanged="@((DropShot.Shared.PlayerGrade? g) => UpdateParticipantGrade(context, g))">
+                                    <MudSelectItem T="DropShot.Shared.PlayerGrade?" Value="@((DropShot.Shared.PlayerGrade?)DropShot.Shared.PlayerGrade.A)">A</MudSelectItem>
+                                    <MudSelectItem T="DropShot.Shared.PlayerGrade?" Value="@((DropShot.Shared.PlayerGrade?)DropShot.Shared.PlayerGrade.B)">B</MudSelectItem>
                                 </MudSelect>
                             </MudTd>
                         }
@@ -486,8 +508,8 @@
                 </MudPaper>
             }
 
-            @* ── Teams (only for Team competitions) ──────────── *@
-            @if (Model.CompetitionFormat == CompetitionFormat.Team)
+            @* ── Teams (Team and MixedTeam competitions) ──────── *@
+            @if (Model.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
             {
                 <MudPaper Class="pa-4 mb-4">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
@@ -499,16 +521,77 @@
                     <MudTable Items="@_teams" Dense="true" Hover="true">
                         <HeaderContent>
                             <MudTh>Team Name</MudTh>
+                            @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                            {
+                                <MudTh>Captain</MudTh>
+                            }
                             <MudTh>Members</MudTh>
+                            @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                            {
+                                <MudTh>Composition</MudTh>
+                            }
                             <MudTh></MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd>@context.Name</MudTd>
+                            @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                            {
+                                <MudTd>
+                                    <MudSelect T="int?" Value="context.CaptainPlayerId" Dense="true"
+                                               Variant="Variant.Text" Clearable="true"
+                                               ValueChanged="@((int? pid) => UpdateTeamCaptain(context, pid))">
+                                        @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId && p.Player != null))
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudTd>
+                            }
                             <MudTd>
-                                @string.Join(", ", _participants
-                                    .Where(p => p.TeamId == context.CompetitionTeamId)
-                                    .Select(p => p.Player?.DisplayName ?? ""))
+                                @{
+                                    var teamMembers = _participants.Where(p => p.TeamId == context.CompetitionTeamId).ToList();
+                                }
+                                @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                                {
+                                    @foreach (var m in teamMembers)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                                 Color="@(m.Player?.Sex == DropShot.Models.PlayerSex.Male ? Color.Info : Color.Secondary)">
+                                            @(m.Player?.DisplayName ?? "") (@(m.Player?.Sex?.ToString().Substring(0,1) ?? "?")@(m.Grade.HasValue ? m.Grade.Value.ToString() : "?"))
+                                        </MudChip>
+                                    }
+                                }
+                                else
+                                {
+                                    @string.Join(", ", teamMembers.Select(p => p.Player?.DisplayName ?? ""))
+                                }
                             </MudTd>
+                            @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                            {
+                                <MudTd>
+                                    @{
+                                        var validationErrors = ValidateTeamCompositionLocal(teamMembers);
+                                    }
+                                    @if (validationErrors.Count == 0)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                                    }
+                                    else
+                                    {
+                                        <MudTooltip>
+                                            <ChildContent>
+                                                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Small" />
+                                            </ChildContent>
+                                            <TooltipContent>
+                                                @foreach (var err in validationErrors)
+                                                {
+                                                    <div>@err</div>
+                                                }
+                                            </TooltipContent>
+                                        </MudTooltip>
+                                    }
+                                </MudTd>
+                            }
                             <MudTd>
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                                OnClick="@(() => OpenEditTeamDialog(context))" />
@@ -521,12 +604,80 @@
                 </MudPaper>
             }
 
+            @* ── Court Pairs (MixedTeam only) ──────────────────── *@
+            @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+            {
+                <MudPaper Class="pa-4 mb-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Court Pairs</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                        Each team match occupies one court pair — both courts are booked simultaneously.
+                    </MudText>
+
+                    <MudGrid Spacing="1" Class="mb-2">
+                        <MudItem xs="3">
+                            <MudSelect @bind-Value="_newCourtPairCourt1Id" Label="Court 1" Variant="Variant.Outlined"
+                                       Margin="Margin.Dense" Clearable="true">
+                                @foreach (var c in _courts)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudSelect @bind-Value="_newCourtPairCourt2Id" Label="Court 2" Variant="Variant.Outlined"
+                                       Margin="Margin.Dense" Clearable="true">
+                                @foreach (var c in _courts)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudTextField @bind-Value="_newCourtPairName" Label="Pair Name" Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" Placeholder="e.g. Courts 1 & 2" />
+                        </MudItem>
+                        <MudItem xs="2" Class="d-flex align-center">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                       Disabled="@(!_newCourtPairCourt1Id.HasValue || !_newCourtPairCourt2Id.HasValue || string.IsNullOrWhiteSpace(_newCourtPairName))"
+                                       OnClick="AddCourtPair">Add</MudButton>
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (_courtPairs.Count > 0)
+                    {
+                        <MudSimpleTable Dense="true">
+                            <thead>
+                                <tr><th>Name</th><th>Court 1</th><th>Court 2</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var cp in _courtPairs)
+                                {
+                                    <tr>
+                                        <td>@cp.Name</td>
+                                        <td>@cp.Court1?.Name</td>
+                                        <td>@cp.Court2?.Name</td>
+                                        <td>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                           Color="Color.Error" OnClick="@(() => DeleteCourtPair(cp))" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">No court pairs configured yet.</MudText>
+                    }
+                </MudPaper>
+            }
+
             @* ── Fixtures ────────────────────────────────────── *@
             <MudPaper Class="pa-4">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
                     @if (_stages.Any(s => s.StageType == StageType.RoundRobin) &&
-                         _stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
+                         _stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal or StageType.SemiFinal))
                     {
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
                                    StartIcon="@Icons.Material.Filled.Leaderboard"
@@ -559,7 +710,7 @@
                         <MudTd>@(context.FixtureLabel ?? "—")</MudTd>
                         <MudTd>@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
                         <MudTd>@FixturePlayers(context)</MudTd>
-                        <MudTd>@(context.Court?.Name ?? "—")</MudTd>
+                        <MudTd>@(context.CourtPair?.Name ?? context.Court?.Name ?? "—")</MudTd>
                         <MudTd>
                             @if (!string.IsNullOrEmpty(context.ResultSummary))
                             {
@@ -582,7 +733,14 @@
                             </MudChip>
                         </MudTd>
                         <MudTd>
-                            @if (context.Player1Id.HasValue && context.Player2Id.HasValue
+                            @if (context.HomeTeamId.HasValue && context.AwayTeamId.HasValue
+                                 && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover))
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.SportsScore" Size="Size.Small"
+                                               Color="Color.Success" aria-label="Team Match Scoring"
+                                               OnClick="@(() => Nav.NavigateTo($"/team-match/{context.CompetitionFixtureId}"))" />
+                            }
+                            else if (context.Player1Id.HasValue && context.Player2Id.HasValue
                                  && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
                             {
                                 <MudIconButton Icon="@Icons.Material.Filled.Scoreboard" Size="Size.Small"
@@ -967,6 +1125,12 @@
     private string _compEmailSubject = "";
     private string _compEmailBody = "";
 
+    // Court pairs (MixedTeam)
+    private List<CourtPair> _courtPairs = [];
+    private int? _newCourtPairCourt1Id;
+    private int? _newCourtPairCourt2Id;
+    private string _newCourtPairName = "";
+
     // Schedule options
     private bool _scheduleDeleteExisting;
 
@@ -1053,8 +1217,13 @@
                 .Include(c => c.Fixtures).ThenInclude(f => f.Player2)
                 .Include(c => c.Fixtures).ThenInclude(f => f.Player3)
                 .Include(c => c.Fixtures).ThenInclude(f => f.Player4)
-                .Include(c => c.Teams)
+                .Include(c => c.Fixtures).ThenInclude(f => f.HomeTeam)
+                .Include(c => c.Fixtures).ThenInclude(f => f.AwayTeam)
+                .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair)
+                .Include(c => c.Teams).ThenInclude(t => t.Captain)
                 .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
+                .Include(c => c.CourtPairs).ThenInclude(cp => cp.Court1)
+                .Include(c => c.CourtPairs).ThenInclude(cp => cp.Court2)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.CompetitionID == Id);
 
@@ -1089,6 +1258,7 @@
             _matchWindows = comp.MatchWindows
                 .OrderBy(w => w.DayOfWeek).ThenBy(w => w.StartTime)
                 .ToList();
+            _courtPairs = comp.CourtPairs.OrderBy(cp => cp.Name).ToList();
 
             if (comp.HostClubId.HasValue)
             {
@@ -1250,6 +1420,7 @@
             CompetitionFormat.Doubles => "Doubles",
             CompetitionFormat.MixedDoubles => "Mixed Doubles",
             CompetitionFormat.Team => "Team",
+            CompetitionFormat.MixedTeam => "Mixed Team Tennis",
             _ => Model.CompetitionFormat.ToString()
         });
 
@@ -1438,6 +1609,18 @@
         if (row != null) { row.TeamId = teamId; await db.SaveChangesAsync(); cp.TeamId = teamId; }
     }
 
+    private async Task UpdateParticipantGrade(CompetitionParticipant cp, DropShot.Shared.PlayerGrade? grade)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var row = await db.CompetitionParticipants.FindAsync(cp.CompetitionId, cp.PlayerId);
+        if (row != null)
+        {
+            row.Grade = grade.HasValue ? (DropShot.Models.PlayerGrade)(byte)grade.Value : null;
+            await db.SaveChangesAsync();
+            cp.Grade = row.Grade;
+        }
+    }
+
     // ── Teams ────────────────────────────────────────────────────────────────
 
     private void OpenAddTeamDialog()
@@ -1487,6 +1670,83 @@
         if (t != null) { db.CompetitionTeams.Remove(t); await db.SaveChangesAsync(); }
         _teams.Remove(team);
         Snackbar.Add("Team removed.", Severity.Warning);
+    }
+
+    private async Task UpdateTeamCaptain(CompetitionTeam team, int? captainPlayerId)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var t = await db.CompetitionTeams.FindAsync(team.CompetitionTeamId);
+        if (t != null)
+        {
+            t.CaptainPlayerId = captainPlayerId;
+            await db.SaveChangesAsync();
+            team.CaptainPlayerId = captainPlayerId;
+        }
+    }
+
+    private static List<string> ValidateTeamCompositionLocal(List<CompetitionParticipant> members)
+    {
+        var errors = new List<string>();
+        if (members.Count != 4)
+        {
+            errors.Add($"Need 4 players (has {members.Count})");
+            return errors;
+        }
+
+        var maleA = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Male && m.Grade == DropShot.Models.PlayerGrade.A);
+        var femaleA = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Female && m.Grade == DropShot.Models.PlayerGrade.A);
+        var maleB = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Male && m.Grade == DropShot.Models.PlayerGrade.B);
+        var femaleB = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Female && m.Grade == DropShot.Models.PlayerGrade.B);
+
+        if (maleA != 1) errors.Add($"Need 1 Male A (has {maleA})");
+        if (femaleA != 1) errors.Add($"Need 1 Female A (has {femaleA})");
+        if (maleB != 1) errors.Add($"Need 1 Male B (has {maleB})");
+        if (femaleB != 1) errors.Add($"Need 1 Female B (has {femaleB})");
+
+        var unset = members.Count(m => m.Grade == null || m.Player?.Sex == null);
+        if (unset > 0) errors.Add($"{unset} player(s) missing grade/gender");
+
+        return errors;
+    }
+
+    // ── Court Pairs ─────────────────────────────────────────────────────────
+
+    private async Task AddCourtPair()
+    {
+        if (!_newCourtPairCourt1Id.HasValue || !_newCourtPairCourt2Id.HasValue
+            || string.IsNullOrWhiteSpace(_newCourtPairName)) return;
+        if (_newCourtPairCourt1Id == _newCourtPairCourt2Id)
+        {
+            Snackbar.Add("Court 1 and Court 2 must be different.", Severity.Warning);
+            return;
+        }
+
+        await using var db = DbFactory.CreateDbContext();
+        var pair = new CourtPair
+        {
+            CompetitionId = Id,
+            Court1Id = _newCourtPairCourt1Id.Value,
+            Court2Id = _newCourtPairCourt2Id.Value,
+            Name = _newCourtPairName.Trim()
+        };
+        db.CourtPairs.Add(pair);
+        await db.SaveChangesAsync();
+        pair.Court1 = _courts.FirstOrDefault(c => c.CourtId == pair.Court1Id);
+        pair.Court2 = _courts.FirstOrDefault(c => c.CourtId == pair.Court2Id);
+        _courtPairs.Add(pair);
+        _newCourtPairCourt1Id = null;
+        _newCourtPairCourt2Id = null;
+        _newCourtPairName = "";
+        Snackbar.Add("Court pair added.", Severity.Success);
+    }
+
+    private async Task DeleteCourtPair(CourtPair pair)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var p = await db.CourtPairs.FindAsync(pair.CourtPairId);
+        if (p != null) { db.CourtPairs.Remove(p); await db.SaveChangesAsync(); }
+        _courtPairs.Remove(pair);
+        Snackbar.Add("Court pair removed.", Severity.Warning);
     }
 
     // ── Fixtures ─────────────────────────────────────────────────────────────
@@ -2062,6 +2322,9 @@
             .Include(f => f.Player2)
             .Include(f => f.Player3)
             .Include(f => f.Player4)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .Include(f => f.CourtPair)
             .OrderBy(f => f.RoundNumber)
             .ThenBy(f => f.ScheduledAt)
             .ToListAsync();
@@ -2074,9 +2337,11 @@
         _showSeedConfirm = false;
         await using var db = DbFactory.CreateDbContext();
 
-        // Find the first-round knockout fixtures to update (QF fixtures in Knockout or QuarterFinal stages)
+        bool isMixedTeam = Model.CompetitionFormat == CompetitionFormat.MixedTeam;
+
+        // Find the first-round knockout fixtures
         var knockoutStageIds = _stages
-            .Where(s => s.StageType is StageType.Knockout or StageType.QuarterFinal)
+            .Where(s => s.StageType is StageType.Knockout or StageType.QuarterFinal or StageType.SemiFinal)
             .Select(s => s.CompetitionStageId)
             .ToHashSet();
 
@@ -2095,56 +2360,91 @@
             return;
         }
 
-        // Compute RR standings
         var rrStageIds = _stages
             .Where(s => s.StageType == StageType.RoundRobin)
             .Select(s => s.CompetitionStageId)
             .ToHashSet();
 
-        var activePlayers = _participants
-            .Where(p => p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed)
-            .Select(p => p.PlayerId)
-            .ToList();
-
-        List<int> seededPlayers;
-
-        var rrFixtures = await db.CompetitionFixtures
-            .Where(f => f.CompetitionId == Id
-                     && f.CompetitionStageId != null
-                     && rrStageIds.Contains(f.CompetitionStageId!.Value)
-                     && f.Status == FixtureStatus.Completed
-                     && f.WinnerPlayerId != null)
-            .ToListAsync();
-
-        if (rrFixtures.Count == 0)
+        if (isMixedTeam)
         {
-            // No results yet — fall back to registration order
-            seededPlayers = activePlayers.Take(firstRoundFixtures.Count * 2).ToList();
-        }
-        else
-        {
-            var pts = activePlayers.ToDictionary(pid => pid, _ => (Points: 0, Won: 0));
+            // Team seeding from team league table
+            var rrFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == Id
+                         && f.CompetitionStageId != null
+                         && rrStageIds.Contains(f.CompetitionStageId!.Value)
+                         && f.Status == FixtureStatus.Completed
+                         && f.HomeTeamId != null && f.AwayTeamId != null)
+                .Include(f => f.TeamMatchSets)
+                .ToListAsync();
+
+            var teamIds = _teams.Select(t => t.CompetitionTeamId).ToList();
+            var teamSetsWon = teamIds.ToDictionary(tid => tid, _ => 0);
+
             foreach (var f in rrFixtures)
             {
-                var pids = new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
-                    .Where(pid => pid.HasValue && pts.ContainsKey(pid.Value))
-                    .Select(pid => pid!.Value).Distinct();
-                foreach (var pid in pids)
-                {
-                    bool win = pid == f.WinnerPlayerId;
-                    var cur = pts[pid];
-                    pts[pid] = (cur.Points + (win ? 3 : 0), cur.Won + (win ? 1 : 0));
-                }
+                int homeId = f.HomeTeamId!.Value;
+                int awayId = f.AwayTeamId!.Value;
+                if (teamSetsWon.ContainsKey(homeId))
+                    teamSetsWon[homeId] += f.TeamMatchSets.Count(s => s.IsComplete && s.WinnerTeamId == homeId);
+                if (teamSetsWon.ContainsKey(awayId))
+                    teamSetsWon[awayId] += f.TeamMatchSets.Count(s => s.IsComplete && s.WinnerTeamId == awayId);
             }
-            seededPlayers = pts
-                .OrderByDescending(kv => kv.Value.Points)
-                .ThenByDescending(kv => kv.Value.Won)
+
+            var seededTeams = teamSetsWon
+                .OrderByDescending(kv => kv.Value)
                 .Take(firstRoundFixtures.Count * 2)
                 .Select(kv => kv.Key)
                 .ToList();
-        }
 
-        CompetitionProgressionService.AssignWinners(firstRoundFixtures, seededPlayers);
+            CompetitionProgressionService.AssignTeamWinners(firstRoundFixtures, seededTeams);
+        }
+        else
+        {
+            // Player seeding
+            var activePlayers = _participants
+                .Where(p => p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed)
+                .Select(p => p.PlayerId)
+                .ToList();
+
+            List<int> seededPlayers;
+
+            var rrFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == Id
+                         && f.CompetitionStageId != null
+                         && rrStageIds.Contains(f.CompetitionStageId!.Value)
+                         && f.Status == FixtureStatus.Completed
+                         && f.WinnerPlayerId != null)
+                .ToListAsync();
+
+            if (rrFixtures.Count == 0)
+            {
+                seededPlayers = activePlayers.Take(firstRoundFixtures.Count * 2).ToList();
+            }
+            else
+            {
+                var pts = activePlayers.ToDictionary(pid => pid, _ => (Points: 0, Won: 0));
+                foreach (var f in rrFixtures)
+                {
+                    var pids = new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
+                        .Where(pid => pid.HasValue && pts.ContainsKey(pid.Value))
+                        .Select(pid => pid!.Value).Distinct();
+                    foreach (var pid in pids)
+                    {
+                        bool win = pid == f.WinnerPlayerId;
+                        var cur = pts[pid];
+                        pts[pid] = (cur.Points + (win ? 3 : 0), cur.Won + (win ? 1 : 0));
+                    }
+                }
+                seededPlayers = pts
+                    .OrderByDescending(kv => kv.Value.Points)
+                    .ThenByDescending(kv => kv.Value.Won)
+                    .Take(firstRoundFixtures.Count * 2)
+                    .Select(kv => kv.Key)
+                    .ToList();
+            }
+
+            CompetitionProgressionService.AssignWinners(firstRoundFixtures, seededPlayers);
+        }
 
         await db.SaveChangesAsync();
 
@@ -2157,6 +2457,9 @@
             .Include(f => f.Player2)
             .Include(f => f.Player3)
             .Include(f => f.Player4)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .Include(f => f.CourtPair)
             .OrderBy(f => f.RoundNumber)
             .ThenBy(f => f.ScheduledAt)
             .ToListAsync();
@@ -2168,6 +2471,14 @@
 
     private static string FixturePlayers(CompetitionFixture f)
     {
+        // Team match display
+        if (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+        {
+            var home = f.HomeTeam?.Name ?? "TBD";
+            var away = f.AwayTeam?.Name ?? "TBD";
+            return $"{home} vs {away}";
+        }
+
         var side1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
             .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
         var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
