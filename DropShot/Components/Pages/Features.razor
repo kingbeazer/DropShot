@@ -2,9 +2,346 @@
 
 <PageTitle>Features - DropShot</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
-    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">Features</MudText>
-    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary">
-        Coming Soon
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8 mb-12">
+
+    <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">
+        Everything You Need to Run Tennis
     </MudText>
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary" Class="mb-8" Style="max-width: 640px; margin: 0 auto;">
+        From casual matches to full tournament management, DropShot gives players, clubs, and organisers the tools to score, schedule, and compete.
+    </MudText>
+
+    @* ── Live Scoring ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Color="Color.Primary" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Live Match Scoring</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Real-Time Point Tracking</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Score matches point-by-point with standard tennis rules, including deuce, advantage, and tiebreak handling.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Singles &amp; Doubles</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Full support for singles and doubles matches, with team assignment and up to four players per match.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Flexible Rules</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Choose best-of-1 or best-of-3 sets, no-ad deuce, or game-scoring mode. Customise rules to suit your format.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Step-by-Step Match Setup</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">A guided wizard walks you through match type, player selection, and rules before play begins.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Fuzzy Player Search</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Find and assign players quickly with intelligent name-matching across your entire player list.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Saved Match History</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Every match is saved automatically so you can review scores, players, and results any time.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Scoreboards ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Tv" Color="Color.Secondary" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Professional Scoreboards</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Default Scoreboard</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">A clean, minimalist display showing points, games, sets, and serve indicator. Perfect for courtside screens.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Wimbledon-Style Scoreboard</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">A broadcast-quality columnar layout with elapsed match time and high-contrast styling for large displays.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Multi-Court Display Control</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Manage scoreboards across multiple courts from a single admin screen. Switch layouts and toggle fullscreen per court.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>YouTube Live Stream Overlay</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Embed a YouTube stream URL to overlay live video with your scoreboard for broadcast and streaming.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Live Sync via SignalR</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Scoreboards update in real time across every connected screen. No refresh needed.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Competitions ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Warning" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Competition &amp; Tournament Management</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Multiple Formats</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Run singles, doubles, mixed doubles, or team competitions with customisable eligibility criteria.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Multi-Stage Brackets</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Set up round-robin groups flowing into knockout rounds, quarter-finals, semi-finals, and finals.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Automatic Progression</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Winners advance through bracket stages automatically as results are verified, keeping your tournament moving.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Fixture Scheduling</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Assign fixtures to specific dates, times, and courts. Use scheduling templates to auto-allocate slots.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Result Verification</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">A two-tier system lets players submit results and admins quick-approve or fully review with a complete audit trail.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Participant &amp; Team Management</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Register individual players or create teams. Track status from registration through to withdrawal.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Events ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Info" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Events &amp; Series</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Event Grouping</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Bundle related competitions into a single event, making it easy for players to browse and enter.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Event Details</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Set event names, descriptions, date ranges, and host clubs to keep everything organised in one place.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Smart Stage Suggestions</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">When creating competitions within an event, DropShot suggests appropriate stage structures based on participant numbers.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Clubs ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Business" Color="Color.Success" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Club &amp; Facility Management</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Club Profiles</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Create and manage club details including address, contact information, and website.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Court Management</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Add courts with surface type (hard, clay, grass, carpet) and indoor/outdoor designation.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Scheduling Templates</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Define available match windows per court and day of week, then reuse them across competitions.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Club Administrators</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Designate admins with edit permissions for club-level management without needing full system access.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Email Templates</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Customise email notifications at the club level for result submissions, verifications, and announcements.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Players ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Tertiary" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Player Profiles &amp; Ratings</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Player Profiles</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Full profiles with display name, contact details, date of birth, and avatar. Edit your own from your account page.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>My Players List</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Maintain your own list of players you regularly play with. Quick-add light profiles or link to verified accounts.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>ELO Ratings</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">An ELO rating system with margin-of-victory weighting tracks player skill over time.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>League Table &amp; Standings</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">View cumulative match statistics, wins, losses, and points in a searchable league table.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Account Linking</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Link light player profiles to full accounts so casual entries seamlessly upgrade to verified profiles.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Rules ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Gavel" Color="Color.Dark" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Rules Sets</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Custom Rule Sets</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Create named rule sets with numbered items and descriptions. Attach them to any competition.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Reusable Across Competitions</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Define your rules once and apply them to multiple competitions without re-entering them every time.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Auth & Mobile ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.PhoneIphone" Color="Color.Primary" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Authentication &amp; Mobile</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>QR Code Login</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Generate a QR code on any screen and scan it with your phone to log in instantly. No password needed courtside.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Mobile App</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">A native cross-platform app for Android and iOS lets you manage competitions, players, and clubs on the go.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Role-Based Access</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Admin, ClubAdmin, and player roles control what each user can see and do across the platform.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Dark &amp; Light Themes</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Switch between dark and light mode to suit your preference or screen environment.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Real-Time ── *@
+    <MudDivider Class="my-8" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Sync" Color="Color.Error" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Real-Time Communication</MudText>
+    </MudStack>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Live Score Broadcasting</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Score updates push to every connected scoreboard, phone, and browser in real time via SignalR.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Email Notifications</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Automated emails for result submissions, verification requests, and admin review invitations.</MudText>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true" Class="pa-4" Style="height:100%">
+                <MudText Typo="Typo.subtitle1"><strong>Chat Hub</strong></MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">Built-in real-time messaging for match communication and coordination between players.</MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* ── CTA ── *@
+    <MudPaper Class="pa-8 mt-10 rounded-lg" Style="text-align: center; background: var(--mud-palette-primary); color: white;">
+        <MudText Typo="Typo.h5" Style="color: inherit;" GutterBottom="true">
+            Ready to get started?
+        </MudText>
+        <MudText Typo="Typo.body1" Style="color: inherit; opacity: 0.85;" Class="mb-4">
+            Create a free account and start scoring your next match in minutes.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Dark" Size="Size.Large"
+                   Href="/Account/Register" Class="mr-2">
+            Sign Up Free
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Style="color: white; border-color: white;"
+                   Size="Size.Large" Href="/upgrade">
+            View Plans
+        </MudButton>
+    </MudPaper>
+
 </MudContainer>
