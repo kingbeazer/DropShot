@@ -6,7 +6,13 @@
 
 main {
     flex: 1;
+    display: flex;
+    flex-direction: column;
 }
+
+    main ::deep .content {
+        flex: 1;
+    }
 
 .sidebar {
     background-image: linear-gradient(120deg, rgb(5, 98, 103) 0%, rgb(5, 39, 103) 70%);
