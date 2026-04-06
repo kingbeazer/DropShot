@@ -1,0 +1,219 @@
+@using DropShot.Models
+
+<MudDialog>
+    <TitleContent>Create Event</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="Name" Label="Event Name" Variant="Variant.Outlined"
+                                  Required="true" RequiredError="Name is required"
+                                  Placeholder="e.g. Club Championships 2026" Immediate="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="Description" Label="Description (optional)" Variant="Variant.Outlined"
+                                  Lines="2" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="StartDate" Label="Start Date" DateFormat="dd/MM/yyyy" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="EndDate" Label="End Date" DateFormat="dd/MM/yyyy" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="HostClubId" Label="Host Club (optional)" Variant="Variant.Outlined"
+                               Clearable="true">
+                        @foreach (var c in Clubs)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.h6" Class="mb-2">Competitions</MudText>
+
+            @* ── Preset Buttons ──────────────────── *@
+            <MudStack Row="true" Spacing="1" Class="mb-3" Wrap="Wrap.Wrap">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                           OnClick="AddStandard5">Standard 5</MudButton>
+            </MudStack>
+
+            @* ── Builder Row ─────────────────────── *@
+            <MudGrid Spacing="1" Class="mb-2">
+                <MudItem xs="12" sm="3">
+                    <MudSelect @bind-Value="_buildFormat" Label="Format" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="CompetitionFormat.Singles">Singles</MudSelectItem>
+                        <MudSelectItem Value="CompetitionFormat.Doubles">Doubles</MudSelectItem>
+                        <MudSelectItem Value="CompetitionFormat.MixedDoubles">Mixed Doubles</MudSelectItem>
+                        <MudSelectItem Value="CompetitionFormat.Team">Team</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudSelect @bind-Value="_buildSex" Label="Sex" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Clearable="true">
+                        <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Male)">Men's</MudSelectItem>
+                        <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Female)">Women's</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudSelect @bind-Value="_buildAgeBracket" Label="Age Bracket" Variant="Variant.Outlined"
+                               Margin="Margin.Dense">
+                        @foreach (var ab in _ageBrackets)
+                        {
+                            <MudSelectItem Value="@ab">@ab.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="3" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               OnClick="AddFromBuilder">Add</MudButton>
+                </MudItem>
+            </MudGrid>
+
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                Preview: @BuildAutoName()
+            </MudText>
+
+            @* ── Competition List ─────────────────── *@
+            @if (Competitions.Count > 0)
+            {
+                <MudSimpleTable Dense="true">
+                    <thead>
+                        <tr><th>Name</th><th>Format</th><th>Sex</th><th>Age</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var comp in Competitions)
+                        {
+                            <tr>
+                                <td>@comp.Name</td>
+                                <td>@comp.Format</td>
+                                <td>@(comp.EligibleSex?.ToString() ?? "Open")</td>
+                                <td>@FormatAge(comp.MinAge, comp.MaxAge)</td>
+                                <td>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                   Color="Color.Error" OnClick="@(() => Competitions.Remove(comp))" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    No competitions added yet. Use the builder above or the "Standard 5" preset.
+                </MudText>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!_isValid)"
+                   OnClick="Submit">Create Event</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public List<Club> Clubs { get; set; } = [];
+
+    private MudForm? _form;
+    private bool _isValid;
+
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public int? HostClubId { get; set; }
+
+    public List<CompetitionEntry> Competitions { get; set; } = [];
+
+    // Builder state
+    private CompetitionFormat _buildFormat = CompetitionFormat.Singles;
+    private PlayerSex? _buildSex;
+    private AgeBracket _buildAgeBracket = _ageBrackets[0];
+
+    public record CompetitionEntry(string Name, CompetitionFormat Format, PlayerSex? EligibleSex, int? MinAge, int? MaxAge);
+
+    public record AgeBracket(string Label, int? MinAge, int? MaxAge);
+
+    private static readonly AgeBracket[] _ageBrackets =
+    [
+        new("Open", null, null),
+        new("U8", null, 8),
+        new("U10", null, 10),
+        new("U12", null, 12),
+        new("U14", null, 14),
+        new("U16", null, 16),
+        new("U18", null, 18),
+        new("Over 35", 35, null),
+        new("Over 40", 40, null),
+        new("Over 50", 50, null),
+        new("Over 60", 60, null),
+    ];
+
+    private string BuildAutoName()
+    {
+        var parts = new List<string>();
+
+        if (_buildSex == PlayerSex.Male) parts.Add("Men's");
+        else if (_buildSex == PlayerSex.Female) parts.Add("Women's");
+
+        if (_buildAgeBracket.Label != "Open")
+            parts.Add(_buildAgeBracket.Label);
+
+        parts.Add(_buildFormat switch
+        {
+            CompetitionFormat.Singles => "Singles",
+            CompetitionFormat.Doubles => "Doubles",
+            CompetitionFormat.MixedDoubles => "Mixed Doubles",
+            CompetitionFormat.Team => "Team",
+            _ => _buildFormat.ToString()
+        });
+
+        return string.Join(" ", parts);
+    }
+
+    private void AddFromBuilder()
+    {
+        var name = BuildAutoName();
+        if (Competitions.Any(c => c.Name == name)) return;
+        Competitions.Add(new CompetitionEntry(name, _buildFormat, _buildSex, _buildAgeBracket.MinAge, _buildAgeBracket.MaxAge));
+    }
+
+    private void AddStandard5()
+    {
+        var standard = new (string Name, CompetitionFormat Format, PlayerSex? Sex)[]
+        {
+            ("Men's Singles", CompetitionFormat.Singles, PlayerSex.Male),
+            ("Women's Singles", CompetitionFormat.Singles, PlayerSex.Female),
+            ("Men's Doubles", CompetitionFormat.Doubles, PlayerSex.Male),
+            ("Women's Doubles", CompetitionFormat.Doubles, PlayerSex.Female),
+            ("Mixed Doubles", CompetitionFormat.MixedDoubles, null),
+        };
+        foreach (var (name, format, sex) in standard)
+        {
+            if (!Competitions.Any(c => c.Name == name))
+                Competitions.Add(new CompetitionEntry(name, format, sex, null, null));
+        }
+    }
+
+    private static string FormatAge(int? minAge, int? maxAge)
+    {
+        if (minAge.HasValue) return $"Over {minAge}";
+        if (maxAge.HasValue) return $"U{maxAge}";
+        return "Open";
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(new CreateEventResult(
+        Name.Trim(), Description?.Trim(), StartDate, EndDate, HostClubId, Competitions)));
+
+    public record CreateEventResult(
+        string Name, string? Description, DateTime? StartDate, DateTime? EndDate,
+        int? HostClubId, List<CompetitionEntry> Competitions);
+}

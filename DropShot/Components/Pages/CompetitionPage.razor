@@ -74,6 +74,10 @@
                                          Min="2" Variant="Variant.Text" />
                     </MudItem>
                     <MudItem xs="12" sm="4">
+                        <MudNumericField @bind-Value="Model.MinAge" Label="Min Age (optional)"
+                                         Min="1" Max="120" Variant="Variant.Text" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
                         <MudNumericField @bind-Value="Model.MaxAge" Label="Max Age (optional)"
                                          Min="1" Max="120" Variant="Variant.Text" />
                     </MudItem>
@@ -102,6 +106,15 @@
                             @foreach (var r in _rulesSets)
                             {
                                 <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="Model.EventId" Label="Event (optional)" Variant="Variant.Text"
+                                   Clearable="true">
+                            @foreach (var e in _events)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)e.EventId)">@e.Name</MudSelectItem>
                             }
                         </MudSelect>
                     </MudItem>
@@ -608,6 +621,22 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Stage Follow-Up Dialog ────────────────────────────────── *@
+<MudDialog @bind-Visible="_showStageFollowUpDialog">
+    <TitleContent>Add Follow-On Stages</TitleContent>
+    <DialogContent>
+        <MudText Class="mb-3">@_stageFollowUpMessage</MudText>
+        @foreach (var opt in _stageFollowUpOptions)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
+                       OnClick="@(() => ApplyStageFollowUp(opt.Stages))">@opt.Label</MudButton>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showStageFollowUpDialog = false)">No Thanks</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @* ── Seed Knockout from Standings Dialog ───────────────────── *@
 <MudDialog @bind-Visible="_showSeedConfirm">
     <TitleContent>Seed Knockout from Standings</TitleContent>
@@ -776,6 +805,7 @@
 
 @code {
     [Parameter] public int Id { get; set; }
+    [SupplyParameterFromQuery] public int? EventId { get; set; }
 
     private MudForm? _form;
     private bool _isValid;
@@ -789,6 +819,7 @@
 
     private List<Club> _clubs = [];
     private List<RulesSet> _rulesSets = [];
+    private List<Event> _events = [];
     private List<CompetitionStage> _stages = [];
     private List<CompetitionParticipant> _participants = [];
     private List<Player> _allPlayers = [];
@@ -804,6 +835,11 @@
     // Stage dialog
     private bool _showStageDialog;
     private StageForm _stageForm = new();
+
+    // Stage follow-up dialog
+    private bool _showStageFollowUpDialog;
+    private string _stageFollowUpMessage = "";
+    private List<(string Label, List<(string Name, StageType Type)> Stages)> _stageFollowUpOptions = [];
 
     // Schedule confirm dialog
     private bool _showScheduleConfirm;
@@ -859,9 +895,11 @@
         public DateTime? StartDateDt { get; set; }
         public DateTime? EndDateDt { get; set; }
         public int? MaxAge { get; set; }
+        public int? MinAge { get; set; }
         public PlayerSex? EligibleSex { get; set; }
         public int? HostClubId { get; set; }
         public int? RulesSetId { get; set; }
+        public int? EventId { get; set; }
         public int BestOf { get; set; } = 3;
         public bool RequireVerification { get; set; } = false;
     }
@@ -899,6 +937,7 @@
 
         _clubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
         _rulesSets = await db.RulesSets.OrderBy(r => r.Name).ToListAsync();
+        _events = await db.Events.OrderBy(e => e.Name).ToListAsync();
         _allPlayers = await db.Players.OrderBy(p => p.DisplayName).ToListAsync();
 
         if (IsEdit)
@@ -929,9 +968,11 @@
                 StartDateDt = comp.StartDate,
                 EndDateDt = comp.EndDate,
                 MaxAge = comp.MaxAge,
+                MinAge = comp.MinAge,
                 EligibleSex = comp.EligibleSex,
                 HostClubId = comp.HostClubId,
                 RulesSetId = comp.RulesSetId,
+                EventId = comp.EventId,
                 BestOf = comp.BestOf,
                 RequireVerification = comp.RequireVerification
             };
@@ -971,7 +1012,7 @@
         {
             // Only Admins can create new competitions
             _canEdit = await AuthzService.IsAdminAsync(authState.User);
-            Model = new CompetitionFormModel();
+            Model = new CompetitionFormModel { EventId = EventId };
             _stages = [];
             _participants = [];
             _fixtures = [];
@@ -1040,9 +1081,11 @@
         comp.StartDate = Model.StartDateDt;
         comp.EndDate = Model.EndDateDt;
         comp.MaxAge = Model.MaxAge;
+        comp.MinAge = Model.MinAge;
         comp.EligibleSex = Model.EligibleSex;
         comp.HostClubId = Model.HostClubId;
         comp.RulesSetId = Model.RulesSetId;
+        comp.EventId = Model.EventId;
         comp.BestOf = Model.BestOf;
         comp.RequireVerification = Model.RequireVerification;
     }
@@ -1071,6 +1114,83 @@
         _stages.Add(stage);
         _showStageDialog = false;
         Snackbar.Add("Stage added.", Severity.Success);
+
+        OfferFollowOnStages(stage.StageType, stage.StageOrder);
+    }
+
+    private void OfferFollowOnStages(StageType added, int lastOrder)
+    {
+        var existingTypes = _stages.Select(s => s.StageType).ToHashSet();
+        _stageFollowUpOptions = [];
+
+        if (added == StageType.QuarterFinal)
+        {
+            bool hasSf = existingTypes.Contains(StageType.SemiFinal);
+            bool hasFinal = existingTypes.Contains(StageType.Final);
+            if (!hasSf && !hasFinal)
+            {
+                _stageFollowUpMessage = "Would you like to add the remaining knockout stages?";
+                _stageFollowUpOptions.Add(("Semi-Final + Final", [("Semi-Final", StageType.SemiFinal), ("Final", StageType.Final)]));
+            }
+            else if (!hasSf)
+            {
+                _stageFollowUpMessage = "Would you like to add a Semi-Final stage?";
+                _stageFollowUpOptions.Add(("Semi-Final", [("Semi-Final", StageType.SemiFinal)]));
+            }
+            else if (!hasFinal)
+            {
+                _stageFollowUpMessage = "Would you like to add a Final stage?";
+                _stageFollowUpOptions.Add(("Final", [("Final", StageType.Final)]));
+            }
+        }
+        else if (added == StageType.SemiFinal)
+        {
+            if (!existingTypes.Contains(StageType.Final))
+            {
+                _stageFollowUpMessage = "Would you like to add a Final stage?";
+                _stageFollowUpOptions.Add(("Final", [("Final", StageType.Final)]));
+            }
+        }
+        else if (added == StageType.RoundRobin)
+        {
+            bool hasQf = existingTypes.Contains(StageType.QuarterFinal);
+            bool hasSf = existingTypes.Contains(StageType.SemiFinal);
+            bool hasFinal = existingTypes.Contains(StageType.Final);
+            bool hasKo = existingTypes.Contains(StageType.Knockout);
+
+            if (!hasKo && !hasQf && !hasSf && !hasFinal)
+            {
+                _stageFollowUpMessage = "Would you like to add knockout stages?";
+                _stageFollowUpOptions.Add(("QF + SF + Final", [("Quarter-Final", StageType.QuarterFinal), ("Semi-Final", StageType.SemiFinal), ("Final", StageType.Final)]));
+                _stageFollowUpOptions.Add(("SF + Final", [("Semi-Final", StageType.SemiFinal), ("Final", StageType.Final)]));
+                _stageFollowUpOptions.Add(("Final Only", [("Final", StageType.Final)]));
+            }
+        }
+
+        if (_stageFollowUpOptions.Count > 0)
+            _showStageFollowUpDialog = true;
+    }
+
+    private async Task ApplyStageFollowUp(List<(string Name, StageType Type)> stages)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        int order = _stages.Max(s => s.StageOrder);
+        foreach (var (name, type) in stages)
+        {
+            order++;
+            var stage = new CompetitionStage
+            {
+                CompetitionId = Id,
+                Name = name,
+                StageOrder = order,
+                StageType = type
+            };
+            db.CompetitionStages.Add(stage);
+            await db.SaveChangesAsync();
+            _stages.Add(stage);
+        }
+        _showStageFollowUpDialog = false;
+        Snackbar.Add($"{stages.Count} stage(s) added.", Severity.Success);
     }
 
     private async Task DeleteStage(CompetitionStage stage)

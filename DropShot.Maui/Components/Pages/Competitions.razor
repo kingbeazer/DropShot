@@ -29,41 +29,135 @@ else
         }
     </MudStack>
 
-    <MudTable Items="FilteredCompetitions" Dense="true" Hover="true" Striped="true" Elevation="2">
-        <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Format</MudTh>
-            <MudTh>Start</MudTh>
-            <MudTh>Club</MudTh>
-            @if (Auth.IsAdmin || (_competitions?.Any(c => Auth.CanEditCompetition(c.HostClubId)) == true))
+    <MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" ApplyEffectsToContainer="true" Class="mb-4">
+        <MudTabPanel Text="All" Icon="@Icons.Material.Filled.List">
+            <MudTable Items="FilteredCompetitions" Dense="true" Hover="true" Striped="true" Elevation="2">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Format</MudTh>
+                    <MudTh>Start</MudTh>
+                    <MudTh>Club</MudTh>
+                    <MudTh>Event</MudTh>
+                    @if (Auth.IsAdmin || (_competitions?.Any(c => Auth.CanEditCompetition(c.HostClubId)) == true))
+                    {
+                        <MudTh></MudTh>
+                    }
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.CompetitionName</MudTd>
+                    <MudTd>@context.CompetitionFormat</MudTd>
+                    <MudTd>@(context.StartDate?.ToString("dd MMM yyyy") ?? "—")</MudTd>
+                    <MudTd>@(context.HostClubName ?? "—")</MudTd>
+                    <MudTd>
+                        @if (!string.IsNullOrEmpty(context.EventName))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text">
+                                @context.EventName
+                            </MudChip>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        @if (Auth.IsAdmin || Auth.CanEditCompetition(context.HostClubId))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           OnClick="@(() => OpenEditDialog(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteAsync(context))" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+
+        <MudTabPanel Text="By Event" Icon="@Icons.Material.Filled.FolderOpen">
+            @foreach (var ev in _events)
             {
-                <MudTh></MudTh>
+                <MudExpansionPanels Class="mb-2" Elevation="1">
+                    <MudExpansionPanel IsInitiallyExpanded="true">
+                        <TitleContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" Size="Size.Small" />
+                                <MudText Typo="Typo.subtitle1" Style="font-weight:600">@ev.Name</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info">@ev.CompetitionCount</MudChip>
+                            </MudStack>
+                        </TitleContent>
+                        <ChildContent>
+                            @{
+                                var eventComps = FilteredCompetitions.Where(c => c.EventId == ev.EventId);
+                            }
+                            <MudSimpleTable Dense="true" Hover="true">
+                                <thead><tr><th>Name</th><th>Format</th><th></th></tr></thead>
+                                <tbody>
+                                    @foreach (var comp in eventComps)
+                                    {
+                                        <tr>
+                                            <td>@comp.CompetitionName</td>
+                                            <td>@comp.CompetitionFormat</td>
+                                            <td>
+                                                @if (Auth.IsAdmin || Auth.CanEditCompetition(comp.HostClubId))
+                                                {
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                                   OnClick="@(() => OpenEditDialog(comp))" />
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        </ChildContent>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
             }
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd>@context.CompetitionName</MudTd>
-            <MudTd>@context.CompetitionFormat</MudTd>
-            <MudTd>@(context.StartDate?.ToString("dd MMM yyyy") ?? "—")</MudTd>
-            <MudTd>@(context.HostClubName ?? "—")</MudTd>
-            <MudTd>
-                @if (Auth.IsAdmin || Auth.CanEditCompetition(context.HostClubId))
-                {
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                   OnClick="@(() => OpenEditDialog(context))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                   Color="Color.Error"
-                                   OnClick="@(() => DeleteAsync(context))" />
-                }
-            </MudTd>
-        </RowTemplate>
-    </MudTable>
+
+            @{
+                var ungrouped = FilteredCompetitions.Where(c => c.EventId == null);
+            }
+            @if (ungrouped.Any())
+            {
+                <MudExpansionPanels Class="mb-2" Elevation="1">
+                    <MudExpansionPanel IsInitiallyExpanded="true">
+                        <TitleContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Inbox" Color="Color.Default" Size="Size.Small" />
+                                <MudText Typo="Typo.subtitle1" Style="font-weight:600">Ungrouped</MudText>
+                            </MudStack>
+                        </TitleContent>
+                        <ChildContent>
+                            <MudSimpleTable Dense="true" Hover="true">
+                                <thead><tr><th>Name</th><th>Format</th><th></th></tr></thead>
+                                <tbody>
+                                    @foreach (var comp in ungrouped)
+                                    {
+                                        <tr>
+                                            <td>@comp.CompetitionName</td>
+                                            <td>@comp.CompetitionFormat</td>
+                                            <td>
+                                                @if (Auth.IsAdmin || Auth.CanEditCompetition(comp.HostClubId))
+                                                {
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                                   OnClick="@(() => OpenEditDialog(comp))" />
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        </ChildContent>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+        </MudTabPanel>
+    </MudTabs>
 }
 
 @code {
     private List<CompetitionDto>? _competitions;
+    private List<EventDto> _events = [];
     private bool _loading = true;
     private string? _error;
     private string _search = "";
+    private int _activeTab;
 
     private IEnumerable<CompetitionDto> FilteredCompetitions => _competitions is null
         ? []
@@ -75,6 +169,7 @@ else
         try
         {
             _competitions = await Api.GetCompetitionsAsync();
+            _events = await Api.GetEventsAsync();
         }
         catch (Exception ex)
         {
@@ -113,7 +208,8 @@ else
             var req = new SaveCompetitionRequest(
                 model.CompetitionName, model.CompetitionFormat,
                 model.MaxParticipants, model.StartDate, model.EndDate,
-                model.MaxAge, model.EligibleSex, model.HostClubId, model.RulesSetId);
+                model.MaxAge, model.MinAge, model.EligibleSex,
+                model.HostClubId, model.RulesSetId, model.EventId);
 
             var dto = await Api.SaveCompetitionAsync(id, req);
             if (dto is not null)
