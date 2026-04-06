@@ -119,36 +119,15 @@
             <!-- Top Player Button -->
             <button class="team-btn no-zoom-element @(_userTapAnim ? "avatar-tap" : "")" @onclick="UserWinsPoint" disabled="@_state.IsMatchEnded">
                 <div class="team-avatars">
-                    <MudAvatar Class="no-zoom-element"
+                    <MudAvatar Class="no-zoom-element avatar-initials-circle"
                                Style="border: solid 2px lightseagreen; width:80px; height: 80px;">
-                        @if (GetPlayerAvatar(CurrentMatch.Player1) is string p1Src)
-                        {
-                            <MudImage Class="no-zoom-element" Src="@p1Src"></MudImage>
-                        }
-                        else
-                        {
-                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="no-zoom-element" Style="font-size:40px; color:white;" />
-                        }
-                        <div class="no-zoom-element avatar-initials">
-                            @CurrentMatch.Player1.GetInitials()
-                        </div>
+                        @CurrentMatch.Player1.GetInitials()
                     </MudAvatar>
                     @if (Label_Switch1)
                     {
-                        <MudAvatar Class="no-zoom-element team-avatar-overlap"
+                        <MudAvatar Class="no-zoom-element avatar-initials-circle team-avatar-overlap"
                                    Style="border: solid 2px lightseagreen; width:80px; height: 80px;">
-                            @if (GetPlayerAvatar(CurrentMatch.Player2) is string p2aSrc)
-                            {
-                                <MudImage Class="no-zoom-element" Src="@p2aSrc"></MudImage>
-                            }
-                            else
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="no-zoom-element" Style="font-size:40px; color:white;" />
-                            }
-                            <div class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                                        color:white; font-size:22px; font-weight:bold;">
-                                @CurrentMatch.Player2.GetInitials()
-                            </div>
+                            @CurrentMatch.Player2.GetInitials()
                         </MudAvatar>
                     }
                 </div>
@@ -221,56 +200,25 @@
                 </div>
             </div>
 
-            @* #2 + #9 + #10 — Bottom Player with larger avatars, tap feedback *@
+            @* #2 + #9 + #10 — Bottom Player with tap feedback *@
             <button class="team-btn no-zoom-element @(_oppTapAnim ? "avatar-tap" : "")" @onclick="OpponentWinsPoint" disabled="@_state.IsMatchEnded">
                 <div class="team-avatars">
                     @if (Label_Switch1)
                     {
-                        <MudAvatar Class="no-zoom-element"
+                        <MudAvatar Class="no-zoom-element avatar-initials-circle"
                                    Style="border: solid 2px orangered; width:80px; height: 80px;">
-                            @if (GetPlayerAvatar(CurrentMatch.Player3) is string p3Src)
-                            {
-                                <MudImage Class="no-zoom-element" Src="@p3Src"></MudImage>
-                            }
-                            else
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="no-zoom-element" Style="font-size:40px; color:white;" />
-                            }
-                            <div class="no-zoom-element avatar-initials">
-                                @CurrentMatch.Player3.GetInitials()
-                            </div>
+                            @CurrentMatch.Player3.GetInitials()
                         </MudAvatar>
-                        <MudAvatar Class="no-zoom-element team-avatar-overlap"
+                        <MudAvatar Class="no-zoom-element avatar-initials-circle team-avatar-overlap"
                                    Style="border: solid 2px orangered; width:80px; height: 80px;">
-                            @if (GetPlayerAvatar(CurrentMatch.Player4) is string p4Src)
-                            {
-                                <MudImage Class="no-zoom-element" Src="@p4Src"></MudImage>
-                            }
-                            else
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="no-zoom-element" Style="font-size:40px; color:white;" />
-                            }
-                            <div class="no-zoom-element avatar-initials">
-                                @CurrentMatch.Player4.GetInitials()
-                            </div>
+                            @CurrentMatch.Player4.GetInitials()
                         </MudAvatar>
                     }
                     else
                     {
-                        <MudAvatar Class="no-zoom-element"
+                        <MudAvatar Class="no-zoom-element avatar-initials-circle"
                                    Style="border: solid 2px orangered; width:80px; height: 80px;">
-                            @if (GetPlayerAvatar(CurrentMatch.Player2) is string p2bSrc)
-                            {
-                                <MudImage Class="no-zoom-element" Src="@p2bSrc"></MudImage>
-                            }
-                            else
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="no-zoom-element" Style="font-size:40px; color:white;" />
-                            }
-                            <div class="no-zoom-element" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                                    color:white; font-size:22px; font-weight:bold;">
-                                @CurrentMatch.Player2.GetInitials()
-                            </div>
+                            @CurrentMatch.Player2.GetInitials()
                         </MudAvatar>
                     }
                 </div>
