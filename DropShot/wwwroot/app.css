@@ -3,6 +3,11 @@ html, body {
     touch-action: manipulation;
 }
 
+/* MudBlazor's .mud-swipearea sets touch-action:none which blocks page scrolling on mobile */
+.mud-carousel .mud-swipearea {
+    touch-action: pan-y;
+}
+
 a, .btn-link {
     color: #006bb7;
 }
