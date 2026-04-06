@@ -121,13 +121,21 @@
                 <div class="team-avatars">
                     <MudAvatar Class="no-zoom-element avatar-initials-circle"
                                Style="border: solid 2px lightseagreen; width:80px; height: 80px;">
-                        @CurrentMatch.Player1.GetInitials()
+                        @if (GetPlayerAvatar(CurrentMatch.Player1) is string p1Src)
+                        {
+                            <MudImage Class="no-zoom-element avatar-photo" Src="@p1Src" />
+                        }
+                        <span class="avatar-initials-text">@CurrentMatch.Player1.GetInitials()</span>
                     </MudAvatar>
                     @if (Label_Switch1)
                     {
                         <MudAvatar Class="no-zoom-element avatar-initials-circle team-avatar-overlap"
                                    Style="border: solid 2px lightseagreen; width:80px; height: 80px;">
-                            @CurrentMatch.Player2.GetInitials()
+                            @if (GetPlayerAvatar(CurrentMatch.Player2) is string p2Src)
+                            {
+                                <MudImage Class="no-zoom-element avatar-photo" Src="@p2Src" />
+                            }
+                            <span class="avatar-initials-text">@CurrentMatch.Player2.GetInitials()</span>
                         </MudAvatar>
                     }
                 </div>
@@ -207,18 +215,30 @@
                     {
                         <MudAvatar Class="no-zoom-element avatar-initials-circle"
                                    Style="border: solid 2px orangered; width:80px; height: 80px;">
-                            @CurrentMatch.Player3.GetInitials()
+                            @if (GetPlayerAvatar(CurrentMatch.Player3) is string p3Src)
+                            {
+                                <MudImage Class="no-zoom-element avatar-photo" Src="@p3Src" />
+                            }
+                            <span class="avatar-initials-text">@CurrentMatch.Player3.GetInitials()</span>
                         </MudAvatar>
                         <MudAvatar Class="no-zoom-element avatar-initials-circle team-avatar-overlap"
                                    Style="border: solid 2px orangered; width:80px; height: 80px;">
-                            @CurrentMatch.Player4.GetInitials()
+                            @if (GetPlayerAvatar(CurrentMatch.Player4) is string p4Src)
+                            {
+                                <MudImage Class="no-zoom-element avatar-photo" Src="@p4Src" />
+                            }
+                            <span class="avatar-initials-text">@CurrentMatch.Player4.GetInitials()</span>
                         </MudAvatar>
                     }
                     else
                     {
                         <MudAvatar Class="no-zoom-element avatar-initials-circle"
                                    Style="border: solid 2px orangered; width:80px; height: 80px;">
-                            @CurrentMatch.Player2.GetInitials()
+                            @if (GetPlayerAvatar(CurrentMatch.Player2) is string p2bSrc)
+                            {
+                                <MudImage Class="no-zoom-element avatar-photo" Src="@p2bSrc" />
+                            }
+                            <span class="avatar-initials-text">@CurrentMatch.Player2.GetInitials()</span>
                         </MudAvatar>
                     }
                 </div>
