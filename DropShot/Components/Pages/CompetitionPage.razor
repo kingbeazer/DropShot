@@ -110,31 +110,49 @@
                     </MudItem>
 
                     <MudItem xs="12" sm="6">
-                        <MudSelect @bind-Value="Model.HostClubId" Label="Host Club (optional)" Variant="Variant.Text"
-                                   Clearable="true">
-                            @foreach (var c in _clubs)
-                            {
-                                <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                            <MudSelect @bind-Value="Model.HostClubId" Label="Host Club (optional)" Variant="Variant.Text"
+                                       Clearable="true" Style="flex:1">
+                                @foreach (var c in _clubs)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTooltip Text="Add new club">
+                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                               Color="Color.Primary" OnClick="@(() => _showAddClubDialog = true)" />
+                            </MudTooltip>
+                        </MudStack>
                     </MudItem>
                     <MudItem xs="12" sm="6">
-                        <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
-                                   Clearable="true">
-                            @foreach (var r in _rulesSets)
-                            {
-                                <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                            <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
+                                       Clearable="true" Style="flex:1">
+                                @foreach (var r in _rulesSets)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTooltip Text="Add new rules set">
+                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                               Color="Color.Primary" OnClick="@(() => _showAddRulesSetDialog = true)" />
+                            </MudTooltip>
+                        </MudStack>
                     </MudItem>
                     <MudItem xs="12" sm="6">
-                        <MudSelect @bind-Value="Model.EventId" Label="Event (optional)" Variant="Variant.Text"
-                                   Clearable="true">
-                            @foreach (var e in _events)
-                            {
-                                <MudSelectItem T="int?" Value="@((int?)e.EventId)">@e.Name</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                            <MudSelect @bind-Value="Model.EventId" Label="Event (optional)" Variant="Variant.Text"
+                                       Clearable="true" Style="flex:1">
+                                @foreach (var e in _events)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)e.EventId)">@e.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTooltip Text="Add new event">
+                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                               Color="Color.Primary" OnClick="@(() => _showAddEventDialog = true)" />
+                            </MudTooltip>
+                        </MudStack>
                     </MudItem>
                     <MudItem xs="12" sm="6">
                         <MudSelect @bind-Value="Model.BestOf" Label="Best Of" Variant="Variant.Text">
@@ -793,6 +811,54 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Add Club Dialog ───────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddClubDialog">
+    <TitleContent>Add Club</TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_newClubName" Label="Club Name" Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="_newClubTown" Label="Town (optional)" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_newClubPostcode" Label="Postcode (optional)" Variant="Variant.Outlined" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddClubDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_newClubName)" OnClick="SaveNewClub">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Add Rules Set Dialog ─────────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddRulesSetDialog">
+    <TitleContent>Add Rules Set</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newRulesSetName" Label="Rules Set Name" Variant="Variant.Outlined" Required="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddRulesSetDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_newRulesSetName)" OnClick="SaveNewRulesSet">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Add Event Dialog ─────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddEventDialog">
+    <TitleContent>Add Event</TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_newEventName" Label="Event Name" Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="_newEventDescription" Label="Description (optional)" Variant="Variant.Outlined" Lines="2" />
+            <MudDatePicker @bind-Date="_newEventStartDate" Label="Start Date (optional)" DateFormat="dd/MM/yyyy" />
+            <MudDatePicker @bind-Date="_newEventEndDate" Label="End Date (optional)" DateFormat="dd/MM/yyyy" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddEventDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_newEventName)" OnClick="SaveNewEvent">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @* ── QR Code Dialog ──────────────────────────────────────── *@
 <MudDialog @bind-Visible="_showQrDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
     <TitleContent>Match QR Code</TitleContent>
@@ -903,6 +969,23 @@
 
     // Schedule options
     private bool _scheduleDeleteExisting;
+
+    // Add Club dialog
+    private bool _showAddClubDialog;
+    private string _newClubName = "";
+    private string _newClubTown = "";
+    private string _newClubPostcode = "";
+
+    // Add Rules Set dialog
+    private bool _showAddRulesSetDialog;
+    private string _newRulesSetName = "";
+
+    // Add Event dialog
+    private bool _showAddEventDialog;
+    private string _newEventName = "";
+    private string _newEventDescription = "";
+    private DateTime? _newEventStartDate;
+    private DateTime? _newEventEndDate;
 
     private sealed class CompetitionFormModel
     {
@@ -1091,6 +1174,62 @@
         catch (DbUpdateException ex) { _serverError = "Database error: " + ex.InnerException?.Message ?? ex.Message; }
         catch (Exception ex) { _serverError = ex.Message; }
         finally { _isSaving = false; }
+    }
+
+    // ── Add New Entity Helpers ─────────────────────────────────────────────
+
+    private async Task SaveNewClub()
+    {
+        if (string.IsNullOrWhiteSpace(_newClubName)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var club = new Club
+        {
+            Name = _newClubName.Trim(),
+            Town = string.IsNullOrWhiteSpace(_newClubTown) ? null : _newClubTown.Trim(),
+            Postcode = string.IsNullOrWhiteSpace(_newClubPostcode) ? null : _newClubPostcode.Trim()
+        };
+        db.Clubs.Add(club);
+        await db.SaveChangesAsync();
+        _clubs.Add(club);
+        Model.HostClubId = club.ClubId;
+        _showAddClubDialog = false;
+        _newClubName = ""; _newClubTown = ""; _newClubPostcode = "";
+        Snackbar.Add($"Club '{club.Name}' created.", Severity.Success);
+    }
+
+    private async Task SaveNewRulesSet()
+    {
+        if (string.IsNullOrWhiteSpace(_newRulesSetName)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var rs = new RulesSet { Name = _newRulesSetName.Trim() };
+        db.RulesSets.Add(rs);
+        await db.SaveChangesAsync();
+        _rulesSets.Add(rs);
+        Model.RulesSetId = rs.RulesSetId;
+        _showAddRulesSetDialog = false;
+        _newRulesSetName = "";
+        Snackbar.Add($"Rules Set '{rs.Name}' created.", Severity.Success);
+    }
+
+    private async Task SaveNewEvent()
+    {
+        if (string.IsNullOrWhiteSpace(_newEventName)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var ev = new Event
+        {
+            Name = _newEventName.Trim(),
+            Description = string.IsNullOrWhiteSpace(_newEventDescription) ? null : _newEventDescription.Trim(),
+            StartDate = _newEventStartDate,
+            EndDate = _newEventEndDate,
+            HostClubId = Model.HostClubId
+        };
+        db.Events.Add(ev);
+        await db.SaveChangesAsync();
+        _events.Add(ev);
+        Model.EventId = ev.EventId;
+        _showAddEventDialog = false;
+        _newEventName = ""; _newEventDescription = ""; _newEventStartDate = null; _newEventEndDate = null;
+        Snackbar.Add($"Event '{ev.Name}' created.", Severity.Success);
     }
 
     private void AutoGenerateName()
