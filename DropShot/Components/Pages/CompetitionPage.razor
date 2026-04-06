@@ -49,9 +49,16 @@
             <MudForm @ref="_form" @bind-IsValid="_isValid" @bind-Errors="_errors">
                 <MudGrid Spacing="2">
                     <MudItem xs="12" sm="8">
-                        <MudTextField T="string" Label="Competition Name" @bind-Value="Model.CompetitionName"
-                                      For="@(() => Model.CompetitionName)"
-                                      Required="true" RequiredError="Name is required" Immediate="true" />
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudTextField T="string" Label="Competition Name" @bind-Value="Model.CompetitionName"
+                                          For="@(() => Model.CompetitionName)"
+                                          Required="true" RequiredError="Name is required" Immediate="true"
+                                          Style="flex:1" />
+                            <MudTooltip Text="Generate name from Format, Sex & Age settings below">
+                                <MudIconButton Icon="@Icons.Material.Filled.AutoAwesome" Color="Color.Primary"
+                                               OnClick="AutoGenerateName" />
+                            </MudTooltip>
+                        </MudStack>
                     </MudItem>
                     <MudItem xs="12" sm="4">
                         <MudSelect @bind-Value="Model.CompetitionFormat" Label="Format" Variant="Variant.Text">
@@ -1071,6 +1078,28 @@
         catch (DbUpdateException ex) { _serverError = "Database error: " + ex.InnerException?.Message ?? ex.Message; }
         catch (Exception ex) { _serverError = ex.Message; }
         finally { _isSaving = false; }
+    }
+
+    private void AutoGenerateName()
+    {
+        var parts = new List<string>();
+
+        if (Model.EligibleSex == PlayerSex.Male) parts.Add("Men's");
+        else if (Model.EligibleSex == PlayerSex.Female) parts.Add("Women's");
+
+        if (Model.MinAge.HasValue) parts.Add($"Over {Model.MinAge}");
+        else if (Model.MaxAge.HasValue) parts.Add($"U{Model.MaxAge}");
+
+        parts.Add(Model.CompetitionFormat switch
+        {
+            CompetitionFormat.Singles => "Singles",
+            CompetitionFormat.Doubles => "Doubles",
+            CompetitionFormat.MixedDoubles => "Mixed Doubles",
+            CompetitionFormat.Team => "Team",
+            _ => Model.CompetitionFormat.ToString()
+        });
+
+        Model.CompetitionName = string.Join(" ", parts);
     }
 
     private void ApplyModel(Competition comp, string name)
