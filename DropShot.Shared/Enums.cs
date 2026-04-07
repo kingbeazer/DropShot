@@ -5,8 +5,7 @@ public enum CompetitionFormat : byte
     Singles = 1,
     Doubles = 2,
     Team = 3,
-    MixedDoubles = 4,
-    MixedTeam = 5
+    MixedDoubles = 4
 }
 
 public enum PlayerSex : byte
@@ -46,26 +45,6 @@ public enum FriendStatus : byte
     Pending = 1,
     Accepted = 2,
     Blocked = 3
-}
-
-public enum PlayerGrade : byte
-{
-    A = 1,
-    B = 2
-}
-
-public enum TeamMatchPhase : byte
-{
-    GenderDoubles = 1,
-    MixedDoubles = 2
-}
-
-public enum TeamMatchSetType : byte
-{
-    MensDoubles = 1,
-    WomensDoubles = 2,
-    MixedDoublesA = 3,
-    MixedDoublesB = 4
 }
 
 public enum FixtureStatus : byte
