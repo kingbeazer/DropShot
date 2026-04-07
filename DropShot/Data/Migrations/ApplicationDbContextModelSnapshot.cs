@@ -484,18 +484,6 @@ namespace DropShot.Migrations
                     b.Property<int?>("WinnerPlayerId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("AwayTeamId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CourtPairId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("HomeTeamId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("WinnerTeamId")
-                        .HasColumnType("int");
-
                     b.HasKey("CompetitionFixtureId");
 
                     b.HasIndex("CompetitionId");
@@ -513,14 +501,6 @@ namespace DropShot.Migrations
                     b.HasIndex("Player4Id");
 
                     b.HasIndex("SavedMatchId");
-
-                    b.HasIndex("AwayTeamId");
-
-                    b.HasIndex("CourtPairId");
-
-                    b.HasIndex("HomeTeamId");
-
-                    b.HasIndex("WinnerTeamId");
 
                     b.ToTable("CompetitionFixtures");
                 });
@@ -574,9 +554,6 @@ namespace DropShot.Migrations
                     b.Property<int?>("TeamId")
                         .HasColumnType("int");
 
-                    b.Property<byte?>("Grade")
-                        .HasColumnType("tinyint");
-
                     b.HasKey("CompetitionId", "PlayerId");
 
                     b.HasIndex("PlayerId");
@@ -623,9 +600,6 @@ namespace DropShot.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CompetitionTeamId"));
 
-                    b.Property<int?>("CaptainPlayerId")
-                        .HasColumnType("int");
-
                     b.Property<int>("CompetitionId")
                         .HasColumnType("int");
 
@@ -636,113 +610,9 @@ namespace DropShot.Migrations
 
                     b.HasKey("CompetitionTeamId");
 
-                    b.HasIndex("CaptainPlayerId");
-
                     b.HasIndex("CompetitionId");
 
                     b.ToTable("CompetitionTeams");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CourtPair", b =>
-                {
-                    b.Property<int>("CourtPairId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CourtPairId"));
-
-                    b.Property<int>("CompetitionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Court1Id")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Court2Id")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.HasKey("CourtPairId");
-
-                    b.HasIndex("CompetitionId");
-
-                    b.HasIndex("Court1Id");
-
-                    b.HasIndex("Court2Id");
-
-                    b.ToTable("CourtPairs");
-                });
-
-            modelBuilder.Entity("DropShot.Models.TeamMatchSet", b =>
-                {
-                    b.Property<int>("TeamMatchSetId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TeamMatchSetId"));
-
-                    b.Property<int>("CompetitionFixtureId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SetNumber")
-                        .HasColumnType("int");
-
-                    b.Property<byte>("Phase")
-                        .HasColumnType("tinyint");
-
-                    b.Property<byte>("SetType")
-                        .HasColumnType("tinyint");
-
-                    b.Property<int>("CourtNumber")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("HomePlayer1Id")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("HomePlayer2Id")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("AwayPlayer1Id")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("AwayPlayer2Id")
-                        .HasColumnType("int");
-
-                    b.Property<int>("HomeGames")
-                        .HasColumnType("int");
-
-                    b.Property<int>("AwayGames")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("WinnerTeamId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsComplete")
-                        .HasColumnType("bit");
-
-                    b.Property<int?>("SavedMatchId")
-                        .HasColumnType("int");
-
-                    b.HasKey("TeamMatchSetId");
-
-                    b.HasIndex("CompetitionFixtureId");
-
-                    b.HasIndex("HomePlayer1Id");
-
-                    b.HasIndex("HomePlayer2Id");
-
-                    b.HasIndex("AwayPlayer1Id");
-
-                    b.HasIndex("AwayPlayer2Id");
-
-                    b.HasIndex("WinnerTeamId");
-
-                    b.HasIndex("SavedMatchId");
-
-                    b.ToTable("TeamMatchSets");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionTemplate", b =>
@@ -1514,35 +1384,9 @@ namespace DropShot.Migrations
                         .HasForeignKey("SavedMatchId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("DropShot.Models.CompetitionTeam", "HomeTeam")
-                        .WithMany()
-                        .HasForeignKey("HomeTeamId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Models.CompetitionTeam", "AwayTeam")
-                        .WithMany()
-                        .HasForeignKey("AwayTeamId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Models.CompetitionTeam", "WinnerTeam")
-                        .WithMany()
-                        .HasForeignKey("WinnerTeamId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Models.CourtPair", "CourtPair")
-                        .WithMany()
-                        .HasForeignKey("CourtPairId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("AwayTeam");
-
                     b.Navigation("Competition");
 
                     b.Navigation("Court");
-
-                    b.Navigation("CourtPair");
-
-                    b.Navigation("HomeTeam");
 
                     b.Navigation("Player1");
 
@@ -1555,8 +1399,6 @@ namespace DropShot.Migrations
                     b.Navigation("SavedMatch");
 
                     b.Navigation("Stage");
-
-                    b.Navigation("WinnerTeam");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionMatchWindow", b =>
@@ -1616,100 +1458,13 @@ namespace DropShot.Migrations
 
             modelBuilder.Entity("DropShot.Models.CompetitionTeam", b =>
                 {
-                    b.HasOne("DropShot.Models.Player", "Captain")
-                        .WithMany()
-                        .HasForeignKey("CaptainPlayerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("DropShot.Models.Competition", "Competition")
                         .WithMany("Teams")
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Captain");
-
                     b.Navigation("Competition");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CourtPair", b =>
-                {
-                    b.HasOne("DropShot.Models.Competition", "Competition")
-                        .WithMany("CourtPairs")
-                        .HasForeignKey("CompetitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Models.Court", "Court1")
-                        .WithMany()
-                        .HasForeignKey("Court1Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Models.Court", "Court2")
-                        .WithMany()
-                        .HasForeignKey("Court2Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Competition");
-
-                    b.Navigation("Court1");
-
-                    b.Navigation("Court2");
-                });
-
-            modelBuilder.Entity("DropShot.Models.TeamMatchSet", b =>
-                {
-                    b.HasOne("DropShot.Models.CompetitionFixture", "CompetitionFixture")
-                        .WithMany("TeamMatchSets")
-                        .HasForeignKey("CompetitionFixtureId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Models.Player", "HomePlayer1")
-                        .WithMany()
-                        .HasForeignKey("HomePlayer1Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Models.Player", "HomePlayer2")
-                        .WithMany()
-                        .HasForeignKey("HomePlayer2Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Models.Player", "AwayPlayer1")
-                        .WithMany()
-                        .HasForeignKey("AwayPlayer1Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Models.Player", "AwayPlayer2")
-                        .WithMany()
-                        .HasForeignKey("AwayPlayer2Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Models.CompetitionTeam", "WinnerTeam")
-                        .WithMany()
-                        .HasForeignKey("WinnerTeamId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Models.SavedMatch", "SavedMatch")
-                        .WithMany()
-                        .HasForeignKey("SavedMatchId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("AwayPlayer1");
-
-                    b.Navigation("AwayPlayer2");
-
-                    b.Navigation("CompetitionFixture");
-
-                    b.Navigation("HomePlayer1");
-
-                    b.Navigation("HomePlayer2");
-
-                    b.Navigation("SavedMatch");
-
-                    b.Navigation("WinnerTeam");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionTemplate", b =>
@@ -1945,8 +1700,6 @@ namespace DropShot.Migrations
                 {
                     b.Navigation("Admins");
 
-                    b.Navigation("CourtPairs");
-
                     b.Navigation("Fixtures");
 
                     b.Navigation("MatchWindows");
@@ -1956,11 +1709,6 @@ namespace DropShot.Migrations
                     b.Navigation("Stages");
 
                     b.Navigation("Teams");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionFixture", b =>
-                {
-                    b.Navigation("TeamMatchSets");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionStage", b =>
