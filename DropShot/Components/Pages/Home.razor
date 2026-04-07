@@ -137,6 +137,36 @@
     </MudCarouselItem>
 </MudCarousel>
 
+<MudCard Class="mt-4 mb-8">
+    <MudCardContent>
+        @if (!_isAuthenticated)
+        {
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
+                        Scan the QR code with your phone to log in, or
+                        <MudLink Href="/Account/Login">use email and password</MudLink>.
+                    </MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
+                        <MudLink Href="/Account/Login">Log in with email and password</MudLink> to get started.
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" md="6" Class="d-none d-md-block">
+                    <QrLoginPanel />
+                </MudItem>
+            </MudGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+            <MudText Typo="Typo.body1" Class="mt-2">
+                Your home for managing competitions, tracking results, and staying on top of your game.
+            </MudText>
+        }
+    </MudCardContent>
+</MudCard>
+
 @if (_upcomingFixtures.Any())
 {
     <MudCard Class="mt-4">
@@ -186,37 +216,6 @@
         </MudCardContent>
     </MudCard>
 }
-
-
-<MudCard Class="mt-4 mb-8">
-    <MudCardContent>
-        @if (!_isAuthenticated)
-        {
-            <MudGrid>
-                <MudItem xs="12" md="6">
-                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
-                    <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
-                        Scan the QR code with your phone to log in, or
-                        <MudLink Href="/Account/Login">use email and password</MudLink>.
-                    </MudText>
-                    <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
-                        <MudLink Href="/Account/Login">Log in with email and password</MudLink> to get started.
-                    </MudText>
-                </MudItem>
-                <MudItem xs="12" md="6" Class="d-none d-md-block">
-                    <QrLoginPanel />
-                </MudItem>
-            </MudGrid>
-        }
-        else
-        {
-            <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
-            <MudText Typo="Typo.body1" Class="mt-2">
-                Your home for managing competitions, tracking results, and staying on top of your game.
-            </MudText>
-        }
-    </MudCardContent>
-</MudCard>
 
 @code {
     private bool arrows = true;
