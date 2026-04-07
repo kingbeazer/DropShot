@@ -29,6 +29,7 @@ public class Club
     public ICollection<CompetitionTemplate> CompetitionTemplates { get; set; } = [];
     public ICollection<ClubEmailTemplate> EmailTemplates { get; set; } = [];
     public ICollection<Event> Events { get; set; } = [];
+    public ICollection<RulesSet> RulesSets { get; set; } = [];
 }
 
 public class Court
