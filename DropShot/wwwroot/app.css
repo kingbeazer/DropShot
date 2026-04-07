@@ -106,7 +106,9 @@ body.scoring-active .content {
     overflow: hidden !important;
 }
 
-/* ── Role banner (sticky at top of main column) ────────────────────────── */
+/* ── Role banner (sticky below the top navbar) ─────────────────────────── */
+/* The .top-navbar is sticky (desktop) or fixed (mobile) at top:0 with
+   height 3.5rem, so park the sticky role banner just below it on both. */
 .role-banner {
     background: var(--mud-palette-info);
     color: white;
@@ -118,16 +120,8 @@ body.scoring-active .content {
     gap: 8px;
     font-size: 0.85rem;
     position: sticky;
-    top: 0;
+    top: 3.5rem;
     z-index: 10;
-}
-
-/* On mobile the main header (.top-row) is position: fixed at top:0 with
-   height 3.5rem, so the sticky role banner needs to sit below it. */
-@media (max-width: 640.98px) {
-    .role-banner {
-        top: 3.5rem;
-    }
 }
 
 .role-banner-select {
