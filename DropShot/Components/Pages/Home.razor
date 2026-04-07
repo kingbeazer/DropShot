@@ -119,7 +119,7 @@
     </MudCard>
 }
 
-<MudCarousel Class="mud-width-full" Style="height:400px; touch-action:pan-y;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" TData="object">
+<MudCarousel Class="mud-width-full" Style="height:400px; touch-action:pan-y;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" AutoCycleTime="@autocycleTime" TData="object">
     <MudCarouselItem Transition="transition" Color="@Color.Primary">
         <div class="d-flex" style="height:100%">
             <MudImage Class="mx-auto my-auto" Src="images/Logo.png" Style="height: 300px;"></MudImage>
@@ -242,6 +242,7 @@
     private bool bullets = true;
     private bool enableSwipeGesture = true;
     private bool autocycle = true;
+    private TimeSpan autocycleTime = TimeSpan.FromSeconds(10);
     private Transition transition = Transition.Slide;
 
     [SupplyParameterFromQuery]
