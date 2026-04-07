@@ -231,6 +231,7 @@
     private List<CompetitionFixture> _upcomingFixtures = [];
     private List<CompetitionFixture> _pendingReviews = [];
     private bool _showUpgradeBanner;
+    private bool _eligibleForUpgradeBanner;
     private bool _isAuthenticated;
 
     protected override async Task OnInitializedAsync()
@@ -242,10 +243,12 @@
 
         await using var db = DbFactory.CreateDbContext();
 
-        // Check subscription status for promo banner
+        // Check subscription status for promo banner. The banner stays hidden
+        // until OnAfterRenderAsync confirms it wasn't recently dismissed, so we
+        // never flash it on the initial render.
         var appUser = await db.Users.FindAsync(userId);
         if (appUser is not null && !appUser.IsSubscribed)
-            _showUpgradeBanner = true; // will be refined in OnAfterRenderAsync via localStorage
+            _eligibleForUpgradeBanner = true;
 
         // Load pending reviews for admins
         var isAdmin = await AuthzService.IsAdminAsync(authState.User);
@@ -306,18 +309,24 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _showUpgradeBanner)
+        if (firstRender && _eligibleForUpgradeBanner)
         {
-            // Check localStorage for dismiss timestamp; re-show after 7 days
+            // Check localStorage for dismiss timestamp; re-show after 7 days.
+            // We only reveal the banner here (rather than hiding it) so it
+            // never flashes on the initial render.
             var dismissed = await JS.InvokeAsync<string?>("localStorage.getItem", "upgradeBannerDismissed");
+            var recentlyDismissed = false;
             if (!string.IsNullOrEmpty(dismissed) && long.TryParse(dismissed, out var ts))
             {
                 var dismissedAt = DateTimeOffset.FromUnixTimeMilliseconds(ts);
                 if (DateTimeOffset.UtcNow - dismissedAt < TimeSpan.FromDays(7))
-                {
-                    _showUpgradeBanner = false;
-                    StateHasChanged();
-                }
+                    recentlyDismissed = true;
+            }
+
+            if (!recentlyDismissed)
+            {
+                _showUpgradeBanner = true;
+                StateHasChanged();
             }
         }
     }
