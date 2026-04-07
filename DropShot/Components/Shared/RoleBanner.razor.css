@@ -5,16 +5,37 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
     gap: 8px;
     font-size: 0.85rem;
+    height: 32px;
+    box-sizing: border-box;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99;
 }
 
-/* On mobile the main header (.top-row) is position: fixed at the top
-   with height 3.5rem, so the sticky role banner needs to sit below it. */
+/* Spacer reserves layout space equal to the fixed banner so page content
+   isn't hidden underneath it. */
+.role-banner-spacer {
+    height: 32px;
+    flex-shrink: 0;
+}
+
+/* On mobile the main header (.top-row) is position: fixed at top:0 with
+   height 3.5rem (z-index 100), so park the role banner just below it. */
 @media (max-width: 640.98px) {
     .role-banner {
         top: 3.5rem;
+    }
+}
+
+/* On desktop the sidebar (width 250px) occupies the left column, so the
+   fixed banner should start after it. */
+@media (min-width: 641px) {
+    .role-banner {
+        left: 250px;
     }
 }
 

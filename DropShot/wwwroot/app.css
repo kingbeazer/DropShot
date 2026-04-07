@@ -106,9 +106,16 @@ body.scoring-active .content {
     overflow: hidden !important;
 }
 
+/* Hide the fixed role banner (and its flow spacer) when scoring takes over. */
+body.scoring-active .role-banner,
+body.scoring-active .role-banner-spacer {
+    display: none !important;
+}
+
 /* Legacy — keep for external scoreboard page if still used */
 body.scoreboard-fullscreen .sidebar,
-body.scoreboard-fullscreen .role-banner {
+body.scoreboard-fullscreen .role-banner,
+body.scoreboard-fullscreen .role-banner-spacer {
     display: none !important;
 }
 
