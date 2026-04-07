@@ -10,6 +10,14 @@
     font-size: 0.85rem;
 }
 
+/* On mobile the main header (.top-row) is position: fixed at the top
+   with height 3.5rem, so the sticky role banner needs to sit below it. */
+@media (max-width: 640.98px) {
+    .role-banner {
+        top: 3.5rem;
+    }
+}
+
 .role-banner-select {
     background: rgba(255, 255, 255, 0.15);
     color: white;
