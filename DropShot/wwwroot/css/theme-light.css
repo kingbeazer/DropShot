@@ -9,14 +9,13 @@
     color: #212121 !important;
 }
 
-/* ── Sidebar ────────────────────────────────────────────────────────── */
-[data-theme="light"] .sidebar {
+/* ── Top navbar ────────────────────────────────────────────────────── */
+[data-theme="light"] .top-navbar {
     background-image: none !important;
-    background-color: #ffffff !important;
-    border-right: 1px solid #e0e0e0;
+    background-color: #1565c0 !important;
 }
 
-/* ── Top navbar ─────────────────────────────────────────────────────── */
+/* ── Top bar (black strip) ─────────────────────────────────────────── */
 [data-theme="light"] .top-row {
     background-color: #1565c0 !important;
 }
@@ -25,41 +24,64 @@
     color: #ffffff !important;
 }
 
-/* ── Nav links ──────────────────────────────────────────────────────── */
+/* ── Nav links (light theme: white text on blue bar) ───────────────── */
 [data-theme="light"] .nav-item .nav-link,
 [data-theme="light"] .nav-item a.nav-link,
 [data-theme="light"] .nav-item button.nav-link,
-[data-theme="light"] .nav-group label .nav-link {
-    color: #424242 !important;
+[data-theme="light"] .nav-dropdown-trigger {
+    color: rgba(255,255,255,0.85) !important;
 }
 
 [data-theme="light"] .nav-item .nav-link:hover,
 [data-theme="light"] .nav-item a.nav-link:hover,
-[data-theme="light"] .nav-item button.nav-link:hover {
-    background-color: rgba(21, 101, 192, 0.08) !important;
-    color: #1565c0 !important;
+[data-theme="light"] .nav-item button.nav-link:hover,
+[data-theme="light"] .nav-dropdown-trigger:hover {
+    background-color: rgba(255,255,255,0.15) !important;
+    color: #ffffff !important;
 }
 
 [data-theme="light"] .nav-item a.active {
-    background-color: rgba(21, 101, 192, 0.15) !important;
-    color: #1565c0 !important;
+    background-color: rgba(255,255,255,0.25) !important;
+    color: #ffffff !important;
 }
 
 [data-theme="light"] .nav-icon {
-    color: #616161 !important;
+    color: rgba(255,255,255,0.85) !important;
 }
 
 [data-theme="light"] .nav-item a.active .nav-icon,
-[data-theme="light"] .nav-item .nav-link:hover .nav-icon {
-    color: #1565c0 !important;
+[data-theme="light"] .nav-item .nav-link:hover .nav-icon,
+[data-theme="light"] .nav-dropdown-trigger:hover .nav-icon {
+    color: #ffffff !important;
+}
+
+/* ── Dropdown menus (light theme) ──────────────────────────────────── */
+[data-theme="light"] .nav-dropdown-menu {
+    background-image: none !important;
+    background-color: #1565c0 !important;
+}
+
+[data-theme="light"] .nav-dropdown-menu .nav-link,
+[data-theme="light"] .nav-dropdown-item .nav-link {
+    color: rgba(255,255,255,0.85) !important;
+}
+
+[data-theme="light"] .nav-dropdown-menu .nav-link:hover,
+[data-theme="light"] .nav-dropdown-item .nav-link:hover {
+    background-color: rgba(255,255,255,0.15) !important;
+    color: #ffffff !important;
+}
+
+[data-theme="light"] .nav-dropdown-menu a.active {
+    background-color: rgba(255,255,255,0.25) !important;
+    color: #ffffff !important;
 }
 
 /* ── Mobile nav overlay ─────────────────────────────────────────────── */
 @media (max-width: 640.98px) {
-    [data-theme="light"] .nav-scrollable {
+    [data-theme="light"] .nav-content {
         background-image: none !important;
-        background-color: #ffffff !important;
-        border-bottom: 1px solid #e0e0e0;
+        background-color: #1565c0 !important;
     }
 }
 
@@ -156,7 +178,7 @@
 
 /* ── Nav avatar border ──────────────────────────────────────────────── */
 [data-theme="light"] .nav-avatar {
-    border-color: #1565c0 !important;
+    border-color: rgba(255,255,255,0.6) !important;
 }
 
 /* ── QR code panel ──────────────────────────────────────────────────── */
@@ -207,41 +229,20 @@
     display: inline-block;
 }
 
-/* ── Theme toggle button ────────────────────────────────────────────── */
-.theme-toggle-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    padding: 0.5rem 10px;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    color: #d7d7d7;
-    height: 3rem;
-    line-height: 3rem;
-}
-
-.theme-toggle-btn:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
-}
-
+/* ── Theme toggle button (light theme) ─────────────────────────────── */
 [data-theme="light"] .theme-toggle-btn {
-    color: #424242 !important;
+    color: rgba(255,255,255,0.85) !important;
 }
 
 [data-theme="light"] .theme-toggle-btn:hover {
-    background-color: rgba(21, 101, 192, 0.08) !important;
-    color: #1565c0 !important;
+    background-color: rgba(255,255,255,0.15) !important;
+    color: #ffffff !important;
 }
 
 [data-theme="light"] .theme-toggle-btn .nav-icon {
-    color: #616161 !important;
+    color: rgba(255,255,255,0.85) !important;
 }
 
 [data-theme="light"] .theme-toggle-btn:hover .nav-icon {
-    color: #1565c0 !important;
+    color: #ffffff !important;
 }
