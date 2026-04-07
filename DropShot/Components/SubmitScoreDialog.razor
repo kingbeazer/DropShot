@@ -44,19 +44,23 @@
                         <tr>
                             <td style="color:#888; font-size:0.8rem; padding-right:8px">Set @(idx + 1)</td>
                             <td>
-                                <MudNumericField T="int?" @ref="_f1[idx]"
-                                                Value="_score1[idx]"
-                                                ValueChanged="@(v => Score1Changed(idx, v))"
-                                                Min="0" Max="10" Variant="Variant.Outlined"
-                                                Style="width:65px" HideSpinButtons="true" />
+                                <MudTextField T="int?" @ref="_f1[idx]"
+                                               Value="_score1[idx]"
+                                               ValueChanged="@(v => Score1Changed(idx, v))"
+                                               Variant="Variant.Outlined"
+                                               InputMode="InputMode.numeric"
+                                               UserAttributes="@_numericAttrs"
+                                               Style="width:65px" />
                             </td>
                             <td style="text-align:center; padding:0 4px; font-weight:bold">–</td>
                             <td>
-                                <MudNumericField T="int?" @ref="_f2[idx]"
-                                                Value="_score2[idx]"
-                                                ValueChanged="@(v => Score2Changed(idx, v))"
-                                                Min="0" Max="10" Variant="Variant.Outlined"
-                                                Style="width:65px" HideSpinButtons="true" />
+                                <MudTextField T="int?" @ref="_f2[idx]"
+                                               Value="_score2[idx]"
+                                               ValueChanged="@(v => Score2Changed(idx, v))"
+                                               Variant="Variant.Outlined"
+                                               InputMode="InputMode.numeric"
+                                               UserAttributes="@_numericAttrs"
+                                               Style="width:65px" />
                             </td>
                         </tr>
                     }
@@ -92,11 +96,13 @@
     [Parameter] public CompetitionFixture Fixture { get; set; } = default!;
     [Parameter] public bool AdminOverride { get; set; }
 
+    private static readonly Dictionary<string, object> _numericAttrs = new() { { "pattern", "[0-9]*" } };
+
     private int _bestOf = 3;
     private int?[] _score1 = new int?[3];
     private int?[] _score2 = new int?[3];
-    private MudNumericField<int?>[] _f1 = new MudNumericField<int?>[3];
-    private MudNumericField<int?>[] _f2 = new MudNumericField<int?>[3];
+    private MudTextField<int?>[] _f1 = new MudTextField<int?>[3];
+    private MudTextField<int?>[] _f2 = new MudTextField<int?>[3];
     private int? _winnerPlayerId;
     private bool _saving;
     private string? _error;
@@ -120,8 +126,8 @@
             _bestOf  = newBestOf;
             _score1  = new int?[_bestOf];
             _score2  = new int?[_bestOf];
-            _f1      = new MudNumericField<int?>[_bestOf];
-            _f2      = new MudNumericField<int?>[_bestOf];
+            _f1      = new MudTextField<int?>[_bestOf];
+            _f2      = new MudTextField<int?>[_bestOf];
         }
         else
         {
@@ -138,7 +144,7 @@
     private Task Score1Changed(int idx, int? v) => ScoreChanged(idx, v, _score1, _f2, idx);
     private Task Score2Changed(int idx, int? v) => ScoreChanged(idx, v, _score2, _f1, idx + 1);
 
-    private async Task ScoreChanged(int idx, int? v, int?[] scores, MudNumericField<int?>[] nextFields, int nextIdx)
+    private async Task ScoreChanged(int idx, int? v, int?[] scores, MudTextField<int?>[] nextFields, int nextIdx)
     {
         scores[idx] = v;
         AutoDetectWinner();

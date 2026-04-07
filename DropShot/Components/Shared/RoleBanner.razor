@@ -9,7 +9,7 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-@if (_grantedRoles.Count > 0)
+@if (_grantedRoles.Count > 1)
 {
     <div class="role-banner">
         <span>Browsing as: <strong>@_activeRole</strong></span>

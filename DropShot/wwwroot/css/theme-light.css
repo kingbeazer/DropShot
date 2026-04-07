@@ -172,6 +172,26 @@
     color: #212121 !important;
 }
 
+[data-theme="light"] .mud-input-outlined .mud-input-outlined-border {
+    border-color: #bdbdbd !important;
+}
+
+[data-theme="light"] .mud-input-outlined:hover .mud-input-outlined-border {
+    border-color: #424242 !important;
+}
+
+[data-theme="light"] .mud-input-outlined.mud-focused .mud-input-outlined-border {
+    border-color: #1565c0 !important;
+}
+
+[data-theme="light"] .mud-input-label {
+    color: #616161 !important;
+}
+
+[data-theme="light"] .mud-input-label-outlined.mud-input-label-inputcontrol {
+    background-color: #ffffff;
+}
+
 [data-theme="light"] .mud-chip {
     color: #212121 !important;
 }
@@ -227,6 +247,37 @@
 }
 [data-theme="light"] .theme-icon-dark {
     display: inline-block;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+[data-theme="light"] .site-footer {
+    background: #ffffff !important;
+    border-top: 1px solid #e0e0e0;
+    color: #616161 !important;
+}
+
+[data-theme="light"] .footer-heading {
+    color: #424242 !important;
+}
+
+[data-theme="light"] .footer-links a {
+    color: #757575 !important;
+}
+
+[data-theme="light"] .footer-links a:hover {
+    color: #1565c0 !important;
+}
+
+[data-theme="light"] .footer-social .mud-icon-button {
+    color: #757575 !important;
+}
+
+[data-theme="light"] .footer-social .mud-icon-button:hover {
+    color: #1565c0 !important;
+}
+
+[data-theme="light"] .footer-copyright {
+    color: #9e9e9e !important;
 }
 
 /* ── Theme toggle button (light theme) ─────────────────────────────── */

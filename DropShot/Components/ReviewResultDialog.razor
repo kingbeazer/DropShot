@@ -62,15 +62,19 @@
                             <tr>
                                 <td style="color:#888; font-size:0.8rem; padding-right:8px">Set @(idx + 1)</td>
                                 <td>
-                                    <MudNumericField T="int?" @bind-Value="_score1[idx]"
-                                                    Min="0" Max="13" Variant="Variant.Outlined"
-                                                    Style="width:65px" HideSpinButtons="true" />
+                                    <MudTextField T="int?" @bind-Value="_score1[idx]"
+                                                   Variant="Variant.Outlined"
+                                                   InputMode="InputMode.numeric"
+                                                   UserAttributes="@_numericAttrs"
+                                                   Style="width:65px" />
                                 </td>
                                 <td style="text-align:center; padding:0 4px; font-weight:bold">-</td>
                                 <td>
-                                    <MudNumericField T="int?" @bind-Value="_score2[idx]"
-                                                    Min="0" Max="13" Variant="Variant.Outlined"
-                                                    Style="width:65px" HideSpinButtons="true" />
+                                    <MudTextField T="int?" @bind-Value="_score2[idx]"
+                                                   Variant="Variant.Outlined"
+                                                   InputMode="InputMode.numeric"
+                                                   UserAttributes="@_numericAttrs"
+                                                   Style="width:65px" />
                                 </td>
                             </tr>
                         }
@@ -106,6 +110,8 @@
 </MudDialog>
 
 @code {
+    private static readonly Dictionary<string, object> _numericAttrs = new() { { "pattern", "[0-9]*" } };
+
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
     [Parameter] public CompetitionFixture Fixture { get; set; } = default!;

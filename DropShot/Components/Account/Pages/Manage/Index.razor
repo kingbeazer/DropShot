@@ -3,12 +3,15 @@
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using DropShot.Data
+@using DropShot.Models
+@using Microsoft.EntityFrameworkCore
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityUserAccessor UserAccessor
 @inject IdentityRedirectManager RedirectManager
 @inject NavigationManager NavigationManager
+@inject IDbContextFactory<MyDbContext> DbFactory
 
 <PageTitle>Profile</PageTitle>
 
@@ -48,6 +51,14 @@
                 <input type="text" value="@username" class="form-control" placeholder="Please choose your username." disabled />
                 <label for="username" class="form-label">Username</label>
             </div>
+            @if (hasLinkedPlayer)
+            {
+                <div class="form-floating mb-3">
+                    <InputText @bind-Value="Input.DisplayName" class="form-control" placeholder="Please enter your display name." />
+                    <label for="display-name" class="form-label">Display name</label>
+                    <ValidationMessage For="() => Input.DisplayName" class="text-danger" />
+                </div>
+            }
             <div class="form-floating mb-3">
                 <InputText @bind-Value="Input.PhoneNumber" class="form-control" placeholder="Please enter your phone number." />
                 <label for="phone-number" class="form-label">Phone number</label>
@@ -89,6 +100,9 @@
     private ApplicationUser user = default!;
     private string? username;
     private string? phoneNumber;
+    private string? displayName;
+    private bool hasLinkedPlayer;
+    private int? linkedPlayerId;
     private string? avatarError;
 
     [CascadingParameter]
@@ -105,6 +119,16 @@
         username = await UserManager.GetUserNameAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
 
+        await using var db = DbFactory.CreateDbContext();
+        var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == user.Id && !p.IsLight);
+        if (player is not null)
+        {
+            hasLinkedPlayer = true;
+            linkedPlayerId = player.PlayerId;
+            displayName = player.DisplayName;
+            Input.DisplayName ??= displayName;
+        }
+
         Input.PhoneNumber ??= phoneNumber;
 
         // Read avatar upload error from query string if redirected back from endpoint
@@ -115,6 +139,19 @@
 
     private async Task OnValidSubmitAsync()
     {
+        if (hasLinkedPlayer && linkedPlayerId.HasValue
+            && !string.IsNullOrWhiteSpace(Input.DisplayName)
+            && Input.DisplayName.Trim() != displayName)
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var player = await db.Players.FindAsync(linkedPlayerId.Value);
+            if (player is not null)
+            {
+                player.DisplayName = Input.DisplayName.Trim();
+                await db.SaveChangesAsync();
+            }
+        }
+
         if (Input.PhoneNumber != phoneNumber)
         {
             var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
@@ -130,6 +167,10 @@
 
     private sealed class InputModel
     {
+        [StringLength(100, ErrorMessage = "Display name must be 100 characters or less.")]
+        [Display(Name = "Display name")]
+        public string? DisplayName { get; set; }
+
         [Phone]
         [Display(Name = "Phone number")]
         public string? PhoneNumber { get; set; }

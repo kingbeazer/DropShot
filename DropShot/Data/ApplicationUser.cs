@@ -5,6 +5,10 @@ namespace DropShot.Data
     // Add profile data for application users by adding properties to the ApplicationUser class
     public class ApplicationUser : IdentityUser
     {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(50)]
+        public string DisplayName { get; set; } = "";
+
         public bool IsSubscribed { get; set; }
         public string? SubscriptionTier { get; set; }
         public DateTime? SubscriptionStartDate { get; set; }

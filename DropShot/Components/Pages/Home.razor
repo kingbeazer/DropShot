@@ -44,26 +44,6 @@
     </MudAlert>
 }
 
-@if (!_isAuthenticated)
-{
-    <MudCard Class="mb-4">
-        <MudCardContent>
-            <MudGrid>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
-                    <MudText Typo="Typo.body1" Class="mt-2">
-                        Scan the QR code with your phone to log in, or
-                        <MudLink Href="/Account/Login">use email and password</MudLink>.
-                    </MudText>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <QrLoginPanel />
-                </MudItem>
-            </MudGrid>
-        </MudCardContent>
-    </MudCard>
-}
-
 @if (_pendingReviews.Count > 0)
 {
     <MudCard Class="mb-4" Elevation="2">
@@ -139,7 +119,7 @@
     </MudCard>
 }
 
-<MudCarousel Class="mud-width-full" Style="height:400px;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" TData="object">
+<MudCarousel Class="mud-width-full" Style="height:400px; touch-action:pan-y;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" TData="object">
     <MudCarouselItem Transition="transition" Color="@Color.Primary">
         <div class="d-flex" style="height:100%">
             <MudImage Class="mx-auto my-auto" Src="images/Logo.png" Style="height: 300px;"></MudImage>
@@ -207,16 +187,35 @@
     </MudCard>
 }
 
-<MudCard Class="mt-4">
-    <MudCardMedia Image="images/background.png" Height="200" />
+
+<MudCard Class="mt-4 mb-8">
     <MudCardContent>
-        <MudText Typo="Typo.h5">Welcome</MudText>
-        <MudText Typo="Typo.body2">Ipsum loreum</MudText>
+        @if (!_isAuthenticated)
+        {
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
+                        Scan the QR code with your phone to log in, or
+                        <MudLink Href="/Account/Login">use email and password</MudLink>.
+                    </MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
+                        <MudLink Href="/Account/Login">Log in with email and password</MudLink> to get started.
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" md="6" Class="d-none d-md-block">
+                    <QrLoginPanel />
+                </MudItem>
+            </MudGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+            <MudText Typo="Typo.body1" Class="mt-2">
+                Your home for managing competitions, tracking results, and staying on top of your game.
+            </MudText>
+        }
     </MudCardContent>
-    <MudCardActions>
-        <MudButton Variant="Variant.Text" Color="Color.Primary">Share</MudButton>
-        <MudButton Variant="Variant.Text" Color="Color.Primary">Learn more</MudButton>
-    </MudCardActions>
 </MudCard>
 
 @code {
@@ -232,6 +231,7 @@
     private List<CompetitionFixture> _upcomingFixtures = [];
     private List<CompetitionFixture> _pendingReviews = [];
     private bool _showUpgradeBanner;
+    private bool _eligibleForUpgradeBanner;
     private bool _isAuthenticated;
 
     protected override async Task OnInitializedAsync()
@@ -243,10 +243,12 @@
 
         await using var db = DbFactory.CreateDbContext();
 
-        // Check subscription status for promo banner
+        // Check subscription status for promo banner. The banner stays hidden
+        // until OnAfterRenderAsync confirms it wasn't recently dismissed, so we
+        // never flash it on the initial render.
         var appUser = await db.Users.FindAsync(userId);
         if (appUser is not null && !appUser.IsSubscribed)
-            _showUpgradeBanner = true; // will be refined in OnAfterRenderAsync via localStorage
+            _eligibleForUpgradeBanner = true;
 
         // Load pending reviews for admins
         var isAdmin = await AuthzService.IsAdminAsync(authState.User);
@@ -307,18 +309,24 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _showUpgradeBanner)
+        if (firstRender && _eligibleForUpgradeBanner)
         {
-            // Check localStorage for dismiss timestamp; re-show after 7 days
+            // Check localStorage for dismiss timestamp; re-show after 7 days.
+            // We only reveal the banner here (rather than hiding it) so it
+            // never flashes on the initial render.
             var dismissed = await JS.InvokeAsync<string?>("localStorage.getItem", "upgradeBannerDismissed");
+            var recentlyDismissed = false;
             if (!string.IsNullOrEmpty(dismissed) && long.TryParse(dismissed, out var ts))
             {
                 var dismissedAt = DateTimeOffset.FromUnixTimeMilliseconds(ts);
                 if (DateTimeOffset.UtcNow - dismissedAt < TimeSpan.FromDays(7))
-                {
-                    _showUpgradeBanner = false;
-                    StateHasChanged();
-                }
+                    recentlyDismissed = true;
+            }
+
+            if (!recentlyDismissed)
+            {
+                _showUpgradeBanner = true;
+                StateHasChanged();
             }
         }
     }

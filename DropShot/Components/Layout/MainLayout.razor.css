@@ -7,6 +7,13 @@
 
 main {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+main ::deep .content {
+    flex: 1;
+    padding-bottom: 3rem;
 }
 
 .top-navbar {

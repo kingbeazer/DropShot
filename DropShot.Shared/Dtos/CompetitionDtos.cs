@@ -8,11 +8,14 @@ public record CompetitionDto(
     DateTime? StartDate,
     DateTime? EndDate,
     int? MaxAge,
+    int? MinAge,
     PlayerSex? EligibleSex,
     int? HostClubId,
     string? HostClubName,
     int? RulesSetId,
-    string? RulesSetName);
+    string? RulesSetName,
+    int? EventId,
+    string? EventName);
 
 public record CompetitionDetailDto(
     int CompetitionId,
@@ -22,11 +25,14 @@ public record CompetitionDetailDto(
     DateTime? StartDate,
     DateTime? EndDate,
     int? MaxAge,
+    int? MinAge,
     PlayerSex? EligibleSex,
     int? HostClubId,
     string? HostClubName,
     int? RulesSetId,
     string? RulesSetName,
+    int? EventId,
+    string? EventName,
     List<CompetitionStageDto> Stages,
     List<CompetitionParticipantDto> Participants);
 
@@ -87,9 +93,11 @@ public record SaveCompetitionRequest(
     DateTime? StartDate,
     DateTime? EndDate,
     int? MaxAge,
+    int? MinAge,
     PlayerSex? EligibleSex,
     int? HostClubId,
-    int? RulesSetId);
+    int? RulesSetId,
+    int? EventId);
 
 public record AddStageRequest(string Name, int StageOrder, StageType StageType);
 
@@ -114,3 +122,42 @@ public record SaveFixtureRequest(
 public record SaveTeamRequest(string Name);
 
 public record AssignParticipantTeamRequest(int? TeamId);
+
+// ── Event DTOs ──────────────────────────────────────────────────────────────
+
+public record EventDto(
+    int EventId,
+    string Name,
+    string? Description,
+    DateTime? StartDate,
+    DateTime? EndDate,
+    int? HostClubId,
+    string? HostClubName,
+    int CompetitionCount);
+
+public record EventDetailDto(
+    int EventId,
+    string Name,
+    string? Description,
+    DateTime? StartDate,
+    DateTime? EndDate,
+    int? HostClubId,
+    string? HostClubName,
+    List<CompetitionDto> Competitions);
+
+public record SaveEventRequest(
+    string Name,
+    string? Description,
+    DateTime? StartDate,
+    DateTime? EndDate,
+    int? HostClubId);
+
+public record CreateEventCompetitionsRequest(
+    List<EventCompetitionTemplate> Competitions);
+
+public record EventCompetitionTemplate(
+    string CompetitionName,
+    CompetitionFormat CompetitionFormat,
+    PlayerSex? EligibleSex,
+    int? MaxAge,
+    int? MinAge);

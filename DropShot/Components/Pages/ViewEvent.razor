@@ -1,0 +1,136 @@
+@page "/event/{Id:int}/view"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using DropShot.Data
+@using DropShot.Models
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject NavigationManager Nav
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_event == null)
+{
+    <MudAlert Severity="Severity.Error">Event not found.</MudAlert>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudText Typo="Typo.h4" Style="flex:1">@_event.Name</MudText>
+        <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => Nav.NavigateTo("/competitions"))">
+            Back to Competitions
+        </MudButton>
+    </MudStack>
+
+    <MudPaper Class="pa-4 mb-4">
+        <MudGrid Spacing="2">
+            @if (!string.IsNullOrEmpty(_event.Description))
+            {
+                <MudItem xs="12">
+                    <MudText Typo="Typo.body1">@_event.Description</MudText>
+                </MudItem>
+            }
+            @if (_event.StartDate.HasValue || _event.EndDate.HasValue)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Dates</MudText>
+                    <MudText Typo="Typo.body2">
+                        @(_event.StartDate?.ToString("dd MMM yyyy") ?? "?") – @(_event.EndDate?.ToString("dd MMM yyyy") ?? "?")
+                    </MudText>
+                </MudItem>
+            }
+            @if (_event.HostClub != null)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Host Club</MudText>
+                    <MudText Typo="Typo.body2">@_event.HostClub.Name</MudText>
+                </MudItem>
+            }
+        </MudGrid>
+    </MudPaper>
+
+    <MudText Typo="Typo.h6" Class="mb-3">Competitions (@_competitions.Count)</MudText>
+
+    <MudSimpleTable Dense="true" Hover="true" Elevation="1">
+        <thead>
+            <tr>
+                <th>Competition</th>
+                <th>Format</th>
+                <th>Eligibility</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var comp in _competitions)
+            {
+                <tr>
+                    <td>@comp.CompetitionName</td>
+                    <td>@comp.CompetitionFormat</td>
+                    <td>
+                        @{
+                            var parts = new List<string>();
+                            if (comp.EligibleSex.HasValue) parts.Add(comp.EligibleSex.Value.ToString());
+                            if (comp.MinAge.HasValue) parts.Add($"Over {comp.MinAge}");
+                            if (comp.MaxAge.HasValue) parts.Add($"U{comp.MaxAge}");
+                        }
+                        @(parts.Count > 0 ? string.Join(", ", parts) : "Open")
+                    </td>
+                    <td class="d-flex justify-end gap-2">
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                   OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionID}/view"))">
+                            View
+                        </MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionID}"))">
+                            Edit
+                        </MudButton>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+
+    @if (_competitions.Count == 0)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">No competitions in this event yet.</MudText>
+    }
+
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-3"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => Nav.NavigateTo($"/competition/0?eventId={Id}"))">
+        Add Competition
+    </MudButton>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private bool _loading = true;
+    private Event? _event;
+    private List<Competition> _competitions = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        await using var db = DbFactory.CreateDbContext();
+        _event = await db.Events
+            .Include(e => e.HostClub)
+            .FirstOrDefaultAsync(e => e.EventId == Id);
+
+        if (_event != null)
+        {
+            _competitions = await db.Competition
+                .Where(c => c.EventId == Id)
+                .OrderBy(c => c.CompetitionName)
+                .ToListAsync();
+        }
+        _loading = false;
+    }
+}

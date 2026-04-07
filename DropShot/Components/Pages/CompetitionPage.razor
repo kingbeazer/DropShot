@@ -22,7 +22,22 @@
 <MudProviders />
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
-    <MudText Typo="Typo.h5" Style="flex:1">@(IsEdit ? "Edit Competition" : "New Competition")</MudText>
+    @if (_nameOverride)
+    {
+        <MudTextField T="string" @bind-Value="Model.CompetitionName" Variant="Variant.Text"
+                      Typo="Typo.h5" Style="flex:1" Immediate="true" Placeholder="Competition Name"
+                      Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Check"
+                      OnAdornmentClick="@(() => _nameOverride = false)" />
+    }
+    else
+    {
+        <MudText Typo="Typo.h5" Style="flex:1" Color="@(string.IsNullOrWhiteSpace(Model.CompetitionName) ? Color.Secondary : Color.Default)">
+            @(string.IsNullOrWhiteSpace(Model.CompetitionName) ? "New Competition" : Model.CompetitionName)
+        </MudText>
+        <MudTooltip Text="Edit name manually">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => _nameOverride = true)" />
+        </MudTooltip>
+    }
     @if (IsEdit)
     {
         <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
@@ -48,18 +63,30 @@
 
             <MudForm @ref="_form" @bind-IsValid="_isValid" @bind-Errors="_errors">
                 <MudGrid Spacing="2">
-                    <MudItem xs="12" sm="8">
-                        <MudTextField T="string" Label="Competition Name" @bind-Value="Model.CompetitionName"
-                                      For="@(() => Model.CompetitionName)"
-                                      Required="true" RequiredError="Name is required" Immediate="true" />
-                    </MudItem>
                     <MudItem xs="12" sm="4">
-                        <MudSelect @bind-Value="Model.CompetitionFormat" Label="Format" Variant="Variant.Text">
+                        <MudSelect T="CompetitionFormat" Label="Format" Variant="Variant.Text"
+                                   Value="Model.CompetitionFormat"
+                                   ValueChanged="@(v => { Model.CompetitionFormat = v; AutoGenerateName(); })">
                             @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
                             {
                                 <MudSelectItem Value="@f">@f</MudSelectItem>
                             }
                         </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="PlayerSex?" Label="Eligible Sex" Variant="Variant.Text"
+                                   Clearable="true"
+                                   Value="Model.EligibleSex"
+                                   ValueChanged="@(v => { Model.EligibleSex = v; AutoGenerateName(); })">
+                            @foreach (PlayerSex s in Enum.GetValues<PlayerSex>())
+                            {
+                                <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)s)">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants (optional)"
+                                         Min="2" Variant="Variant.Text" />
                     </MudItem>
 
                     <MudItem xs="12" sm="6">
@@ -70,40 +97,62 @@
                     </MudItem>
 
                     <MudItem xs="12" sm="4">
-                        <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants (optional)"
-                                         Min="2" Variant="Variant.Text" />
+                        <MudNumericField T="int?" Label="Min Age (optional)"
+                                         Min="1" Max="120" Variant="Variant.Text"
+                                         Value="Model.MinAge"
+                                         ValueChanged="@(v => { Model.MinAge = v; AutoGenerateName(); })" />
                     </MudItem>
                     <MudItem xs="12" sm="4">
-                        <MudNumericField @bind-Value="Model.MaxAge" Label="Max Age (optional)"
-                                         Min="1" Max="120" Variant="Variant.Text" />
-                    </MudItem>
-                    <MudItem xs="12" sm="4">
-                        <MudSelect @bind-Value="Model.EligibleSex" Label="Eligible Sex" Variant="Variant.Text"
-                                   Clearable="true">
-                            @foreach (PlayerSex s in Enum.GetValues<PlayerSex>())
-                            {
-                                <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)s)">@s</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <MudNumericField T="int?" Label="Max Age (optional)"
+                                         Min="1" Max="120" Variant="Variant.Text"
+                                         Value="Model.MaxAge"
+                                         ValueChanged="@(v => { Model.MaxAge = v; AutoGenerateName(); })" />
                     </MudItem>
 
                     <MudItem xs="12" sm="6">
-                        <MudSelect @bind-Value="Model.HostClubId" Label="Host Club (optional)" Variant="Variant.Text"
-                                   Clearable="true">
-                            @foreach (var c in _clubs)
-                            {
-                                <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                            <MudSelect @bind-Value="Model.HostClubId" Label="Host Club (optional)" Variant="Variant.Text"
+                                       Clearable="true" Style="flex:1">
+                                @foreach (var c in _clubs)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTooltip Text="Add new club">
+                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                               Color="Color.Primary" OnClick="@(() => _showAddClubDialog = true)" />
+                            </MudTooltip>
+                        </MudStack>
                     </MudItem>
                     <MudItem xs="12" sm="6">
-                        <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
-                                   Clearable="true">
-                            @foreach (var r in _rulesSets)
-                            {
-                                <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                            <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
+                                       Clearable="true" Style="flex:1">
+                                @foreach (var r in _rulesSets)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTooltip Text="Add new rules set">
+                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                               Color="Color.Primary" OnClick="@(() => _showAddRulesSetDialog = true)" />
+                            </MudTooltip>
+                        </MudStack>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                            <MudSelect @bind-Value="Model.EventId" Label="Event (optional)" Variant="Variant.Text"
+                                       Clearable="true" Style="flex:1">
+                                @foreach (var e in _events)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)e.EventId)">@e.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTooltip Text="Add new event">
+                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                               Color="Color.Primary" OnClick="@(() => _showAddEventDialog = true)" />
+                            </MudTooltip>
+                        </MudStack>
                     </MudItem>
                     <MudItem xs="12" sm="6">
                         <MudSelect @bind-Value="Model.BestOf" Label="Best Of" Variant="Variant.Text">
@@ -608,6 +657,22 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Stage Follow-Up Dialog ────────────────────────────────── *@
+<MudDialog @bind-Visible="_showStageFollowUpDialog">
+    <TitleContent>Add Follow-On Stages</TitleContent>
+    <DialogContent>
+        <MudText Class="mb-3">@_stageFollowUpMessage</MudText>
+        @foreach (var opt in _stageFollowUpOptions)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2 mb-2"
+                       OnClick="@(() => ApplyStageFollowUp(opt.Stages))">@opt.Label</MudButton>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showStageFollowUpDialog = false)">No Thanks</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @* ── Seed Knockout from Standings Dialog ───────────────────── *@
 <MudDialog @bind-Visible="_showSeedConfirm">
     <TitleContent>Seed Knockout from Standings</TitleContent>
@@ -746,6 +811,54 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Add Club Dialog ───────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddClubDialog">
+    <TitleContent>Add Club</TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_newClubName" Label="Club Name" Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="_newClubTown" Label="Town (optional)" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_newClubPostcode" Label="Postcode (optional)" Variant="Variant.Outlined" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddClubDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_newClubName)" OnClick="SaveNewClub">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Add Rules Set Dialog ─────────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddRulesSetDialog">
+    <TitleContent>Add Rules Set</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newRulesSetName" Label="Rules Set Name" Variant="Variant.Outlined" Required="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddRulesSetDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_newRulesSetName)" OnClick="SaveNewRulesSet">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Add Event Dialog ─────────────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddEventDialog">
+    <TitleContent>Add Event</TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_newEventName" Label="Event Name" Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="_newEventDescription" Label="Description (optional)" Variant="Variant.Outlined" Lines="2" />
+            <MudDatePicker @bind-Date="_newEventStartDate" Label="Start Date (optional)" DateFormat="dd/MM/yyyy" />
+            <MudDatePicker @bind-Date="_newEventEndDate" Label="End Date (optional)" DateFormat="dd/MM/yyyy" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddEventDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_newEventName)" OnClick="SaveNewEvent">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @* ── QR Code Dialog ──────────────────────────────────────── *@
 <MudDialog @bind-Visible="_showQrDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
     <TitleContent>Match QR Code</TitleContent>
@@ -776,6 +889,7 @@
 
 @code {
     [Parameter] public int Id { get; set; }
+    [SupplyParameterFromQuery] public int? EventId { get; set; }
 
     private MudForm? _form;
     private bool _isValid;
@@ -784,11 +898,13 @@
     private string[] _errors = [];
     private string? _serverError;
     private bool IsEdit => Id != 0;
+    private bool _nameOverride;
 
     private CompetitionFormModel Model { get; set; } = new();
 
     private List<Club> _clubs = [];
     private List<RulesSet> _rulesSets = [];
+    private List<Event> _events = [];
     private List<CompetitionStage> _stages = [];
     private List<CompetitionParticipant> _participants = [];
     private List<Player> _allPlayers = [];
@@ -804,6 +920,11 @@
     // Stage dialog
     private bool _showStageDialog;
     private StageForm _stageForm = new();
+
+    // Stage follow-up dialog
+    private bool _showStageFollowUpDialog;
+    private string _stageFollowUpMessage = "";
+    private List<(string Label, List<(string Name, StageType Type)> Stages)> _stageFollowUpOptions = [];
 
     // Schedule confirm dialog
     private bool _showScheduleConfirm;
@@ -849,6 +970,23 @@
     // Schedule options
     private bool _scheduleDeleteExisting;
 
+    // Add Club dialog
+    private bool _showAddClubDialog;
+    private string _newClubName = "";
+    private string _newClubTown = "";
+    private string _newClubPostcode = "";
+
+    // Add Rules Set dialog
+    private bool _showAddRulesSetDialog;
+    private string _newRulesSetName = "";
+
+    // Add Event dialog
+    private bool _showAddEventDialog;
+    private string _newEventName = "";
+    private string _newEventDescription = "";
+    private DateTime? _newEventStartDate;
+    private DateTime? _newEventEndDate;
+
     private sealed class CompetitionFormModel
     {
         [Required(ErrorMessage = "Competition name is required!")]
@@ -859,9 +997,11 @@
         public DateTime? StartDateDt { get; set; }
         public DateTime? EndDateDt { get; set; }
         public int? MaxAge { get; set; }
+        public int? MinAge { get; set; }
         public PlayerSex? EligibleSex { get; set; }
         public int? HostClubId { get; set; }
         public int? RulesSetId { get; set; }
+        public int? EventId { get; set; }
         public int BestOf { get; set; } = 3;
         public bool RequireVerification { get; set; } = false;
     }
@@ -899,6 +1039,7 @@
 
         _clubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
         _rulesSets = await db.RulesSets.OrderBy(r => r.Name).ToListAsync();
+        _events = await db.Events.OrderBy(e => e.Name).ToListAsync();
         _allPlayers = await db.Players.OrderBy(p => p.DisplayName).ToListAsync();
 
         if (IsEdit)
@@ -920,6 +1061,7 @@
             if (comp is null) { _serverError = $"Competition {Id} not found."; return; }
 
             _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, comp.HostClubId, Id);
+            _nameOverride = true; // Existing competition — preserve its name
 
             Model = new CompetitionFormModel
             {
@@ -929,9 +1071,11 @@
                 StartDateDt = comp.StartDate,
                 EndDateDt = comp.EndDate,
                 MaxAge = comp.MaxAge,
+                MinAge = comp.MinAge,
                 EligibleSex = comp.EligibleSex,
                 HostClubId = comp.HostClubId,
                 RulesSetId = comp.RulesSetId,
+                EventId = comp.EventId,
                 BestOf = comp.BestOf,
                 RequireVerification = comp.RequireVerification
             };
@@ -971,7 +1115,7 @@
         {
             // Only Admins can create new competitions
             _canEdit = await AuthzService.IsAdminAsync(authState.User);
-            Model = new CompetitionFormModel();
+            Model = new CompetitionFormModel { EventId = EventId };
             _stages = [];
             _participants = [];
             _fixtures = [];
@@ -1032,6 +1176,86 @@
         finally { _isSaving = false; }
     }
 
+    // ── Add New Entity Helpers ─────────────────────────────────────────────
+
+    private async Task SaveNewClub()
+    {
+        if (string.IsNullOrWhiteSpace(_newClubName)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var club = new Club
+        {
+            Name = _newClubName.Trim(),
+            Town = string.IsNullOrWhiteSpace(_newClubTown) ? null : _newClubTown.Trim(),
+            Postcode = string.IsNullOrWhiteSpace(_newClubPostcode) ? null : _newClubPostcode.Trim()
+        };
+        db.Clubs.Add(club);
+        await db.SaveChangesAsync();
+        _clubs.Add(club);
+        Model.HostClubId = club.ClubId;
+        _showAddClubDialog = false;
+        _newClubName = ""; _newClubTown = ""; _newClubPostcode = "";
+        Snackbar.Add($"Club '{club.Name}' created.", Severity.Success);
+    }
+
+    private async Task SaveNewRulesSet()
+    {
+        if (string.IsNullOrWhiteSpace(_newRulesSetName)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var rs = new RulesSet { Name = _newRulesSetName.Trim() };
+        db.RulesSets.Add(rs);
+        await db.SaveChangesAsync();
+        _rulesSets.Add(rs);
+        Model.RulesSetId = rs.RulesSetId;
+        _showAddRulesSetDialog = false;
+        _newRulesSetName = "";
+        Snackbar.Add($"Rules Set '{rs.Name}' created.", Severity.Success);
+    }
+
+    private async Task SaveNewEvent()
+    {
+        if (string.IsNullOrWhiteSpace(_newEventName)) return;
+        await using var db = DbFactory.CreateDbContext();
+        var ev = new Event
+        {
+            Name = _newEventName.Trim(),
+            Description = string.IsNullOrWhiteSpace(_newEventDescription) ? null : _newEventDescription.Trim(),
+            StartDate = _newEventStartDate,
+            EndDate = _newEventEndDate,
+            HostClubId = Model.HostClubId
+        };
+        db.Events.Add(ev);
+        await db.SaveChangesAsync();
+        _events.Add(ev);
+        Model.EventId = ev.EventId;
+        _showAddEventDialog = false;
+        _newEventName = ""; _newEventDescription = ""; _newEventStartDate = null; _newEventEndDate = null;
+        Snackbar.Add($"Event '{ev.Name}' created.", Severity.Success);
+    }
+
+    private void AutoGenerateName()
+    {
+        if (_nameOverride) return;
+
+        var parts = new List<string>();
+
+        if (Model.EligibleSex == PlayerSex.Male) parts.Add("Men's");
+        else if (Model.EligibleSex == PlayerSex.Female) parts.Add("Women's");
+
+        if (Model.MinAge is > 0) parts.Add($"Over {Model.MinAge}");
+        if (Model.MaxAge is > 0) parts.Add($"U{Model.MaxAge}");
+
+        parts.Add(Model.CompetitionFormat switch
+        {
+            CompetitionFormat.Singles => "Singles",
+            CompetitionFormat.Doubles => "Doubles",
+            CompetitionFormat.MixedDoubles => "Mixed Doubles",
+            CompetitionFormat.Team => "Team",
+            _ => Model.CompetitionFormat.ToString()
+        });
+
+        Model.CompetitionName = string.Join(" ", parts);
+    }
+
     private void ApplyModel(Competition comp, string name)
     {
         comp.CompetitionName = name;
@@ -1040,9 +1264,11 @@
         comp.StartDate = Model.StartDateDt;
         comp.EndDate = Model.EndDateDt;
         comp.MaxAge = Model.MaxAge;
+        comp.MinAge = Model.MinAge;
         comp.EligibleSex = Model.EligibleSex;
         comp.HostClubId = Model.HostClubId;
         comp.RulesSetId = Model.RulesSetId;
+        comp.EventId = Model.EventId;
         comp.BestOf = Model.BestOf;
         comp.RequireVerification = Model.RequireVerification;
     }
@@ -1071,6 +1297,83 @@
         _stages.Add(stage);
         _showStageDialog = false;
         Snackbar.Add("Stage added.", Severity.Success);
+
+        OfferFollowOnStages(stage.StageType, stage.StageOrder);
+    }
+
+    private void OfferFollowOnStages(StageType added, int lastOrder)
+    {
+        var existingTypes = _stages.Select(s => s.StageType).ToHashSet();
+        _stageFollowUpOptions = [];
+
+        if (added == StageType.QuarterFinal)
+        {
+            bool hasSf = existingTypes.Contains(StageType.SemiFinal);
+            bool hasFinal = existingTypes.Contains(StageType.Final);
+            if (!hasSf && !hasFinal)
+            {
+                _stageFollowUpMessage = "Would you like to add the remaining knockout stages?";
+                _stageFollowUpOptions.Add(("Semi-Final + Final", [("Semi-Final", StageType.SemiFinal), ("Final", StageType.Final)]));
+            }
+            else if (!hasSf)
+            {
+                _stageFollowUpMessage = "Would you like to add a Semi-Final stage?";
+                _stageFollowUpOptions.Add(("Semi-Final", [("Semi-Final", StageType.SemiFinal)]));
+            }
+            else if (!hasFinal)
+            {
+                _stageFollowUpMessage = "Would you like to add a Final stage?";
+                _stageFollowUpOptions.Add(("Final", [("Final", StageType.Final)]));
+            }
+        }
+        else if (added == StageType.SemiFinal)
+        {
+            if (!existingTypes.Contains(StageType.Final))
+            {
+                _stageFollowUpMessage = "Would you like to add a Final stage?";
+                _stageFollowUpOptions.Add(("Final", [("Final", StageType.Final)]));
+            }
+        }
+        else if (added == StageType.RoundRobin)
+        {
+            bool hasQf = existingTypes.Contains(StageType.QuarterFinal);
+            bool hasSf = existingTypes.Contains(StageType.SemiFinal);
+            bool hasFinal = existingTypes.Contains(StageType.Final);
+            bool hasKo = existingTypes.Contains(StageType.Knockout);
+
+            if (!hasKo && !hasQf && !hasSf && !hasFinal)
+            {
+                _stageFollowUpMessage = "Would you like to add knockout stages?";
+                _stageFollowUpOptions.Add(("QF + SF + Final", [("Quarter-Final", StageType.QuarterFinal), ("Semi-Final", StageType.SemiFinal), ("Final", StageType.Final)]));
+                _stageFollowUpOptions.Add(("SF + Final", [("Semi-Final", StageType.SemiFinal), ("Final", StageType.Final)]));
+                _stageFollowUpOptions.Add(("Final Only", [("Final", StageType.Final)]));
+            }
+        }
+
+        if (_stageFollowUpOptions.Count > 0)
+            _showStageFollowUpDialog = true;
+    }
+
+    private async Task ApplyStageFollowUp(List<(string Name, StageType Type)> stages)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        int order = _stages.Max(s => s.StageOrder);
+        foreach (var (name, type) in stages)
+        {
+            order++;
+            var stage = new CompetitionStage
+            {
+                CompetitionId = Id,
+                Name = name,
+                StageOrder = order,
+                StageType = type
+            };
+            db.CompetitionStages.Add(stage);
+            await db.SaveChangesAsync();
+            _stages.Add(stage);
+        }
+        _showStageFollowUpDialog = false;
+        Snackbar.Add($"{stages.Count} stage(s) added.", Severity.Success);
     }
 
     private async Task DeleteStage(CompetitionStage stage)

@@ -37,6 +37,36 @@ public class ApiService(HttpClient http)
         r.EnsureSuccessStatusCode();
     }
 
+    // ── Events ────────────────────────────────────────────────────────────────
+
+    public async Task<List<EventDto>> GetEventsAsync() =>
+        await http.GetFromJsonAsync<List<EventDto>>("api/events") ?? [];
+
+    public Task<EventDetailDto?> GetEventAsync(int id) =>
+        http.GetFromJsonAsync<EventDetailDto>($"api/events/{id}");
+
+    public async Task<EventDto?> SaveEventAsync(int id, SaveEventRequest req)
+    {
+        HttpResponseMessage r = id == 0
+            ? await http.PostAsJsonAsync("api/events", req)
+            : await http.PutAsJsonAsync($"api/events/{id}", req);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<EventDto>();
+    }
+
+    public async Task DeleteEventAsync(int id)
+    {
+        var r = await http.DeleteAsync($"api/events/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<CompetitionDto>> BulkCreateEventCompetitionsAsync(int eventId, CreateEventCompetitionsRequest req)
+    {
+        var r = await http.PostAsJsonAsync($"api/events/{eventId}/competitions", req);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<List<CompetitionDto>>() ?? [];
+    }
+
     // ── Competitions ─────────────────────────────────────────────────────────
 
     public async Task<List<CompetitionDto>> GetCompetitionsAsync() =>
