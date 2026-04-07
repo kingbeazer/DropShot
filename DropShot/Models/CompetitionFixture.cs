@@ -32,12 +32,6 @@ public class CompetitionFixture
     public int? WinnerPlayerId { get; set; }
     public Guid? VerificationToken { get; set; }
 
-    // Team match fields (MixedTeam format)
-    public int? HomeTeamId { get; set; }
-    public int? AwayTeamId { get; set; }
-    public int? WinnerTeamId { get; set; }
-    public int? CourtPairId { get; set; }
-
     // Audit trail for admin-modified results
     public string? OriginalResultSummary { get; set; }
     public int? OriginalWinnerPlayerId { get; set; }
@@ -51,9 +45,4 @@ public class CompetitionFixture
     public Player? Player3 { get; set; }
     public Player? Player4 { get; set; }
     public SavedMatch? SavedMatch { get; set; }
-    public CompetitionTeam? HomeTeam { get; set; }
-    public CompetitionTeam? AwayTeam { get; set; }
-    public CompetitionTeam? WinnerTeam { get; set; }
-    public CourtPair? CourtPair { get; set; }
-    public ICollection<TeamMatchSet> TeamMatchSets { get; set; } = [];
 }
