@@ -67,7 +67,7 @@ namespace DropShot.Migrations
                 column: "ClubId",
                 principalTable: "Clubs",
                 principalColumn: "ClubId",
-                onDelete: ReferentialAction.Cascade);
+                onDelete: ReferentialAction.Restrict);
         }
 
         /// <inheritdoc />
