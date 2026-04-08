@@ -26,7 +26,7 @@ namespace DropShot.Migrations
                 FROM RulesSets rs
                 CROSS APPLY (
                     SELECT TOP 1 c.HostClubId AS ClubId
-                    FROM Competitions c
+                    FROM Competition c
                     WHERE c.RulesSetId = rs.RulesSetId
                       AND c.HostClubId IS NOT NULL
                     GROUP BY c.HostClubId
