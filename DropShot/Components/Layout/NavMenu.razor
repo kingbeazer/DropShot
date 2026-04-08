@@ -24,7 +24,7 @@
                 </NavLink>
             </div>
 
-            <AuthorizeView>
+            <AuthorizeView Roles="User">
                 <div class="nav-item">
                     <NavLink class="nav-link" href="match">
                         <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="nav-icon" /> <span class="nav-label">Match</span>
@@ -35,19 +35,24 @@
             <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
                 <div class="nav-item nav-dropdown">
                     <button class="nav-link nav-dropdown-trigger" onclick="event.stopPropagation()">
-                        <MudIcon Icon="@Icons.Material.Filled.Leaderboard" Class="nav-icon" />
-                        <span class="nav-label">Scoreboard</span>
+                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Class="nav-icon" />
+                        <span class="nav-label">Admin</span>
                         <span class="nav-expand-icon">
                             <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
                         </span>
                     </button>
                     <div class="nav-dropdown-menu">
                         <NavLink class="nav-link" href="score">
-                            <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" /> View
+                            <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" /> Scoreboard View
                         </NavLink>
                         <NavLink class="nav-link" href="score/display-control">
                             <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" /> Display Control
                         </NavLink>
+                        <AuthorizeView Roles="Admin,SuperAdmin" Context="adminCtx">
+                            <NavLink class="nav-link" href="admin/users">
+                                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" /> Users
+                            </NavLink>
+                        </AuthorizeView>
                     </div>
                 </div>
             </AuthorizeView>
@@ -64,17 +69,13 @@
                 </NavLink>
             </div>
 
-            <div class="nav-item">
-                <NavLink class="nav-link" href="clubs">
-                    <MudIcon Icon="@Icons.Material.Filled.Business" Class="nav-icon" /> <span class="nav-label">Clubs</span>
-                </NavLink>
-            </div>
-
-            <div class="nav-item">
-                <NavLink class="nav-link" href="rules">
-                    <MudIcon Icon="@Icons.Material.Filled.Gavel" Class="nav-icon" /> <span class="nav-label">Rules</span>
-                </NavLink>
-            </div>
+            <AuthorizeView Roles="Admin,SuperAdmin">
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="clubs">
+                        <MudIcon Icon="@Icons.Material.Filled.Business" Class="nav-icon" /> <span class="nav-label">Clubs</span>
+                    </NavLink>
+                </div>
+            </AuthorizeView>
         </nav>
 
         <div class="nav-utils">
@@ -89,14 +90,6 @@
                     <span class="theme-toggle-label">Light Mode</span>
                 </button>
             </div>
-
-            <AuthorizeView Roles="Admin,SuperAdmin">
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="admin/users">
-                        <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" /> <span class="nav-label">Users</span>
-                    </NavLink>
-                </div>
-            </AuthorizeView>
 
             <AuthorizeView>
                 <Authorized>

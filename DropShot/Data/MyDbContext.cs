@@ -106,6 +106,11 @@ namespace DropShot.Data
             builder.Entity<RulesSet>(entity =>
             {
                 entity.Property(r => r.Name).HasMaxLength(200).IsRequired();
+
+                entity.HasOne(r => r.Club)
+                      .WithMany(c => c.RulesSets)
+                      .HasForeignKey(r => r.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<RulesSetItem>(entity =>
