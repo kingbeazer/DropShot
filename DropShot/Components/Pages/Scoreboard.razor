@@ -23,20 +23,26 @@
     @if (!_isFullscreen)
     {
         <div class="scoreboard-toolbar">
-            <MudSelect T="int?" Value="_selectedCourtId" ValueChanged="OnCourtChanged" Label="Select Court"
-                       Variant="Variant.Outlined" Style="max-width: min(300px, 45vw);" Clearable="true">
-                @foreach (var court in _allCourts)
-                {
-                    <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
-                }
-            </MudSelect>
-            <MudSelect T="string" Value="_selectedLayout" ValueChanged="OnLayoutChanged" Label="Layout"
-                       Variant="Variant.Outlined" Style="max-width: min(180px, 30vw);">
-                <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
-                <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
-            </MudSelect>
-            <MudIconButton Icon="@Icons.Material.Filled.Fullscreen" aria-label="Enter fullscreen"
-                           OnClick="EnterFullscreenAsync" Size="Size.Large" />
+            <div class="toolbar-court">
+                <MudSelect T="int?" Value="_selectedCourtId" ValueChanged="OnCourtChanged" Label="Select Court"
+                           Variant="Variant.Outlined" Style="max-width: min(300px, 45vw);" Clearable="true">
+                    @foreach (var court in _allCourts)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+            <div class="toolbar-layout">
+                <MudSelect T="string" Value="_selectedLayout" ValueChanged="OnLayoutChanged" Label="Layout"
+                           Variant="Variant.Outlined" Style="max-width: min(180px, 30vw);">
+                    <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
+                    <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
+                </MudSelect>
+            </div>
+            <div class="toolbar-fullscreen">
+                <MudIconButton Icon="@Icons.Material.Filled.Fullscreen" aria-label="Enter fullscreen"
+                               OnClick="EnterFullscreenAsync" Size="Size.Large" />
+            </div>
         </div>
     }
     else
