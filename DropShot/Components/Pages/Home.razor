@@ -119,23 +119,73 @@
     </MudCard>
 }
 
-<MudCarousel Class="mud-width-full" Style="height:400px; touch-action:pan-y;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" TData="object">
+<MudCarousel Class="mud-width-full" Style="height:400px; touch-action:pan-y;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" AutoCycleTime="@autocycleTime" TData="object">
     <MudCarouselItem Transition="transition" Color="@Color.Primary">
         <div class="d-flex" style="height:100%">
             <MudImage Class="mx-auto my-auto" Src="images/Logo.png" Style="height: 300px;"></MudImage>
         </div>
     </MudCarouselItem>
-    <MudCarouselItem Transition="transition" Color="@Color.Secondary">
-        <div class="d-flex" style="height:100%">
-            <MudImage Class="mx-auto my-auto" Src="images/Logo.png" Style="height: 300px;"></MudImage>
+    <MudCarouselItem Transition="transition">
+        <div class="d-flex align-center justify-center" style="height:100%; background: linear-gradient(135deg, #0f4c3a 0%, #1b8759 55%, #ffd54f 100%); color:#fff; padding: 24px; text-align:center;">
+            <div>
+                <MudText Typo="Typo.overline" Style="letter-spacing:3px; opacity:0.85;">DROPSHOT SUMMER SLAM</MudText>
+                <MudText Typo="Typo.h3" Style="font-weight:800; margin-top:8px;">Enter the Clay Court Classic</MudText>
+                <MudText Typo="Typo.h6" Style="font-weight:400; margin-top:8px; max-width:640px;">
+                    Singles &amp; doubles brackets · Prize pool £1,500 · Registration closes 14 June
+                </MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.EmojiEvents"
+                           Href="/competitions" Class="mt-4">
+                    Sign Up Now
+                </MudButton>
+            </div>
         </div>
     </MudCarouselItem>
     <MudCarouselItem Transition="transition">
-        <div class="d-flex" style="height:100%">
-            <MudImage Class="mx-auto my-auto" Src="images/Logo.png" Style="height: 300px;"></MudImage>
+        <div class="d-flex align-center justify-center" style="height:100%; background: linear-gradient(135deg, #1a237e 0%, #3949ab 50%, #c5cae9 100%); color:#fff; padding: 24px; text-align:center;">
+            <div>
+                <MudText Typo="Typo.overline" Style="letter-spacing:3px; opacity:0.85;">RIVERSIDE LAWN TENNIS CLUB</MudText>
+                <MudText Typo="Typo.h3" Style="font-weight:800; margin-top:8px;">Your Game. Your Club. Year Round.</MudText>
+                <MudText Typo="Typo.h6" Style="font-weight:400; margin-top:8px; max-width:640px;">
+                    12 floodlit courts · Coaching for all ages · Social mixers every Friday
+                </MudText>
+                <MudText Typo="Typo.body2" Class="mt-2" Style="opacity:0.9;">
+                    New member offer — first month free. Visit riverside-ltc.example
+                </MudText>
+            </div>
         </div>
     </MudCarouselItem>
 </MudCarousel>
+
+<MudCard Class="mt-4 mb-8">
+    <MudCardContent>
+        @if (!_isAuthenticated)
+        {
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
+                        Scan the QR code with your phone to log in, or
+                        <MudLink Href="/Account/Login">use email and password</MudLink>.
+                    </MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
+                        <MudLink Href="/Account/Login">Log in with email and password</MudLink> to get started.
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" md="6" Class="d-none d-md-block">
+                    <QrLoginPanel />
+                </MudItem>
+            </MudGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+            <MudText Typo="Typo.body1" Class="mt-2">
+                Your home for managing competitions, tracking results, and staying on top of your game.
+            </MudText>
+        }
+    </MudCardContent>
+</MudCard>
 
 @if (_upcomingFixtures.Any())
 {
@@ -187,42 +237,12 @@
     </MudCard>
 }
 
-
-<MudCard Class="mt-4 mb-8">
-    <MudCardContent>
-        @if (!_isAuthenticated)
-        {
-            <MudGrid>
-                <MudItem xs="12" md="6">
-                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
-                    <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
-                        Scan the QR code with your phone to log in, or
-                        <MudLink Href="/Account/Login">use email and password</MudLink>.
-                    </MudText>
-                    <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
-                        <MudLink Href="/Account/Login">Log in with email and password</MudLink> to get started.
-                    </MudText>
-                </MudItem>
-                <MudItem xs="12" md="6" Class="d-none d-md-block">
-                    <QrLoginPanel />
-                </MudItem>
-            </MudGrid>
-        }
-        else
-        {
-            <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
-            <MudText Typo="Typo.body1" Class="mt-2">
-                Your home for managing competitions, tracking results, and staying on top of your game.
-            </MudText>
-        }
-    </MudCardContent>
-</MudCard>
-
 @code {
     private bool arrows = true;
     private bool bullets = true;
     private bool enableSwipeGesture = true;
     private bool autocycle = true;
+    private TimeSpan autocycleTime = TimeSpan.FromSeconds(10);
     private Transition transition = Transition.Slide;
 
     [SupplyParameterFromQuery]
@@ -231,6 +251,7 @@
     private List<CompetitionFixture> _upcomingFixtures = [];
     private List<CompetitionFixture> _pendingReviews = [];
     private bool _showUpgradeBanner;
+    private bool _eligibleForUpgradeBanner;
     private bool _isAuthenticated;
 
     protected override async Task OnInitializedAsync()
@@ -242,10 +263,12 @@
 
         await using var db = DbFactory.CreateDbContext();
 
-        // Check subscription status for promo banner
+        // Check subscription status for promo banner. The banner stays hidden
+        // until OnAfterRenderAsync confirms it wasn't recently dismissed, so we
+        // never flash it on the initial render.
         var appUser = await db.Users.FindAsync(userId);
         if (appUser is not null && !appUser.IsSubscribed)
-            _showUpgradeBanner = true; // will be refined in OnAfterRenderAsync via localStorage
+            _eligibleForUpgradeBanner = true;
 
         // Load pending reviews for admins
         var isAdmin = await AuthzService.IsAdminAsync(authState.User);
@@ -306,18 +329,24 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _showUpgradeBanner)
+        if (firstRender && _eligibleForUpgradeBanner)
         {
-            // Check localStorage for dismiss timestamp; re-show after 7 days
+            // Check localStorage for dismiss timestamp; re-show after 7 days.
+            // We only reveal the banner here (rather than hiding it) so it
+            // never flashes on the initial render.
             var dismissed = await JS.InvokeAsync<string?>("localStorage.getItem", "upgradeBannerDismissed");
+            var recentlyDismissed = false;
             if (!string.IsNullOrEmpty(dismissed) && long.TryParse(dismissed, out var ts))
             {
                 var dismissedAt = DateTimeOffset.FromUnixTimeMilliseconds(ts);
                 if (DateTimeOffset.UtcNow - dismissedAt < TimeSpan.FromDays(7))
-                {
-                    _showUpgradeBanner = false;
-                    StateHasChanged();
-                }
+                    recentlyDismissed = true;
+            }
+
+            if (!recentlyDismissed)
+            {
+                _showUpgradeBanner = true;
+                StateHasChanged();
             }
         }
     }

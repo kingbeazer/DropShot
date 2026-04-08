@@ -74,7 +74,7 @@ else
             @foreach (var ev in _events)
             {
                 <MudExpansionPanels Class="mb-2" Elevation="1">
-                    <MudExpansionPanel IsInitiallyExpanded="true">
+                    <MudExpansionPanel Expanded="true">
                         <TitleContent>
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                                 <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" Size="Size.Small" />
@@ -116,7 +116,7 @@ else
             @if (ungrouped.Any())
             {
                 <MudExpansionPanels Class="mb-2" Elevation="1">
-                    <MudExpansionPanel IsInitiallyExpanded="true">
+                    <MudExpansionPanel Expanded="true">
                         <TitleContent>
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                                 <MudIcon Icon="@Icons.Material.Filled.Inbox" Color="Color.Default" Size="Size.Small" />

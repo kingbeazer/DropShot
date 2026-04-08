@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using DropShot.Data
 @using DropShot.Models
@@ -18,7 +19,86 @@
 
 <MudProviders />
 
-@if (_pendingFixtures.Count > 0)
+@if (_isUserView)
+{
+    @if (_userPlayer == null)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            You need a player profile before you can view or enter competitions.
+            Head to <MudLink Href="/players/mine">My Players</MudLink> to create one.
+        </MudAlert>
+    }
+    else
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">My Competitions</MudText>
+        @if (_myEnteredComps.Count == 0)
+        {
+            <MudText Class="mb-4" Color="Color.Secondary">You haven't entered any competitions yet.</MudText>
+        }
+        else
+        {
+            <MudTable Items="@_myEnteredComps" Hover="true" Dense="true" Class="mb-6">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Format</MudTh>
+                    <MudTh>Host Club</MudTh>
+                    <MudTh>Dates</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">@context.CompetitionName</MudTd>
+                    <MudTd DataLabel="Format">@context.CompetitionFormat</MudTd>
+                    <MudTd DataLabel="Host Club">@(context.HostClub?.Name ?? "—")</MudTd>
+                    <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
+                    <MudTd>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                   OnClick="@(() => Nav.NavigateTo($"/competition/{context.CompetitionID}/view"))">
+                            View
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+
+        <MudText Typo="Typo.h5" Class="mb-3">Available to Enter</MudText>
+        @if (_availableComps.Count == 0)
+        {
+            <MudText Color="Color.Secondary">No competitions currently match your eligibility.</MudText>
+        }
+        else
+        {
+            <MudTable Items="@_availableComps" Hover="true" Dense="true">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Format</MudTh>
+                    <MudTh>Host Club</MudTh>
+                    <MudTh>Dates</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">@context.CompetitionName</MudTd>
+                    <MudTd DataLabel="Format">@context.CompetitionFormat</MudTd>
+                    <MudTd DataLabel="Host Club">@(context.HostClub?.Name ?? "—")</MudTd>
+                    <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
+                    <MudTd>
+                        <MudStack Row="true" Spacing="1">
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                       OnClick="@(() => Nav.NavigateTo($"/competition/{context.CompetitionID}/view"))">
+                                View
+                            </MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="@(() => EnterCompetitionAsync(context))">
+                                Enter
+                            </MudButton>
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    }
+}
+
+@if (!_isUserView && _pendingFixtures.Count > 0)
 {
     <MudCard Class="mb-4" Elevation="2">
         <MudCardHeader>
@@ -93,6 +173,8 @@
     </MudCard>
 }
 
+@if (!_isUserView)
+{
 <MudTextField @bind-Value="_searchText" Placeholder="Search competitions..."
               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
               Immediate="true" Class="mb-4" />
@@ -141,7 +223,7 @@
         @foreach (var ev in _events)
         {
             <MudExpansionPanels Class="mb-2" Elevation="1">
-                <MudExpansionPanel @bind-IsExpanded="ev.IsExpanded">
+                <MudExpansionPanel @bind-Expanded="ev.IsExpanded">
                     <TitleContent>
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                             <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" />
@@ -156,12 +238,13 @@
                                 @ev.Competitions.Count competition(s)
                             </MudChip>
                             <MudSpacer />
-                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
-                                       StartIcon="@Icons.Material.Filled.Visibility"
-                                       OnClick="@(() => Nav.NavigateTo($"/event/{ev.Event.EventId}/view"))"
-                                       OnClick:stopPropagation="true">
-                                View Event
-                            </MudButton>
+                            <div @onclick:stopPropagation="true">
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
+                                           StartIcon="@Icons.Material.Filled.Visibility"
+                                           OnClick="@(() => Nav.NavigateTo($"/event/{ev.Event.EventId}/view"))">
+                                    View Event
+                                </MudButton>
+                            </div>
                         </MudStack>
                     </TitleContent>
                     <ChildContent>
@@ -198,7 +281,7 @@
         @if (_ungroupedCompetitions.Count > 0)
         {
             <MudExpansionPanels Class="mb-2" Elevation="1">
-                <MudExpansionPanel IsInitiallyExpanded="true">
+                <MudExpansionPanel Expanded="true">
                     <TitleContent>
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                             <MudIcon Icon="@Icons.Material.Filled.Inbox" Color="Color.Default" />
@@ -255,6 +338,7 @@
         </MudButton>
     </MudStack>
 }
+}
 
 @code {
     private List<Competition> _competitions = [];
@@ -266,6 +350,12 @@
     private List<CompetitionFixture> _pendingFixtures = [];
     private HashSet<int> _editableClubIds = [];
     private HashSet<int> _competitionAdminIds = [];
+
+    // Standard-user view
+    private bool _isUserView;
+    private Player? _userPlayer;
+    private List<Competition> _myEnteredComps = [];
+    private List<Competition> _availableComps = [];
 
     private record EventGroup(Event Event, List<Competition> Competitions)
     {
@@ -284,9 +374,27 @@
         _editableClubIds = [.. await AuthzService.GetAdminClubIdsAsync(authState.User)];
         _competitionAdminIds = await AuthzService.GetEditableCompetitionIdsAsync(authState.User);
 
+        _isUserView = !_isAdmin && _editableClubIds.Count == 0 && _competitionAdminIds.Count == 0;
+
+        if (_isUserView)
+        {
+            var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            await LoadUserViewAsync(userId);
+            return;
+        }
+
         await using var dbc = DbFactory.CreateDbContext();
-        _competitions = await dbc.Competition
-            .Include(c => c.Event)
+
+        var compQuery = dbc.Competition.Include(c => c.Event).AsQueryable();
+        if (!_isAdmin)
+        {
+            // ClubAdmin / CompetitionAdmin: scope to their clubs/competitions
+            compQuery = compQuery.Where(c =>
+                (c.HostClubId.HasValue && _editableClubIds.Contains(c.HostClubId.Value)) ||
+                _competitionAdminIds.Contains(c.CompetitionID));
+        }
+
+        _competitions = await compQuery
             .Select(c => new Competition
             {
                 CompetitionID = c.CompetitionID,
@@ -299,10 +407,17 @@
             .ToListAsync();
 
         // Build event groups
-        var events = await dbc.Events
-            .Include(e => e.HostClub)
-            .OrderBy(e => e.Name)
-            .ToListAsync();
+        var eventsQuery = dbc.Events.Include(e => e.HostClub).AsQueryable();
+        if (!_isAdmin)
+        {
+            var visibleEventIds = _competitions
+                .Where(c => c.EventId.HasValue)
+                .Select(c => c.EventId!.Value)
+                .Distinct()
+                .ToList();
+            eventsQuery = eventsQuery.Where(e => visibleEventIds.Contains(e.EventId));
+        }
+        var events = await eventsQuery.OrderBy(e => e.Name).ToListAsync();
 
         var compsByEvent = _competitions
             .Where(c => c.EventId.HasValue)
@@ -315,22 +430,130 @@
         _ungroupedCompetitions = _competitions.Where(c => !c.EventId.HasValue).ToList();
 
         // Load pending verifications for admins / club admins / competition admins
-        if (_isAdmin || _editableClubIds.Count > 0 || _competitionAdminIds.Count > 0)
+        _pendingFixtures = await dbc.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Where(f => f.Status == FixtureStatus.AwaitingVerification
+                && (_isAdmin
+                    || (f.Competition.HostClubId.HasValue && _editableClubIds.Contains(f.Competition.HostClubId.Value))
+                    || _competitionAdminIds.Contains(f.CompetitionId)))
+            .OrderBy(f => f.Competition.CompetitionName)
+            .ThenBy(f => f.ScheduledAt)
+            .ToListAsync();
+    }
+
+    private async Task LoadUserViewAsync(string? userId)
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+
+        await using var dbc = DbFactory.CreateDbContext();
+        _userPlayer = await dbc.Players.FirstOrDefaultAsync(p => p.UserId == userId && !p.IsLight);
+        if (_userPlayer == null) return;
+
+        var enteredIds = await dbc.CompetitionParticipants
+            .Where(cp => cp.PlayerId == _userPlayer.PlayerId)
+            .Select(cp => cp.CompetitionId)
+            .ToListAsync();
+
+        _myEnteredComps = await dbc.Competition
+            .Include(c => c.HostClub)
+            .Include(c => c.Event)
+            .Where(c => enteredIds.Contains(c.CompetitionID))
+            .OrderBy(c => c.StartDate)
+            .ThenBy(c => c.CompetitionName)
+            .ToListAsync();
+
+        var candidates = await dbc.Competition
+            .Include(c => c.HostClub)
+            .Include(c => c.Event)
+            .Where(c => !enteredIds.Contains(c.CompetitionID))
+            .OrderBy(c => c.StartDate)
+            .ThenBy(c => c.CompetitionName)
+            .ToListAsync();
+
+        _availableComps = candidates.Where(c => IsEligible(c, _userPlayer)).ToList();
+    }
+
+    private static bool IsEligible(Competition c, Player p)
+    {
+        // Sex: null means open to all
+        if (c.EligibleSex.HasValue && c.EligibleSex != p.Sex) return false;
+
+        // Age: only enforce if competition specifies a bound
+        if (c.MinAge.HasValue || c.MaxAge.HasValue)
         {
-            _pendingFixtures = await dbc.CompetitionFixtures
-                .Include(f => f.Competition)
-                .Include(f => f.Player1)
-                .Include(f => f.Player2)
-                .Include(f => f.Player3)
-                .Include(f => f.Player4)
-                .Where(f => f.Status == FixtureStatus.AwaitingVerification
-                    && (_isAdmin
-                        || (f.Competition.HostClubId.HasValue && _editableClubIds.Contains(f.Competition.HostClubId.Value))
-                        || _competitionAdminIds.Contains(f.CompetitionId)))
-                .OrderBy(f => f.Competition.CompetitionName)
-                .ThenBy(f => f.ScheduledAt)
-                .ToListAsync();
+            if (p.DateOfBirth == null) return false;
+            var refDate = c.StartDate ?? DateTime.UtcNow;
+            int age = AgeOn(DateOnly.FromDateTime(refDate), p.DateOfBirth.Value);
+            if (c.MinAge.HasValue && age < c.MinAge.Value) return false;
+            if (c.MaxAge.HasValue && age > c.MaxAge.Value) return false;
         }
+
+        return true;
+    }
+
+    private static int AgeOn(DateOnly on, DateOnly dob)
+    {
+        int age = on.Year - dob.Year;
+        if (dob > on.AddYears(-age)) age--;
+        return age;
+    }
+
+    private static string FormatDates(Competition c)
+    {
+        if (c.StartDate == null && c.EndDate == null) return "—";
+        var start = c.StartDate?.ToString("dd MMM yyyy") ?? "?";
+        var end = c.EndDate?.ToString("dd MMM yyyy") ?? "?";
+        return c.StartDate == c.EndDate ? start : $"{start} – {end}";
+    }
+
+    private async Task EnterCompetitionAsync(Competition comp)
+    {
+        if (_userPlayer == null) return;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        // Basic capacity guard (mirrors CompetitionsController.AddParticipant)
+        if (comp.MaxParticipants.HasValue)
+        {
+            var currentCount = await db.CompetitionParticipants
+                .CountAsync(cp => cp.CompetitionId == comp.CompetitionID);
+            if (currentCount >= comp.MaxParticipants.Value)
+            {
+                Snackbar.Add("This competition is full.", Severity.Warning);
+                return;
+            }
+        }
+
+        var alreadyEntered = await db.CompetitionParticipants
+            .AnyAsync(cp => cp.CompetitionId == comp.CompetitionID && cp.PlayerId == _userPlayer.PlayerId);
+        if (alreadyEntered)
+        {
+            Snackbar.Add("You're already entered in this competition.", Severity.Info);
+            return;
+        }
+
+        db.CompetitionParticipants.Add(new CompetitionParticipant
+        {
+            CompetitionId = comp.CompetitionID,
+            PlayerId = _userPlayer.PlayerId,
+            RegisteredAt = DateTime.UtcNow,
+            Status = ParticipantStatus.Registered
+        });
+        await db.SaveChangesAsync();
+
+        Snackbar.Add($"Entered '{comp.CompetitionName}'.", Severity.Success);
+
+        // Move the row from available to entered.
+        _availableComps.Remove(_availableComps.First(c => c.CompetitionID == comp.CompetitionID));
+        _myEnteredComps.Add(comp);
+        _myEnteredComps = _myEnteredComps
+            .OrderBy(c => c.StartDate)
+            .ThenBy(c => c.CompetitionName)
+            .ToList();
     }
 
     private bool CanEdit(Competition c) =>

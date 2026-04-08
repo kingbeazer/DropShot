@@ -403,7 +403,7 @@
                 _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
             StopTimer();
             StartMatchEndCountdown();
-            SaveHistory();
+            await SaveHistory();
         }
     }
 
@@ -444,8 +444,8 @@
     {
         _value = result.Player1;
         _value2 = result.Player2;
-        _value3 = result.Player3;
-        _value4 = result.Player4;
+        _value3 = result.Player3 ?? string.Empty;
+        _value4 = result.Player4 ?? string.Empty;
         Label_Switch1 = result.IsDoubles;
         _selectedCourtId = result.CourtId;
 
@@ -1073,7 +1073,7 @@
             _state.IsMatchEnded = false;
             _state.IsTieBreak = false;
             _state.DeuceCount = 0;
-            SaveHistory();
+            await SaveHistory();
         }
     }
 

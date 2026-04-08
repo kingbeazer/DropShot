@@ -111,7 +111,9 @@
 
                     <MudItem xs="12" sm="6">
                         <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
-                            <MudSelect @bind-Value="Model.HostClubId" Label="Host Club (optional)" Variant="Variant.Text"
+                            <MudSelect T="int?" Value="Model.HostClubId"
+                                       ValueChanged="OnHostClubChanged"
+                                       Label="Host Club (optional)" Variant="Variant.Text"
                                        Clearable="true" Style="flex:1">
                                 @foreach (var c in _clubs)
                                 {
@@ -127,15 +129,18 @@
                     <MudItem xs="12" sm="6">
                         <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
                             <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
-                                       Clearable="true" Style="flex:1">
-                                @foreach (var r in _rulesSets)
+                                       Clearable="true" Style="flex:1"
+                                       Disabled="@(Model.HostClubId == null)">
+                                @foreach (var r in _rulesSets.Where(r => r.ClubId == Model.HostClubId))
                                 {
                                     <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
                                 }
                             </MudSelect>
-                            <MudTooltip Text="Add new rules set">
+                            <MudTooltip Text="@(Model.HostClubId == null ? "Select a host club first" : "Add new rules set")">
                                 <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
-                                               Color="Color.Primary" OnClick="@(() => _showAddRulesSetDialog = true)" />
+                                               Color="Color.Primary"
+                                               Disabled="@(Model.HostClubId == null)"
+                                               OnClick="@(() => _showAddRulesSetDialog = true)" />
                             </MudTooltip>
                         </MudStack>
                     </MudItem>
@@ -1197,11 +1202,31 @@
         Snackbar.Add($"Club '{club.Name}' created.", Severity.Success);
     }
 
+    private void OnHostClubChanged(int? clubId)
+    {
+        Model.HostClubId = clubId;
+        // If the currently-selected rules set belongs to a different club, clear it.
+        if (Model.RulesSetId is int rsId &&
+            _rulesSets.FirstOrDefault(r => r.RulesSetId == rsId)?.ClubId != clubId)
+        {
+            Model.RulesSetId = null;
+        }
+    }
+
     private async Task SaveNewRulesSet()
     {
         if (string.IsNullOrWhiteSpace(_newRulesSetName)) return;
+        if (Model.HostClubId == null)
+        {
+            Snackbar.Add("Select a host club before adding a rules set.", Severity.Warning);
+            return;
+        }
         await using var db = DbFactory.CreateDbContext();
-        var rs = new RulesSet { Name = _newRulesSetName.Trim() };
+        var rs = new RulesSet
+        {
+            Name = _newRulesSetName.Trim(),
+            ClubId = Model.HostClubId.Value
+        };
         db.RulesSets.Add(rs);
         await db.SaveChangesAsync();
         _rulesSets.Add(rs);

@@ -1,6 +1,8 @@
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     touch-action: manipulation;
+    background-color: #121212;
+    color: #e0e0e0;
 }
 
 /* MudBlazor's .mud-swipearea sets touch-action:none which blocks page scrolling on mobile */
@@ -9,17 +11,17 @@ html, body {
 }
 
 a, .btn-link {
-    color: #006bb7;
+    color: #c0c0c0;
 }
 
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: #2a2a2a;
+    border-color: #1a1a1a;
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+  box-shadow: 0 0 0 0.1rem #1a1a1a, 0 0 0 0.25rem #555;
 }
 
 .content {
@@ -102,6 +104,53 @@ body.scoring-active .content {
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
+}
+
+/* ── Role banner (sticky below the top navbar) ─────────────────────────── */
+/* The .top-navbar is sticky (desktop) or fixed (mobile) at top:0 with
+   height 3.5rem, so park the sticky role banner just below it on both. */
+.role-banner {
+    background: var(--mud-palette-info);
+    color: white;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.85rem;
+    position: sticky;
+    top: 3.5rem;
+    z-index: 10;
+}
+
+.role-banner-select {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.role-banner-select:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.role-banner-select:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.role-banner-select option {
+    background: #1e1e2e;
+    color: #d7d7d7;
+}
+
+/* Hide the role banner when scoring takes over. */
+body.scoring-active .role-banner {
+    display: none !important;
 }
 
 /* Legacy — keep for external scoreboard page if still used */

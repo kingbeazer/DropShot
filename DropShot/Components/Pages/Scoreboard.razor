@@ -160,16 +160,6 @@
                     await OnCourtChanged(courtId);
             }
 
-            // Restore stream settings
-            var savedStreamUrl = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-stream-url");
-            if (!string.IsNullOrEmpty(savedStreamUrl))
-            {
-                _streamUrl = savedStreamUrl;
-                _streamEmbedUrl = BuildYouTubeEmbedUrl(_streamUrl);
-            }
-            var savedStreamEnabled = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-stream-enabled");
-            _streamEnabled = savedStreamEnabled == "true";
-
             StateHasChanged();
 
             // Register ESC key handler
@@ -241,11 +231,9 @@
                         case "setStreamUrl":
                             _streamUrl = value ?? "";
                             _streamEmbedUrl = BuildYouTubeEmbedUrl(_streamUrl);
-                            await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-stream-url", _streamUrl);
                             break;
                         case "setStreamEnabled":
                             _streamEnabled = value == "true";
-                            await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-stream-enabled", _streamEnabled.ToString().ToLower());
                             break;
                     }
                     await InvokeAsync(StateHasChanged);
@@ -289,8 +277,25 @@
         _activeMatch = null;
         _activeFixture = null;
 
+        // Stream settings are per-court; reset then load from DB for the new court
+        _streamUrl = "";
+        _streamEmbedUrl = "";
+        _streamEnabled = false;
+
         if (courtId.HasValue)
         {
+            using (var dbc = DbFactory.CreateDbContext())
+            {
+                var setting = await dbc.ScoreboardDisplaySettings
+                    .FirstOrDefaultAsync(s => s.CourtId == courtId);
+                if (setting is not null)
+                {
+                    _streamUrl = setting.LiveStreamUrl ?? "";
+                    _streamEmbedUrl = BuildYouTubeEmbedUrl(_streamUrl);
+                    _streamEnabled = setting.ShowLiveStream;
+                }
+            }
+
             _activeMatch = await DbContext.SavedMatch
                 .FirstOrDefaultAsync(m => m.CourtId == courtId && !m.Complete);
 

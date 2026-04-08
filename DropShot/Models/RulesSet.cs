@@ -6,6 +6,9 @@ public class RulesSet
     public string Name { get; set; } = "";
     public string? Description { get; set; }
 
+    public int ClubId { get; set; }
+    public Club Club { get; set; } = null!;
+
     public ICollection<RulesSetItem> Items { get; set; } = [];
     public ICollection<Competition> Competitions { get; set; } = [];
     public ICollection<ClubLadder> Ladders { get; set; } = [];

@@ -1,4 +1,4 @@
-﻿@implements IDisposable
+@implements IDisposable
 
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Identity
@@ -9,160 +9,157 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 
 <div class="top-row navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">
-            <img src="/Images/Logo.png" class="navbar-logo" alt="DropShot Logo" />
-            DropShot
-        </a>
-    </div>
-</div>
+    <a class="navbar-brand" href="">
+        <img src="/Images/Logo.png" class="navbar-logo" alt="DropShot Logo" />
+        DropShot
+    </a>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+    <input type="checkbox" id="nav-toggle" title="Navigation menu" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                        <MudIcon Icon="@Icons.Material.Filled.Home" Class="nav-icon" /> Home
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
+    <div class="nav-content" onclick="document.getElementById('nav-toggle').click()">
+        <nav class="nav-primary">
+            <AuthorizeView>
+                <Authorized Context="homeCtx">
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                            <MudIcon Icon="@Icons.Material.Filled.Home" Class="nav-icon" /> <span class="nav-label">Home</span>
+                        </NavLink>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="User">
+                <div class="nav-item">
                     <NavLink class="nav-link" href="match">
-                        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="nav-icon" /> Match
+                        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="nav-icon" /> <span class="nav-label">Match</span>
                     </NavLink>
                 </div>
-            </Authorized>
-        </AuthorizeView>
+            </AuthorizeView>
 
-        <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
-            <div class="nav-group">
-                <input type="checkbox" id="scoreboard-toggle" class="nav-group-toggle" />
-                <label for="scoreboard-toggle" class="nav-item px-3">
-                    <span class="nav-link">
-                        <MudIcon Icon="@Icons.Material.Filled.Leaderboard" Class="nav-icon" />
-                        Scoreboard
+            <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
+                <div class="nav-item nav-dropdown">
+                    <button class="nav-link nav-dropdown-trigger" onclick="event.stopPropagation()">
+                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Class="nav-icon" />
+                        <span class="nav-label">Admin</span>
                         <span class="nav-expand-icon">
                             <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
                         </span>
-                    </span>
-                </label>
-                <div class="nav-group-items">
-                    <div class="nav-item px-3 nav-sub-item">
+                    </button>
+                    <div class="nav-dropdown-menu">
                         <NavLink class="nav-link" href="score">
-                            <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" /> View
+                            <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" /> Scoreboard View
                         </NavLink>
-                    </div>
-                    <div class="nav-item px-3 nav-sub-item">
                         <NavLink class="nav-link" href="score/display-control">
                             <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" /> Display Control
                         </NavLink>
+                        <AuthorizeView Roles="Admin,SuperAdmin" Context="adminCtx">
+                            <NavLink class="nav-link" href="admin/users">
+                                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" /> Users
+                            </NavLink>
+                        </AuthorizeView>
                     </div>
                 </div>
-            </div>
-        </AuthorizeView>
+            </AuthorizeView>
 
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="competitions">
-                        <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Class="nav-icon" /> Competitions
-                    </NavLink>
-                </div>
+            <AuthorizeView>
+                <Authorized Context="mainCtx">
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="competitions">
+                            <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Class="nav-icon" /> <span class="nav-label">Competitions</span>
+                        </NavLink>
+                    </div>
 
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="players">
-                        <MudIcon Icon="@Icons.Material.Filled.People" Class="nav-icon" /> Players
-                    </NavLink>
-                </div>
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="players">
+                            <MudIcon Icon="@Icons.Material.Filled.People" Class="nav-icon" /> <span class="nav-label">Players</span>
+                        </NavLink>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
 
-                <div class="nav-item px-3">
+            <AuthorizeView Roles="Admin,SuperAdmin">
+                <div class="nav-item">
                     <NavLink class="nav-link" href="clubs">
-                        <MudIcon Icon="@Icons.Material.Filled.Business" Class="nav-icon" /> Clubs
+                        <MudIcon Icon="@Icons.Material.Filled.Business" Class="nav-icon" /> <span class="nav-label">Clubs</span>
                     </NavLink>
                 </div>
+            </AuthorizeView>
+        </nav>
 
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="rules">
-                        <MudIcon Icon="@Icons.Material.Filled.Gavel" Class="nav-icon" /> Rules
-                    </NavLink>
-                </div>
-
-                <div class="nav-item px-3">
-                    <button class="theme-toggle-btn" onclick="toggleDropShotTheme()">
-                <svg class="nav-icon theme-toggle-icon theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                    <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
-                </svg>
-                <svg class="nav-icon theme-toggle-icon theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                    <path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
-                </svg>
-                <span class="theme-toggle-label">Light Mode</span>
-            </button>
-        </div>
-            </Authorized>
-        </AuthorizeView>
-
-        <AuthorizeView Roles="Admin,SuperAdmin">
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin/users">
-                    <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" /> User Management
-                </NavLink>
-            </div>
-        </AuthorizeView>
-
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="upgrade">
-                        <MudIcon Icon="@Icons.Material.Filled.Star" Class="nav-icon" /> Upgrade
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="players/mine">
-                        <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" /> My Players
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
-                        @if (!string.IsNullOrEmpty(_avatarPath))
-                        {
-                            <img src="@_avatarPath" alt="Avatar" class="nav-avatar" />
-                        }
-                        else
-                        {
-                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
-                        }
-                        @context.User.Identity?.Name
-                    </a>
-                </div>
-                <div class="nav-item px-3">
-                    <DropShot.Components.Shared.RoleSwitcher />
-                </div>
-                <div class="nav-item px-3">
-                    <form action="Account/Logout" method="post">
-                        <AntiforgeryToken />
-                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
-                        <button type="submit" class="nav-link">
-                            <MudIcon Icon="@Icons.Material.Filled.Logout" Class="nav-icon" /> Logout
+        <div class="nav-utils">
+            <AuthorizeView>
+                <Authorized Context="themeCtx">
+                    <div class="nav-item">
+                        <button class="theme-toggle-btn" onclick="event.stopPropagation(); toggleDropShotTheme()">
+                            <svg class="nav-icon theme-toggle-icon theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
+                            </svg>
+                            <svg class="nav-icon theme-toggle-icon theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                <path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
+                            </svg>
+                            <span class="theme-toggle-label">Light Mode</span>
                         </button>
-                    </form>
-                </div>
-            </Authorized>
-            <NotAuthorized>
-                <div class="nav-item px-3">
-                    <a class="nav-link" href="Account/Register" data-enhance-nav="false">
-                        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="nav-icon" /> Register
-                    </a>
-                </div>
-                <div class="nav-item px-3">
-                    <a class="nav-link" href="Account/Login" data-enhance-nav="false">
-                        <MudIcon Icon="@Icons.Material.Filled.Login" Class="nav-icon" /> Login
-                    </a>
-                </div>
-            </NotAuthorized>
-        </AuthorizeView>
-    </nav>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+
+            <AuthorizeView>
+                <Authorized>
+                    <div class="nav-item nav-dropdown nav-dropdown-right">
+                        <button class="nav-link nav-dropdown-trigger" onclick="event.stopPropagation()">
+                            @if (!string.IsNullOrEmpty(_avatarPath))
+                            {
+                                <img src="@_avatarPath" alt="Avatar" class="nav-avatar" />
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                            }
+                            <span class="nav-label">@context.User.Identity?.Name</span>
+                            <span class="nav-expand-icon">
+                                <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
+                            </span>
+                        </button>
+                        <div class="nav-dropdown-menu">
+                            <NavLink class="nav-link" href="upgrade">
+                                <MudIcon Icon="@Icons.Material.Filled.Star" Class="nav-icon" /> Upgrade
+                            </NavLink>
+                            <NavLink class="nav-link" href="players/mine">
+                                <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" /> My Players
+                            </NavLink>
+                            <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" /> Account
+                            </a>
+                            <div class="nav-dropdown-item">
+                                <DropShot.Components.Shared.RoleSwitcher />
+                            </div>
+                            <div class="nav-dropdown-item">
+                                <form action="Account/Logout" method="post">
+                                    <AntiforgeryToken />
+                                    <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                                    <button type="submit" class="nav-link">
+                                        <MudIcon Icon="@Icons.Material.Filled.Logout" Class="nav-icon" /> Logout
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <div class="nav-item">
+                        <a class="nav-link" href="Account/Register" data-enhance-nav="false">
+                            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="nav-icon" /> <span class="nav-label">Register</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a class="nav-link" href="Account/Login" data-enhance-nav="false">
+                            <MudIcon Icon="@Icons.Material.Filled.Login" Class="nav-icon" /> <span class="nav-label">Login</span>
+                        </a>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
 </div>
 
 @code {
@@ -202,4 +199,3 @@
         NavigationManager.LocationChanged -= OnLocationChanged;
     }
 }
-

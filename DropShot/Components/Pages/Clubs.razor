@@ -55,6 +55,11 @@
                            aria-label="Competition templates" OnClick="@(() => OpenCompetitionTemplates(context))" />
             <MudIconButton Icon="@Icons.Material.Filled.Email" Size="Size.Small" Color="Color.Default"
                            aria-label="Email templates" OnClick="@(() => OpenEmailTemplates(context))" />
+            @if (_isAdmin || _editableClubIds.Contains(context.ClubId))
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Gavel" Size="Size.Small" Color="Color.Tertiary"
+                               aria-label="Rules" OnClick="@(() => OpenRules(context))" />
+            }
             @if (_isAdmin)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
@@ -430,6 +435,96 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Rules (per club) Dialog ───────────────────────────────── *@
+<MudDialog @bind-Visible="_showRulesDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>Rules – @(_rulesClub?.Name)</TitleContent>
+    <DialogContent>
+        <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.Center">
+            <MudTextField @bind-Value="_newRulesSetName" Label="New Rules Set Name" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Style="flex:1" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       OnClick="AddRulesSet">Add Set</MudButton>
+        </MudStack>
+
+        @foreach (var set in _rulesSets)
+        {
+            <MudPaper Class="pa-3 mb-3" Outlined="true">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                    <div>
+                        <MudText Typo="Typo.subtitle2">@set.Name</MudText>
+                        @if (!string.IsNullOrWhiteSpace(set.Description))
+                        {
+                            <MudText Typo="Typo.caption">@set.Description</MudText>
+                        }
+                    </div>
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => StartEditRulesSet(set))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => DeleteRulesSet(set))" />
+                    </MudStack>
+                </MudStack>
+
+                <MudStack Row="true" Spacing="2" Class="mb-2" AlignItems="AlignItems.Center">
+                    <MudTextField Value="@GetNewRuleText(set.RulesSetId)"
+                                  ValueChanged="@((string v) => SetNewRuleText(set.RulesSetId, v))"
+                                  T="string"
+                                  Label="Rule"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1"
+                                  Placeholder="e.g. Sets played first to 6" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               OnClick="@(() => AddRuleItem(set))">Add Rule</MudButton>
+                </MudStack>
+
+                @if (set.Items.Count == 0)
+                {
+                    <MudText Typo="Typo.caption">No rules yet.</MudText>
+                }
+                else
+                {
+                    <MudTable Items="@set.Items.OrderBy(i => i.SortOrder).ToList()" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>#</MudTh>
+                            <MudTh>Rule</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.SortOrder</MudTd>
+                            <MudTd>@context.RuleText</MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                               OnClick="@(() => DeleteRuleItem(set, context))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        }
+        @if (_rulesSets.Count == 0)
+        {
+            <MudText Typo="Typo.caption">No rules sets yet for this club. Add one above.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showRulesDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Edit Rules Set Name Dialog ────────────────────────────── *@
+<MudDialog @bind-Visible="_showEditRulesSetDialog">
+    <TitleContent>Edit Rules Set</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_editRulesSetForm.Name" Label="Name" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="_editRulesSetForm.Description" Label="Description (optional)"
+                      Variant="Variant.Outlined" Lines="3" AutoGrow="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showEditRulesSetDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveEditRulesSet">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private bool _loading = true;
     private List<Club> _clubs = [];
@@ -470,6 +565,23 @@
     private Dictionary<int, DayOfWeek> _newCTWindowDay = [];
     private Dictionary<int, TimeSpan?> _newCTWindowStart = [];
     private Dictionary<int, TimeSpan?> _newCTWindowEnd = [];
+
+    // Rules (per club)
+    private bool _showRulesDialog;
+    private Club? _rulesClub;
+    private List<RulesSet> _rulesSets = [];
+    private string _newRulesSetName = "";
+    private readonly Dictionary<int, string> _newRuleTextByRulesSet = [];
+
+    private bool _showEditRulesSetDialog;
+    private RulesSet? _editingRulesSet;
+    private RulesSetForm _editRulesSetForm = new();
+
+    private sealed class RulesSetForm
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+    }
 
     // Email Templates
     private bool _showEmailTemplatesDialog;
@@ -730,6 +842,106 @@
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    // ── Rules (per club) ──────────────────────────────────────────────────────
+
+    private async Task OpenRules(Club club)
+    {
+        _rulesClub = club;
+        _newRulesSetName = "";
+        _newRuleTextByRulesSet.Clear();
+        await LoadRulesSets();
+        _showRulesDialog = true;
+    }
+
+    private async Task LoadRulesSets()
+    {
+        if (_rulesClub == null) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        _rulesSets = await dbc.RulesSets
+            .Where(r => r.ClubId == _rulesClub.ClubId)
+            .Include(r => r.Items)
+            .OrderBy(r => r.Name)
+            .ToListAsync();
+    }
+
+    private async Task AddRulesSet()
+    {
+        if (_rulesClub == null || string.IsNullOrWhiteSpace(_newRulesSetName)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        dbc.RulesSets.Add(new RulesSet
+        {
+            Name = _newRulesSetName.Trim(),
+            ClubId = _rulesClub.ClubId
+        });
+        await dbc.SaveChangesAsync();
+        _newRulesSetName = "";
+        Snackbar.Add("Rules set added.", Severity.Success);
+        await LoadRulesSets();
+    }
+
+    private void StartEditRulesSet(RulesSet set)
+    {
+        _editingRulesSet = set;
+        _editRulesSetForm = new RulesSetForm { Name = set.Name, Description = set.Description };
+        _showEditRulesSetDialog = true;
+    }
+
+    private async Task SaveEditRulesSet()
+    {
+        if (_editingRulesSet == null || string.IsNullOrWhiteSpace(_editRulesSetForm.Name)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        var r = await dbc.RulesSets.FindAsync(_editingRulesSet.RulesSetId);
+        if (r == null) return;
+        r.Name = _editRulesSetForm.Name.Trim();
+        r.Description = NullIfEmpty(_editRulesSetForm.Description);
+        await dbc.SaveChangesAsync();
+        _showEditRulesSetDialog = false;
+        Snackbar.Add("Rules set updated.", Severity.Success);
+        await LoadRulesSets();
+    }
+
+    private async Task DeleteRulesSet(RulesSet set)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var r = await dbc.RulesSets.FindAsync(set.RulesSetId);
+        if (r != null) { dbc.RulesSets.Remove(r); await dbc.SaveChangesAsync(); }
+        Snackbar.Add("Rules set deleted.", Severity.Warning);
+        await LoadRulesSets();
+    }
+
+    private string GetNewRuleText(int rulesSetId) =>
+        _newRuleTextByRulesSet.TryGetValue(rulesSetId, out var v) ? v : "";
+
+    private void SetNewRuleText(int rulesSetId, string value) =>
+        _newRuleTextByRulesSet[rulesSetId] = value;
+
+    private async Task AddRuleItem(RulesSet set)
+    {
+        var text = GetNewRuleText(set.RulesSetId);
+        if (string.IsNullOrWhiteSpace(text)) return;
+        await using var dbc = DbFactory.CreateDbContext();
+        var nextOrder = set.Items.Count == 0 ? 1 : set.Items.Max(i => i.SortOrder) + 1;
+        dbc.RulesSetItems.Add(new RulesSetItem
+        {
+            RulesSetId = set.RulesSetId,
+            SortOrder = nextOrder,
+            RuleText = text.Trim()
+        });
+        await dbc.SaveChangesAsync();
+        _newRuleTextByRulesSet[set.RulesSetId] = "";
+        Snackbar.Add("Rule added.", Severity.Success);
+        await LoadRulesSets();
+    }
+
+    private async Task DeleteRuleItem(RulesSet set, RulesSetItem item)
+    {
+        await using var dbc = DbFactory.CreateDbContext();
+        var i = await dbc.RulesSetItems.FindAsync(item.RulesSetItemId);
+        if (i != null) { dbc.RulesSetItems.Remove(i); await dbc.SaveChangesAsync(); }
+        Snackbar.Add("Rule removed.", Severity.Warning);
+        await LoadRulesSets();
+    }
 
     // ── Competition Templates ─────────────────────────────────────────────────
 
