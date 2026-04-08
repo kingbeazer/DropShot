@@ -15,12 +15,14 @@
 }
 
 @media (max-width: 600px) {
-    .toolbar-court {
-        flex: 1 1 100%;
-    }
-
     .toolbar-fullscreen {
         margin-left: auto;
+        order: 2;
+    }
+
+    .toolbar-layout {
+        flex: 1 1 100%;
+        order: 3;
     }
 }
 
