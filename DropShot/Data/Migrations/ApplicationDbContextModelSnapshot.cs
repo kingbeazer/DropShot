@@ -1575,7 +1575,7 @@ namespace DropShot.Migrations
                     b.HasOne("DropShot.Models.Club", "Club")
                         .WithMany("RulesSets")
                         .HasForeignKey("ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Club");

@@ -110,7 +110,7 @@ namespace DropShot.Data
                 entity.HasOne(r => r.Club)
                       .WithMany(c => c.RulesSets)
                       .HasForeignKey(r => r.ClubId)
-                      .OnDelete(DeleteBehavior.Cascade);
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             builder.Entity<RulesSetItem>(entity =>
