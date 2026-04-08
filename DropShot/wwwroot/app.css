@@ -155,12 +155,18 @@ body.scoring-active .role-banner {
 
 /* Legacy — keep for external scoreboard page if still used */
 body.scoreboard-fullscreen .sidebar,
-body.scoreboard-fullscreen .role-banner {
+body.scoreboard-fullscreen .role-banner,
+body.scoreboard-fullscreen .top-row,
+body.scoreboard-fullscreen .navbar-toggler {
     display: none !important;
 }
 
 body.scoreboard-fullscreen .content {
     padding: 0 !important;
+}
+
+body.scoreboard-fullscreen main {
+    padding-top: 0 !important;
 }
 
 /* ── QR Login Panel ──────────────────────────────────────────────────────── */
