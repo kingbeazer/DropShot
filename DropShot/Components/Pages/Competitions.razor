@@ -223,7 +223,7 @@
         @foreach (var ev in _events)
         {
             <MudExpansionPanels Class="mb-2" Elevation="1">
-                <MudExpansionPanel @bind-IsExpanded="ev.IsExpanded">
+                <MudExpansionPanel @bind-Expanded="ev.IsExpanded">
                     <TitleContent>
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                             <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" />
@@ -238,12 +238,13 @@
                                 @ev.Competitions.Count competition(s)
                             </MudChip>
                             <MudSpacer />
-                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
-                                       StartIcon="@Icons.Material.Filled.Visibility"
-                                       OnClick="@(() => Nav.NavigateTo($"/event/{ev.Event.EventId}/view"))"
-                                       OnClick:stopPropagation="true">
-                                View Event
-                            </MudButton>
+                            <div @onclick:stopPropagation="true">
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
+                                           StartIcon="@Icons.Material.Filled.Visibility"
+                                           OnClick="@(() => Nav.NavigateTo($"/event/{ev.Event.EventId}/view"))">
+                                    View Event
+                                </MudButton>
+                            </div>
                         </MudStack>
                     </TitleContent>
                     <ChildContent>
@@ -280,7 +281,7 @@
         @if (_ungroupedCompetitions.Count > 0)
         {
             <MudExpansionPanels Class="mb-2" Elevation="1">
-                <MudExpansionPanel IsInitiallyExpanded="true">
+                <MudExpansionPanel Expanded="true">
                     <TitleContent>
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                             <MudIcon Icon="@Icons.Material.Filled.Inbox" Color="Color.Default" />

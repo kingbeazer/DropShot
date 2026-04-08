@@ -11,7 +11,7 @@ public class TestAuthStateProvider : AuthenticationStateProvider
         bool authenticated = false,
         string userId = "test-user-id",
         string userName = "test@example.com",
-        string[] roles = null!)
+        string[]? roles = null)
     {
         if (!authenticated)
         {
