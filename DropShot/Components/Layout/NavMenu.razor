@@ -18,16 +18,6 @@
 
     <div class="nav-content" onclick="document.getElementById('nav-toggle').click()">
         <nav class="nav-primary">
-            <AuthorizeView>
-                <Authorized Context="homeCtx">
-                    <div class="nav-item">
-                        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                            <MudIcon Icon="@Icons.Material.Filled.Home" Class="nav-icon" /> <span class="nav-label">Home</span>
-                        </NavLink>
-                    </div>
-                </Authorized>
-            </AuthorizeView>
-
             <AuthorizeView Roles="User">
                 <div class="nav-item">
                     <NavLink class="nav-link" href="match">
