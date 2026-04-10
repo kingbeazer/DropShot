@@ -60,9 +60,11 @@ public class EventsController(
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<EventDto>> Create([FromBody] SaveEventRequest req)
     {
+        if (!await authzService.CanEditCompetitionAsync(User, req.HostClubId))
+            return Forbid();
+
         await using var db = dbFactory.CreateDbContext();
         var ev = new Event
         {

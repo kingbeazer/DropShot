@@ -70,9 +70,11 @@ public class CompetitionsController(
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<CompetitionDto>> Create([FromBody] SaveCompetitionRequest req)
     {
+        if (!await authzService.CanEditCompetitionAsync(User, req.HostClubId))
+            return Forbid();
+
         await using var db = dbFactory.CreateDbContext();
         var comp = new Competition();
         Apply(comp, req);

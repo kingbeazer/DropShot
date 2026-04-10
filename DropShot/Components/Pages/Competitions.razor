@@ -324,7 +324,7 @@
     </MudTabPanel>
 </MudTabs>
 
-@if (_isAdmin)
+@if (_isAdmin || _editableClubIds.Count > 0)
 {
     <MudStack Row="true" Spacing="2" Class="mt-3">
         <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Primary"
