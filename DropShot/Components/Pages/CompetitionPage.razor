@@ -1118,8 +1118,9 @@
         }
         else
         {
-            // Only Admins can create new competitions
-            _canEdit = await AuthzService.IsAdminAsync(authState.User);
+            // Admins and ClubAdmins can create new competitions
+            _canEdit = await AuthzService.IsAdminAsync(authState.User)
+                || (await AuthzService.GetAdminClubIdsAsync(authState.User)).Count > 0;
             Model = new CompetitionFormModel { EventId = EventId };
             _stages = [];
             _participants = [];
