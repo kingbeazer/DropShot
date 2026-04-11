@@ -271,7 +271,6 @@
 @media (max-width: 640.98px) {
     .top-row {
         position: relative;
-        flex-wrap: wrap;
     }
 
     .navbar-toggler {
@@ -285,10 +284,14 @@
     .nav-content {
         display: none;
         flex-direction: column;
+        position: absolute;
+        top: 3.5rem;
+        left: 0;
         width: 100%;
         max-height: calc(100vh - 3.5rem);
         overflow-y: auto;
         background-image: linear-gradient(120deg, rgb(5, 98, 103) 0%, rgb(5, 39, 103) 70%);
+        z-index: 100;
     }
 
     .navbar-toggler:checked ~ .nav-content {
