@@ -48,11 +48,12 @@
     }
 </MudStack>
 
-<MudGrid>
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4" @bind-ActivePanelIndex="_activeTabIndex">
+<MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
+
     @* ── Details form ───────────────────────────────────────── *@
-    <MudItem xs="12" md="8">
-        <MudPaper Class="pa-4 mb-4">
-            <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
 
             @if (!_canEdit)
             {
@@ -63,112 +64,99 @@
             }
 
             <MudForm @ref="_form" @bind-IsValid="_isValid" @bind-Errors="_errors">
-                <MudGrid Spacing="2">
-                    <MudItem xs="12" sm="4">
-                        <MudSelect T="CompetitionFormat" Label="Format" Variant="Variant.Text"
-                                   Value="Model.CompetitionFormat"
-                                   ValueChanged="@(v => { Model.CompetitionFormat = v; AutoGenerateName(); })">
-                            @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
+                <MudStack Spacing="3">
+                    <MudSelect T="CompetitionFormat?" Label="Format" Variant="Variant.Text"
+                               Required="true" RequiredError="Please select a competition format."
+                               Value="Model.CompetitionFormat"
+                               ValueChanged="@(v => { Model.CompetitionFormat = v; AutoDetermineEligibleSex(); AutoGenerateName(); })">
+                        @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
+                        {
+                            <MudSelectItem T="CompetitionFormat?" Value="@((CompetitionFormat?)f)">@f.ToDisplayName()</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                        <MudSelect T="int?" Value="Model.HostClubId"
+                                   ValueChanged="OnHostClubChanged"
+                                   Label="Host Club (optional)" Variant="Variant.Text"
+                                   Clearable="true" Style="flex:1">
+                            @foreach (var c in _clubs)
                             {
-                                <MudSelectItem Value="@f">@f.ToDisplayName()</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
                             }
                         </MudSelect>
-                    </MudItem>
-                    <MudItem xs="12" sm="4">
-                        <MudSelect T="PlayerSex?" Label="Eligible Sex" Variant="Variant.Text"
-                                   Clearable="true"
-                                   Value="Model.EligibleSex"
-                                   ValueChanged="@(v => { Model.EligibleSex = v; AutoGenerateName(); })">
-                            @foreach (PlayerSex s in Enum.GetValues<PlayerSex>())
+                        <MudTooltip Text="Add new club">
+                            <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                           Color="Color.Primary" OnClick="@(() => _showAddClubDialog = true)" />
+                        </MudTooltip>
+                    </MudStack>
+
+                    <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                        <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
+                                   Clearable="true" Style="flex:1"
+                                   Disabled="@(Model.HostClubId == null)">
+                            @foreach (var r in _rulesSets.Where(r => r.ClubId == Model.HostClubId))
                             {
-                                <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)s)">@s</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
                             }
                         </MudSelect>
-                    </MudItem>
-                    <MudItem xs="12" sm="4">
-                        <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants (optional)"
-                                         Min="2" Variant="Variant.Text" />
-                    </MudItem>
+                        <MudTooltip Text="@(Model.HostClubId == null ? "Select a host club first" : "Add new rules set")">
+                            <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                           Color="Color.Primary"
+                                           Disabled="@(Model.HostClubId == null)"
+                                           OnClick="@(() => _showAddRulesSetDialog = true)" />
+                        </MudTooltip>
+                    </MudStack>
 
-                    <MudItem xs="12" sm="6">
-                        <MudDatePicker @bind-Date="Model.StartDateDt" Label="Start Date (optional)" DateFormat="dd/MM/yyyy" />
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudDatePicker @bind-Date="Model.EndDateDt" Label="End Date (optional)" DateFormat="dd/MM/yyyy" />
-                    </MudItem>
-
-                    <MudItem xs="12" sm="4">
-                        <MudNumericField T="int?" Label="Min Age (optional)"
-                                         Min="1" Max="120" Variant="Variant.Text"
-                                         Value="Model.MinAge"
-                                         ValueChanged="@(v => { Model.MinAge = v; AutoGenerateName(); })" />
-                    </MudItem>
-                    <MudItem xs="12" sm="4">
-                        <MudNumericField T="int?" Label="Max Age (optional)"
-                                         Min="1" Max="120" Variant="Variant.Text"
-                                         Value="Model.MaxAge"
-                                         ValueChanged="@(v => { Model.MaxAge = v; AutoGenerateName(); })" />
-                    </MudItem>
-
-                    <MudItem xs="12" sm="6">
-                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
-                            <MudSelect T="int?" Value="Model.HostClubId"
-                                       ValueChanged="OnHostClubChanged"
-                                       Label="Host Club (optional)" Variant="Variant.Text"
-                                       Clearable="true" Style="flex:1">
-                                @foreach (var c in _clubs)
-                                {
-                                    <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
-                                }
-                            </MudSelect>
-                            <MudTooltip Text="Add new club">
-                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
-                                               Color="Color.Primary" OnClick="@(() => _showAddClubDialog = true)" />
-                            </MudTooltip>
-                        </MudStack>
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
-                            <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
-                                       Clearable="true" Style="flex:1"
-                                       Disabled="@(Model.HostClubId == null)">
-                                @foreach (var r in _rulesSets.Where(r => r.ClubId == Model.HostClubId))
-                                {
-                                    <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
-                                }
-                            </MudSelect>
-                            <MudTooltip Text="@(Model.HostClubId == null ? "Select a host club first" : "Add new rules set")">
-                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
-                                               Color="Color.Primary"
-                                               Disabled="@(Model.HostClubId == null)"
-                                               OnClick="@(() => _showAddRulesSetDialog = true)" />
-                            </MudTooltip>
-                        </MudStack>
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
-                            <MudSelect @bind-Value="Model.EventId" Label="Event (optional)" Variant="Variant.Text"
-                                       Clearable="true" Style="flex:1">
-                                @foreach (var e in _events)
-                                {
-                                    <MudSelectItem T="int?" Value="@((int?)e.EventId)">@e.Name</MudSelectItem>
-                                }
-                            </MudSelect>
-                            <MudTooltip Text="Add new event">
-                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
-                                               Color="Color.Primary" OnClick="@(() => _showAddEventDialog = true)" />
-                            </MudTooltip>
-                        </MudStack>
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudSelect @bind-Value="Model.BestOf" Label="Best Of" Variant="Variant.Text">
-                            <MudSelectItem T="int" Value="1">Best of 1</MudSelectItem>
-                            <MudSelectItem T="int" Value="3">Best of 3</MudSelectItem>
-                            <MudSelectItem T="int" Value="5">Best of 5</MudSelectItem>
+                    <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                        <MudSelect @bind-Value="Model.EventId" Label="Event (optional)" Variant="Variant.Text"
+                                   Clearable="true" Style="flex:1">
+                            @foreach (var e in _events)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)e.EventId)">@e.Name</MudSelectItem>
+                            }
                         </MudSelect>
-                        <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" Class="mt-2" />
-                    </MudItem>
-                </MudGrid>
+                        <MudTooltip Text="Add new event">
+                            <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                           Color="Color.Primary" OnClick="@(() => _showAddEventDialog = true)" />
+                        </MudTooltip>
+                    </MudStack>
+
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="Model.StartDateDt" Label="Start Date (optional)" DateFormat="dd/MM/yyyy" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="Model.EndDateDt" Label="End Date (optional)" DateFormat="dd/MM/yyyy" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants (optional)"
+                                     Min="2" Variant="Variant.Text" />
+
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int?" Label="Min Age (optional)"
+                                             Min="1" Max="120" Variant="Variant.Text"
+                                             Value="Model.MinAge"
+                                             ValueChanged="@(v => { Model.MinAge = v; AutoGenerateName(); })" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int?" Label="Max Age (optional)"
+                                             Min="1" Max="120" Variant="Variant.Text"
+                                             Value="Model.MaxAge"
+                                             ValueChanged="@(v => { Model.MaxAge = v; AutoGenerateName(); })" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudSelect @bind-Value="Model.BestOf" Label="Best Of" Variant="Variant.Text">
+                        <MudSelectItem T="int" Value="1">Best of 1</MudSelectItem>
+                        <MudSelectItem T="int" Value="3">Best of 3</MudSelectItem>
+                        <MudSelectItem T="int" Value="5">Best of 5</MudSelectItem>
+                    </MudSelect>
+
+                    <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" />
+                </MudStack>
 
                 @if (!string.IsNullOrWhiteSpace(_serverError))
                 {
@@ -434,83 +422,6 @@
                 </MudPaper>
             }
 
-            @* ── Send Email ───────────────────────────────────── *@
-            @if (IsEdit && _canEdit)
-            {
-                <MudPaper Class="pa-4 mb-4">
-                    <MudText Typo="Typo.h6" Class="mb-3">Send Email</MudText>
-
-                    <MudText Typo="Typo.subtitle2" Class="mb-2">Match-Specific</MudText>
-                    <MudGrid Spacing="2">
-                        <MudItem xs="12" sm="6">
-                            <MudSelect @bind-Value="_emailFixtureId" Label="Fixture" Variant="Variant.Outlined"
-                                       Clearable="true">
-                                @foreach (var f in _fixtures.Where(f => f.Player1Id.HasValue))
-                                {
-                                    <MudSelectItem T="int?" Value="@((int?)f.CompetitionFixtureId)">
-                                        @(string.IsNullOrEmpty(f.FixtureLabel) ? $"Fixture {f.CompetitionFixtureId}" : f.FixtureLabel)
-                                    </MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        @if (_emailTemplates.Count > 0)
-                        {
-                            <MudItem xs="12" sm="6">
-                                <MudSelect T="int?" Label="Load from template (optional)" Variant="Variant.Outlined"
-                                           Clearable="true" ValueChanged="LoadEmailTemplate">
-                                    @foreach (var t in _emailTemplates)
-                                    {
-                                        <MudSelectItem T="int?" Value="@((int?)t.ClubEmailTemplateId)">@t.Name</MudSelectItem>
-                                    }
-                                </MudSelect>
-                            </MudItem>
-                        }
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="_emailSubject" Label="Subject" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="_emailBody" Label="Body" Variant="Variant.Outlined"
-                                          Lines="4" HelperText="Variables: {PlayerName}, {CompetitionName}, {MatchLink}" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                       Disabled="@(_emailFixtureId == null || string.IsNullOrWhiteSpace(_emailSubject))"
-                                       OnClick="SendMatchEmail">Send to Fixture Players</MudButton>
-                        </MudItem>
-                    </MudGrid>
-
-                    <MudDivider Class="my-4" />
-
-                    <MudText Typo="Typo.subtitle2" Class="mb-2">Competition-Wide</MudText>
-                    <MudGrid Spacing="2">
-                        @if (_emailTemplates.Count > 0)
-                        {
-                            <MudItem xs="12">
-                                <MudSelect T="int?" Label="Load from template (optional)" Variant="Variant.Outlined"
-                                           Clearable="true" ValueChanged="LoadCompEmailTemplate">
-                                    @foreach (var t in _emailTemplates)
-                                    {
-                                        <MudSelectItem T="int?" Value="@((int?)t.ClubEmailTemplateId)">@t.Name</MudSelectItem>
-                                    }
-                                </MudSelect>
-                            </MudItem>
-                        }
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="_compEmailSubject" Label="Subject" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="_compEmailBody" Label="Body" Variant="Variant.Outlined"
-                                          Lines="4" HelperText="Variables: {PlayerName}, {CompetitionName}, {MatchLink}" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                                       Disabled="@string.IsNullOrWhiteSpace(_compEmailSubject)"
-                                       OnClick="SendCompetitionEmail">Send to All Participants</MudButton>
-                        </MudItem>
-                    </MudGrid>
-                </MudPaper>
-            }
-
             @* ── Teams (for Team and MixedTeam competitions) ──────────── *@
             @if (Model.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
             {
@@ -677,23 +588,96 @@
                 </MudTable>
             </MudPaper>
         }
-    </MudItem>
 
-    @* ── Error panel ────────────────────────────────────────── *@
-    <MudItem xs="12" md="4">
-        @if (_errors.Length > 0)
-        {
-            <MudPaper Class="pa-4">
-                <MudText Typo="Typo.subtitle2">Validation errors</MudText>
-                <MudDivider Class="my-2" />
-                @foreach (var e in _errors)
-                {
-                    <MudText Color="Color.Error">@e</MudText>
-                }
-            </MudPaper>
-        }
-    </MudItem>
-</MudGrid>
+    @if (_errors.Length > 0)
+    {
+        <MudPaper Class="pa-4 mb-4">
+            <MudText Typo="Typo.subtitle2">Validation errors</MudText>
+            <MudDivider Class="my-2" />
+            @foreach (var e in _errors)
+            {
+                <MudText Color="Color.Error">@e</MudText>
+            }
+        </MudPaper>
+    }
+
+</MudTabPanel>
+
+@* ── Email Tab ─────────────────────────────────────────────── *@
+<MudTabPanel Text="Email" Icon="@Icons.Material.Filled.Email" Disabled="@(!IsEdit || !_canEdit)">
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-3">Match-Specific Email</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_emailFixtureId" Label="Fixture" Variant="Variant.Outlined"
+                           Clearable="true">
+                    @foreach (var f in _fixtures.Where(f => f.Player1Id.HasValue))
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)f.CompetitionFixtureId)">
+                            @(string.IsNullOrEmpty(f.FixtureLabel) ? $"Fixture {f.CompetitionFixtureId}" : f.FixtureLabel)
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            @if (_emailTemplates.Count > 0)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" Label="Load from template (optional)" Variant="Variant.Outlined"
+                               Clearable="true" ValueChanged="LoadEmailTemplate">
+                        @foreach (var t in _emailTemplates)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)t.ClubEmailTemplateId)">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_emailSubject" Label="Subject" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_emailBody" Label="Body" Variant="Variant.Outlined"
+                              Lines="4" HelperText="Variables: {PlayerName}, {CompetitionName}, {MatchLink}" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="@(_emailFixtureId == null || string.IsNullOrWhiteSpace(_emailSubject))"
+                           OnClick="SendMatchEmail">Send to Fixture Players</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-3">Competition-Wide Email</MudText>
+        <MudGrid Spacing="2">
+            @if (_emailTemplates.Count > 0)
+            {
+                <MudItem xs="12">
+                    <MudSelect T="int?" Label="Load from template (optional)" Variant="Variant.Outlined"
+                               Clearable="true" ValueChanged="LoadCompEmailTemplate">
+                        @foreach (var t in _emailTemplates)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)t.ClubEmailTemplateId)">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_compEmailSubject" Label="Subject" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_compEmailBody" Label="Body" Variant="Variant.Outlined"
+                              Lines="4" HelperText="Variables: {PlayerName}, {CompetitionName}, {MatchLink}" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           Disabled="@string.IsNullOrWhiteSpace(_compEmailSubject)"
+                           OnClick="SendCompetitionEmail">Send to All Participants</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+</MudTabPanel>
+
+</MudTabs>
 
 @* ── Add Stage Dialog ──────────────────────────────────────── *@
 <MudDialog @bind-Visible="_showStageDialog">
@@ -965,6 +949,7 @@
     private string? _serverError;
     private bool IsEdit => Id != 0;
     private bool _nameOverride;
+    private int _activeTabIndex;
 
     private CompetitionFormModel Model { get; set; } = new();
 
@@ -1058,7 +1043,7 @@
         [Required(ErrorMessage = "Competition name is required!")]
         [StringLength(200, ErrorMessage = "Name must be 200 characters or fewer.")]
         public string CompetitionName { get; set; } = "";
-        public CompetitionFormat CompetitionFormat { get; set; } = CompetitionFormat.Singles;
+        public CompetitionFormat? CompetitionFormat { get; set; }
         public int? MaxParticipants { get; set; }
         public DateTime? StartDateDt { get; set; }
         public DateTime? EndDateDt { get; set; }
@@ -1322,9 +1307,19 @@
         Snackbar.Add($"Event '{ev.Name}' created.", Severity.Success);
     }
 
+    private void AutoDetermineEligibleSex()
+    {
+        Model.EligibleSex = Model.CompetitionFormat switch
+        {
+            CompetitionFormat.MixedDoubles or CompetitionFormat.MixedTeam => null,
+            _ => null  // null = open to all; eligibility enforced at participant level if needed
+        };
+    }
+
     private void AutoGenerateName()
     {
         if (_nameOverride) return;
+        if (Model.CompetitionFormat == null) { Model.CompetitionName = ""; return; }
 
         var parts = new List<string>();
 
@@ -1341,7 +1336,7 @@
             CompetitionFormat.MixedDoubles => "Mixed Doubles",
             CompetitionFormat.Team => "Team",
             CompetitionFormat.MixedTeam => "Mixed Team Tennis",
-            _ => Model.CompetitionFormat.ToString()
+            _ => Model.CompetitionFormat.Value.ToString()
         });
 
         Model.CompetitionName = string.Join(" ", parts);
@@ -1350,13 +1345,16 @@
     private void ApplyModel(Competition comp, string name)
     {
         comp.CompetitionName = name;
-        comp.CompetitionFormat = Model.CompetitionFormat;
+        var format = Model.CompetitionFormat ?? CompetitionFormat.Singles;
+        comp.CompetitionFormat = format;
         comp.MaxParticipants = Model.MaxParticipants;
         comp.StartDate = Model.StartDateDt;
         comp.EndDate = Model.EndDateDt;
         comp.MaxAge = Model.MaxAge;
         comp.MinAge = Model.MinAge;
-        comp.EligibleSex = Model.EligibleSex;
+        comp.EligibleSex = format is CompetitionFormat.MixedDoubles or CompetitionFormat.MixedTeam
+            ? null
+            : Model.EligibleSex;
         comp.HostClubId = Model.HostClubId;
         comp.RulesSetId = Model.RulesSetId;
         comp.EventId = Model.EventId;
@@ -1857,11 +1855,14 @@
         var t = _competitionTemplates.FirstOrDefault(x => x.CompetitionTemplateId == templateId);
         if (t == null) return;
 
-        if (t.Format.HasValue) Model.CompetitionFormat = t.Format.Value;
+        if (t.Format.HasValue)
+        {
+            Model.CompetitionFormat = t.Format.Value;
+            AutoDetermineEligibleSex();
+        }
         if (t.RulesSetId.HasValue) Model.RulesSetId = t.RulesSetId;
         if (t.BestOf.HasValue) Model.BestOf = t.BestOf.Value;
         if (t.MaxAge.HasValue) Model.MaxAge = t.MaxAge;
-        if (t.EligibleSex.HasValue) Model.EligibleSex = t.EligibleSex;
 
         if (t.Windows.Count > 0)
         {
