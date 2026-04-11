@@ -34,65 +34,77 @@
     }
 
     @* ── Step 1: Players ─────────────────────────────────── *@
-    @if (_currentStep > 1)
-    {
-        <StepSummary Label="Players" Summary="@PlayersSummary()" OnEdit="@(() => GoToStep(1))" />
-    }
-    else if (_currentStep == 1)
-    {
-        <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.h6" Class="mb-1">Players</MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-                @RequiredPlayersCount players required for @(_isDoubles ? "doubles" : "singles") — @RemainingPlayersCount more needed
-            </MudText>
+    <MudPaper Class="pa-4" Elevation="@(_currentStep == 1 ? 2 : 1)"
+              Style="@(_currentStep > 1 ? "background-color: var(--mud-palette-background-grey); cursor: pointer;" : "")"
+              @onclick="@(() => { if (_currentStep > 1) GoToStep(1); })">
 
-            @* ── Player List ─────────────────────────────── *@
-            <MudList T="string" Dense="true" Class="mb-3">
+        <div class="d-flex align-center mb-2">
+            <MudText Typo="@(_currentStep == 1 ? Typo.h6 : Typo.body1)" Style="flex: 1;">Players</MudText>
+            @if (_currentStep > 1)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Default"
+                               OnClick="@(() => GoToStep(1))" />
+            }
+        </div>
+
+        @* ── Player Table ────────────────────────────── *@
+        <MudSimpleTable Dense="true" Hover="true" Class="mb-3" Elevation="0">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th style="width: 120px;">Position</th>
+                    @if (_currentStep == 1)
+                    {
+                        <th style="width: 50px;"></th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
                 @for (int i = 0; i < _players.Count; i++)
                 {
                     var idx = i;
                     var entry = _players[i];
-                    var label = GetPlayerLabel(idx);
-                    <MudListItem T="string">
-                        <div class="d-flex align-center" style="width: 100%;">
-                            <MudStack Spacing="0" Style="flex: 1;">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">@label</MudText>
-                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                    @if (idx == 0 && _myPlayer != null)
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Size="Size.Small" />
-                                    }
-                                    else if (entry.IsVerified)
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
-                                    }
-                                    else if (entry.IsLight)
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
-                                    }
-                                    <MudText Typo="Typo.body1">@entry.DisplayName</MudText>
-                                    @if (idx == 0)
-                                    {
-                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">You</MudChip>
-                                    }
-                                </MudStack>
+                    <tr>
+                        <td>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                @if (idx == 0 && _myPlayer != null)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Size="Size.Small" />
+                                }
+                                else if (entry.IsVerified)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                                }
+                                else if (entry.IsLight)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
+                                }
+                                <MudText>@entry.DisplayName</MudText>
                             </MudStack>
-                            @if (idx > 0)
-                            {
-                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
-                                               Color="Color.Error" OnClick="@(() => RemovePlayer(idx))" />
-                            }
-                        </div>
-                    </MudListItem>
+                        </td>
+                        <td>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@GetPlayerLabel(idx)</MudText>
+                        </td>
+                        @if (_currentStep == 1)
+                        {
+                            <td class="d-flex justify-end">
+                                @if (idx > 0)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                                   Color="Color.Error" OnClick="@(() => RemovePlayer(idx))" />
+                                }
+                            </td>
+                        }
+                    </tr>
                 }
-            </MudList>
+            </tbody>
+        </MudSimpleTable>
 
+        @if (_currentStep == 1)
+        {
             @* ── Add Player Control ──────────────────────── *@
             @if (_players.Count < RequiredPlayersCount)
             {
-                <MudDivider Class="mb-3" />
-                <MudText Typo="Typo.subtitle2" Class="mb-2">Add Player</MudText>
-
                 <MudAutocomplete T="PlayerSelection" Label="Search players or type a name"
                                  @ref="_addPlayerAutocomplete"
                                  Value="@_pendingSelection"
@@ -139,10 +151,11 @@
                     Create new player
                 </MudButton>
             }
-            else
+
+            @if (_showPlayerValidation)
             {
-                <MudAlert Severity="Severity.Success" Dense="true" Class="mb-2">
-                    All players added
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
+                    @RemainingPlayersCount more @(RemainingPlayersCount == 1 ? "player" : "players") required for @(_isDoubles ? "doubles" : "singles")
                 </MudAlert>
             }
 
@@ -151,12 +164,11 @@
                            StartIcon="@Icons.Material.Filled.ArrowBack"
                            OnClick="@(() => GoToStep(0))">Back</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           Disabled="@(_players.Count < RequiredPlayersCount)"
                            EndIcon="@Icons.Material.Filled.ArrowForward"
-                           OnClick="@(() => GoToStep(2))">Next</MudButton>
+                           OnClick="TryAdvanceFromPlayers">Next</MudButton>
             </div>
-        </MudPaper>
-    }
+        }
+    </MudPaper>
 
     @* ── Court Selection ─────────────────────────────────── *@
     @if (_currentStep > 2)
@@ -343,6 +355,7 @@
 
     // Nudge for the add-player control
     private FuzzySearchResult? _addPlayerNudge;
+    private bool _showPlayerValidation;
 
     // Court
     private Club? _selectedClub;
@@ -520,8 +533,20 @@
             // Trim players if we have more than needed (e.g. switched from doubles to singles)
             while (_players.Count > RequiredPlayersCount)
                 _players.RemoveAt(_players.Count - 1);
+            _showPlayerValidation = false;
         }
         _currentStep = step;
+    }
+
+    private void TryAdvanceFromPlayers()
+    {
+        if (_players.Count < RequiredPlayersCount)
+        {
+            _showPlayerValidation = true;
+            return;
+        }
+        _showPlayerValidation = false;
+        GoToStep(2);
     }
 
     // ── Player List Management ──────────────────────────────
@@ -555,7 +580,10 @@
     private void RemovePlayer(int index)
     {
         if (index > 0 && index < _players.Count)
+        {
             _players.RemoveAt(index);
+            _showPlayerValidation = false;
+        }
     }
 
     private HashSet<int> GetAlreadySelectedPlayerIds()
@@ -585,6 +613,11 @@
         }
 
         _players.Add(val);
+        _showPlayerValidation = false;
+
+        // Clear the autocomplete so the next player can be picked
+        if (_addPlayerAutocomplete != null)
+            await _addPlayerAutocomplete.ClearAsync();
 
         // Check for "Did you mean?" nudge if a light player was selected
         if (val is { IsLight: true } && !string.IsNullOrWhiteSpace(val.DisplayName))
