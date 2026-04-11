@@ -26,14 +26,10 @@ main ::deep .content {
 
 @media (max-width: 640.98px) {
     .top-navbar {
-        position: fixed;
+        position: sticky;
         top: 0;
         left: 0;
         right: 0;
-    }
-
-    main {
-        padding-top: 3.5rem;
     }
 }
 
