@@ -1502,7 +1502,7 @@ namespace DropShot.Migrations
                     b.HasOne("DropShot.Models.CourtPair", "CourtPair")
                         .WithMany()
                         .HasForeignKey("CourtPairId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("DropShot.Models.CompetitionTeam", "HomeTeam")
                         .WithMany()
