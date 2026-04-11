@@ -112,7 +112,7 @@ public record SaveCompetitionRequest(
     int? RulesSetId,
     int? EventId);
 
-public record AddStageRequest(string Name, int StageOrder, StageType StageType);
+public record AddStageRequest(StageType StageType, string? Name = null, int? StageOrder = null);
 
 public record AddParticipantRequest(int PlayerId);
 
