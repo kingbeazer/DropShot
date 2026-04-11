@@ -49,7 +49,9 @@ public record CompetitionParticipantDto(
     DateTime RegisteredAt,
     int? TeamId,
     string? TeamName,
-    string? MobileNumber);
+    string? MobileNumber,
+    PlayerGrade? Grade = null,
+    PlayerSex? Sex = null);
 
 public record CompetitionFixtureDto(
     int CompetitionFixtureId,
@@ -71,12 +73,21 @@ public record CompetitionFixtureDto(
     int? Player4Id,
     string? Player4Name,
     string? ResultSummary,
-    int? WinnerPlayerId);
+    int? WinnerPlayerId,
+    int? HomeTeamId = null,
+    string? HomeTeamName = null,
+    int? AwayTeamId = null,
+    string? AwayTeamName = null,
+    int? WinnerTeamId = null,
+    int? CourtPairId = null,
+    string? CourtPairName = null);
 
 public record CompetitionTeamDto(
     int CompetitionTeamId,
     int CompetitionId,
-    string Name);
+    string Name,
+    int? CaptainPlayerId = null,
+    string? CaptainName = null);
 
 public record LeagueTableEntryDto(
     int PlayerId,
@@ -161,3 +172,55 @@ public record EventCompetitionTemplate(
     PlayerSex? EligibleSex,
     int? MaxAge,
     int? MinAge);
+
+// ── Mixed Team Tennis DTOs ──────────────────────────────────────────────────
+
+public record CourtPairDto(
+    int CourtPairId,
+    int CompetitionId,
+    int Court1Id,
+    string Court1Name,
+    int Court2Id,
+    string Court2Name,
+    string Name);
+
+public record TeamMatchSetDto(
+    int TeamMatchSetId,
+    int CompetitionFixtureId,
+    int SetNumber,
+    TeamMatchPhase Phase,
+    TeamMatchSetType SetType,
+    int CourtNumber,
+    int? HomePlayer1Id,
+    string? HomePlayer1Name,
+    int? HomePlayer2Id,
+    string? HomePlayer2Name,
+    int? AwayPlayer1Id,
+    string? AwayPlayer1Name,
+    int? AwayPlayer2Id,
+    string? AwayPlayer2Name,
+    int? HomeGames,
+    int? AwayGames,
+    int? WinnerTeamId,
+    bool IsComplete,
+    int? SavedMatchId);
+
+public record TeamLeagueTableEntryDto(
+    int TeamId,
+    string TeamName,
+    string? CaptainName,
+    int Played,
+    int Won,
+    int Drawn,
+    int Lost,
+    int SetsWon,
+    int SetsAgainst,
+    int Points);
+
+public record SaveCourtPairRequest(int Court1Id, int Court2Id, string Name);
+
+public record SetParticipantGradeRequest(PlayerGrade Grade);
+
+public record SetTeamCaptainRequest(int CaptainPlayerId);
+
+public record TeamValidationResultDto(bool IsValid, List<string> Errors);

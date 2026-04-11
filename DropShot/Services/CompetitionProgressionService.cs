@@ -23,11 +23,16 @@ public static class CompetitionProgressionService
             .FirstOrDefaultAsync(f => f.CompetitionFixtureId == completedFixtureId);
 
         if (fixture is null || fixture.Status != FixtureStatus.Completed) return;
-        if (!fixture.WinnerPlayerId.HasValue) return;
         if (!fixture.CompetitionStageId.HasValue) return;
 
         var stage = fixture.Stage;
         if (stage is null) return;
+
+        // Check if this is a team fixture (MixedTeam format)
+        bool isTeamFixture = fixture.HomeTeamId.HasValue;
+
+        // For non-team fixtures, require a player winner
+        if (!isTeamFixture && !fixture.WinnerPlayerId.HasValue) return;
 
         var allStages = await db.CompetitionStages
             .Where(s => s.CompetitionId == competitionId)
@@ -35,9 +40,19 @@ public static class CompetitionProgressionService
             .ToListAsync();
 
         if (stage.StageType == StageType.RoundRobin)
-            await TryAdvanceFromRoundRobinAsync(db, competitionId, allStages);
+        {
+            if (isTeamFixture)
+                await TryAdvanceTeamFromRoundRobinAsync(db, competitionId, allStages);
+            else
+                await TryAdvanceFromRoundRobinAsync(db, competitionId, allStages);
+        }
         else
-            await TryAdvanceKnockoutRoundAsync(db, competitionId, fixture, stage, allStages);
+        {
+            if (isTeamFixture)
+                await TryAdvanceTeamKnockoutRoundAsync(db, competitionId, fixture, stage, allStages);
+            else
+                await TryAdvanceKnockoutRoundAsync(db, competitionId, fixture, stage, allStages);
+        }
     }
 
     // ── RoundRobin → first knockout round ────────────────────────────────────
@@ -201,6 +216,212 @@ public static class CompetitionProgressionService
 
         AssignWinners(targetFixtures, winners);
         await db.SaveChangesAsync();
+    }
+
+    // ── Team RoundRobin → first knockout round ────────────────────────────────
+
+    private static async Task TryAdvanceTeamFromRoundRobinAsync(
+        MyDbContext db, int competitionId, List<CompetitionStage> allStages)
+    {
+        var rrStageIds = allStages
+            .Where(s => s.StageType == StageType.RoundRobin)
+            .Select(s => s.CompetitionStageId).ToHashSet();
+
+        var rrFixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == competitionId
+                     && f.CompetitionStageId.HasValue
+                     && rrStageIds.Contains(f.CompetitionStageId.Value))
+            .Include(f => f.TeamMatchSets)
+            .ToListAsync();
+
+        bool allDone = rrFixtures.All(f =>
+            f.Status == FixtureStatus.Completed ||
+            f.Status == FixtureStatus.Walkover   ||
+            f.Status == FixtureStatus.Cancelled);
+
+        if (!allDone) return;
+
+        var firstKoStage = allStages
+            .Where(s => s.StageType is StageType.Knockout or StageType.QuarterFinal or StageType.SemiFinal)
+            .OrderBy(s => s.StageOrder)
+            .FirstOrDefault();
+
+        if (firstKoStage is null) return;
+
+        var targetFixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == competitionId
+                     && f.CompetitionStageId == firstKoStage.CompetitionStageId
+                     && (firstKoStage.StageType != StageType.Knockout || f.RoundNumber == 1)
+                     && f.HomeTeamId == null && f.AwayTeamId == null
+                     && f.Status == FixtureStatus.Scheduled)
+            .OrderBy(f => f.FixtureLabel)
+            .ToListAsync();
+
+        if (!targetFixtures.Any()) return;
+
+        // Rank teams by sets won
+        var teamIds = await db.CompetitionTeams
+            .Where(t => t.CompetitionId == competitionId)
+            .Select(t => t.CompetitionTeamId)
+            .ToListAsync();
+
+        var setsWon = teamIds.ToDictionary(tid => tid, _ => 0);
+        var setsAgainst = teamIds.ToDictionary(tid => tid, _ => 0);
+
+        foreach (var f in rrFixtures.Where(f => f.Status == FixtureStatus.Completed
+                    && f.HomeTeamId.HasValue && f.AwayTeamId.HasValue))
+        {
+            int hid = f.HomeTeamId!.Value;
+            int aid = f.AwayTeamId!.Value;
+            if (!setsWon.ContainsKey(hid) || !setsWon.ContainsKey(aid)) continue;
+
+            var completed = f.TeamMatchSets.Where(s => s.IsComplete).ToList();
+            int hw = completed.Count(s => s.WinnerTeamId == hid);
+            int aw = completed.Count(s => s.WinnerTeamId == aid);
+
+            setsWon[hid] += hw;
+            setsAgainst[hid] += aw;
+            setsWon[aid] += aw;
+            setsAgainst[aid] += hw;
+        }
+
+        var seeded = teamIds
+            .OrderByDescending(tid => setsWon[tid])
+            .ThenByDescending(tid => setsWon[tid] - setsAgainst[tid])
+            .ThenBy(tid => setsAgainst[tid])
+            .Take(targetFixtures.Count * 2)
+            .ToList();
+
+        AssignTeamWinners(targetFixtures, seeded);
+
+        // Create TeamMatchSet rows for the newly assigned knockout fixtures
+        await CreateTeamMatchSetsForFixtures(db, competitionId, targetFixtures);
+
+        await db.SaveChangesAsync();
+    }
+
+    // ── Team knockout round → next round ────────────────────────────────────
+
+    private static async Task TryAdvanceTeamKnockoutRoundAsync(
+        MyDbContext db, int competitionId,
+        CompetitionFixture completedFixture, CompetitionStage stage,
+        List<CompetitionStage> allStages)
+    {
+        IQueryable<CompetitionFixture> sourceQuery = db.CompetitionFixtures
+            .Where(f => f.CompetitionId == competitionId
+                     && f.CompetitionStageId == completedFixture.CompetitionStageId);
+
+        if (stage.StageType == StageType.Knockout)
+        {
+            if (!completedFixture.RoundNumber.HasValue) return;
+            sourceQuery = sourceQuery.Where(f => f.RoundNumber == completedFixture.RoundNumber);
+        }
+
+        var sourceFixtures = await sourceQuery.ToListAsync();
+
+        bool allDone = sourceFixtures.All(f =>
+            f.Status == FixtureStatus.Completed ||
+            f.Status == FixtureStatus.Walkover   ||
+            f.Status == FixtureStatus.Cancelled);
+
+        if (!allDone) return;
+
+        var winners = sourceFixtures
+            .OrderBy(f => f.FixtureLabel)
+            .Where(f => f.WinnerTeamId.HasValue)
+            .Select(f => f.WinnerTeamId!.Value)
+            .ToList();
+
+        if (!winners.Any()) return;
+
+        List<CompetitionFixture> targetFixtures;
+
+        if (stage.StageType == StageType.Knockout)
+        {
+            int nextRound = completedFixture.RoundNumber!.Value + 1;
+            targetFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == competitionId
+                         && f.CompetitionStageId == completedFixture.CompetitionStageId
+                         && f.RoundNumber == nextRound
+                         && f.HomeTeamId == null && f.AwayTeamId == null
+                         && f.Status == FixtureStatus.Scheduled)
+                .OrderBy(f => f.FixtureLabel)
+                .ToListAsync();
+        }
+        else
+        {
+            var nextStage = allStages
+                .Where(s => s.StageOrder > stage.StageOrder)
+                .OrderBy(s => s.StageOrder)
+                .FirstOrDefault();
+
+            if (nextStage is null) return;
+
+            targetFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == competitionId
+                         && f.CompetitionStageId == nextStage.CompetitionStageId
+                         && f.HomeTeamId == null && f.AwayTeamId == null
+                         && f.Status == FixtureStatus.Scheduled)
+                .OrderBy(f => f.FixtureLabel)
+                .ToListAsync();
+        }
+
+        if (!targetFixtures.Any()) return;
+
+        AssignTeamWinners(targetFixtures, winners);
+
+        await CreateTeamMatchSetsForFixtures(db, competitionId, targetFixtures);
+
+        await db.SaveChangesAsync();
+    }
+
+    // ── Team helper: assign teams to knockout fixtures ──────────────────────
+
+    internal static void AssignTeamWinners(List<CompetitionFixture> targets, List<int> teamIds)
+    {
+        int n = targets.Count;
+        if (teamIds.Count <= n)
+        {
+            for (int i = 0; i < n; i++)
+                targets[i].HomeTeamId = i < teamIds.Count ? teamIds[i] : null;
+            return;
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            int p2Idx = 2 * n - 1 - i;
+            targets[i].HomeTeamId = i < teamIds.Count ? teamIds[i] : null;
+            targets[i].AwayTeamId = p2Idx < teamIds.Count ? teamIds[p2Idx] : null;
+        }
+    }
+
+    // ── Helper: create TeamMatchSet rows for newly assigned fixtures ────────
+
+    private static async Task CreateTeamMatchSetsForFixtures(
+        MyDbContext db, int competitionId, List<CompetitionFixture> fixtures)
+    {
+        foreach (var fx in fixtures.Where(f => f.HomeTeamId.HasValue && f.AwayTeamId.HasValue))
+        {
+            var homeMembers = await db.CompetitionParticipants
+                .Where(cp => cp.CompetitionId == competitionId && cp.TeamId == fx.HomeTeamId
+                    && (cp.Status == ParticipantStatus.Registered || cp.Status == ParticipantStatus.Confirmed))
+                .Include(cp => cp.Player)
+                .ToListAsync();
+
+            var awayMembers = await db.CompetitionParticipants
+                .Where(cp => cp.CompetitionId == competitionId && cp.TeamId == fx.AwayTeamId
+                    && (cp.Status == ParticipantStatus.Registered || cp.Status == ParticipantStatus.Confirmed))
+                .Include(cp => cp.Player)
+                .ToListAsync();
+
+            if (homeMembers.Count == 4 && awayMembers.Count == 4
+                && homeMembers.All(m => m.Grade != null && m.Player?.Sex != null)
+                && awayMembers.All(m => m.Grade != null && m.Player?.Sex != null))
+            {
+                var sets = TeamMatchService.CreateSetsForFixture(fx.CompetitionFixtureId, homeMembers, awayMembers);
+                db.TeamMatchSets.AddRange(sets);
+            }
+        }
     }
 
     // ── Helper: bracket-pair winners into target fixtures ────────────────────

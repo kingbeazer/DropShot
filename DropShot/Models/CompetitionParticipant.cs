@@ -15,6 +15,7 @@ public class CompetitionParticipant
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
     public ParticipantStatus Status { get; set; } = ParticipantStatus.Registered;
     public int? TeamId { get; set; }
+    public PlayerGrade? Grade { get; set; }
 
     public Competition Competition { get; set; } = null!;
     public Player Player { get; set; } = null!;

@@ -37,6 +37,12 @@ public class CompetitionFixture
     public int? OriginalWinnerPlayerId { get; set; }
     public bool ResultModifiedByAdmin { get; set; }
 
+    // Mixed Team Tennis fields
+    public int? HomeTeamId { get; set; }
+    public int? AwayTeamId { get; set; }
+    public int? WinnerTeamId { get; set; }
+    public int? CourtPairId { get; set; }
+
     public Competition Competition { get; set; } = null!;
     public CompetitionStage? Stage { get; set; }
     public Court? Court { get; set; }
@@ -45,4 +51,9 @@ public class CompetitionFixture
     public Player? Player3 { get; set; }
     public Player? Player4 { get; set; }
     public SavedMatch? SavedMatch { get; set; }
+    public CompetitionTeam? HomeTeam { get; set; }
+    public CompetitionTeam? AwayTeam { get; set; }
+    public CompetitionTeam? WinnerTeam { get; set; }
+    public CourtPair? CourtPair { get; set; }
+    public ICollection<TeamMatchSet> TeamMatchSets { get; set; } = [];
 }

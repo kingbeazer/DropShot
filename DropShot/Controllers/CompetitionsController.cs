@@ -66,7 +66,9 @@ public class CompetitionsController(
                 p.PlayerId, p.Player?.DisplayName ?? "",
                 (DropShot.Shared.ParticipantStatus)p.Status,
                 p.RegisteredAt, p.TeamId, p.Team?.Name,
-                p.Player?.MobileNumber)).ToList());
+                p.Player?.MobileNumber,
+                (DropShot.Shared.PlayerGrade?)p.Grade,
+                (DropShot.Shared.PlayerSex?)p.Player?.Sex)).ToList());
     }
 
     [HttpPost]
@@ -232,9 +234,12 @@ public class CompetitionsController(
         await using var db = dbFactory.CreateDbContext();
         var teams = await db.CompetitionTeams
             .Where(t => t.CompetitionId == id)
+            .Include(t => t.Captain)
             .OrderBy(t => t.Name)
             .ToListAsync();
-        return teams.Select(t => new CompetitionTeamDto(t.CompetitionTeamId, t.CompetitionId, t.Name)).ToList();
+        return teams.Select(t => new CompetitionTeamDto(
+            t.CompetitionTeamId, t.CompetitionId, t.Name,
+            t.CaptainPlayerId, t.Captain?.DisplayName)).ToList();
     }
 
     [HttpPost("{id:int}/teams")]
@@ -302,6 +307,9 @@ public class CompetitionsController(
             .Include(f => f.Player2)
             .Include(f => f.Player3)
             .Include(f => f.Player4)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .Include(f => f.CourtPair)
             .OrderBy(f => f.RoundNumber).ThenBy(f => f.ScheduledAt)
             .ToListAsync();
         return fixtures.Select(ToFixtureDto).ToList();
@@ -404,7 +412,9 @@ public class CompetitionsController(
         await using var db = dbFactory.CreateDbContext();
         var comp = await db.Competition
             .Include(c => c.Stages.OrderBy(s => s.StageOrder))
-            .Include(c => c.Participants)
+            .Include(c => c.Participants).ThenInclude(p => p.Player)
+            .Include(c => c.Teams)
+            .Include(c => c.CourtPairs)
             .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
             .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
@@ -462,15 +472,85 @@ public class CompetitionsController(
             {
                 case DropShot.Models.StageType.RoundRobin:
                 {
-                    var players = activePlayers.ToList();
-                    for (int i = 0; i < players.Count; i++)
+                    if (comp.CompetitionFormat == DropShot.Models.CompetitionFormat.MixedTeam)
                     {
-                        for (int j = i + 1; j < players.Count; j++)
+                        // Team round-robin using circle method
+                        var teamIds = comp.Teams.Select(t => t.CompetitionTeamId).ToList();
+                        var courtPairIds = comp.CourtPairs.Select(cp => cp.CourtPairId).ToList();
+                        int cpIdx = 0;
+
+                        // Circle method: fix team[0], rotate rest
+                        int n = teamIds.Count;
+                        bool hasOdd = n % 2 != 0;
+                        if (hasOdd) teamIds.Add(-1); // BYE sentinel
+                        int total = teamIds.Count;
+                        int rounds = total - 1;
+
+                        // Load all team members for set creation
+                        var allMembers = comp.Participants
+                            .Where(p => p.TeamId != null && p.Player != null
+                                && (p.Status == DropShot.Models.ParticipantStatus.Registered
+                                    || p.Status == DropShot.Models.ParticipantStatus.Confirmed))
+                            .ToList();
+
+                        for (int round = 0; round < rounds; round++)
                         {
-                            var fixture = NewFixture(id, stage.CompetitionStageId);
-                            fixture.Player1Id = players[i];
-                            fixture.Player2Id = players[j];
-                            db.CompetitionFixtures.Add(fixture);
+                            for (int match = 0; match < total / 2; match++)
+                            {
+                                int home = (match == 0) ? 0 : (round + match) % (total - 1) + 1;
+                                int away = (total - 1) - match;
+                                if (match == 0) away = (round % (total - 1)) + 1;
+
+                                // Correct circle method indices
+                                home = match == 0 ? 0 : ((round + match - 1) % (total - 1)) + 1;
+                                away = ((round + total - 1 - match) % (total - 1)) + 1;
+                                if (match == 0) { home = 0; away = ((round) % (total - 1)) + 1; }
+
+                                int homeTeamId = teamIds[home];
+                                int awayTeamId = teamIds[away];
+
+                                if (homeTeamId == -1 || awayTeamId == -1) continue; // BYE
+
+                                var fixture = NewFixture(id, stage.CompetitionStageId);
+                                fixture.HomeTeamId = homeTeamId;
+                                fixture.AwayTeamId = awayTeamId;
+
+                                if (courtPairIds.Count > 0)
+                                {
+                                    fixture.CourtPairId = courtPairIds[cpIdx % courtPairIds.Count];
+                                    cpIdx++;
+                                }
+
+                                db.CompetitionFixtures.Add(fixture);
+                                await db.SaveChangesAsync(); // Need ID for TeamMatchSets
+
+                                // Create 8 TeamMatchSet rows
+                                var homeMembers = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
+                                var awayMembers = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
+
+                                if (homeMembers.Count == 4 && awayMembers.Count == 4
+                                    && homeMembers.All(m => m.Grade != null && m.Player?.Sex != null)
+                                    && awayMembers.All(m => m.Grade != null && m.Player?.Sex != null))
+                                {
+                                    var sets = TeamMatchService.CreateSetsForFixture(
+                                        fixture.CompetitionFixtureId, homeMembers, awayMembers);
+                                    db.TeamMatchSets.AddRange(sets);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var players = activePlayers.ToList();
+                        for (int i = 0; i < players.Count; i++)
+                        {
+                            for (int j = i + 1; j < players.Count; j++)
+                            {
+                                var fixture = NewFixture(id, stage.CompetitionStageId);
+                                fixture.Player1Id = players[i];
+                                fixture.Player2Id = players[j];
+                                db.CompetitionFixtures.Add(fixture);
+                            }
                         }
                     }
                     break;
@@ -478,17 +558,9 @@ public class CompetitionsController(
 
                 case DropShot.Models.StageType.Knockout:
                 {
-                    // Smart knockout: generates exactly the right rounds based on player count.
-                    // No Byes, no power-of-2 bracket inflation.
-                    //
-                    //  n >= 8  →  Quarter-Finals (top 8, 4 matches) + 2 SF placeholders + Final
-                    //  n >= 4  →  Semi-Finals (top 4, 2 matches) + Final placeholder
-                    //  n >= 2  →  Final only (2 players)
-                    //
-                    // Players are seeded from the RR league table when results exist,
-                    // otherwise from registration order.
-
-                    int n = activePlayers.Count;
+                    int n = comp.CompetitionFormat == DropShot.Models.CompetitionFormat.MixedTeam
+                        ? comp.Teams.Count
+                        : activePlayers.Count;
                     if (n < 2) break;
 
                     if (n >= 8)
@@ -704,5 +776,268 @@ public class CompetitionsController(
         f.Player2Id, f.Player2?.DisplayName,
         f.Player3Id, f.Player3?.DisplayName,
         f.Player4Id, f.Player4?.DisplayName,
-        f.ResultSummary, f.WinnerPlayerId);
+        f.ResultSummary, f.WinnerPlayerId,
+        f.HomeTeamId, f.HomeTeam?.Name,
+        f.AwayTeamId, f.AwayTeam?.Name,
+        f.WinnerTeamId, f.CourtPairId, f.CourtPair?.Name);
+
+    // ── Mixed Team Tennis Endpoints ──────────────────────────────────────────
+
+    [HttpPut("{id:int}/participants/{playerId:int}/grade")]
+    public async Task<IActionResult> SetParticipantGrade(
+        int id, int playerId, [FromBody] SetParticipantGradeRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var cp = await db.CompetitionParticipants.FindAsync(id, playerId);
+        if (cp is null) return NotFound();
+        cp.Grade = (DropShot.Models.PlayerGrade)req.Grade;
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpPut("{id:int}/teams/{teamId:int}/captain")]
+    public async Task<IActionResult> SetTeamCaptain(
+        int id, int teamId, [FromBody] SetTeamCaptainRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var team = await db.CompetitionTeams.FindAsync(teamId);
+        if (team is null || team.CompetitionId != id) return NotFound();
+
+        var isMember = await db.CompetitionParticipants
+            .AnyAsync(cp => cp.CompetitionId == id && cp.PlayerId == req.CaptainPlayerId && cp.TeamId == teamId);
+        if (!isMember)
+            return BadRequest(new { message = "Captain must be a member of the team." });
+
+        team.CaptainPlayerId = req.CaptainPlayerId;
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpPost("{id:int}/teams/{teamId:int}/validate")]
+    public async Task<ActionResult<TeamValidationResultDto>> ValidateTeam(int id, int teamId)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var members = await db.CompetitionParticipants
+            .Where(cp => cp.CompetitionId == id && cp.TeamId == teamId
+                && (cp.Status == DropShot.Models.ParticipantStatus.Registered
+                    || cp.Status == DropShot.Models.ParticipantStatus.Confirmed))
+            .Include(cp => cp.Player)
+            .ToListAsync();
+
+        var errors = new List<string>();
+        if (members.Count != 4)
+            errors.Add($"Team must have exactly 4 active members (has {members.Count}).");
+
+        foreach (var m in members)
+        {
+            if (m.Player?.Sex == null) errors.Add($"{m.Player?.DisplayName ?? "Unknown"} has no sex assigned.");
+            if (m.Grade == null) errors.Add($"{m.Player?.DisplayName ?? "Unknown"} has no grade assigned.");
+        }
+
+        if (errors.Count == 0)
+        {
+            var maleA = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Male && m.Grade == DropShot.Models.PlayerGrade.A);
+            var femaleA = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Female && m.Grade == DropShot.Models.PlayerGrade.A);
+            var maleB = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Male && m.Grade == DropShot.Models.PlayerGrade.B);
+            var femaleB = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Female && m.Grade == DropShot.Models.PlayerGrade.B);
+
+            if (maleA != 1) errors.Add($"Need exactly 1 Male A player (has {maleA}).");
+            if (femaleA != 1) errors.Add($"Need exactly 1 Female A player (has {femaleA}).");
+            if (maleB != 1) errors.Add($"Need exactly 1 Male B player (has {maleB}).");
+            if (femaleB != 1) errors.Add($"Need exactly 1 Female B player (has {femaleB}).");
+        }
+
+        return new TeamValidationResultDto(errors.Count == 0, errors);
+    }
+
+    // ── Court Pairs ──────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/courtpairs")]
+    public async Task<ActionResult<List<CourtPairDto>>> GetCourtPairs(int id)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var pairs = await db.CourtPairs
+            .Where(cp => cp.CompetitionId == id)
+            .Include(cp => cp.Court1)
+            .Include(cp => cp.Court2)
+            .OrderBy(cp => cp.Name)
+            .ToListAsync();
+        return pairs.Select(cp => new CourtPairDto(
+            cp.CourtPairId, cp.CompetitionId,
+            cp.Court1Id, cp.Court1.Name,
+            cp.Court2Id, cp.Court2.Name,
+            cp.Name)).ToList();
+    }
+
+    [HttpPost("{id:int}/courtpairs")]
+    public async Task<ActionResult<CourtPairDto>> AddCourtPair(int id, [FromBody] SaveCourtPairRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var cp = new CourtPair
+        {
+            CompetitionId = id,
+            Court1Id = req.Court1Id,
+            Court2Id = req.Court2Id,
+            Name = req.Name.Trim()
+        };
+        db.CourtPairs.Add(cp);
+        await db.SaveChangesAsync();
+
+        await db.Entry(cp).Reference(c => c.Court1).LoadAsync();
+        await db.Entry(cp).Reference(c => c.Court2).LoadAsync();
+        return new CourtPairDto(cp.CourtPairId, cp.CompetitionId,
+            cp.Court1Id, cp.Court1.Name, cp.Court2Id, cp.Court2.Name, cp.Name);
+    }
+
+    [HttpPut("{id:int}/courtpairs/{courtPairId:int}")]
+    public async Task<IActionResult> UpdateCourtPair(int id, int courtPairId, [FromBody] SaveCourtPairRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var cp = await db.CourtPairs.FindAsync(courtPairId);
+        if (cp is null || cp.CompetitionId != id) return NotFound();
+        cp.Court1Id = req.Court1Id;
+        cp.Court2Id = req.Court2Id;
+        cp.Name = req.Name.Trim();
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpDelete("{id:int}/courtpairs/{courtPairId:int}")]
+    public async Task<IActionResult> DeleteCourtPair(int id, int courtPairId)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var cp = await db.CourtPairs.FindAsync(courtPairId);
+        if (cp is null || cp.CompetitionId != id) return NotFound();
+        db.CourtPairs.Remove(cp);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ── Team Match Sets ──────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/fixtures/{fixtureId:int}/sets")]
+    public async Task<ActionResult<List<TeamMatchSetDto>>> GetTeamMatchSets(int id, int fixtureId)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var sets = await db.TeamMatchSets
+            .Where(s => s.CompetitionFixtureId == fixtureId && s.Fixture.CompetitionId == id)
+            .Include(s => s.HomePlayer1)
+            .Include(s => s.HomePlayer2)
+            .Include(s => s.AwayPlayer1)
+            .Include(s => s.AwayPlayer2)
+            .OrderBy(s => s.SetNumber)
+            .ToListAsync();
+
+        return sets.Select(s => new TeamMatchSetDto(
+            s.TeamMatchSetId, s.CompetitionFixtureId, s.SetNumber,
+            (DropShot.Shared.TeamMatchPhase)s.Phase,
+            (DropShot.Shared.TeamMatchSetType)s.SetType,
+            s.CourtNumber,
+            s.HomePlayer1Id, s.HomePlayer1?.DisplayName,
+            s.HomePlayer2Id, s.HomePlayer2?.DisplayName,
+            s.AwayPlayer1Id, s.AwayPlayer1?.DisplayName,
+            s.AwayPlayer2Id, s.AwayPlayer2?.DisplayName,
+            s.HomeGames, s.AwayGames, s.WinnerTeamId,
+            s.IsComplete, s.SavedMatchId)).ToList();
+    }
+
+    // ── Team League Table ────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/teamleaguetable")]
+    public async Task<ActionResult<List<TeamLeagueTableEntryDto>>> GetTeamLeagueTable(int id)
+    {
+        await using var db = dbFactory.CreateDbContext();
+
+        var rrStageIds = await db.CompetitionStages
+            .Where(s => s.CompetitionId == id && s.StageType == DropShot.Models.StageType.RoundRobin)
+            .Select(s => s.CompetitionStageId)
+            .ToListAsync();
+
+        if (rrStageIds.Count == 0) return Ok(new List<TeamLeagueTableEntryDto>());
+
+        var fixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == id
+                && f.CompetitionStageId != null
+                && rrStageIds.Contains(f.CompetitionStageId!.Value)
+                && f.Status == DropShot.Models.FixtureStatus.Completed
+                && f.HomeTeamId != null && f.AwayTeamId != null)
+            .Include(f => f.TeamMatchSets)
+            .ToListAsync();
+
+        var teams = await db.CompetitionTeams
+            .Where(t => t.CompetitionId == id)
+            .Include(t => t.Captain)
+            .ToListAsync();
+
+        var stats = teams.ToDictionary(t => t.CompetitionTeamId, t => new
+        {
+            t.Name,
+            CaptainName = t.Captain?.DisplayName,
+            Played = 0, Won = 0, Drawn = 0, Lost = 0, SetsWon = 0, SetsAgainst = 0
+        });
+
+        // Use mutable counters
+        var played = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var won = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var drawn = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var lost = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var setsWon = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var setsAgainst = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+
+        foreach (var f in fixtures)
+        {
+            int homeId = f.HomeTeamId!.Value;
+            int awayId = f.AwayTeamId!.Value;
+            if (!played.ContainsKey(homeId) || !played.ContainsKey(awayId)) continue;
+
+            var completedSets = f.TeamMatchSets.Where(s => s.IsComplete).ToList();
+            int homeSetsWon = completedSets.Count(s => s.WinnerTeamId == homeId);
+            int awaySetsWon = completedSets.Count(s => s.WinnerTeamId == awayId);
+
+            played[homeId]++;
+            played[awayId]++;
+            setsWon[homeId] += homeSetsWon;
+            setsAgainst[homeId] += awaySetsWon;
+            setsWon[awayId] += awaySetsWon;
+            setsAgainst[awayId] += homeSetsWon;
+
+            if (homeSetsWon > awaySetsWon) { won[homeId]++; lost[awayId]++; }
+            else if (awaySetsWon > homeSetsWon) { won[awayId]++; lost[homeId]++; }
+            else { drawn[homeId]++; drawn[awayId]++; }
+        }
+
+        var entries = teams
+            .Select(t => new TeamLeagueTableEntryDto(
+                t.CompetitionTeamId, t.Name, t.Captain?.DisplayName,
+                played[t.CompetitionTeamId], won[t.CompetitionTeamId],
+                drawn[t.CompetitionTeamId], lost[t.CompetitionTeamId],
+                setsWon[t.CompetitionTeamId], setsAgainst[t.CompetitionTeamId],
+                setsWon[t.CompetitionTeamId]))
+            .OrderByDescending(e => e.Points)
+            .ThenByDescending(e => e.SetsWon - e.SetsAgainst)
+            .ThenBy(e => e.SetsAgainst)
+            .ToList();
+
+        return entries;
+    }
 }
