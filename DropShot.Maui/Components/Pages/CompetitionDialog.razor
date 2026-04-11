@@ -1,3 +1,4 @@
+@using DropShot.Shared.Extensions
 @inject ApiService Api
 
 <MudDialog>
@@ -10,7 +11,7 @@
                        Variant="Variant.Outlined" T="CompetitionFormat">
                 @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
                 {
-                    <MudSelectItem Value="f">@f</MudSelectItem>
+                    <MudSelectItem Value="f">@f.ToDisplayName()</MudSelectItem>
                 }
             </MudSelect>
 

@@ -7,6 +7,7 @@
 @using DropShot.Data
 @using DropShot.Models
 @using DropShot.Services
+@using DropShot.Shared.Extensions
 @using Microsoft.EntityFrameworkCore
 
 @inject IDbContextFactory<MyDbContext> DbFactory
@@ -69,7 +70,7 @@
                                    ValueChanged="@(v => { Model.CompetitionFormat = v; AutoGenerateName(); })">
                             @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
                             {
-                                <MudSelectItem Value="@f">@f</MudSelectItem>
+                                <MudSelectItem Value="@f">@f.ToDisplayName()</MudSelectItem>
                             }
                         </MudSelect>
                     </MudItem>

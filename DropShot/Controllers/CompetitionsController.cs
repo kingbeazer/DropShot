@@ -17,7 +17,8 @@ public class CompetitionsController(
 {
     [HttpGet]
     public async Task<ActionResult<List<CompetitionDto>>> GetAll(
-        [FromQuery] int skip = 0, [FromQuery] int take = 50, [FromQuery] int? eventId = null)
+        [FromQuery] int skip = 0, [FromQuery] int take = 50, [FromQuery] int? eventId = null,
+        [FromQuery] bool includeArchived = false)
     {
         await using var db = dbFactory.CreateDbContext();
         var query = db.Competition
@@ -25,6 +26,9 @@ public class CompetitionsController(
             .Include(c => c.Rules)
             .Include(c => c.Event)
             .AsQueryable();
+
+        if (!includeArchived)
+            query = query.Where(c => !c.IsArchived);
 
         if (eventId.HasValue)
             query = query.Where(c => c.EventId == eventId.Value);
@@ -68,7 +72,8 @@ public class CompetitionsController(
                 p.RegisteredAt, p.TeamId, p.Team?.Name,
                 p.Player?.MobileNumber,
                 (DropShot.Shared.PlayerGrade?)p.Grade,
-                (DropShot.Shared.PlayerSex?)p.Player?.Sex)).ToList());
+                (DropShot.Shared.PlayerSex?)p.Player?.Sex)).ToList(),
+            c.IsArchived);
     }
 
     [HttpPost]
@@ -100,13 +105,42 @@ public class CompetitionsController(
         return ToDto(comp);
     }
 
+    [HttpPut("{id:int}/archive")]
+    public async Task<IActionResult> ToggleArchive(int id)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId, comp.CompetitionID))
+            return Forbid();
+
+        comp.IsArchived = !comp.IsArchived;
+        await db.SaveChangesAsync();
+        return Ok(new { comp.IsArchived });
+    }
+
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
         await using var db = dbFactory.CreateDbContext();
         var comp = await db.Competition.FindAsync(id);
         if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId, comp.CompetitionID))
+            return Forbid();
+        if (!comp.IsArchived)
+            return BadRequest("Competition must be archived before it can be deleted.");
+
+        // Remove child entities that use Restrict/NoAction FK to avoid FK violations
+        var teamMatchSets = await db.TeamMatchSets
+            .Where(s => s.Fixture.CompetitionId == id)
+            .ToListAsync();
+        db.TeamMatchSets.RemoveRange(teamMatchSets);
+
+        var fixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == id)
+            .ToListAsync();
+        db.CompetitionFixtures.RemoveRange(fixtures);
+
         db.Competition.Remove(comp);
         await db.SaveChangesAsync();
         return NoContent();
@@ -766,7 +800,7 @@ public class CompetitionsController(
         c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
         (DropShot.Shared.PlayerSex?)c.EligibleSex,
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
-        c.EventId, c.Event?.Name);
+        c.EventId, c.Event?.Name, c.IsArchived);
 
     private static CompetitionFixtureDto ToFixtureDto(CompetitionFixture f) => new(
         f.CompetitionFixtureId, f.CompetitionId,

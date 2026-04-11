@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using DropShot.Data
 @using DropShot.Models
+@using DropShot.Shared.Extensions
 @using Microsoft.EntityFrameworkCore
 
 @inject IDbContextFactory<MyDbContext> DbFactory
@@ -35,7 +36,7 @@ else
     <MudGrid Spacing="3" Class="mb-4">
         <MudItem xs="6" sm="3">
             <MudText Typo="Typo.caption" Color="Color.Secondary">Format</MudText>
-            <MudText Typo="Typo.body1">@_competition.CompetitionFormat</MudText>
+            <MudText Typo="Typo.body1">@_competition.CompetitionFormat.ToDisplayName()</MudText>
         </MudItem>
         @if (_competition.StartDate.HasValue || _competition.EndDate.HasValue)
         {

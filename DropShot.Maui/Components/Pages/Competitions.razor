@@ -1,5 +1,6 @@
 @page "/competitions"
 @attribute [Authorize]
+@using DropShot.Shared.Extensions
 @inject ApiService Api
 @inject AuthService Auth
 @inject ISnackbar Snackbar
@@ -22,6 +23,7 @@ else
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                       Immediate="true" Clearable="true" Variant="Variant.Outlined"
                       Class="flex-grow-1" />
+        <MudCheckBox @bind-Value="_showArchived" Label="Archived" Color="Color.Warning" Dense="true" />
         @if (Auth.IsAdmin)
         {
             <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
@@ -44,8 +46,14 @@ else
                     }
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd>@context.CompetitionName</MudTd>
-                    <MudTd>@context.CompetitionFormat</MudTd>
+                    <MudTd>
+                        @context.CompetitionName
+                        @if (context.IsArchived)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd>@context.CompetitionFormat.ToDisplayName()</MudTd>
                     <MudTd>@(context.StartDate?.ToString("dd MMM yyyy") ?? "—")</MudTd>
                     <MudTd>@(context.HostClubName ?? "—")</MudTd>
                     <MudTd>
@@ -59,11 +67,20 @@ else
                     <MudTd>
                         @if (Auth.IsAdmin || Auth.CanEditCompetition(context.HostClubId))
                         {
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                           OnClick="@(() => OpenEditDialog(context))" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                           Color="Color.Error"
-                                           OnClick="@(() => DeleteAsync(context))" />
+                            @if (!context.IsArchived)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                               OnClick="@(() => OpenEditDialog(context))" />
+                            }
+                            <MudIconButton Icon="@(context.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                           Size="Size.Small" Color="Color.Warning"
+                                           OnClick="@(() => ToggleArchiveAsync(context))" />
+                            @if (context.IsArchived)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteAsync(context))" />
+                            }
                         }
                     </MudTd>
                 </RowTemplate>
@@ -93,7 +110,7 @@ else
                                     {
                                         <tr>
                                             <td>@comp.CompetitionName</td>
-                                            <td>@comp.CompetitionFormat</td>
+                                            <td>@comp.CompetitionFormat.ToDisplayName()</td>
                                             <td>
                                                 @if (Auth.IsAdmin || Auth.CanEditCompetition(comp.HostClubId))
                                                 {
@@ -131,7 +148,7 @@ else
                                     {
                                         <tr>
                                             <td>@comp.CompetitionName</td>
-                                            <td>@comp.CompetitionFormat</td>
+                                            <td>@comp.CompetitionFormat.ToDisplayName()</td>
                                             <td>
                                                 @if (Auth.IsAdmin || Auth.CanEditCompetition(comp.HostClubId))
                                                 {
@@ -157,18 +174,21 @@ else
     private bool _loading = true;
     private string? _error;
     private string _search = "";
+    private bool _showArchived;
     private int _activeTab;
 
     private IEnumerable<CompetitionDto> FilteredCompetitions => _competitions is null
         ? []
-        : _competitions.Where(c => string.IsNullOrWhiteSpace(_search)
-            || c.CompetitionName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+        : _competitions.Where(c =>
+            (_showArchived || !c.IsArchived) &&
+            (string.IsNullOrWhiteSpace(_search)
+            || c.CompetitionName.Contains(_search, StringComparison.OrdinalIgnoreCase)));
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _competitions = await Api.GetCompetitionsAsync();
+            _competitions = await Api.GetCompetitionsAsync(includeArchived: true);
             _events = await Api.GetEventsAsync();
         }
         catch (Exception ex)
@@ -230,11 +250,35 @@ else
         }
     }
 
+    private async Task ToggleArchiveAsync(CompetitionDto comp)
+    {
+        try
+        {
+            var isArchived = await Api.ToggleArchiveCompetitionAsync(comp.CompetitionId);
+            var idx = _competitions?.FindIndex(c => c.CompetitionId == comp.CompetitionId) ?? -1;
+            if (idx >= 0)
+            {
+                _competitions![idx] = comp with { IsArchived = isArchived };
+            }
+            Snackbar.Add(isArchived ? $"'{comp.CompetitionName}' archived." : $"'{comp.CompetitionName}' restored.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
     private async Task DeleteAsync(CompetitionDto comp)
     {
+        if (!comp.IsArchived)
+        {
+            Snackbar.Add("Competition must be archived before it can be deleted.", Severity.Warning);
+            return;
+        }
+
         var confirmed = await Dialog.ShowMessageBoxAsync(
             "Delete Competition",
-            $"Delete \"{comp.CompetitionName}\"? This cannot be undone.",
+            $"Permanently delete \"{comp.CompetitionName}\"? This will remove all participants, fixtures, stages, and teams. This cannot be undone.",
             yesText: "Delete", cancelText: "Cancel");
         if (confirmed != true) return;
 

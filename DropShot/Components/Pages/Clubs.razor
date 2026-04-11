@@ -6,6 +6,7 @@
 @using DropShot.Models
 @using DropShot.Data
 @using DropShot.Services
+@using DropShot.Shared.Extensions
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
 @inject ClubAuthorizationService AuthzService
@@ -313,7 +314,7 @@
                         <MudSelect @bind-Value="ct.Format" Label="Format" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
                             @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
                             {
-                                <MudSelectItem T="CompetitionFormat?" Value="@((CompetitionFormat?)f)">@f</MudSelectItem>
+                                <MudSelectItem T="CompetitionFormat?" Value="@((CompetitionFormat?)f)">@f.ToDisplayName()</MudSelectItem>
                             }
                         </MudSelect>
                     </MudItem>

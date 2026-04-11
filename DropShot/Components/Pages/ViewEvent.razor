@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using DropShot.Data
 @using DropShot.Models
+@using DropShot.Shared.Extensions
 @using Microsoft.EntityFrameworkCore
 
 @inject IDbContextFactory<MyDbContext> DbFactory
@@ -72,7 +73,7 @@ else
             {
                 <tr>
                     <td>@comp.CompetitionName</td>
-                    <td>@comp.CompetitionFormat</td>
+                    <td>@comp.CompetitionFormat.ToDisplayName()</td>
                     <td>
                         @{
                             var parts = new List<string>();
