@@ -69,8 +69,8 @@ public class ApiService(HttpClient http)
 
     // ── Competitions ─────────────────────────────────────────────────────────
 
-    public async Task<List<CompetitionDto>> GetCompetitionsAsync() =>
-        await http.GetFromJsonAsync<List<CompetitionDto>>("api/competitions") ?? [];
+    public async Task<List<CompetitionDto>> GetCompetitionsAsync(bool includeArchived = false) =>
+        await http.GetFromJsonAsync<List<CompetitionDto>>($"api/competitions?includeArchived={includeArchived}") ?? [];
 
     public Task<CompetitionDetailDto?> GetCompetitionAsync(int id) =>
         http.GetFromJsonAsync<CompetitionDetailDto>($"api/competitions/{id}");
@@ -83,6 +83,16 @@ public class ApiService(HttpClient http)
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<CompetitionDto>();
     }
+
+    public async Task<bool> ToggleArchiveCompetitionAsync(int id)
+    {
+        var r = await http.PutAsync($"api/competitions/{id}/archive", null);
+        r.EnsureSuccessStatusCode();
+        var result = await r.Content.ReadFromJsonAsync<ArchiveResult>();
+        return result?.IsArchived ?? false;
+    }
+
+    private record ArchiveResult(bool IsArchived);
 
     public async Task DeleteCompetitionAsync(int id)
     {

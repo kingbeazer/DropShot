@@ -7,6 +7,7 @@
 @using DropShot.Data
 @using DropShot.Models
 @using DropShot.Services
+@using DropShot.Shared.Extensions
 @using DropShot.Shared.Dtos
 @using Microsoft.EntityFrameworkCore
 
@@ -47,7 +48,7 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Name">@context.CompetitionName</MudTd>
-                    <MudTd DataLabel="Format">@context.CompetitionFormat</MudTd>
+                    <MudTd DataLabel="Format">@context.CompetitionFormat.ToDisplayName()</MudTd>
                     <MudTd DataLabel="Host Club">@(context.HostClub?.Name ?? "—")</MudTd>
                     <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
                     <MudTd>
@@ -77,7 +78,7 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Name">@context.CompetitionName</MudTd>
-                    <MudTd DataLabel="Format">@context.CompetitionFormat</MudTd>
+                    <MudTd DataLabel="Format">@context.CompetitionFormat.ToDisplayName()</MudTd>
                     <MudTd DataLabel="Host Club">@(context.HostClub?.Name ?? "—")</MudTd>
                     <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
                     <MudTd>
@@ -175,9 +176,13 @@
 
 @if (!_isUserView)
 {
-<MudTextField @bind-Value="_searchText" Placeholder="Search competitions..."
-              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-              Immediate="true" Class="mb-4" />
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
+    <MudTextField @bind-Value="_searchText" Placeholder="Search competitions..."
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true" Class="flex-grow-1" />
+    <MudCheckBox @bind-Value="_showArchived" Label="Show Archived" Color="Color.Warning"
+                 Dense="true" />
+</MudStack>
 
 <MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" ApplyEffectsToContainer="true" Class="mb-4">
     <MudTabPanel Text="All Competitions" Icon="@Icons.Material.Filled.List">
@@ -185,7 +190,7 @@
                      QuickFilter="@FilterCompetitions">
             <Columns>
                 <PropertyColumn Property="x => x.CompetitionName" />
-                <PropertyColumn Property="x => x.CompetitionFormat" />
+                <PropertyColumn Property="x => x.CompetitionFormat.ToDisplayName()" Title="Format" />
                 <TemplateColumn Title="Event">
                     <CellTemplate>
                         @if (context.Item.Event != null)
@@ -198,6 +203,10 @@
                 </TemplateColumn>
                 <TemplateColumn CellClass="d-flex justify-end gap-2">
                     <CellTemplate>
+                        @if (context.Item.IsArchived)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
+                        }
                         <MudButton Size="@Size.Small"
                                    Variant="@Variant.Outlined"
                                    Color="@Color.Info"
@@ -206,12 +215,32 @@
                         </MudButton>
                         @if (CanEdit(context.Item))
                         {
+                            @if (!context.Item.IsArchived)
+                            {
+                                <MudButton Size="@Size.Small"
+                                           Variant="@Variant.Filled"
+                                           Color="@Color.Primary"
+                                           OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionID}"))">
+                                    Edit
+                                </MudButton>
+                            }
                             <MudButton Size="@Size.Small"
-                                       Variant="@Variant.Filled"
-                                       Color="@Color.Primary"
-                                       OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionID}"))">
-                                Edit
+                                       Variant="@Variant.Outlined"
+                                       Color="@(context.Item.IsArchived ? Color.Success : Color.Warning)"
+                                       StartIcon="@(context.Item.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                       OnClick="@(() => ToggleArchiveAsync(context.Item))">
+                                @(context.Item.IsArchived ? "Unarchive" : "Archive")
                             </MudButton>
+                            @if (context.Item.IsArchived)
+                            {
+                                <MudButton Size="@Size.Small"
+                                           Variant="@Variant.Filled"
+                                           Color="@Color.Error"
+                                           StartIcon="@Icons.Material.Filled.Delete"
+                                           OnClick="@(() => DeleteCompetitionAsync(context.Item))">
+                                    Delete
+                                </MudButton>
+                            }
                         }
                     </CellTemplate>
                 </TemplateColumn>
@@ -254,8 +283,14 @@
                                 @foreach (var comp in ev.Competitions.Where(c => FilterCompetitions(c)))
                                 {
                                     <tr>
-                                        <td>@comp.CompetitionName</td>
-                                        <td>@comp.CompetitionFormat</td>
+                                        <td>
+                                            @comp.CompetitionName
+                                            @if (comp.IsArchived)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
+                                            }
+                                        </td>
+                                        <td>@comp.CompetitionFormat.ToDisplayName()</td>
                                         <td class="d-flex justify-end gap-2">
                                             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
                                                        OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionID}/view"))">
@@ -263,10 +298,25 @@
                                             </MudButton>
                                             @if (CanEdit(comp))
                                             {
-                                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                                           OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionID}"))">
-                                                    Edit
+                                                @if (!comp.IsArchived)
+                                                {
+                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionID}"))">
+                                                        Edit
+                                                    </MudButton>
+                                                }
+                                                <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                                                           Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
+                                                           OnClick="@(() => ToggleArchiveAsync(comp))">
+                                                    @(comp.IsArchived ? "Unarchive" : "Archive")
                                                 </MudButton>
+                                                @if (comp.IsArchived)
+                                                {
+                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                                               OnClick="@(() => DeleteCompetitionAsync(comp))">
+                                                        Delete
+                                                    </MudButton>
+                                                }
                                             }
                                         </td>
                                     </tr>
@@ -298,8 +348,14 @@
                                 @foreach (var comp in _ungroupedCompetitions.Where(c => FilterCompetitions(c)))
                                 {
                                     <tr>
-                                        <td>@comp.CompetitionName</td>
-                                        <td>@comp.CompetitionFormat</td>
+                                        <td>
+                                            @comp.CompetitionName
+                                            @if (comp.IsArchived)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
+                                            }
+                                        </td>
+                                        <td>@comp.CompetitionFormat.ToDisplayName()</td>
                                         <td class="d-flex justify-end gap-2">
                                             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
                                                        OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionID}/view"))">
@@ -307,10 +363,25 @@
                                             </MudButton>
                                             @if (CanEdit(comp))
                                             {
-                                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                                           OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionID}"))">
-                                                    Edit
+                                                @if (!comp.IsArchived)
+                                                {
+                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionID}"))">
+                                                        Edit
+                                                    </MudButton>
+                                                }
+                                                <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                                                           Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
+                                                           OnClick="@(() => ToggleArchiveAsync(comp))">
+                                                    @(comp.IsArchived ? "Unarchive" : "Archive")
                                                 </MudButton>
+                                                @if (comp.IsArchived)
+                                                {
+                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                                               OnClick="@(() => DeleteCompetitionAsync(comp))">
+                                                        Delete
+                                                    </MudButton>
+                                                }
                                             }
                                         </td>
                                     </tr>
@@ -345,6 +416,7 @@
     private List<EventGroup> _events = [];
     private List<Competition> _ungroupedCompetitions = [];
     private string _searchText = "";
+    private bool _showArchived;
     private bool _isAdmin;
     private int _activeTab;
     private List<CompetitionFixture> _pendingFixtures = [];
@@ -363,9 +435,10 @@
     }
 
     private bool FilterCompetitions(Competition c) =>
-        string.IsNullOrWhiteSpace(_searchText) ||
+        (_showArchived || !c.IsArchived) &&
+        (string.IsNullOrWhiteSpace(_searchText) ||
         (c.CompetitionName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
-        c.CompetitionFormat.ToString().Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+        c.CompetitionFormat.ToDisplayName().Contains(_searchText, StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
     {
@@ -402,7 +475,8 @@
                 CompetitionFormat = c.CompetitionFormat,
                 HostClubId = c.HostClubId,
                 EventId = c.EventId,
-                Event = c.Event
+                Event = c.Event,
+                IsArchived = c.IsArchived
             })
             .ToListAsync();
 
@@ -469,7 +543,7 @@
         var candidates = await dbc.Competition
             .Include(c => c.HostClub)
             .Include(c => c.Event)
-            .Where(c => !enteredIds.Contains(c.CompetitionID))
+            .Where(c => !enteredIds.Contains(c.CompetitionID) && !c.IsArchived)
             .OrderBy(c => c.StartDate)
             .ThenBy(c => c.CompetitionName)
             .ToListAsync();
@@ -672,5 +746,55 @@
 
         Snackbar.Add($"Event '{ev.Name}' created with {createdComps.Count} competition(s).", Severity.Success);
         _activeTab = 1; // Switch to "By Event" tab
+    }
+
+    private async Task ToggleArchiveAsync(Competition comp)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var entity = await db.Competition.FindAsync(comp.CompetitionID);
+        if (entity is null) return;
+
+        entity.IsArchived = !entity.IsArchived;
+        await db.SaveChangesAsync();
+        comp.IsArchived = entity.IsArchived;
+
+        Snackbar.Add(comp.IsArchived
+            ? $"'{comp.CompetitionName}' archived."
+            : $"'{comp.CompetitionName}' restored.", Severity.Success);
+    }
+
+    private async Task DeleteCompetitionAsync(Competition comp)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Delete Competition",
+            $"Are you sure you want to permanently delete '{comp.CompetitionName}'? This will remove all participants, fixtures, stages, and teams. This action cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirm != true) return;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        // Remove child entities with Restrict/NoAction FK to avoid violations
+        var teamMatchSets = await db.TeamMatchSets
+            .Where(s => s.Fixture.CompetitionId == comp.CompetitionID)
+            .ToListAsync();
+        db.TeamMatchSets.RemoveRange(teamMatchSets);
+
+        var fixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == comp.CompetitionID)
+            .ToListAsync();
+        db.CompetitionFixtures.RemoveRange(fixtures);
+
+        var entity = await db.Competition.FindAsync(comp.CompetitionID);
+        if (entity is null) return;
+        db.Competition.Remove(entity);
+        await db.SaveChangesAsync();
+
+        _competitions.Remove(comp);
+        foreach (var ev in _events)
+            ev.Competitions.Remove(comp);
+        _ungroupedCompetitions.Remove(comp);
+
+        Snackbar.Add($"'{comp.CompetitionName}' deleted.", Severity.Success);
     }
 }
