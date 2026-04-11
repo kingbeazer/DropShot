@@ -156,10 +156,16 @@ public class CompetitionsController(
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
+        var modelType = (DropShot.Models.StageType)req.StageType;
+        var nextOrder = await db.CompetitionStages
+            .Where(s => s.CompetitionId == id)
+            .Select(s => (int?)s.StageOrder).MaxAsync() ?? 0;
         var stage = new CompetitionStage
         {
-            CompetitionId = id, Name = req.Name, StageOrder = req.StageOrder,
-            StageType = (DropShot.Models.StageType)req.StageType
+            CompetitionId = id,
+            Name = req.Name ?? StageDisplayName(modelType),
+            StageOrder = req.StageOrder ?? nextOrder + 1,
+            StageType = modelType
         };
         db.CompetitionStages.Add(stage);
         await db.SaveChangesAsync();
@@ -1076,4 +1082,14 @@ public class CompetitionsController(
 
         return entries;
     }
+
+    private static string StageDisplayName(Models.StageType type) => type switch
+    {
+        Models.StageType.RoundRobin   => "Round Robin",
+        Models.StageType.Knockout     => "Knockout",
+        Models.StageType.QuarterFinal => "Quarter-Final",
+        Models.StageType.SemiFinal    => "Semi-Final",
+        Models.StageType.Final        => "Final",
+        _                             => type.ToString()
+    };
 }

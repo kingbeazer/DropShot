@@ -190,17 +190,15 @@
                                OnClick="OpenAddStageDialog">Add Stage</MudButton>
                 </MudStack>
 
-                <MudTable Items="@_stages" Dense="true" Hover="true">
+                <MudTable Items="@_stages.OrderBy(s => s.StageOrder)" Dense="true" Hover="true">
                     <HeaderContent>
-                        <MudTh>Order</MudTh>
-                        <MudTh>Name</MudTh>
-                        <MudTh>Type</MudTh>
+                        <MudTh>#</MudTh>
+                        <MudTh>Stage</MudTh>
                         <MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd>@context.StageOrder</MudTd>
-                        <MudTd>@context.Name</MudTd>
-                        <MudTd>@context.StageType</MudTd>
+                        <MudTd>@StageDisplayName(context.StageType)</MudTd>
                         <MudTd>
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                            Color="Color.Error" OnClick="@(() => DeleteStage(context))" />
@@ -683,23 +681,12 @@
 <MudDialog @bind-Visible="_showStageDialog">
     <TitleContent>Add Stage</TitleContent>
     <DialogContent>
-        <MudGrid Spacing="2">
-            <MudItem xs="12">
-                <MudTextField @bind-Value="_stageForm.Name" Label="Stage Name" Variant="Variant.Outlined"
-                              Required="true" Placeholder="e.g. Group Stage" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudNumericField @bind-Value="_stageForm.StageOrder" Label="Order" Min="1" Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSelect @bind-Value="_stageForm.StageType" Label="Type" Variant="Variant.Outlined">
-                    @foreach (StageType t in Enum.GetValues<StageType>())
-                    {
-                        <MudSelectItem Value="@t">@t</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-        </MudGrid>
+        <MudSelect @bind-Value="_stageForm.StageType" Label="Stage Type" Variant="Variant.Outlined">
+            @foreach (var t in GetAvailableStageTypes())
+            {
+                <MudSelectItem Value="@t">@StageDisplayName(t)</MudSelectItem>
+            }
+        </MudSelect>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => _showStageDialog = false)">Cancel</MudButton>
@@ -1059,9 +1046,52 @@
 
     private sealed class StageForm
     {
-        public string Name { get; set; } = "";
-        public int StageOrder { get; set; } = 1;
         public StageType StageType { get; set; } = StageType.RoundRobin;
+    }
+
+    private static string StageDisplayName(StageType type) => type switch
+    {
+        StageType.RoundRobin   => "Round Robin",
+        StageType.Knockout     => "Knockout",
+        StageType.QuarterFinal => "Quarter-Final",
+        StageType.SemiFinal    => "Semi-Final",
+        StageType.Final        => "Final",
+        _                      => type.ToString()
+    };
+
+    /// <summary>Defines the natural ordering of stage types.</summary>
+    private static int StageTypeSortKey(StageType type) => type switch
+    {
+        StageType.RoundRobin   => 0,
+        StageType.QuarterFinal => 1,
+        StageType.SemiFinal    => 2,
+        StageType.Knockout     => 3,
+        StageType.Final        => 4,
+        _                      => 99
+    };
+
+    /// <summary>Returns stage types that can still be added, given what already exists.</summary>
+    private List<StageType> GetAvailableStageTypes()
+    {
+        var existing = _stages.Select(s => s.StageType).ToHashSet();
+        var available = new List<StageType>();
+
+        foreach (var t in Enum.GetValues<StageType>())
+        {
+            if (existing.Contains(t)) continue; // already added
+
+            // Knockout is a full bracket — incompatible with individual QF/SF/Final
+            if (t == StageType.Knockout &&
+                existing.Any(e => e is StageType.QuarterFinal or StageType.SemiFinal or StageType.Final))
+                continue;
+            if (t is StageType.QuarterFinal or StageType.SemiFinal or StageType.Final &&
+                existing.Contains(StageType.Knockout))
+                continue;
+
+            available.Add(t);
+        }
+
+        return available;
     }
 
     private sealed class FixtureForm
@@ -1366,28 +1396,42 @@
 
     private void OpenAddStageDialog()
     {
-        _stageForm = new StageForm { StageOrder = _stages.Count + 1 };
+        var available = GetAvailableStageTypes();
+        if (available.Count == 0)
+        {
+            Snackbar.Add("All stage types have been added.", Severity.Info);
+            return;
+        }
+        _stageForm = new StageForm { StageType = available[0] };
         _showStageDialog = true;
     }
 
     private async Task SaveStage()
     {
-        if (string.IsNullOrWhiteSpace(_stageForm.Name)) return;
         await using var db = DbFactory.CreateDbContext();
         var stage = new CompetitionStage
         {
             CompetitionId = Id,
-            Name = _stageForm.Name.Trim(),
-            StageOrder = _stageForm.StageOrder,
+            Name = StageDisplayName(_stageForm.StageType),
+            StageOrder = 0, // recalculated below
             StageType = _stageForm.StageType
         };
         db.CompetitionStages.Add(stage);
-        await db.SaveChangesAsync();
         _stages.Add(stage);
+        ReorderStages();
+        await db.SaveChangesAsync();
         _showStageDialog = false;
         Snackbar.Add("Stage added.", Severity.Success);
 
         OfferFollowOnStages(stage.StageType, stage.StageOrder);
+    }
+
+    /// <summary>Reassigns StageOrder on all stages based on their natural type ordering.</summary>
+    private void ReorderStages()
+    {
+        var ordered = _stages.OrderBy(s => StageTypeSortKey(s.StageType)).ToList();
+        for (int i = 0; i < ordered.Count; i++)
+            ordered[i].StageOrder = i + 1;
     }
 
     private void OfferFollowOnStages(StageType added, int lastOrder)
@@ -1446,21 +1490,20 @@
     private async Task ApplyStageFollowUp(List<(string Name, StageType Type)> stages)
     {
         await using var db = DbFactory.CreateDbContext();
-        int order = _stages.Max(s => s.StageOrder);
-        foreach (var (name, type) in stages)
+        foreach (var (_, type) in stages)
         {
-            order++;
             var stage = new CompetitionStage
             {
                 CompetitionId = Id,
-                Name = name,
-                StageOrder = order,
+                Name = StageDisplayName(type),
+                StageOrder = 0,
                 StageType = type
             };
             db.CompetitionStages.Add(stage);
-            await db.SaveChangesAsync();
             _stages.Add(stage);
         }
+        ReorderStages();
+        await db.SaveChangesAsync();
         _showStageFollowUpDialog = false;
         Snackbar.Add($"{stages.Count} stage(s) added.", Severity.Success);
     }
@@ -1471,6 +1514,14 @@
         var s = await db.CompetitionStages.FindAsync(stage.CompetitionStageId);
         if (s != null) { db.CompetitionStages.Remove(s); await db.SaveChangesAsync(); }
         _stages.Remove(stage);
+        ReorderStages();
+        if (_stages.Count > 0)
+        {
+            await using var db2 = DbFactory.CreateDbContext();
+            foreach (var remaining in _stages)
+                db2.CompetitionStages.Attach(remaining).Property(x => x.StageOrder).IsModified = true;
+            await db2.SaveChangesAsync();
+        }
         Snackbar.Add("Stage removed.", Severity.Warning);
     }
 
