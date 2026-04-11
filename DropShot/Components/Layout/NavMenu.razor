@@ -121,9 +121,6 @@
                                 <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" /> Account
                             </a>
                             <div class="nav-dropdown-item">
-                                <DropShot.Components.Shared.RoleSwitcher />
-                            </div>
-                            <div class="nav-dropdown-item">
                                 <form action="Account/Logout" method="post">
                                     <AntiforgeryToken />
                                     <input type="hidden" name="ReturnUrl" value="@currentUrl" />
