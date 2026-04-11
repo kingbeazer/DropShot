@@ -48,8 +48,11 @@ public class ClubAuthorizationService(
     /// <summary>Returns the list of ClubIds the user is an administrator of.</summary>
     public async Task<List<int>> GetAdminClubIdsAsync(ClaimsPrincipal user)
     {
-        var userId = userManager.GetUserId(user);
+        var (userId, roles) = GetUserAndRoles(user);
         if (userId is null) return [];
+
+        // If the active role is plain User, they have no club admin privileges
+        if (roles.Count == 1 && roles[0] == "User") return [];
 
         await using var db = dbFactory.CreateDbContext();
         return await db.ClubAdministrators
@@ -64,6 +67,9 @@ public class ClubAuthorizationService(
         var (userId, roles) = GetUserAndRoles(user);
         if (userId is null) return false;
         if (roles.Contains("Admin") || roles.Contains("SuperAdmin")) return true;
+
+        // Plain User role has no club admin privileges
+        if (roles.Count == 1 && roles[0] == "User") return false;
 
         await using var db = dbFactory.CreateDbContext();
         return await db.ClubAdministrators
@@ -84,6 +90,9 @@ public class ClubAuthorizationService(
         if (userId is null) return false;
         if (roles.Contains("Admin") || roles.Contains("SuperAdmin")) return true;
 
+        // Plain User role has no competition admin privileges
+        if (roles.Count == 1 && roles[0] == "User") return false;
+
         if (competitionId.HasValue)
         {
             await using var db = dbFactory.CreateDbContext();
@@ -102,8 +111,11 @@ public class ClubAuthorizationService(
     /// <summary>Returns the set of CompetitionIds the user is a per-competition admin of.</summary>
     public async Task<HashSet<int>> GetEditableCompetitionIdsAsync(ClaimsPrincipal user)
     {
-        var userId = userManager.GetUserId(user);
+        var (userId, roles) = GetUserAndRoles(user);
         if (userId is null) return [];
+
+        // If the active role is plain User, they have no competition admin privileges
+        if (roles.Count == 1 && roles[0] == "User") return [];
 
         await using var db = dbFactory.CreateDbContext();
         return (await db.CompetitionAdmins
