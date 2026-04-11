@@ -36,6 +36,8 @@ namespace DropShot.Data
         public DbSet<UserPlayer> UserPlayers { get; set; }
         public DbSet<RoleSwitchLog> RoleSwitchLogs { get; set; }
         public DbSet<Event> Events { get; set; }
+        public DbSet<CourtPair> CourtPairs { get; set; }
+        public DbSet<TeamMatchSet> TeamMatchSets { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -188,6 +190,11 @@ namespace DropShot.Data
                       .WithMany(c => c.Teams)
                       .HasForeignKey(t => t.CompetitionId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(t => t.Captain)
+                      .WithMany()
+                      .HasForeignKey(t => t.CaptainPlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // ── CompetitionParticipant ───────────────────────────────────────────
@@ -195,6 +202,7 @@ namespace DropShot.Data
             {
                 entity.HasKey(cp => new { cp.CompetitionId, cp.PlayerId });
                 entity.Property(cp => cp.Status).HasConversion<byte>();
+                entity.Property(cp => cp.Grade).HasConversion<byte?>();
 
                 entity.HasOne(cp => cp.Competition)
                       .WithMany(c => c.Participants)
@@ -256,6 +264,16 @@ namespace DropShot.Data
                 entity.HasOne(f => f.SavedMatch)
                       .WithMany()
                       .HasForeignKey(f => f.SavedMatchId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                // Mixed Team Tennis FKs — all NoAction to avoid multi-cascade through Competition
+                entity.HasOne(f => f.HomeTeam).WithMany().HasForeignKey(f => f.HomeTeamId).OnDelete(DeleteBehavior.NoAction);
+                entity.HasOne(f => f.AwayTeam).WithMany().HasForeignKey(f => f.AwayTeamId).OnDelete(DeleteBehavior.NoAction);
+                entity.HasOne(f => f.WinnerTeam).WithMany().HasForeignKey(f => f.WinnerTeamId).OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(f => f.CourtPair)
+                      .WithMany()
+                      .HasForeignKey(f => f.CourtPairId)
                       .OnDelete(DeleteBehavior.SetNull);
             });
 
@@ -434,6 +452,55 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(up => up.PlayerId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── CourtPair ───────────────────────────────────────────────────────
+            builder.Entity<CourtPair>(entity =>
+            {
+                entity.Property(cp => cp.Name).HasMaxLength(100).IsRequired();
+
+                entity.HasOne(cp => cp.Competition)
+                      .WithMany(c => c.CourtPairs)
+                      .HasForeignKey(cp => cp.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(cp => cp.Court1)
+                      .WithMany()
+                      .HasForeignKey(cp => cp.Court1Id)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(cp => cp.Court2)
+                      .WithMany()
+                      .HasForeignKey(cp => cp.Court2Id)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── TeamMatchSet ───────────────────────────────────────────────────
+            builder.Entity<TeamMatchSet>(entity =>
+            {
+                entity.Property(s => s.Phase).HasConversion<byte>();
+                entity.Property(s => s.SetType).HasConversion<byte>();
+
+                entity.HasOne(s => s.Fixture)
+                      .WithMany(f => f.TeamMatchSets)
+                      .HasForeignKey(s => s.CompetitionFixtureId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Multiple player FKs — all Restrict
+                entity.HasOne(s => s.HomePlayer1).WithMany().HasForeignKey(s => s.HomePlayer1Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(s => s.HomePlayer2).WithMany().HasForeignKey(s => s.HomePlayer2Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(s => s.AwayPlayer1).WithMany().HasForeignKey(s => s.AwayPlayer1Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(s => s.AwayPlayer2).WithMany().HasForeignKey(s => s.AwayPlayer2Id).OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(s => s.WinnerTeam)
+                      .WithMany()
+                      .HasForeignKey(s => s.WinnerTeamId)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(s => s.SavedMatch)
+                      .WithMany()
+                      .HasForeignKey(s => s.SavedMatchId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // ── RoleSwitchLog ───────────────────────────────────────────────────

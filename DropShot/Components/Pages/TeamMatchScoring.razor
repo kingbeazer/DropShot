@@ -1,0 +1,218 @@
+@page "/team-match/{FixtureId:int}"
+@rendermode InteractiveServer
+
+@using DropShot.Data
+@using DropShot.Models
+@using DropShot.Services
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<MudProviders />
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_fixture == null)
+{
+    <MudAlert Severity="Severity.Error">Fixture not found.</MudAlert>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+        @* Header *@
+        <MudPaper Class="pa-4 mb-4" Elevation="2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h5">@_fixture.Competition?.CompetitionName</MudText>
+                    <MudText Typo="Typo.subtitle1" Color="Color.Tertiary">
+                        @(_fixture.HomeTeam?.Name ?? "Home") vs @(_fixture.AwayTeam?.Name ?? "Away")
+                        @if (!string.IsNullOrEmpty(_fixture.FixtureLabel))
+                        {
+                            <span> — @_fixture.FixtureLabel</span>
+                        }
+                    </MudText>
+                </MudStack>
+                <MudChip T="string" Size="Size.Large" Color="@(_allComplete ? Color.Success : Color.Primary)">
+                    @_homeScore — @_awayScore
+                </MudChip>
+            </MudStack>
+        </MudPaper>
+
+        @* Phase 1: Gender Doubles *@
+        <MudText Typo="Typo.h6" Class="mb-2">Phase 1 — Gender Doubles</MudText>
+        <MudGrid Spacing="3" Class="mb-4">
+            <MudItem xs="12" md="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Court 1 — Men's Doubles</MudText>
+                @foreach (var s in _sets.Where(s => s.SetType == TeamMatchSetType.MensDoubles))
+                {
+                    @RenderSet(s)
+                }
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Court 2 — Women's Doubles</MudText>
+                @foreach (var s in _sets.Where(s => s.SetType == TeamMatchSetType.WomensDoubles))
+                {
+                    @RenderSet(s)
+                }
+            </MudItem>
+        </MudGrid>
+
+        @* Phase 2: Mixed Doubles *@
+        <MudText Typo="Typo.h6" Class="mb-2">Phase 2 — Mixed Doubles</MudText>
+        <MudGrid Spacing="3" Class="mb-4">
+            <MudItem xs="12" md="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Court 1 — A-Grade Mixed</MudText>
+                @foreach (var s in _sets.Where(s => s.SetType == TeamMatchSetType.MixedDoublesA))
+                {
+                    @RenderSet(s)
+                }
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Court 2 — B-Grade Mixed</MudText>
+                @foreach (var s in _sets.Where(s => s.SetType == TeamMatchSetType.MixedDoublesB))
+                {
+                    @RenderSet(s)
+                }
+            </MudItem>
+        </MudGrid>
+
+        @if (_allComplete)
+        {
+            <MudAlert Severity="Severity.Success" Class="mt-4">
+                Match complete: @(_fixture.HomeTeam?.Name) @_homeScore — @_awayScore @(_fixture.AwayTeam?.Name)
+                @if (_homeScore == _awayScore)
+                {
+                    <span> (Draw)</span>
+                }
+            </MudAlert>
+        }
+
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Href="@($"/competition/{_fixture.CompetitionId}/view")">
+            Back to Competition
+        </MudButton>
+    </MudContainer>
+}
+
+@code {
+    [Parameter] public int FixtureId { get; set; }
+
+    private CompetitionFixture? _fixture;
+    private List<TeamMatchSet> _sets = [];
+    private bool _loading = true;
+    private int _homeScore;
+    private int _awayScore;
+    private bool _allComplete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        _loading = false;
+    }
+
+    private async Task LoadData()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        _fixture = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .Include(f => f.CourtPair)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == FixtureId);
+
+        if (_fixture == null) return;
+
+        _sets = await db.TeamMatchSets
+            .Where(s => s.CompetitionFixtureId == FixtureId)
+            .Include(s => s.HomePlayer1)
+            .Include(s => s.HomePlayer2)
+            .Include(s => s.AwayPlayer1)
+            .Include(s => s.AwayPlayer2)
+            .OrderBy(s => s.SetNumber)
+            .ToListAsync();
+
+        ComputeScores();
+    }
+
+    private void ComputeScores()
+    {
+        if (_fixture?.HomeTeamId != null && _fixture?.AwayTeamId != null)
+        {
+            (_homeScore, _awayScore) = TeamMatchService.ComputeScore(
+                _sets, _fixture.HomeTeamId.Value, _fixture.AwayTeamId.Value);
+        }
+        _allComplete = _sets.Count == 8 && TeamMatchService.AllSetsComplete(_sets);
+    }
+
+    private bool CanStart(TeamMatchSet set)
+    {
+        if (set.IsComplete || set.SavedMatchId.HasValue) return false;
+
+        // First set on each court can always start
+        // Within same SetType (same court pair), sets are sequential
+        var sameType = _sets.Where(s => s.SetType == set.SetType).OrderBy(s => s.SetNumber).ToList();
+        var idx = sameType.IndexOf(set);
+        if (idx == 0) return true;
+        return sameType[idx - 1].IsComplete;
+    }
+
+    private void StartSet(TeamMatchSet set)
+    {
+        var returnUrl = $"/team-match/{FixtureId}";
+        Navigation.NavigateTo(
+            $"/tennisscore?TeamMatchSetId={set.TeamMatchSetId}&BestOfOverride=1&ReturnUrl={Uri.EscapeDataString(returnUrl)}&AutoStart=true");
+    }
+
+    private void ResumeSet(TeamMatchSet set)
+    {
+        if (set.SavedMatchId.HasValue)
+        {
+            var returnUrl = $"/team-match/{FixtureId}";
+            Navigation.NavigateTo($"/match/{set.SavedMatchId}?ReturnUrl={Uri.EscapeDataString(returnUrl)}");
+        }
+    }
+
+    private RenderFragment RenderSet(TeamMatchSet set) => __builder =>
+    {
+        <MudCard Class="mb-2" Outlined="true">
+            <MudCardContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <MudStack Spacing="0">
+                        <MudText Typo="Typo.body2">
+                            Set @set.SetNumber:
+                            @(set.HomePlayer1?.DisplayName) & @(set.HomePlayer2?.DisplayName)
+                            vs
+                            @(set.AwayPlayer1?.DisplayName) & @(set.AwayPlayer2?.DisplayName)
+                        </MudText>
+                    </MudStack>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        @if (set.IsComplete)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                @set.HomeGames — @set.AwayGames
+                            </MudChip>
+                        }
+                        else if (set.SavedMatchId.HasValue)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
+                                       OnClick="@(() => ResumeSet(set))">Resume</MudButton>
+                        }
+                        else if (CanStart(set))
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="@(() => StartSet(set))">Start</MudButton>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default">Waiting</MudChip>
+                        }
+                    </MudStack>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    };
+}

@@ -121,7 +121,38 @@ else
     }
 
     @* ── League Table (round-robin stages only) ──────────────── *@
-    @if (_leagueTable.Any())
+    @if (_teamLeagueTable.Any())
+    {
+        <MudDivider Class="my-4" />
+        <MudText Typo="Typo.h5" Class="mb-3">Team League Table</MudText>
+        <MudTable Items="@_teamLeagueTable" Dense="true" Hover="true" Class="mb-4">
+            <HeaderContent>
+                <MudTh>Pos</MudTh>
+                <MudTh>Team</MudTh>
+                <MudTh>Captain</MudTh>
+                <MudTh>P</MudTh>
+                <MudTh>W</MudTh>
+                <MudTh>D</MudTh>
+                <MudTh>L</MudTh>
+                <MudTh>SW</MudTh>
+                <MudTh>SA</MudTh>
+                <MudTh>Pts</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@(_teamLeagueTable.IndexOf(context) + 1)</MudTd>
+                <MudTd Style="font-weight:500">@context.TeamName</MudTd>
+                <MudTd>@(context.CaptainName ?? "—")</MudTd>
+                <MudTd>@context.Played</MudTd>
+                <MudTd>@context.Won</MudTd>
+                <MudTd>@context.Drawn</MudTd>
+                <MudTd>@context.Lost</MudTd>
+                <MudTd>@context.SetsWon</MudTd>
+                <MudTd>@context.SetsAgainst</MudTd>
+                <MudTd Style="font-weight:bold">@context.Points</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+    else if (_leagueTable.Any())
     {
         <MudDivider Class="my-4" />
         <MudText Typo="Typo.h5" Class="mb-3">League Table</MudText>
@@ -149,7 +180,7 @@ else
     <MudDivider Class="my-4" />
     <MudText Typo="Typo.h5" Class="mb-3">Competitors</MudText>
 
-    @if (_competition.CompetitionFormat == CompetitionFormat.Team && _teams.Any())
+    @if (_competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam && _teams.Any())
     {
         @foreach (var team in _teams)
         {
@@ -232,6 +263,9 @@ else
     private record LeagueRow(int PlayerId, string PlayerName, int Played, int Won, int Lost, int Points);
     private List<LeagueRow> _leagueTable = [];
 
+    private record TeamLeagueRow(int TeamId, string TeamName, string? CaptainName, int Played, int Won, int Drawn, int Lost, int SetsWon, int SetsAgainst, int Points);
+    private List<TeamLeagueRow> _teamLeagueTable = [];
+
 #pragma warning disable CS8714 // Null keys are intentionally used for unstaged fixtures
     private Dictionary<string?, List<CompetitionFixture>> _fixturesByStage = [];
 #pragma warning restore CS8714
@@ -252,7 +286,10 @@ else
             .Include(c => c.Fixtures).ThenInclude(f => f.Player2)
             .Include(c => c.Fixtures).ThenInclude(f => f.Player3)
             .Include(c => c.Fixtures).ThenInclude(f => f.Player4)
-            .Include(c => c.Teams)
+            .Include(c => c.Fixtures).ThenInclude(f => f.HomeTeam)
+            .Include(c => c.Fixtures).ThenInclude(f => f.AwayTeam)
+            .Include(c => c.Fixtures).ThenInclude(f => f.TeamMatchSets)
+            .Include(c => c.Teams).ThenInclude(t => t.Captain)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == Id);
 
@@ -331,6 +368,55 @@ else
                     .ThenBy(r => r.Lost)
                     .ToList();
             }
+
+            // Team league table for MixedTeam format
+            if (_competition.CompetitionFormat == CompetitionFormat.MixedTeam && rrStageIds.Any())
+            {
+                var tPlayed = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tDrawn = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tLost = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tSetsWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tSetsAgainst = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+
+                foreach (var f in _fixtures.Where(f =>
+                    f.CompetitionStageId.HasValue &&
+                    rrStageIds.Contains(f.CompetitionStageId.Value) &&
+                    f.Status == FixtureStatus.Completed &&
+                    f.HomeTeamId.HasValue && f.AwayTeamId.HasValue))
+                {
+                    int hid = f.HomeTeamId!.Value;
+                    int aid = f.AwayTeamId!.Value;
+                    if (!tPlayed.ContainsKey(hid) || !tPlayed.ContainsKey(aid)) continue;
+
+                    var completed = f.TeamMatchSets.Where(s => s.IsComplete).ToList();
+                    int hw = completed.Count(s => s.WinnerTeamId == hid);
+                    int aw = completed.Count(s => s.WinnerTeamId == aid);
+
+                    tPlayed[hid]++;
+                    tPlayed[aid]++;
+                    tSetsWon[hid] += hw;
+                    tSetsAgainst[hid] += aw;
+                    tSetsWon[aid] += aw;
+                    tSetsAgainst[aid] += hw;
+
+                    if (hw > aw) { tWon[hid]++; tLost[aid]++; }
+                    else if (aw > hw) { tWon[aid]++; tLost[hid]++; }
+                    else { tDrawn[hid]++; tDrawn[aid]++; }
+                }
+
+                _teamLeagueTable = _teams
+                    .Select(t => new TeamLeagueRow(
+                        t.CompetitionTeamId, t.Name, t.Captain?.DisplayName,
+                        tPlayed[t.CompetitionTeamId], tWon[t.CompetitionTeamId],
+                        tDrawn[t.CompetitionTeamId], tLost[t.CompetitionTeamId],
+                        tSetsWon[t.CompetitionTeamId], tSetsAgainst[t.CompetitionTeamId],
+                        tSetsWon[t.CompetitionTeamId]))
+                    .OrderByDescending(r => r.Points)
+                    .ThenByDescending(r => r.SetsWon - r.SetsAgainst)
+                    .ThenBy(r => r.SetsAgainst)
+                    .ToList();
+            }
         }
 
         _loading = false;
@@ -338,6 +424,13 @@ else
 
     private static string FixturePlayers(CompetitionFixture f)
     {
+        if (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+        {
+            var home = f.HomeTeam?.Name ?? "TBD";
+            var away = f.AwayTeam?.Name ?? "TBD";
+            return $"{home} vs {away}";
+        }
+
         var side1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
             .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
         var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
@@ -347,6 +440,11 @@ else
 
     private string? WinnerName(CompetitionFixture f)
     {
+        if (f.WinnerTeamId.HasValue)
+        {
+            var team = f.WinnerTeamId == f.HomeTeamId ? f.HomeTeam : f.AwayTeam;
+            return team?.Name is { } tn ? $"Winner: {tn}" : null;
+        }
         if (!f.WinnerPlayerId.HasValue) return null;
         var all = new[] { f.Player1, f.Player2, f.Player3, f.Player4 };
         return all.FirstOrDefault(p => p?.PlayerId == f.WinnerPlayerId)?.DisplayName is { } n
