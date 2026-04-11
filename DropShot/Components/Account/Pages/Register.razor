@@ -120,7 +120,25 @@
                 linkedPlayer = true;
                 Logger.LogInformation("Linked new user {Email} to existing player record.", Input.Email);
             }
-            else
+
+            // Auto-claim a light player with matching display name
+            if (!linkedPlayer)
+            {
+                var lightMatch = await db.Players.FirstOrDefaultAsync(p =>
+                    p.IsLight && p.UserId == null &&
+                    p.DisplayName == Input.DisplayName);
+                if (lightMatch != null)
+                {
+                    lightMatch.IsLight = false;
+                    lightMatch.UserId = userIdStr;
+                    lightMatch.Email = Input.Email;
+                    await db.SaveChangesAsync();
+                    linkedPlayer = true;
+                    Logger.LogInformation("Claimed light player record for {DisplayName}.", Input.DisplayName);
+                }
+            }
+
+            if (!linkedPlayer)
             {
                 var newPlayer = new Models.Player
                 {

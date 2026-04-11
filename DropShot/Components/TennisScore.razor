@@ -449,6 +449,11 @@
         Label_Switch1 = result.IsDoubles;
         _selectedCourtId = result.CourtId;
 
+        _player1Id = result.Player1Id;
+        _player2Id = result.Player2Id;
+        _player3Id = result.Player3Id;
+        _player4Id = result.Player4Id;
+
         _state.GameScoring = result.GameScoring;
         _state.BestOf = result.BestOf;
         _state.GamesFirstTo = result.GamesPerSet;
@@ -594,6 +599,10 @@
             Player2 = CurrentMatch.Player2,
             Player3 = CurrentMatch.Player3,
             Player4 = CurrentMatch.Player4,
+            Player1Id = _player1Id,
+            Player2Id = _player2Id,
+            Player3Id = _player3Id,
+            Player4Id = _player4Id,
             CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null,
             CreatedAt = DateTime.UtcNow,
             UserId = _currentUserId,
@@ -652,6 +661,10 @@
     private Dictionary<string, int> _playerIdByName = [];
     private Dictionary<string, string> _avatarByName = [];
     private HashSet<int> _friendPlayerIds = [];
+    private int? _player1Id;
+    private int? _player2Id;
+    private int? _player3Id;
+    private int? _player4Id;
     private TennisMatchState _state = new();
     private List<Score> scores = new();
     private HubConnection? hubConnection;
@@ -692,7 +705,9 @@
             .Select(p => new { p.PlayerId, p.DisplayName, AvatarPath = p.User != null ? p.User.ProfileImagePath : null })
             .ToListAsync();
 
-        _playerIdByName = allPlayers.ToDictionary(p => p.DisplayName, p => p.PlayerId);
+        _playerIdByName = allPlayers
+            .GroupBy(p => p.DisplayName)
+            .ToDictionary(g => g.Key, g => g.First().PlayerId);
         _avatarByName = allPlayers
             .Where(p => !string.IsNullOrEmpty(p.AvatarPath))
             .ToDictionary(p => p.DisplayName, p => p.AvatarPath!);
@@ -736,6 +751,10 @@
                 Label_Switch1 = !string.IsNullOrEmpty(CurrentMatch.Player3);
                 _savedMatchId = savedMatch.SavedMatchId;
                 _selectedCourtId = savedMatch.CourtId;
+                _player1Id = savedMatch.Player1Id;
+                _player2Id = savedMatch.Player2Id;
+                _player3Id = savedMatch.Player3Id;
+                _player4Id = savedMatch.Player4Id;
                 _restoreFullscreen = true;
 
                 // Already in progress — hide the tap hint
@@ -906,7 +925,16 @@
         matchToSave.Player2 = CurrentMatch.Player2;
         matchToSave.Player3 = CurrentMatch.Player3;
         matchToSave.Player4 = CurrentMatch.Player4;
+        matchToSave.Player1Id = _player1Id;
+        matchToSave.Player2Id = _player2Id;
+        matchToSave.Player3Id = _player3Id;
+        matchToSave.Player4Id = _player4Id;
         matchToSave.WinnerName = _state.IsMatchEnded ? _winner : null;
+        if (_state.IsMatchEnded && !string.IsNullOrEmpty(_winner))
+        {
+            _playerIdByName.TryGetValue(_winner, out var winnerId);
+            matchToSave.WinnerPlayerId = winnerId > 0 ? winnerId : null;
+        }
         matchToSave.CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null;
         if (matchToSave.CreatedAt == default) matchToSave.CreatedAt = DateTime.UtcNow;
         await dbc.SaveChangesAsync();
