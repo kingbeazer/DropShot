@@ -105,22 +105,37 @@
         // Assign the base "User" role to every new account
         await UserManager.AddToRoleAsync(user, "User");
 
-        // Auto-link to an existing unlinked Player record with the same email
+        // Auto-link to an existing unlinked Player record with the same email,
+        // or create a new Player record if none exists
         var linkedPlayer = false;
+        var userIdStr = await UserManager.GetUserIdAsync(user);
         await using (var db = await DbFactory.CreateDbContextAsync())
         {
             var player = await db.Players.FirstOrDefaultAsync(p =>
                 p.Email == Input.Email && p.UserId == null);
             if (player is not null)
             {
-                player.UserId = await UserManager.GetUserIdAsync(user);
+                player.UserId = userIdStr;
                 await db.SaveChangesAsync();
                 linkedPlayer = true;
                 Logger.LogInformation("Linked new user {Email} to existing player record.", Input.Email);
             }
+            else
+            {
+                var newPlayer = new Models.Player
+                {
+                    DisplayName = Input.DisplayName,
+                    Email = Input.Email,
+                    UserId = userIdStr,
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.Players.Add(newPlayer);
+                await db.SaveChangesAsync();
+                Logger.LogInformation("Created new player record for user {Email}.", Input.Email);
+            }
         }
 
-        var userId = await UserManager.GetUserIdAsync(user);
+        var userId = userIdStr;
         var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
         var callbackUrl = NavigationManager.GetUriWithQueryParameters(
