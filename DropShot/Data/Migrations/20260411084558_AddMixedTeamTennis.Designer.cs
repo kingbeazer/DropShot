@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DropShot.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    [Migration("20260410231339_AddMixedTeamTennis")]
+    [Migration("20260411084558_AddMixedTeamTennis")]
     partial class AddMixedTeamTennis
     {
         /// <inheritdoc />
@@ -1505,7 +1505,7 @@ namespace DropShot.Migrations
                     b.HasOne("DropShot.Models.CourtPair", "CourtPair")
                         .WithMany()
                         .HasForeignKey("CourtPairId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("DropShot.Models.CompetitionTeam", "HomeTeam")
                         .WithMany()

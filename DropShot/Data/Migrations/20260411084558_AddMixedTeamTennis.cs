@@ -248,8 +248,7 @@ namespace DropShot.Migrations
                 table: "CompetitionFixtures",
                 column: "CourtPairId",
                 principalTable: "CourtPairs",
-                principalColumn: "CourtPairId",
-                onDelete: ReferentialAction.SetNull);
+                principalColumn: "CourtPairId");
 
             migrationBuilder.AddForeignKey(
                 name: "FK_CompetitionTeams_Players_CaptainPlayerId",

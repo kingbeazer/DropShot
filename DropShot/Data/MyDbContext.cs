@@ -274,7 +274,7 @@ namespace DropShot.Data
                 entity.HasOne(f => f.CourtPair)
                       .WithMany()
                       .HasForeignKey(f => f.CourtPairId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction);
             });
 
             // ── CompetitionMatchWindow ───────────────────────────────────────────
