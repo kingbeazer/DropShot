@@ -33,76 +33,71 @@
         </MudPaper>
     }
 
-    @* ── Step 1: Player 1 ────────────────────────────────── *@
+    @* ── Step 1: Players ─────────────────────────────────── *@
     @if (_currentStep > 1)
     {
-        <StepSummary Label="@(_isDoubles ? "Team A - Player 1 (You)" : "Player 1 (You)")" Summary="@_player1Name" OnEdit="@(() => GoToStep(1))" />
+        <StepSummary Label="Players" Summary="@PlayersSummary()" OnEdit="@(() => GoToStep(1))" />
     }
     else if (_currentStep == 1)
     {
         <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.h6" Class="mb-1">@(_isDoubles ? "Team A - Player 1" : "Player 1")</MudText>
+            <MudText Typo="Typo.h6" Class="mb-1">Players</MudText>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-                This is your screen — other players will be added next.
+                @RequiredPlayersCount players required for @(_isDoubles ? "doubles" : "singles") — @RemainingPlayersCount more needed
             </MudText>
 
-            @if (_myPlayer != null)
+            @* ── Player List ─────────────────────────────── *@
+            <MudList T="string" Dense="true" Class="mb-3">
+                @for (int i = 0; i < _players.Count; i++)
+                {
+                    var idx = i;
+                    var entry = _players[i];
+                    var label = GetPlayerLabel(idx);
+                    <MudListItem T="string">
+                        <div class="d-flex align-center" style="width: 100%;">
+                            <MudStack Spacing="0" Style="flex: 1;">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@label</MudText>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    @if (idx == 0 && _myPlayer != null)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Size="Size.Small" />
+                                    }
+                                    else if (entry.IsVerified)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                                    }
+                                    else if (entry.IsLight)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
+                                    }
+                                    <MudText Typo="Typo.body1">@entry.DisplayName</MudText>
+                                    @if (idx == 0)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">You</MudChip>
+                                    }
+                                </MudStack>
+                            </MudStack>
+                            @if (idx > 0)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                               Color="Color.Error" OnClick="@(() => RemovePlayer(idx))" />
+                            }
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+
+            @* ── Add Player Control ──────────────────────── *@
+            @if (_players.Count < RequiredPlayersCount)
             {
-                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
-                    <MudText Typo="Typo.subtitle1">@_myPlayer.DisplayName</MudText>
-                </MudAlert>
-            }
-            else
-            {
-                <MudTextField @bind-Value="_player1Name" Label="Display Name"
-                              Variant="Variant.Outlined" Required="true" Immediate="true" Class="mb-2" />
-                <MudAlert Severity="Severity.Normal" Dense="true" Class="mb-2" Icon="@Icons.Material.Filled.Info">
-                    <MudText Typo="Typo.body2">
-                        Sign up to save scores, play with friends, enter competitions, and more — it's always free!
-                    </MudText>
-                </MudAlert>
-            }
-
-            <div class="d-flex justify-space-between mt-3">
-                <MudButton Variant="Variant.Text" Color="Color.Default"
-                           StartIcon="@Icons.Material.Filled.ArrowBack"
-                           OnClick="@(() => GoToStep(0))">Back</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           Disabled="@string.IsNullOrWhiteSpace(_player1Name)"
-                           EndIcon="@Icons.Material.Filled.ArrowForward"
-                           OnClick="NextFromPlayer1">Next</MudButton>
-            </div>
-        </MudPaper>
-    }
-
-    @* ── Steps 2+: Other Players ─────────────────────────── *@
-    @for (int i = 0; i < PlayerStepCount; i++)
-    {
-        var idx = i;
-        var stepIndex = 2 + idx;
-        var playerNumber = 2 + idx;
-        var label = _isDoubles ? playerNumber switch
-        {
-            2 => "Team A - Player 2",
-            3 => "Team B - Player 1",
-            4 => "Team B - Player 2",
-            _ => $"Player {playerNumber}"
-        } : $"Player {playerNumber}";
-        var selection = GetSelection(playerNumber);
-
-        @if (_currentStep > stepIndex)
-        {
-            <StepSummary Label="@label" Summary="@(selection?.DisplayName ?? "")" OnEdit="@(() => GoToStep(stepIndex))" />
-        }
-        else if (_currentStep == stepIndex)
-        {
-            <MudPaper @key="playerNumber" Class="pa-4" Elevation="2">
-                <MudText Typo="Typo.h6" Class="mb-3">@label</MudText>
+                <MudDivider Class="mb-3" />
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Add Player</MudText>
 
                 <MudAutocomplete T="PlayerSelection" Label="Search players or type a name"
-                                 Value="@selection"
-                                 ValueChanged="@(val => OnPlayerSelected(playerNumber, val))"
-                                 SearchFunc="@((value, ct) => SearchPlayers(value, ct, playerNumber))"
+                                 @ref="_addPlayerAutocomplete"
+                                 Value="@_pendingSelection"
+                                 ValueChanged="OnAddPlayerSelected"
+                                 SearchFunc="@((value, ct) => SearchPlayers(value, ct))"
                                  ToStringFunc="@(p => p?.DisplayName ?? "")"
                                  ResetValueOnEmptyText="true"
                                  Immediate="true"
@@ -123,49 +118,52 @@
                 </MudAutocomplete>
 
                 @* "Did you mean?" nudge *@
-                @{
-                    var nudge = GetNudge(playerNumber);
-                    if (nudge != null)
-                    {
-                        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                <MudText Typo="Typo.body2">
-                                    Did you mean <strong>@nudge.DisplayName</strong> (verified)?
-                                </MudText>
-                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
-                                           OnClick="@(() => AcceptNudge(playerNumber, nudge))">
-                                    Use this player
-                                </MudButton>
-                            </MudStack>
-                        </MudAlert>
-                    }
+                @if (_addPlayerNudge != null)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudText Typo="Typo.body2">
+                                Did you mean <strong>@_addPlayerNudge.DisplayName</strong> (verified)?
+                            </MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
+                                       OnClick="AcceptNudge">
+                                Use this player
+                            </MudButton>
+                        </MudStack>
+                    </MudAlert>
                 }
 
                 <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.Add" Class="mt-2"
-                           OnClick="@(() => CreateLightPlayerInline(playerNumber))">
+                           OnClick="CreateLightPlayerInline">
                     Create new player
                 </MudButton>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Success" Dense="true" Class="mb-2">
+                    All players added
+                </MudAlert>
+            }
 
-                <div class="d-flex justify-space-between mt-3">
-                    <MudButton Variant="Variant.Text" Color="Color.Default"
-                               StartIcon="@Icons.Material.Filled.ArrowBack"
-                               OnClick="@(() => GoToStep(stepIndex - 1))">Back</MudButton>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               Disabled="@(selection == null || string.IsNullOrWhiteSpace(selection.DisplayName))"
-                               EndIcon="@Icons.Material.Filled.ArrowForward"
-                               OnClick="@(() => GoToStep(stepIndex + 1))">Next</MudButton>
-                </div>
-            </MudPaper>
-        }
+            <div class="d-flex justify-space-between mt-3">
+                <MudButton Variant="Variant.Text" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => GoToStep(0))">Back</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="@(_players.Count < RequiredPlayersCount)"
+                           EndIcon="@Icons.Material.Filled.ArrowForward"
+                           OnClick="@(() => GoToStep(2))">Next</MudButton>
+            </div>
+        </MudPaper>
     }
 
     @* ── Court Selection ─────────────────────────────────── *@
-    @if (_currentStep > CourtStepIndex)
+    @if (_currentStep > 2)
     {
-        <StepSummary Label="Court" Summary="@CourtSummary()" OnEdit="@(() => GoToStep(CourtStepIndex))" />
+        <StepSummary Label="Court" Summary="@CourtSummary()" OnEdit="@(() => GoToStep(2))" />
     }
-    else if (_currentStep == CourtStepIndex)
+    else if (_currentStep == 2)
     {
         <MudPaper Class="pa-4" Elevation="2">
             <MudText Typo="Typo.h6" Class="mb-3">Court Selection</MudText>
@@ -198,10 +196,10 @@
             <div class="d-flex justify-space-between mt-3">
                 <MudButton Variant="Variant.Text" Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.ArrowBack"
-                           OnClick="@(() => GoToStep(CourtStepIndex - 1))">Back</MudButton>
+                           OnClick="@(() => GoToStep(1))">Back</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            EndIcon="@Icons.Material.Filled.ArrowForward"
-                           OnClick="@(() => GoToStep(SettingsStepIndex))">
+                           OnClick="@(() => GoToStep(3))">
                     @(_selectedCourtId == null ? "Skip" : "Next")
                 </MudButton>
             </div>
@@ -209,7 +207,7 @@
     }
 
     @* ── Match Settings ──────────────────────────────────── *@
-    @if (_currentStep == SettingsStepIndex)
+    @if (_currentStep == 3)
     {
         <MudPaper Class="pa-4" Elevation="2">
             <MudText Typo="Typo.h6" Class="mb-3">Match Settings</MudText>
@@ -259,20 +257,20 @@
                 <MudRadio Value="@("random")" Color="Color.Primary">Random Coin Toss</MudRadio>
                 @if (_isDoubles)
                 {
-                    <MudRadio Value="@("player1")" Color="Color.Primary">Team A (@_player1Name & @(_player2?.DisplayName ?? "Player 2")) serves first</MudRadio>
-                    <MudRadio Value="@("player2")" Color="Color.Primary">Team B (@(_player3?.DisplayName ?? "Player 3") & @(_player4?.DisplayName ?? "Player 4")) serves first</MudRadio>
+                    <MudRadio Value="@("player1")" Color="Color.Primary">Team A (@PlayerName(0) & @PlayerName(1)) serves first</MudRadio>
+                    <MudRadio Value="@("player2")" Color="Color.Primary">Team B (@PlayerName(2) & @PlayerName(3)) serves first</MudRadio>
                 }
                 else
                 {
-                    <MudRadio Value="@("player1")" Color="Color.Primary">@_player1Name serves first</MudRadio>
-                    <MudRadio Value="@("player2")" Color="Color.Primary">@(_player2?.DisplayName ?? "Player 2") serves first</MudRadio>
+                    <MudRadio Value="@("player1")" Color="Color.Primary">@PlayerName(0) serves first</MudRadio>
+                    <MudRadio Value="@("player2")" Color="Color.Primary">@PlayerName(1) serves first</MudRadio>
                 }
             </MudRadioGroup>
 
             <div class="d-flex justify-space-between mt-3">
                 <MudButton Variant="Variant.Text" Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.ArrowBack"
-                           OnClick="@(() => GoToStep(CourtStepIndex))">Back</MudButton>
+                           OnClick="@(() => GoToStep(2))">Back</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Success"
                            EndIcon="@Icons.Material.Filled.PlayArrow"
                            OnClick="StartMatch">Start Match</MudButton>
@@ -337,16 +335,14 @@
 
     private int _currentStep;
     private bool _isDoubles;
-    private string _player1Name = "";
 
-    private PlayerSelection? _player2;
-    private PlayerSelection? _player3;
-    private PlayerSelection? _player4;
+    // Player list — index 0 is always the logged-in user (or anonymous name)
+    private List<PlayerSelection> _players = [];
+    private PlayerSelection? _pendingSelection;
+    private MudAutocomplete<PlayerSelection>? _addPlayerAutocomplete;
 
-    // Nudges
-    private FuzzySearchResult? _nudge2;
-    private FuzzySearchResult? _nudge3;
-    private FuzzySearchResult? _nudge4;
+    // Nudge for the add-player control
+    private FuzzySearchResult? _addPlayerNudge;
 
     // Court
     private Club? _selectedClub;
@@ -370,16 +366,14 @@
 
     // Inline light player creation
     private bool _showInlineCreate;
-    private int _inlineTargetPlayerNumber;
     private InlineForm _inlineForm = new();
     private bool _inlineFirstNamePreFilled;
     private bool _inlineLastNamePreFilled;
     private List<FuzzySearchResult> _inlineSuggestions = [];
     private CancellationTokenSource? _inlineDebounce;
 
-    private int PlayerStepCount => _isDoubles ? 3 : 1;
-    private int CourtStepIndex => 2 + PlayerStepCount;
-    private int SettingsStepIndex => CourtStepIndex + 1;
+    private int RequiredPlayersCount => _isDoubles ? 4 : 2;
+    private int RemainingPlayersCount => Math.Max(0, RequiredPlayersCount - _players.Count);
 
     private sealed class InlineForm
     {
@@ -399,10 +393,6 @@
     protected override async Task OnInitializedAsync()
     {
         if (PresetIsDoubles.HasValue) _isDoubles = PresetIsDoubles.Value;
-        if (!string.IsNullOrWhiteSpace(PresetPlayer1)) _player1Name = PresetPlayer1;
-        if (!string.IsNullOrWhiteSpace(PresetPlayer2)) _player2 = new PlayerSelection { DisplayName = PresetPlayer2 };
-        if (!string.IsNullOrWhiteSpace(PresetPlayer3)) _player3 = new PlayerSelection { DisplayName = PresetPlayer3 };
-        if (!string.IsNullOrWhiteSpace(PresetPlayer4)) _player4 = new PlayerSelection { DisplayName = PresetPlayer4 };
 
         await using var db = DbFactory.CreateDbContext();
 
@@ -412,9 +402,30 @@
         if (_userId != null)
         {
             _myPlayer = await db.Players.FirstOrDefaultAsync(p => p.UserId == _userId);
-            if (_myPlayer != null)
-                _player1Name = _myPlayer.DisplayName;
         }
+
+        // Add logged-in user as first player
+        if (_myPlayer != null)
+        {
+            _players.Add(new PlayerSelection
+            {
+                PlayerId = _myPlayer.PlayerId,
+                DisplayName = _myPlayer.DisplayName,
+                IsLight = false
+            });
+        }
+        else if (!string.IsNullOrWhiteSpace(PresetPlayer1))
+        {
+            _players.Add(new PlayerSelection { DisplayName = PresetPlayer1 });
+        }
+
+        // Add any preset players
+        if (!string.IsNullOrWhiteSpace(PresetPlayer2))
+            _players.Add(new PlayerSelection { DisplayName = PresetPlayer2 });
+        if (!string.IsNullOrWhiteSpace(PresetPlayer3))
+            _players.Add(new PlayerSelection { DisplayName = PresetPlayer3 });
+        if (!string.IsNullOrWhiteSpace(PresetPlayer4))
+            _players.Add(new PlayerSelection { DisplayName = PresetPlayer4 });
 
         // Build searchable player list: my light players + my bookmarked verified players, excluding myself
         var myLightPlayers = await db.Players
@@ -501,40 +512,79 @@
 
     // ── Navigation ──────────────────────────────────────────
 
-    private void GoToStep(int step) => _currentStep = step;
-
-    private void NextFromPlayer1()
+    private void GoToStep(int step)
     {
-        if (_myPlayer != null) _player1Name = _myPlayer.DisplayName;
-        GoToStep(2);
-    }
-
-    // ── Player Selection ────────────────────────────────────
-
-    private PlayerSelection? GetSelection(int playerNumber) => playerNumber switch
-    {
-        2 => _player2,
-        3 => _player3,
-        4 => _player4,
-        _ => null
-    };
-
-    private void SetSelection(int playerNumber, PlayerSelection? val)
-    {
-        switch (playerNumber)
+        // When going back to step 0 (match type), trim excess players if switching format
+        if (step == 1)
         {
-            case 2: _player2 = val; break;
-            case 3: _player3 = val; break;
-            case 4: _player4 = val; break;
+            // Trim players if we have more than needed (e.g. switched from doubles to singles)
+            while (_players.Count > RequiredPlayersCount)
+                _players.RemoveAt(_players.Count - 1);
         }
+        _currentStep = step;
     }
 
-    private async Task OnPlayerSelected(int playerNumber, PlayerSelection? val)
-    {
-        SetSelection(playerNumber, val);
+    // ── Player List Management ──────────────────────────────
 
-        // Clear any existing nudge
-        SetNudge(playerNumber, null);
+    private string GetPlayerLabel(int index)
+    {
+        if (!_isDoubles)
+            return $"Player {index + 1}";
+        return index switch
+        {
+            0 => "Team A - Player 1",
+            1 => "Team A - Player 2",
+            2 => "Team B - Player 1",
+            3 => "Team B - Player 2",
+            _ => $"Player {index + 1}"
+        };
+    }
+
+    private string PlayerName(int index)
+    {
+        if (index < _players.Count)
+            return _players[index].DisplayName;
+        return $"Player {index + 1}";
+    }
+
+    private string PlayersSummary()
+    {
+        return string.Join(", ", _players.Select(p => p.DisplayName));
+    }
+
+    private void RemovePlayer(int index)
+    {
+        if (index > 0 && index < _players.Count)
+            _players.RemoveAt(index);
+    }
+
+    private HashSet<int> GetAlreadySelectedPlayerIds()
+    {
+        var ids = new HashSet<int>();
+        foreach (var p in _players)
+        {
+            if (p.PlayerId is int id)
+                ids.Add(id);
+        }
+        return ids;
+    }
+
+    private async Task OnAddPlayerSelected(PlayerSelection? val)
+    {
+        _pendingSelection = null;
+        _addPlayerNudge = null;
+
+        if (val == null || string.IsNullOrWhiteSpace(val.DisplayName))
+            return;
+
+        // Prevent duplicates
+        if (val.PlayerId.HasValue && _players.Any(p => p.PlayerId == val.PlayerId))
+        {
+            Snackbar.Add("This player is already in the match.", Severity.Warning);
+            return;
+        }
+
+        _players.Add(val);
 
         // Check for "Did you mean?" nudge if a light player was selected
         if (val is { IsLight: true } && !string.IsNullOrWhiteSpace(val.DisplayName))
@@ -542,63 +592,30 @@
             var results = await FuzzySearch.SearchAsync(val.DisplayName, 1);
             var topMatch = results.FirstOrDefault(r => !r.IsLight && r.Score < 0.3);
             if (topMatch != null)
-                SetNudge(playerNumber, topMatch);
-        }
-
-        // Auto-advance to next step when a player is selected
-        if (val != null && !string.IsNullOrWhiteSpace(val.DisplayName))
-        {
-            var stepIndex = playerNumber; // step index == player number (player 2 = step 2, etc.)
-            GoToStep(stepIndex + 1);
+                _addPlayerNudge = topMatch;
         }
     }
 
-    private FuzzySearchResult? GetNudge(int playerNumber) => playerNumber switch
+    private void AcceptNudge()
     {
-        2 => _nudge2,
-        3 => _nudge3,
-        4 => _nudge4,
-        _ => null
-    };
+        if (_addPlayerNudge == null) return;
 
-    private void SetNudge(int playerNumber, FuzzySearchResult? nudge)
-    {
-        switch (playerNumber)
+        // Replace the last added player (the light one that triggered the nudge)
+        if (_players.Count > 1)
         {
-            case 2: _nudge2 = nudge; break;
-            case 3: _nudge3 = nudge; break;
-            case 4: _nudge4 = nudge; break;
+            _players[^1] = new PlayerSelection
+            {
+                PlayerId = _addPlayerNudge.PlayerId,
+                DisplayName = _addPlayerNudge.DisplayName,
+                IsLight = false
+            };
         }
+        _addPlayerNudge = null;
     }
 
-    private void AcceptNudge(int playerNumber, FuzzySearchResult nudge)
+    private async Task<IEnumerable<PlayerSelection>> SearchPlayers(string value, CancellationToken ct)
     {
-        SetSelection(playerNumber, new PlayerSelection
-        {
-            PlayerId = nudge.PlayerId,
-            DisplayName = nudge.DisplayName,
-            IsLight = false
-        });
-        SetNudge(playerNumber, null);
-    }
-
-    private HashSet<int> GetAlreadySelectedPlayerIds(int currentPlayerNumber)
-    {
-        var ids = new HashSet<int>();
-        if (_myPlayer != null) ids.Add(_myPlayer.PlayerId);
-        PlayerSelection?[] others = { _player2, _player3, _player4 };
-        int[] numbers = { 2, 3, 4 };
-        for (int i = 0; i < others.Length; i++)
-        {
-            if (numbers[i] != currentPlayerNumber && others[i]?.PlayerId is int id)
-                ids.Add(id);
-        }
-        return ids;
-    }
-
-    private async Task<IEnumerable<PlayerSelection>> SearchPlayers(string value, CancellationToken ct, int currentPlayerNumber)
-    {
-        var excluded = GetAlreadySelectedPlayerIds(currentPlayerNumber);
+        var excluded = GetAlreadySelectedPlayerIds();
 
         if (string.IsNullOrWhiteSpace(value))
             return _searchablePlayers
@@ -634,9 +651,8 @@
 
     // ── Inline Light Player Creation ────────────────────────
 
-    private void CreateLightPlayerInline(int playerNumber)
+    private void CreateLightPlayerInline()
     {
-        _inlineTargetPlayerNumber = playerNumber;
         _inlineForm = new InlineForm();
         _inlineFirstNamePreFilled = false;
         _inlineLastNamePreFilled = false;
@@ -681,7 +697,15 @@
 
     private void UseVerifiedPlayerInstead(FuzzySearchResult suggestion)
     {
-        SetSelection(_inlineTargetPlayerNumber, new PlayerSelection
+        // Prevent duplicates
+        if (_players.Any(p => p.PlayerId == suggestion.PlayerId))
+        {
+            Snackbar.Add("This player is already in the match.", Severity.Warning);
+            _showInlineCreate = false;
+            return;
+        }
+
+        _players.Add(new PlayerSelection
         {
             PlayerId = suggestion.PlayerId,
             DisplayName = suggestion.DisplayName,
@@ -706,14 +730,14 @@
         db.Players.Add(player);
         await db.SaveChangesAsync();
 
-        // Set as selected player
+        // Add to player list
         var sel = new PlayerSelection
         {
             PlayerId = player.PlayerId,
             DisplayName = player.DisplayName,
             IsLight = true
         };
-        SetSelection(_inlineTargetPlayerNumber, sel);
+        _players.Add(sel);
 
         // Update searchable list and fuzzy index
         _searchablePlayers.Add(sel);
@@ -768,20 +792,21 @@
         if (_userId != null)
         {
             await using var db = DbFactory.CreateDbContext();
-            var selections = new[] { _player2, _player3, _player4 }
+            var selections = _players
+                .Skip(1) // skip self
                 .Where(s => s is { PlayerId: not null, IsLight: false })
                 .ToList();
 
             foreach (var sel in selections)
             {
                 var exists = await db.UserPlayers
-                    .AnyAsync(up => up.UserId == _userId && up.PlayerId == sel!.PlayerId!.Value);
+                    .AnyAsync(up => up.UserId == _userId && up.PlayerId == sel.PlayerId!.Value);
                 if (!exists)
                 {
                     db.UserPlayers.Add(new UserPlayer
                     {
                         UserId = _userId,
-                        PlayerId = sel!.PlayerId!.Value
+                        PlayerId = sel.PlayerId!.Value
                     });
                 }
             }
@@ -791,14 +816,14 @@
         await OnSetupComplete.InvokeAsync(new MatchSetupResult
         {
             IsDoubles = _isDoubles,
-            Player1 = _player1Name,
-            Player2 = _player2?.DisplayName ?? "",
-            Player3 = _isDoubles ? _player3?.DisplayName : null,
-            Player4 = _isDoubles ? _player4?.DisplayName : null,
-            Player1Id = _myPlayer?.PlayerId,
-            Player2Id = _player2?.PlayerId,
-            Player3Id = _isDoubles ? _player3?.PlayerId : null,
-            Player4Id = _isDoubles ? _player4?.PlayerId : null,
+            Player1 = PlayerName(0),
+            Player2 = PlayerName(1),
+            Player3 = _isDoubles ? PlayerName(2) : null,
+            Player4 = _isDoubles ? PlayerName(3) : null,
+            Player1Id = _players.ElementAtOrDefault(0)?.PlayerId,
+            Player2Id = _players.ElementAtOrDefault(1)?.PlayerId,
+            Player3Id = _isDoubles ? _players.ElementAtOrDefault(2)?.PlayerId : null,
+            Player4Id = _isDoubles ? _players.ElementAtOrDefault(3)?.PlayerId : null,
             CourtId = _selectedCourtId,
             GameScoring = _gameScoring,
             UnlimitedDeuce = _unlimitedDeuce,
