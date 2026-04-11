@@ -42,24 +42,37 @@
         await using var dbc = DbFactory.CreateDbContext();
         var matches = await dbc.SavedMatch
             .Where(m => m.Complete && m.Player1 != null)
-            .Select(m => new { m.Player1, m.Player2, m.WinnerName })
+            .Select(m => new { m.Player1, m.Player2, m.Player1Id, m.Player2Id, m.WinnerName, m.WinnerPlayerId })
             .ToListAsync();
+
+        // Resolve Player IDs to current display names
+        var allPlayerIds = matches
+            .SelectMany(m => new[] { m.Player1Id, m.Player2Id, m.WinnerPlayerId })
+            .Where(id => id.HasValue).Select(id => id!.Value)
+            .Distinct().ToList();
+        var playerNames = await dbc.Players
+            .Where(p => allPlayerIds.Contains(p.PlayerId))
+            .ToDictionaryAsync(p => p.PlayerId, p => p.DisplayName);
+
+        string Resolve(string? name, int? id) =>
+            id.HasValue && playerNames.TryGetValue(id.Value, out var n) ? n : name ?? "";
 
         var stats = new Dictionary<string, (int Played, int Won)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var m in matches)
         {
-            var players = new[] { m.Player1, m.Player2 }
+            var players = new[] { Resolve(m.Player1, m.Player1Id), Resolve(m.Player2, m.Player2Id) }
                 .Where(p => !string.IsNullOrEmpty(p));
 
             foreach (var p in players)
             {
-                if (!stats.ContainsKey(p!)) stats[p!] = (0, 0);
-                stats[p!] = (stats[p!].Played + 1, stats[p!].Won);
+                if (!stats.ContainsKey(p)) stats[p] = (0, 0);
+                stats[p] = (stats[p].Played + 1, stats[p].Won);
             }
 
-            if (!string.IsNullOrEmpty(m.WinnerName) && stats.ContainsKey(m.WinnerName))
-                stats[m.WinnerName] = (stats[m.WinnerName].Played, stats[m.WinnerName].Won + 1);
+            var winner = Resolve(m.WinnerName, m.WinnerPlayerId);
+            if (!string.IsNullOrEmpty(winner) && stats.ContainsKey(winner))
+                stats[winner] = (stats[winner].Played, stats[winner].Won + 1);
         }
 
         Elements = stats

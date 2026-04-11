@@ -140,7 +140,7 @@
     <TitleContent>Link "@_linkingPlayer?.DisplayName" to a Verified Player</TitleContent>
     <DialogContent>
         <MudText Typo="Typo.body2" Class="mb-3">
-            Linking will replace this player with the verified player record. The light player will be deleted.
+            Linking will transfer match history to the verified player and remove the light player record.
         </MudText>
 
         <MudTextField @bind-Value="_linkSearch" Label="Search verified players" Variant="Variant.Outlined"
@@ -391,6 +391,15 @@
         var p = await db.Players.FindAsync(player.PlayerId);
         if (p is { IsLight: true, CreatedByUserId: var cuid } && cuid == _userId)
         {
+            var hasMatches = await db.SavedMatch.AnyAsync(m =>
+                m.Player1Id == p.PlayerId || m.Player2Id == p.PlayerId ||
+                m.Player3Id == p.PlayerId || m.Player4Id == p.PlayerId);
+            if (hasMatches)
+            {
+                Snackbar.Add("This player has match history. Use 'Link' to transfer their records to a verified player.", Severity.Warning);
+                return;
+            }
+
             db.Players.Remove(p);
             await db.SaveChangesAsync();
             Snackbar.Add("Player deleted.", Severity.Warning);
@@ -445,7 +454,7 @@
 
         var confirmed = await DialogService.ShowMessageBox(
             "Link Player?",
-            $"This will delete the player \"{_linkingPlayer.DisplayName}\" and use \"{_selectedLinkPlayer.DisplayName}\" (verified) in its place.",
+            $"Match history for \"{_linkingPlayer.DisplayName}\" will be transferred to \"{_selectedLinkPlayer.DisplayName}\" (verified).",
             yesText: "Link", cancelText: "Cancel");
 
         if (confirmed != true) return;
@@ -454,6 +463,23 @@
         var lightPlayer = await db.Players.FindAsync(_linkingPlayer.PlayerId);
         if (lightPlayer is { IsLight: true, CreatedByUserId: var cuid } && cuid == _userId)
         {
+            // Migrate SavedMatch references from light player to verified player
+            var lightId = lightPlayer.PlayerId;
+            var verifiedId = _selectedLinkPlayer.PlayerId;
+            var affected = await db.SavedMatch
+                .Where(m => m.Player1Id == lightId || m.Player2Id == lightId ||
+                            m.Player3Id == lightId || m.Player4Id == lightId ||
+                            m.WinnerPlayerId == lightId)
+                .ToListAsync();
+            foreach (var m in affected)
+            {
+                if (m.Player1Id == lightId) m.Player1Id = verifiedId;
+                if (m.Player2Id == lightId) m.Player2Id = verifiedId;
+                if (m.Player3Id == lightId) m.Player3Id = verifiedId;
+                if (m.Player4Id == lightId) m.Player4Id = verifiedId;
+                if (m.WinnerPlayerId == lightId) m.WinnerPlayerId = verifiedId;
+            }
+
             db.Players.Remove(lightPlayer);
 
             // Bookmark the verified player so they appear in My Players
@@ -469,7 +495,7 @@
             }
 
             await db.SaveChangesAsync();
-            Snackbar.Add($"Linked to \"{_selectedLinkPlayer.DisplayName}\".", Severity.Success);
+            Snackbar.Add($"Linked to \"{_selectedLinkPlayer.DisplayName}\". Match history transferred.", Severity.Success);
         }
 
         _showLinkDialog = false;
@@ -482,7 +508,7 @@
 
         var confirmed = await DialogService.ShowMessageBox(
             "Link Player?",
-            $"This will delete this player and use \"{fullPlayer.DisplayName}\" (verified) in its place.",
+            $"Match history will be transferred to \"{fullPlayer.DisplayName}\" (verified).",
             yesText: "Link", cancelText: "Cancel");
 
         if (confirmed != true) return;
@@ -491,6 +517,23 @@
         var lightPlayer = await db.Players.FindAsync(_editingPlayerId.Value);
         if (lightPlayer is { IsLight: true, CreatedByUserId: var cuid } && cuid == _userId)
         {
+            // Migrate SavedMatch references from light player to verified player
+            var lightId = lightPlayer.PlayerId;
+            var verifiedId = fullPlayer.PlayerId;
+            var affected = await db.SavedMatch
+                .Where(m => m.Player1Id == lightId || m.Player2Id == lightId ||
+                            m.Player3Id == lightId || m.Player4Id == lightId ||
+                            m.WinnerPlayerId == lightId)
+                .ToListAsync();
+            foreach (var m in affected)
+            {
+                if (m.Player1Id == lightId) m.Player1Id = verifiedId;
+                if (m.Player2Id == lightId) m.Player2Id = verifiedId;
+                if (m.Player3Id == lightId) m.Player3Id = verifiedId;
+                if (m.Player4Id == lightId) m.Player4Id = verifiedId;
+                if (m.WinnerPlayerId == lightId) m.WinnerPlayerId = verifiedId;
+            }
+
             db.Players.Remove(lightPlayer);
 
             // Bookmark the verified player so they appear in My Players
@@ -506,7 +549,7 @@
             }
 
             await db.SaveChangesAsync();
-            Snackbar.Add($"Linked to \"{fullPlayer.DisplayName}\".", Severity.Success);
+            Snackbar.Add($"Linked to \"{fullPlayer.DisplayName}\". Match history transferred.", Severity.Success);
         }
 
         _showPlayerDialog = false;

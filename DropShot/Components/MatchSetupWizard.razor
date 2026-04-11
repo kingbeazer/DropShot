@@ -141,6 +141,13 @@
                     }
                 }
 
+                @if (selection is { IsLight: true })
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                        Light player — match results will be linked to their full profile when they register.
+                    </MudAlert>
+                }
+
                 <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.Add" Class="mt-2"
                            OnClick="@(() => CreateLightPlayerInline(playerNumber))">

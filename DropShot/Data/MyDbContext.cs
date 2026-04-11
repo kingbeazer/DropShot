@@ -373,6 +373,12 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(m => m.CourtId)
                       .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne<Player>().WithMany().HasForeignKey(m => m.Player1Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Player>().WithMany().HasForeignKey(m => m.Player2Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Player>().WithMany().HasForeignKey(m => m.Player3Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Player>().WithMany().HasForeignKey(m => m.Player4Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Player>().WithMany().HasForeignKey(m => m.WinnerPlayerId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // ── ScoreboardDisplaySetting ─────────────────────────────────────────
