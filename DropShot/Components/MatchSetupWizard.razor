@@ -34,74 +34,58 @@
     }
 
     @* ── Step 1: Players ─────────────────────────────────── *@
-    <MudPaper Class="pa-4" Elevation="@(_currentStep == 1 ? 2 : 1)"
-              Style="@(_currentStep > 1 ? "background-color: var(--mud-palette-background-grey); cursor: pointer;" : "")"
-              @onclick="@(() => { if (_currentStep > 1) GoToStep(1); })">
+    @if (_currentStep > 1)
+    {
+        <StepSummary Label="Players" Summary="@PlayersSummary()" OnEdit="@(() => GoToStep(1))" />
+    }
+    else if (_currentStep == 1)
+    {
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-3">Players</MudText>
 
-        <div class="d-flex align-center mb-2">
-            <MudText Typo="@(_currentStep == 1 ? Typo.h6 : Typo.body1)" Style="flex: 1;">Players</MudText>
-            @if (_currentStep > 1)
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Default"
-                               OnClick="@(() => GoToStep(1))" />
-            }
-        </div>
-
-        @* ── Player Table ────────────────────────────── *@
-        <MudSimpleTable Dense="true" Hover="true" Class="mb-3" Elevation="0">
-            <thead>
-                <tr>
-                    <th>Player</th>
-                    <th style="width: 120px;">Position</th>
-                    @if (_currentStep == 1)
-                    {
-                        <th style="width: 50px;"></th>
-                    }
-                </tr>
-            </thead>
-            <tbody>
-                @for (int i = 0; i < _players.Count; i++)
-                {
-                    var idx = i;
-                    var entry = _players[i];
+            @* ── Player List ─────────────────────────────── *@
+            <MudSimpleTable Dense="true" Hover="true" Class="mb-3" Elevation="0">
+                <thead>
                     <tr>
-                        <td>
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                @if (idx == 0 && _myPlayer != null)
-                                {
-                                    <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Size="Size.Small" />
-                                }
-                                else if (entry.IsVerified)
-                                {
-                                    <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
-                                }
-                                else if (entry.IsLight)
-                                {
-                                    <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
-                                }
-                                <MudText>@entry.DisplayName</MudText>
-                            </MudStack>
-                        </td>
-                        <td>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary">@GetPlayerLabel(idx)</MudText>
-                        </td>
-                        @if (_currentStep == 1)
-                        {
-                            <td class="d-flex justify-end">
+                        <th style="width: 100%;">Player</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < _players.Count; i++)
+                    {
+                        var idx = i;
+                        var entry = _players[i];
+                        <tr>
+                            <td>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    @if (idx == 0 && _myPlayer != null)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Size="Size.Small" />
+                                    }
+                                    else if (entry.IsVerified)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                                    }
+                                    else if (entry.IsLight)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
+                                    }
+                                    <MudText>@entry.DisplayName</MudText>
+                                </MudStack>
+                            </td>
+                            <td style="text-align: right;">
                                 @if (idx > 0)
                                 {
                                     <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
                                                    Color="Color.Error" OnClick="@(() => RemovePlayer(idx))" />
                                 }
                             </td>
-                        }
-                    </tr>
-                }
-            </tbody>
-        </MudSimpleTable>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
 
-        @if (_currentStep == 1)
-        {
             @* ── Add Player Control ──────────────────────── *@
             @if (_players.Count < RequiredPlayersCount)
             {
@@ -167,8 +151,8 @@
                            EndIcon="@Icons.Material.Filled.ArrowForward"
                            OnClick="TryAdvanceFromPlayers">Next</MudButton>
             </div>
-        }
-    </MudPaper>
+        </MudPaper>
+    }
 
     @* ── Court Selection ─────────────────────────────────── *@
     @if (_currentStep > 2)
