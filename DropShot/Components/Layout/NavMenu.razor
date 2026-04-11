@@ -60,11 +60,19 @@
                     </div>
 
                     <div class="nav-item">
-                        <NavLink class="nav-link" href="players">
-                            <MudIcon Icon="@Icons.Material.Filled.People" Class="nav-icon" /> <span class="nav-label">Players</span>
+                        <NavLink class="nav-link" href="players/mine">
+                            <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" /> <span class="nav-label">My Players</span>
                         </NavLink>
                     </div>
                 </Authorized>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="SuperAdmin">
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="players">
+                        <MudIcon Icon="@Icons.Material.Filled.People" Class="nav-icon" /> <span class="nav-label">Players</span>
+                    </NavLink>
+                </div>
             </AuthorizeView>
 
             <AuthorizeView Roles="Admin,SuperAdmin">
@@ -113,9 +121,6 @@
                         <div class="nav-dropdown-menu">
                             <NavLink class="nav-link" href="upgrade">
                                 <MudIcon Icon="@Icons.Material.Filled.Star" Class="nav-icon" /> Upgrade
-                            </NavLink>
-                            <NavLink class="nav-link" href="players/mine">
-                                <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" /> My Players
                             </NavLink>
                             <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
                                 <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" /> Account
