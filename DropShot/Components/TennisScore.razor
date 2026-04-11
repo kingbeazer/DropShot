@@ -55,10 +55,55 @@
 
 @if (loaded && CurrentMatch == null && !_showCoinToss)
 {
-    <MatchSetupWizard OnSetupComplete="HandleSetupComplete"
-                      PresetPlayer1="@_value" PresetPlayer2="@_value2"
-                      PresetPlayer3="@_value3" PresetPlayer4="@_value4"
-                      PresetIsDoubles="@(_competitionFixture != null ? Label_Switch1 : (bool?)null)" />
+    <div style="max-width: 700px; margin: 0 auto;">
+        @if (_upcomingFixtures.Any())
+        {
+            <MudCard Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Your Upcoming Matches</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="pa-0">
+                    <MudTable Items="@_upcomingFixtures" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>Date / Time</MudTh>
+                            <MudTh>Competition</MudTh>
+                            <MudTh>Opponent(s)</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Date / Time">@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+                            <MudTd DataLabel="Competition">
+                                <MudText Typo="Typo.body2" Style="font-weight:500">@(context.Competition?.CompetitionName ?? "—")</MudText>
+                                @if (!string.IsNullOrEmpty(context.FixtureLabel))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.FixtureLabel</MudText>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Opponent(s)">@FixtureOpponents(context)</MudTd>
+                            <MudTd DataLabel="Status">
+                                <MudChip T="string" Size="Size.Small" Color="@FixtureStatusColor(context.Status)">@context.Status</MudChip>
+                            </MudTd>
+                            <MudTd>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                                           Href="@($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true")">
+                                    Play
+                                </MudButton>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudCardContent>
+            </MudCard>
+        }
+
+        <MatchSetupWizard OnSetupComplete="HandleSetupComplete"
+                          PresetPlayer1="@_value" PresetPlayer2="@_value2"
+                          PresetPlayer3="@_value3" PresetPlayer4="@_value4"
+                          PresetIsDoubles="@(_competitionFixture != null ? Label_Switch1 : (bool?)null)" />
+    </div>
 }
 
 @if (loaded && @CurrentMatch != null)
@@ -636,6 +681,7 @@
     private CompetitionFixture? _competitionFixture;
     private TeamMatchSet? _teamMatchSet;
     private bool _autoStartPending;
+    private List<CompetitionFixture> _upcomingFixtures = [];
 
     private List<string> _states = [];
     private List<Court> _courts = [];
@@ -727,6 +773,20 @@
                     .Select(pf => pf.PlayerId == pid ? pf.FriendPlayerId : pf.PlayerId)
                     .ToListAsync()).ToHashSet();
             }
+        }
+
+        // Load upcoming fixtures for the logged-in player
+        if (_myPlayerId.HasValue)
+        {
+            var pid = _myPlayerId.Value;
+            _upcomingFixtures = await DbContext.CompetitionFixtures
+                .Include(f => f.Competition)
+                .Include(f => f.Player1).Include(f => f.Player2)
+                .Include(f => f.Player3).Include(f => f.Player4)
+                .Where(f => (f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid)
+                         && (f.Status == FixtureStatus.Scheduled || f.Status == FixtureStatus.InProgress))
+                .OrderBy(f => f.ScheduledAt)
+                .ToListAsync();
         }
 
         // Friends appear first in the autocomplete list
@@ -832,6 +892,10 @@
             _state.GamesFirstTo = 6;
             _selectedCourtId = _competitionFixture?.CourtId;
             _serverChoice = "random";
+            _player1Id = _competitionFixture?.Player1Id;
+            _player2Id = _competitionFixture?.Player2Id;
+            _player3Id = _competitionFixture?.Player3Id;
+            _player4Id = _competitionFixture?.Player4Id;
             _autoStartPending = true;
         }
 
@@ -1181,4 +1245,24 @@
     }
 
     private void OpenSettings() { }
+
+    // ── Upcoming fixtures helpers ───────────────────────────────
+    private static string FixtureOpponents(CompetitionFixture f)
+    {
+        var side1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        return $"{side1} vs {side2}";
+    }
+
+    private static Color FixtureStatusColor(FixtureStatus s) => s switch
+    {
+        FixtureStatus.Scheduled => Color.Default,
+        FixtureStatus.InProgress => Color.Warning,
+        FixtureStatus.Completed => Color.Success,
+        FixtureStatus.Cancelled => Color.Error,
+        FixtureStatus.Walkover => Color.Info,
+        _ => Color.Default
+    };
 }
