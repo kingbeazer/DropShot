@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using DropShot.Data
 @using DropShot.Models
@@ -27,6 +28,10 @@ else if (_competition == null)
 else if (!_competition.IsStarted && !_canEdit)
 {
     <MudAlert Severity="Severity.Info" Class="mb-4">This competition has not started yet. Check back later.</MudAlert>
+}
+else if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">You can only view this competition if you are registered to play in it.</MudAlert>
 }
 else
 {
@@ -272,6 +277,7 @@ else
 
     private bool _loading = true;
     private bool _canEdit;
+    private bool _canView;
     private Competition? _competition;
     private List<CompetitionFixture> _fixtures = [];
     private List<CompetitionParticipant> _participants = [];
@@ -314,6 +320,23 @@ else
         {
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, _competition.HostClubId, _competition.CompetitionID);
+
+            // Non-editors can only view a competition they are registered for.
+            if (_canEdit)
+            {
+                _canView = true;
+            }
+            else
+            {
+                var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    _canView = await db.CompetitionParticipants
+                        .AnyAsync(cp => cp.CompetitionId == _competition.CompetitionID
+                            && cp.Player!.UserId == userId);
+                }
+            }
+
             _fixtures = _competition.Fixtures
                 .OrderBy(f => f.ScheduledAt)
                 .ThenBy(f => f.RoundNumber ?? 0)

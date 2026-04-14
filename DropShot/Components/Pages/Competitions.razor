@@ -81,6 +81,7 @@
                     <MudTh>Format</MudTh>
                     <MudTh>Host Club</MudTh>
                     <MudTh>Dates</MudTh>
+                    <MudTh>Register By</MudTh>
                     <MudTh></MudTh>
                 </HeaderContent>
                 <RowTemplate>
@@ -88,20 +89,12 @@
                     <MudTd DataLabel="Format">@context.CompetitionFormat.ToDisplayName()</MudTd>
                     <MudTd DataLabel="Host Club">@(context.HostClub?.Name ?? "—")</MudTd>
                     <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
+                    <MudTd DataLabel="Register By">@(context.RegisterByDate?.ToString("dd MMM yyyy") ?? "—")</MudTd>
                     <MudTd>
-                        <MudStack Row="true" Spacing="1">
-                            @if (context.IsStarted)
-                            {
-                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
-                                           OnClick="@(() => Nav.NavigateTo($"/competition/{context.CompetitionID}/view"))">
-                                    View
-                                </MudButton>
-                            }
-                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                       OnClick="@(() => EnterCompetitionAsync(context))">
-                                Enter
-                            </MudButton>
-                        </MudStack>
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="@(() => EnterCompetitionAsync(context))">
+                            Enter
+                        </MudButton>
                     </MudTd>
                 </RowTemplate>
             </MudTable>
@@ -563,10 +556,13 @@
             .ThenBy(c => c.CompetitionName)
             .ToListAsync();
 
+        var today = DateTime.UtcNow.Date;
         var candidates = await dbc.Competition
             .Include(c => c.HostClub)
             .Include(c => c.Event)
-            .Where(c => !enteredIds.Contains(c.CompetitionID) && !c.IsArchived)
+            .Where(c => !enteredIds.Contains(c.CompetitionID) && !c.IsArchived && !c.IsStarted)
+            .Where(c => !c.StartDate.HasValue || c.StartDate.Value >= today)
+            .Where(c => !c.RegisterByDate.HasValue || c.RegisterByDate.Value >= today)
             .OrderBy(c => c.StartDate)
             .ThenBy(c => c.CompetitionName)
             .ToListAsync();
@@ -610,6 +606,23 @@
     private async Task EnterCompetitionAsync(Competition comp)
     {
         if (_userPlayer == null) return;
+
+        var today = DateTime.UtcNow.Date;
+        if (comp.IsStarted)
+        {
+            Snackbar.Add("This competition has already started.", Severity.Warning);
+            return;
+        }
+        if (comp.StartDate.HasValue && comp.StartDate.Value < today)
+        {
+            Snackbar.Add("This competition has already started.", Severity.Warning);
+            return;
+        }
+        if (comp.RegisterByDate.HasValue && comp.RegisterByDate.Value < today)
+        {
+            Snackbar.Add("Registration for this competition has closed.", Severity.Warning);
+            return;
+        }
 
         await using var db = DbFactory.CreateDbContext();
 

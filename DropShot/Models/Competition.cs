@@ -18,6 +18,7 @@
         public int? MaxParticipants { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
+        public DateTime? RegisterByDate { get; set; }
         public int? MaxAge { get; set; }
         public int? MinAge { get; set; }
         public PlayerSex? EligibleSex { get; set; }

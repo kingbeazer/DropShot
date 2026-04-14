@@ -4,6 +4,7 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DropShot.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414234304_AddCompetitionRegisterByDate")]
+    partial class AddCompetitionRegisterByDate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -939,51 +942,6 @@ namespace DropShot.Migrations
                     b.ToTable("PlayerFriends");
                 });
 
-            modelBuilder.Entity("DropShot.Models.PlayerInvitation", b =>
-                {
-                    b.Property<int>("PlayerInvitationId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PlayerInvitationId"));
-
-                    b.Property<DateTime?>("AcceptedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("AcceptedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<int>("LightPlayerId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SentToEmail")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<Guid>("Token")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("PlayerInvitationId");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("LightPlayerId");
-
-                    b.HasIndex("Token")
-                        .IsUnique();
-
-                    b.ToTable("PlayerInvitations");
-                });
-
             modelBuilder.Entity("DropShot.Models.RoleSwitchLog", b =>
                 {
                     b.Property<int>("Id")
@@ -1839,25 +1797,6 @@ namespace DropShot.Migrations
                     b.Navigation("Friend");
 
                     b.Navigation("Player");
-                });
-
-            modelBuilder.Entity("DropShot.Models.PlayerInvitation", b =>
-                {
-                    b.HasOne("DropShot.Data.ApplicationUser", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Models.Player", "LightPlayer")
-                        .WithMany()
-                        .HasForeignKey("LightPlayerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CreatedByUser");
-
-                    b.Navigation("LightPlayer");
                 });
 
             modelBuilder.Entity("DropShot.Models.RulesSet", b =>
