@@ -89,7 +89,7 @@
                             <MudTd>
                                 <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                            StartIcon="@Icons.Material.Filled.PlayArrow"
-                                           Href="@($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true")">
+                                           OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true", forceLoad: true))">
                                     Play
                                 </MudButton>
                             </MudTd>
