@@ -437,10 +437,14 @@
 
     private async Task OpenDialogAsync(DialogOptions options)
     {
-        var dialog = await DialogService.ShowAsync<EndMatch>("Delete Server", options);
+        var dialog = await DialogService.ShowAsync<EndMatch>("End Match", options);
         var result = await dialog.Result;
 
-        if (result is not null && !result.Canceled)
+        if (result is null || result.Canceled) return;
+
+        var action = result.Data?.ToString();
+
+        if (action == "save")
         {
             OnExpandCollapseClick();
             _state.IsMatchEnded = true;
@@ -449,6 +453,13 @@
             StopTimer();
             StartMatchEndCountdown();
             await SaveHistory();
+        }
+        else if (action == "discard")
+        {
+            OnExpandCollapseClick();
+            StopTimer();
+            await DiscardMatch();
+            NavigateAfterMatch();
         }
     }
 
@@ -1185,6 +1196,48 @@
             Navigation.NavigateTo($"/competition/{_competitionFixture.CompetitionId}/view");
         else
             Navigation.NavigateTo("/match");
+    }
+
+    private async Task DiscardMatch()
+    {
+        if (_savedMatchId > 0)
+        {
+            using var dbc = DbFactory.CreateDbContext();
+            var match = await dbc.SavedMatch.FindAsync(_savedMatchId);
+            if (match != null)
+            {
+                // Reset any linked competition fixture back to scheduled
+                if (_competitionFixture != null)
+                {
+                    var fx = await dbc.CompetitionFixtures.FindAsync(_competitionFixture.CompetitionFixtureId);
+                    if (fx != null)
+                    {
+                        fx.Status = FixtureStatus.Scheduled;
+                        fx.SavedMatchId = null;
+                        fx.WinnerPlayerId = null;
+                        fx.WinnerTeamId = null;
+                        fx.ResultSummary = null;
+                    }
+                }
+
+                // Reset any linked team match set
+                if (_teamMatchSet != null)
+                {
+                    var tms = await dbc.TeamMatchSets.FindAsync(_teamMatchSet.TeamMatchSetId);
+                    if (tms != null)
+                    {
+                        tms.IsComplete = false;
+                        tms.SavedMatchId = null;
+                        tms.HomeGames = null;
+                        tms.AwayGames = null;
+                        tms.WinnerTeamId = null;
+                    }
+                }
+
+                dbc.SavedMatch.Remove(match);
+                await dbc.SaveChangesAsync();
+            }
+        }
     }
 
     public async ValueTask DisposeAsync()
