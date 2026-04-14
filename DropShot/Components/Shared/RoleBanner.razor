@@ -9,7 +9,7 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-@if (_grantedRoles.Count > 1)
+@if (_grantedRoles.Count > 1 && !_isMatchPage)
 {
     <div class="role-banner">
         <span>Browsing as: <strong>@_activeRole</strong></span>
@@ -33,6 +33,7 @@
     private List<string> _grantedRoles = [];
     private string _activeRole = "";
     private string _currentUrl = "/";
+    private bool _isMatchPage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -40,6 +41,8 @@
         if (httpContext?.User.Identity?.IsAuthenticated != true) return;
 
         _currentUrl = "/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        _isMatchPage = _currentUrl.StartsWith("/match/", StringComparison.OrdinalIgnoreCase)
+                    || _currentUrl.Equals("/tennisscore", StringComparison.OrdinalIgnoreCase);
 
         var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId is null) return;
