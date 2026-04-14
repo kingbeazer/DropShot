@@ -1196,10 +1196,10 @@
 
     private async Task UndoLastPoint()
     {
-        if (history.Any())
-            history.Pop();
-        if (history.Any())
-            ScoreService.RestoreFromGameState(_state, history.Peek());
+        if (history.Count <= 1)
+            return;
+        history.Pop();
+        ScoreService.RestoreFromGameState(_state, history.Peek());
         if (CurrentMatch != null)
             CurrentMatch.Complete = false;
         _state.IsMatchEnded = false;
