@@ -98,7 +98,7 @@ else
                         @if ((context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification)
                              && !string.IsNullOrEmpty(context.ResultSummary))
                         {
-                            <ResultCard Fixture="context" />
+                            <ResultCard Fixture="context" Compact="true" />
                             @if (context.ResultModifiedByAdmin)
                             {
                                 <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">

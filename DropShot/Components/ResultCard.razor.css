@@ -93,3 +93,29 @@
     font-style: italic;
     line-height: 1;
 }
+
+/* ── Compact variant (for use inside tables/lists) ──────────── */
+.result-card-compact {
+    min-width: unset;
+    border: none;
+    border-radius: 0;
+    background-color: transparent;
+}
+
+.result-card-compact .rc-player-row {
+    padding: 2px 0;
+    min-height: unset;
+}
+
+.result-card-compact .rc-player-row.rc-winner {
+    background-color: transparent;
+}
+
+.result-card-compact .rc-name {
+    font-size: 0.8rem;
+}
+
+.result-card-compact .rc-set-score {
+    width: 22px;
+    font-size: 0.8rem;
+}

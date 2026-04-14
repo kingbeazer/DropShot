@@ -1,7 +1,7 @@
 @using DropShot.Models
 
-<div class="result-card">
-    @if (Fixture.Competition != null)
+<div class="@CardClass">
+    @if (!Compact && Fixture.Competition != null)
     {
         <div class="rc-header">
             <span class="rc-comp">@Fixture.Competition.CompetitionName</span>
@@ -26,7 +26,10 @@
         </div>
     </div>
 
-    <div class="rc-separator">v</div>
+    @if (!Compact)
+    {
+        <div class="rc-separator">v</div>
+    }
 
     <div class="rc-player-row @(IsPlayer2Winner ? "rc-winner" : "")">
         <div class="rc-name">@Player2Name</div>
@@ -41,6 +44,9 @@
 
 @code {
     [Parameter, EditorRequired] public CompetitionFixture Fixture { get; set; } = default!;
+    [Parameter] public bool Compact { get; set; }
+
+    private string CardClass => Compact ? "result-card result-card-compact" : "result-card";
 
     private List<(string P1, string P2)> _sets = [];
 
