@@ -29,6 +29,13 @@
 
 <MudProviders />
 
+@if (_showServerSelect)
+{
+    <ServerSelectScreen UserLabel="@GetUserDisplayName()"
+                        OpponentLabel="@GetOpponentDisplayName()"
+                        OnServerSelected="HandleServerSelected" />
+}
+
 @if (_showCoinToss)
 {
     <div class="coin-toss-overlay">
@@ -53,7 +60,7 @@
     </div>
 }
 
-@if (loaded && CurrentMatch == null && !_showCoinToss)
+@if (loaded && CurrentMatch == null && !_showCoinToss && !_showServerSelect)
 {
     <div style="max-width: 700px; margin: 0 auto;">
         @if (_upcomingFixtures.Any())
@@ -494,13 +501,14 @@
     public bool Label_Switch1 { get; set; } = false;
 
     private string _serverChoice = "random";
+    private bool _showServerSelect;
     private bool _showCoinToss;
     private bool _coinAnimating;
     private bool _coinTossUserServes;
     private string _coinTossWinnerName = string.Empty;
     private Match? _pendingMatch;
 
-    private async Task HandleSetupComplete(MatchSetupWizard.MatchSetupResult result)
+    private Task HandleSetupComplete(MatchSetupWizard.MatchSetupResult result)
     {
         _value = result.Player1;
         _value2 = result.Player2;
@@ -518,8 +526,15 @@
         _state.BestOf = result.BestOf;
         _state.GamesFirstTo = result.GamesPerSet;
         _state.UnlimitedDeuce = result.UnlimitedDeuce;
-        _serverChoice = result.ServerChoice;
 
+        _showServerSelect = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleServerSelected(string choice)
+    {
+        _serverChoice = choice;
+        _showServerSelect = false;
         await ButtonOnClick();
     }
 
@@ -713,7 +728,6 @@
     private int _savedMatchId;
     private CompetitionFixture? _competitionFixture;
     private TeamMatchSet? _teamMatchSet;
-    private bool _autoStartPending;
     private List<CompetitionFixture> _upcomingFixtures = [];
 
     private List<string> _states = [];
@@ -915,7 +929,7 @@
             }
         }
 
-        // Auto-start: skip wizard and go straight to match when all info is available
+        // Auto-start: skip wizard and show server selection screen
         if (AutoStart == true && (_competitionFixture != null || _teamMatchSet != null)
             && !string.IsNullOrEmpty(_value) && !string.IsNullOrEmpty(_value2))
         {
@@ -924,12 +938,11 @@
             _state.UnlimitedDeuce = true;
             _state.GamesFirstTo = 6;
             _selectedCourtId = _competitionFixture?.CourtId;
-            _serverChoice = "random";
             _player1Id = _competitionFixture?.Player1Id;
             _player2Id = _competitionFixture?.Player2Id;
             _player3Id = _competitionFixture?.Player3Id;
             _player4Id = _competitionFixture?.Player4Id;
-            _autoStartPending = true;
+            _showServerSelect = true;
         }
 
         _courts = await DbContext.Courts
@@ -967,13 +980,6 @@
                     .Build();
 
                 await hubConnection.StartAsync();
-            }
-
-            if (_autoStartPending)
-            {
-                _autoStartPending = false;
-                await ButtonOnClick();
-                await InvokeAsync(StateHasChanged);
             }
 
             if (_restoreFullscreen)
