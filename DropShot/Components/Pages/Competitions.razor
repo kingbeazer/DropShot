@@ -52,10 +52,17 @@
                     <MudTd DataLabel="Host Club">@(context.HostClub?.Name ?? "—")</MudTd>
                     <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
                     <MudTd>
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
-                                   OnClick="@(() => Nav.NavigateTo($"/competition/{context.CompetitionID}/view"))">
-                            View
-                        </MudButton>
+                        @if (context.IsStarted)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                       OnClick="@(() => Nav.NavigateTo($"/competition/{context.CompetitionID}/view"))">
+                                View
+                            </MudButton>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Entered</MudChip>
+                        }
                     </MudTd>
                 </RowTemplate>
             </MudTable>
@@ -83,10 +90,13 @@
                     <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
                     <MudTd>
                         <MudStack Row="true" Spacing="1">
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
-                                       OnClick="@(() => Nav.NavigateTo($"/competition/{context.CompetitionID}/view"))">
-                                View
-                            </MudButton>
+                            @if (context.IsStarted)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                           OnClick="@(() => Nav.NavigateTo($"/competition/{context.CompetitionID}/view"))">
+                                    View
+                                </MudButton>
+                            }
                             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                        OnClick="@(() => EnterCompetitionAsync(context))">
                                 Enter
@@ -203,6 +213,10 @@
                 </TemplateColumn>
                 <TemplateColumn CellClass="d-flex justify-end gap-2">
                     <CellTemplate>
+                        @if (!context.Item.IsStarted)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not Started</MudChip>
+                        }
                         @if (context.Item.IsArchived)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
@@ -285,6 +299,10 @@
                                     <tr>
                                         <td>
                                             @comp.CompetitionName
+                                            @if (!comp.IsStarted)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not Started</MudChip>
+                                            }
                                             @if (comp.IsArchived)
                                             {
                                                 <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
@@ -350,6 +368,10 @@
                                     <tr>
                                         <td>
                                             @comp.CompetitionName
+                                            @if (!comp.IsStarted)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not Started</MudChip>
+                                            }
                                             @if (comp.IsArchived)
                                             {
                                                 <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
@@ -476,7 +498,8 @@
                 HostClubId = c.HostClubId,
                 EventId = c.EventId,
                 Event = c.Event,
-                IsArchived = c.IsArchived
+                IsArchived = c.IsArchived,
+                IsStarted = c.IsStarted
             })
             .ToListAsync();
 

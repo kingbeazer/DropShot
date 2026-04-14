@@ -16,7 +16,8 @@ public record CompetitionDto(
     string? RulesSetName,
     int? EventId,
     string? EventName,
-    bool IsArchived = false);
+    bool IsArchived = false,
+    bool IsStarted = false);
 
 public record CompetitionDetailDto(
     int CompetitionId,
@@ -36,7 +37,8 @@ public record CompetitionDetailDto(
     string? EventName,
     List<CompetitionStageDto> Stages,
     List<CompetitionParticipantDto> Participants,
-    bool IsArchived = false);
+    bool IsArchived = false,
+    bool IsStarted = false);
 
 public record CompetitionStageDto(
     int CompetitionStageId,

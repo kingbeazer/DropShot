@@ -6,10 +6,13 @@
 @using DropShot.Data
 @using DropShot.Models
 @using DropShot.Shared.Extensions
+@using DropShot.Services
 @using Microsoft.EntityFrameworkCore
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager Nav
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudProviders />
 
@@ -20,6 +23,10 @@
 else if (_competition == null)
 {
     <MudAlert Severity="Severity.Error">Competition not found.</MudAlert>
+}
+else if (!_competition.IsStarted && !_canEdit)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4">This competition has not started yet. Check back later.</MudAlert>
 }
 else
 {
@@ -261,6 +268,7 @@ else
     [Parameter] public int Id { get; set; }
 
     private bool _loading = true;
+    private bool _canEdit;
     private Competition? _competition;
     private List<CompetitionFixture> _fixtures = [];
     private List<CompetitionParticipant> _participants = [];
@@ -301,6 +309,8 @@ else
 
         if (_competition != null)
         {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, _competition.HostClubId, _competition.CompetitionID);
             _fixtures = _competition.Fixtures
                 .OrderBy(f => f.ScheduledAt)
                 .ThenBy(f => f.RoundNumber ?? 0)

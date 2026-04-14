@@ -48,6 +48,10 @@ else
                 <RowTemplate>
                     <MudTd>
                         @context.CompetitionName
+                        @if (!context.IsStarted)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not Started</MudChip>
+                        }
                         @if (context.IsArchived)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>

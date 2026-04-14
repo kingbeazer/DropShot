@@ -73,7 +73,8 @@ public class CompetitionsController(
                 p.Player?.MobileNumber,
                 (DropShot.Shared.PlayerGrade?)p.Grade,
                 (DropShot.Shared.PlayerSex?)p.Player?.Sex)).ToList(),
-            c.IsArchived);
+            c.IsArchived,
+            c.IsStarted);
     }
 
     [HttpPost]
@@ -117,6 +118,20 @@ public class CompetitionsController(
         comp.IsArchived = !comp.IsArchived;
         await db.SaveChangesAsync();
         return Ok(new { comp.IsArchived });
+    }
+
+    [HttpPut("{id:int}/start")]
+    public async Task<IActionResult> ToggleStarted(int id)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId, comp.CompetitionID))
+            return Forbid();
+
+        comp.IsStarted = !comp.IsStarted;
+        await db.SaveChangesAsync();
+        return Ok(new { comp.IsStarted });
     }
 
     [HttpDelete("{id:int}")]
@@ -906,7 +921,7 @@ public class CompetitionsController(
         c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
         (DropShot.Shared.PlayerSex?)c.EligibleSex,
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
-        c.EventId, c.Event?.Name, c.IsArchived);
+        c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted);
 
     private static CompetitionFixtureDto ToFixtureDto(CompetitionFixture f) => new(
         f.CompetitionFixtureId, f.CompetitionId,

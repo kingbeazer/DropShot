@@ -94,6 +94,16 @@ public class ApiService(HttpClient http)
 
     private record ArchiveResult(bool IsArchived);
 
+    public async Task<bool> ToggleStartedCompetitionAsync(int id)
+    {
+        var r = await http.PutAsync($"api/competitions/{id}/start", null);
+        r.EnsureSuccessStatusCode();
+        var result = await r.Content.ReadFromJsonAsync<StartResult>();
+        return result?.IsStarted ?? false;
+    }
+
+    private record StartResult(bool IsStarted);
+
     public async Task DeleteCompetitionAsync(int id)
     {
         var r = await http.DeleteAsync($"api/competitions/{id}");
