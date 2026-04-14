@@ -27,6 +27,7 @@
         public int BestOf { get; set; } = 3;
         public bool RequireVerification { get; set; } = false;
         public bool IsArchived { get; set; } = false;
+        public bool IsStarted { get; set; } = false;
 
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }

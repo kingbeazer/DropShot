@@ -41,6 +41,19 @@
     }
     @if (IsEdit)
     {
+        @if (_canEdit)
+        {
+            <MudButton Variant="@(_isStarted ? Variant.Outlined : Variant.Filled)"
+                       Color="@(_isStarted ? Color.Warning : Color.Success)"
+                       StartIcon="@(_isStarted ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
+                       OnClick="ToggleStartedAsync">
+                @(_isStarted ? "Stop Competition" : "Start Competition")
+            </MudButton>
+        }
+        else if (!_isStarted)
+        {
+            <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
+        }
         <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
                    OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
             View Competition
@@ -936,6 +949,7 @@
     private string? _serverError;
     private bool IsEdit => Id != 0;
     private bool _nameOverride;
+    private bool _isStarted;
     private int _activeTabIndex;
 
     private CompetitionFormModel Model { get; set; } = new();
@@ -1145,6 +1159,7 @@
             if (comp is null) { _serverError = $"Competition {Id} not found."; return; }
 
             _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, comp.HostClubId, Id);
+            _isStarted = comp.IsStarted;
             _nameOverride = true; // Existing competition — preserve its name
 
             Model = new CompetitionFormModel
@@ -1259,6 +1274,19 @@
         catch (DbUpdateException ex) { _serverError = "Database error: " + ex.InnerException?.Message ?? ex.Message; }
         catch (Exception ex) { _serverError = ex.Message; }
         finally { _isSaving = false; }
+    }
+
+    private async Task ToggleStartedAsync()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(Id);
+        if (comp is null) return;
+
+        comp.IsStarted = !comp.IsStarted;
+        await db.SaveChangesAsync();
+        _isStarted = comp.IsStarted;
+
+        Snackbar.Add(_isStarted ? "Competition started." : "Competition stopped.", Severity.Success);
     }
 
     // ── Add New Entity Helpers ─────────────────────────────────────────────
