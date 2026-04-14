@@ -1,0 +1,82 @@
+@using DropShot.Models
+
+<div class="result-card">
+    @if (Fixture.Competition != null)
+    {
+        <div class="rc-header">
+            <span class="rc-comp">@Fixture.Competition.CompetitionName</span>
+            @if (!string.IsNullOrEmpty(Fixture.FixtureLabel))
+            {
+                <span class="rc-label">@Fixture.FixtureLabel</span>
+            }
+            @if (Fixture.ScheduledAt.HasValue)
+            {
+                <span class="rc-date">@Fixture.ScheduledAt.Value.ToString("dd MMM yyyy")</span>
+            }
+        </div>
+    }
+
+    <div class="rc-player-row @(IsPlayer1Winner ? "rc-winner" : "")">
+        <div class="rc-name">@Player1Name</div>
+        <div class="rc-sets">
+            @foreach (var set in _sets)
+            {
+                <span class="rc-set-score">@set.P1</span>
+            }
+        </div>
+    </div>
+
+    <div class="rc-separator">v</div>
+
+    <div class="rc-player-row @(IsPlayer2Winner ? "rc-winner" : "")">
+        <div class="rc-name">@Player2Name</div>
+        <div class="rc-sets">
+            @foreach (var set in _sets)
+            {
+                <span class="rc-set-score">@set.P2</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CompetitionFixture Fixture { get; set; } = default!;
+
+    private List<(string P1, string P2)> _sets = [];
+
+    private string Player1Name => Fixture.Player3 != null
+        ? $"{Fixture.Player1?.DisplayName ?? "TBD"} & {Fixture.Player3?.DisplayName ?? "TBD"}"
+        : Fixture.Player1?.DisplayName ?? "TBD";
+
+    private string Player2Name => Fixture.Player4 != null
+        ? $"{Fixture.Player2?.DisplayName ?? "TBD"} & {Fixture.Player4?.DisplayName ?? "TBD"}"
+        : Fixture.Player2?.DisplayName ?? "TBD";
+
+    private bool IsPlayer1Winner => Fixture.WinnerPlayerId.HasValue
+        && Fixture.WinnerPlayerId == Fixture.Player1Id;
+
+    private bool IsPlayer2Winner => Fixture.WinnerPlayerId.HasValue
+        && Fixture.WinnerPlayerId == Fixture.Player2Id;
+
+    protected override void OnParametersSet()
+    {
+        _sets = ParseResultSummary(Fixture.ResultSummary);
+    }
+
+    private static List<(string P1, string P2)> ParseResultSummary(string? summary)
+    {
+        if (string.IsNullOrWhiteSpace(summary))
+            return [];
+
+        var result = new List<(string, string)>();
+        var parts = summary.Split(',', StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            // Split on hyphen or en-dash
+            var scores = part.Split(['-', '\u2013'], 2);
+            if (scores.Length == 2)
+                result.Add((scores[0].Trim(), scores[1].Trim()));
+        }
+        return result;
+    }
+}

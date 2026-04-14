@@ -55,66 +55,27 @@
                 </MudStack>
             </CardHeaderContent>
         </MudCardHeader>
-        <MudCardContent Class="pa-0">
-            <MudTable Items="@_pendingReviews" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
-                      GroupBy="@(new TableGroupDefinition<CompetitionFixture>
-                      {
-                          GroupName = "Competition",
-                          Selector = f => f.Competition?.CompetitionName ?? "Unknown",
-                          Expandable = true,
-                          IsInitiallyExpanded = true
-                      })">
-                <HeaderContent>
-                    <MudTh>Match</MudTh>
-                    <MudTh>Players</MudTh>
-                    <MudTh>Submitted Score</MudTh>
-                    <MudTh>Winner</MudTh>
-                    <MudTh Style="width:180px"></MudTh>
-                </HeaderContent>
-                <GroupHeaderTemplate>
-                    <MudTh colspan="5">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                            <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Small" Color="Color.Primary" />
-                            <MudText Typo="Typo.subtitle1" Style="font-weight:600">@context.Key</MudText>
-                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">@context.Items.Count() pending</MudChip>
-                        </MudStack>
-                    </MudTh>
-                </GroupHeaderTemplate>
-                <RowTemplate>
-                    <MudTd DataLabel="Match">
-                        <MudText Typo="Typo.body2">@(context.FixtureLabel ?? "Match")</MudText>
-                        @if (context.ScheduledAt.HasValue)
-                        {
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.ScheduledAt.Value.ToString("dd MMM yyyy")</MudText>
-                        }
-                    </MudTd>
-                    <MudTd DataLabel="Players">
-                        <MudText Typo="Typo.body2">@ReviewFixturePlayers(context)</MudText>
-                    </MudTd>
-                    <MudTd DataLabel="Score">
-                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Dark">
-                            @(context.ResultSummary ?? "—")
-                        </MudChip>
-                    </MudTd>
-                    <MudTd DataLabel="Winner">
-                        <MudText Typo="Typo.body2" Style="font-weight:500">@ReviewWinnerName(context)</MudText>
-                    </MudTd>
-                    <MudTd>
-                        <MudStack Row="true" Spacing="1">
+        <MudCardContent>
+            <MudGrid>
+                @foreach (var fixture in _pendingReviews)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        <ResultCard Fixture="fixture" />
+                        <MudStack Row="true" Spacing="1" Class="mt-2" Justify="Justify.Center">
                             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
                                        StartIcon="@Icons.Material.Filled.CheckCircle"
-                                       OnClick="@(() => QuickApproveReviewAsync(context))">
+                                       OnClick="@(() => QuickApproveReviewAsync(fixture))">
                                 Approve
                             </MudButton>
                             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
                                        StartIcon="@Icons.Material.Filled.Edit"
-                                       OnClick="@(() => OpenReviewDialogAsync(context))">
+                                       OnClick="@(() => OpenReviewDialogAsync(fixture))">
                                 Review
                             </MudButton>
                         </MudStack>
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
+                    </MudItem>
+                }
+            </MudGrid>
         </MudCardContent>
     </MudCard>
 }
@@ -187,6 +148,30 @@
     </MudCardContent>
 </MudCard>
 
+@if (_recentResults.Any())
+{
+    <MudCard Class="mt-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6">My Recent Results</MudText>
+                </MudStack>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                @foreach (var fixture in _recentResults)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        <ResultCard Fixture="fixture" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+}
+
 @if (_upcomingFixtures.Any())
 {
     <MudCard Class="mt-4">
@@ -250,6 +235,7 @@
 
     private List<CompetitionFixture> _upcomingFixtures = [];
     private List<CompetitionFixture> _pendingReviews = [];
+    private List<CompetitionFixture> _recentResults = [];
     private bool _showUpgradeBanner;
     private bool _eligibleForUpgradeBanner;
     private bool _isAuthenticated;
@@ -305,6 +291,19 @@
             .Where(f => (f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid)
                      && (f.Status == FixtureStatus.Scheduled || f.Status == FixtureStatus.InProgress))
             .OrderBy(f => f.ScheduledAt)
+            .ToListAsync();
+
+        _recentResults = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Where(f => (f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid)
+                     && f.Status == FixtureStatus.Completed
+                     && f.ResultSummary != null)
+            .OrderByDescending(f => f.ScheduledAt)
+            .Take(6)
             .ToListAsync();
     }
 
