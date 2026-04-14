@@ -33,11 +33,14 @@ else
     @* ── Header ─────────────────────────────────────────────── *@
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
         <MudText Typo="Typo.h4" Style="flex:1">@_competition.CompetitionName</MudText>
-        <MudButton Variant="Variant.Outlined" Color="Color.Default"
-                   StartIcon="@Icons.Material.Filled.Edit"
-                   OnClick="@(() => Nav.NavigateTo($"/competition/{Id}"))">
-            Edit
-        </MudButton>
+        @if (_canEdit)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.Edit"
+                       OnClick="@(() => Nav.NavigateTo($"/competition/{Id}"))">
+                Edit
+            </MudButton>
+        }
     </MudStack>
 
     <MudGrid Spacing="3" Class="mb-4">
