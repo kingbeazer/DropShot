@@ -280,7 +280,7 @@
 .score-player-name {
     flex: 0 0 90px;
     text-align: left;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.7);
     overflow: hidden;
