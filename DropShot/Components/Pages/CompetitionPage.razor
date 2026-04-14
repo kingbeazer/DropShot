@@ -142,6 +142,9 @@
                         <MudItem xs="12" sm="6">
                             <MudDatePicker @bind-Date="Model.EndDateDt" Label="End Date (optional)" DateFormat="dd/MM/yyyy" />
                         </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="Model.RegisterByDateDt" Label="Register By (optional)" DateFormat="dd/MM/yyyy" />
+                        </MudItem>
                     </MudGrid>
 
                     <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants (optional)"
@@ -1048,6 +1051,7 @@
         public int? MaxParticipants { get; set; }
         public DateTime? StartDateDt { get; set; }
         public DateTime? EndDateDt { get; set; }
+        public DateTime? RegisterByDateDt { get; set; }
         public int? MaxAge { get; set; }
         public int? MinAge { get; set; }
         public PlayerSex? EligibleSex { get; set; }
@@ -1174,6 +1178,7 @@
                 MaxParticipants = comp.MaxParticipants,
                 StartDateDt = comp.StartDate,
                 EndDateDt = comp.EndDate,
+                RegisterByDateDt = comp.RegisterByDate,
                 MaxAge = comp.MaxAge,
                 MinAge = comp.MinAge,
                 EligibleSex = comp.EligibleSex,
@@ -1418,6 +1423,7 @@
         comp.MaxParticipants = Model.MaxParticipants;
         comp.StartDate = Model.StartDateDt;
         comp.EndDate = Model.EndDateDt;
+        comp.RegisterByDate = Model.RegisterByDateDt;
         comp.MaxAge = Model.MaxAge;
         comp.MinAge = Model.MinAge;
         comp.EligibleSex = format is CompetitionFormat.MixedDoubles or CompetitionFormat.MixedTeam
