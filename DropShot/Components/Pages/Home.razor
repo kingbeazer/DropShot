@@ -148,78 +148,101 @@
     </MudCardContent>
 </MudCard>
 
-@if (_recentResults.Any())
+@if (_upcomingFixtures.Any() || _recentResults.Any())
 {
-    <MudCard Class="mt-4">
-        <MudCardHeader>
-            <CardHeaderContent>
-                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                    <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" />
-                    <MudText Typo="Typo.h6">My Recent Results</MudText>
-                </MudStack>
-            </CardHeaderContent>
-        </MudCardHeader>
-        <MudCardContent>
-            <MudGrid>
-                @foreach (var fixture in _recentResults)
-                {
-                    <MudItem xs="12" sm="6" md="4">
-                        <ResultCard Fixture="fixture" />
-                    </MudItem>
-                }
-            </MudGrid>
-        </MudCardContent>
-    </MudCard>
-}
+    <MudGrid Class="mt-4">
+        @if (_upcomingFixtures.Any())
+        {
+            <MudItem xs="12" md="@(_recentResults.Any() ? 7 : 12)">
+                <MudCard>
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Your Upcoming Matches</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Class="pa-0">
+                        <MudTable Items="@_upcomingFixtures" Dense="true" Hover="true">
+                            <HeaderContent>
+                                <MudTh>Date / Time</MudTh>
+                                <MudTh>Competition</MudTh>
+                                <MudTh>Opponent(s)</MudTh>
+                                <MudTh>Status</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Date / Time">@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+                                <MudTd DataLabel="Competition">
+                                    <MudText Typo="Typo.body2" Style="font-weight:500">@(context.Competition?.CompetitionName ?? "—")</MudText>
+                                    @if (!string.IsNullOrEmpty(context.FixtureLabel))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.FixtureLabel</MudText>
+                                    }
+                                </MudTd>
+                                <MudTd DataLabel="Opponent(s)">@FixtureOpponents(context)</MudTd>
+                                <MudTd DataLabel="Status">
+                                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+                                </MudTd>
+                                <MudTd>
+                                    <MudStack Row="true" Spacing="1">
+                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                                                   OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true"))">
+                                            Play
+                                        </MudButton>
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
+                                                   StartIcon="@Icons.Material.Filled.Edit"
+                                                   OnClick="@(() => OpenSubmitScoreAsync(context))">
+                                            Submit Score
+                                        </MudButton>
+                                    </MudStack>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
 
-@if (_upcomingFixtures.Any())
-{
-    <MudCard Class="mt-4">
-        <MudCardHeader>
-            <CardHeaderContent>
-                <MudText Typo="Typo.h6">Your Upcoming Matches</MudText>
-            </CardHeaderContent>
-        </MudCardHeader>
-        <MudCardContent Class="pa-0">
-            <MudTable Items="@_upcomingFixtures" Dense="true" Hover="true">
-                <HeaderContent>
-                    <MudTh>Date / Time</MudTh>
-                    <MudTh>Competition</MudTh>
-                    <MudTh>Opponent(s)</MudTh>
-                    <MudTh>Status</MudTh>
-                    <MudTh></MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Date / Time">@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
-                    <MudTd DataLabel="Competition">
-                        <MudText Typo="Typo.body2" Style="font-weight:500">@(context.Competition?.CompetitionName ?? "—")</MudText>
-                        @if (!string.IsNullOrEmpty(context.FixtureLabel))
-                        {
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.FixtureLabel</MudText>
-                        }
-                    </MudTd>
-                    <MudTd DataLabel="Opponent(s)">@FixtureOpponents(context)</MudTd>
-                    <MudTd DataLabel="Status">
-                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
-                    </MudTd>
-                    <MudTd>
-                        <MudStack Row="true" Spacing="1">
-                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                       StartIcon="@Icons.Material.Filled.PlayArrow"
-                                       OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true"))">
-                                Play
-                            </MudButton>
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
-                                       StartIcon="@Icons.Material.Filled.Edit"
-                                       OnClick="@(() => OpenSubmitScoreAsync(context))">
-                                Submit Score
-                            </MudButton>
+        @if (_recentResults.Any())
+        {
+            <MudItem xs="12" md="@(_upcomingFixtures.Any() ? 5 : 12)">
+                <MudCard>
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" />
+                                <MudText Typo="Typo.h6">My Recent Results</MudText>
+                            </MudStack>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Class="pa-0">
+                        <MudStack Spacing="0">
+                            @foreach (var fixture in _recentResults)
+                            {
+                                <div style="padding: 8px 16px; border-bottom: 1px solid var(--mud-palette-lines-default);">
+                                    @if (fixture.Competition != null)
+                                    {
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                                            <MudText Typo="Typo.caption" Style="font-weight:500">@fixture.Competition.CompetitionName</MudText>
+                                            @if (!string.IsNullOrEmpty(fixture.FixtureLabel))
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">@fixture.FixtureLabel</MudText>
+                                            }
+                                            @if (fixture.ScheduledAt.HasValue)
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-left:auto">@fixture.ScheduledAt.Value.ToString("dd MMM yyyy")</MudText>
+                                            }
+                                        </MudStack>
+                                    }
+                                    <ResultCard Fixture="fixture" Compact="true" />
+                                </div>
+                            }
                         </MudStack>
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
-        </MudCardContent>
-    </MudCard>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
 }
 
 @code {
