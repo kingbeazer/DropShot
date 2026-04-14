@@ -1885,19 +1885,37 @@
             var oldWinnerTeamId = fx.WinnerTeamId;
             bool isTeamFixture = fx.HomeTeamId.HasValue;
 
-            // Block if downstream fixtures have progressed
+            // Block if downstream fixtures (later stage, or later round in the same stage) have progressed
             if (oldWinnerPlayerId.HasValue || oldWinnerTeamId.HasValue)
             {
+                var currentStageOrder = fx.Stage?.StageOrder;
+                var currentRound = fx.RoundNumber;
+
                 var downstream = await db.CompetitionFixtures
+                    .Include(f => f.Stage)
                     .Where(f => f.CompetitionId == fx.CompetitionId
                         && f.CompetitionFixtureId != fx.CompetitionFixtureId
                         && (f.Status == FixtureStatus.InProgress || f.Status == FixtureStatus.Completed
                             || f.Status == FixtureStatus.AwaitingVerification))
                     .ToListAsync();
 
+                bool IsDownstream(CompetitionFixture f)
+                {
+                    if (currentStageOrder.HasValue && f.Stage != null
+                        && f.Stage.StageOrder > currentStageOrder.Value)
+                        return true;
+                    if (f.CompetitionStageId == fx.CompetitionStageId
+                        && currentRound.HasValue && f.RoundNumber.HasValue
+                        && f.RoundNumber.Value > currentRound.Value)
+                        return true;
+                    return false;
+                }
+
                 bool blocked = isTeamFixture
-                    ? downstream.Any(f => f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId)
-                    : downstream.Any(f => f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId);
+                    ? downstream.Any(f => IsDownstream(f)
+                        && (f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId))
+                    : downstream.Any(f => IsDownstream(f)
+                        && (f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId));
 
                 if (blocked)
                 {

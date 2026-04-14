@@ -483,41 +483,31 @@ public class CompetitionsController(
         var oldWinnerTeamId = fixture.WinnerTeamId;
         bool isTeamFixture = fixture.HomeTeamId.HasValue;
 
-        // Identify which other fixtures this fixture's winner could have been
-        // advanced into. A fixture is "downstream" of the deleted fixture only
-        // if it lives in a later stage (by StageOrder), or — within the same
-        // Knockout stage — a later round. Peer fixtures in the same round or
-        // other matches in a RoundRobin stage are NOT downstream, even though
-        // the same player may appear in them as a regular participant.
-        var allStages = await db.CompetitionStages
-            .Where(s => s.CompetitionId == id)
-            .ToListAsync();
-
-        var currentStage = fixture.Stage;
-        int? currentStageOrder = currentStage?.StageOrder;
-        int? currentStageId = fixture.CompetitionStageId;
-        bool currentIsKnockout = currentStage?.StageType == StageType.Knockout;
-        int? currentRound = fixture.RoundNumber;
+        // A fixture is "downstream" of the deleted fixture only if it lives in a
+        // later stage (by StageOrder) or — within the same stage — a later round.
+        // Peer matches in the same round or other round-robin group matches are
+        // NOT downstream, even though the same player may appear in them as a
+        // regular participant.
+        var currentStageOrder = fixture.Stage?.StageOrder;
+        var currentRound = fixture.RoundNumber;
 
         bool IsDownstream(CompetitionFixture f)
         {
-            if (f.CompetitionFixtureId == fixtureId) return false;
-            if (!f.CompetitionStageId.HasValue || currentStageOrder is null) return false;
-            var fStage = allStages.FirstOrDefault(s => s.CompetitionStageId == f.CompetitionStageId.Value);
-            if (fStage is null) return false;
-            if (fStage.StageOrder > currentStageOrder.Value) return true;
-            if (currentIsKnockout
-                && f.CompetitionStageId == currentStageId
-                && currentRound.HasValue
-                && f.RoundNumber.HasValue
-                && f.RoundNumber.Value > currentRound.Value) return true;
+            if (currentStageOrder.HasValue && f.Stage != null
+                && f.Stage.StageOrder > currentStageOrder.Value)
+                return true;
+            if (f.CompetitionStageId == fixture.CompetitionStageId
+                && currentRound.HasValue && f.RoundNumber.HasValue
+                && f.RoundNumber.Value > currentRound.Value)
+                return true;
             return false;
         }
 
         // Check for downstream fixtures that have already progressed beyond Scheduled
         if (oldWinnerPlayerId.HasValue || oldWinnerTeamId.HasValue)
         {
-            var progressedFixtures = await db.CompetitionFixtures
+            var downstreamFixtures = await db.CompetitionFixtures
+                .Include(f => f.Stage)
                 .Where(f => f.CompetitionId == id
                     && f.CompetitionFixtureId != fixtureId
                     && (f.Status == FixtureStatus.InProgress || f.Status == FixtureStatus.Completed
@@ -525,10 +515,10 @@ public class CompetitionsController(
                 .ToListAsync();
 
             bool blocked = isTeamFixture
-                ? progressedFixtures.Any(f => IsDownstream(f) &&
-                    (f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId))
-                : progressedFixtures.Any(f => IsDownstream(f) &&
-                    (f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId));
+                ? downstreamFixtures.Any(f => IsDownstream(f)
+                    && (f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId))
+                : downstreamFixtures.Any(f => IsDownstream(f)
+                    && (f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId));
 
             if (blocked)
                 return BadRequest(new { message = "Cannot delete this result because the winner has already been placed in a downstream match that is in progress or completed. Delete that result first." });
@@ -538,6 +528,7 @@ public class CompetitionsController(
         if (oldWinnerPlayerId.HasValue)
         {
             var scheduled = await db.CompetitionFixtures
+                .Include(f => f.Stage)
                 .Where(f => f.CompetitionId == id
                     && f.CompetitionFixtureId != fixtureId
                     && f.Status == FixtureStatus.Scheduled
@@ -554,6 +545,7 @@ public class CompetitionsController(
         if (oldWinnerTeamId.HasValue)
         {
             var scheduled = await db.CompetitionFixtures
+                .Include(f => f.Stage)
                 .Include(f => f.TeamMatchSets)
                 .Where(f => f.CompetitionId == id
                     && f.CompetitionFixtureId != fixtureId
