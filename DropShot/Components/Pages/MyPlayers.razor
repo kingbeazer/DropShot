@@ -13,6 +13,9 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject FuzzySearchService FuzzySearch
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+@inject EmailService EmailService
 
 <MudProviders />
 
@@ -39,11 +42,7 @@
         <MudTd DataLabel="Player">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
                 <MudText>@context.DisplayName</MudText>
-                @if (context.IsLight)
-                {
-                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Light</MudChip>
-                }
-                else
+                @if (!context.IsLight)
                 {
                     <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small"
                              Title="Verified player" />
@@ -59,9 +58,9 @@
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                    OnClick="@(() => OpenEditDialog(context))" />
                 </MudTooltip>
-                <MudTooltip Text="Link to verified player">
-                    <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Info"
-                                   OnClick="@(() => OpenLinkDialog(context))" />
+                <MudTooltip Text="Invite to join">
+                    <MudIconButton Icon="@Icons.Material.Filled.PersonAddAlt1" Size="Size.Small" Color="Color.Info"
+                                   OnClick="@(() => OpenInviteDialog(context))" />
                 </MudTooltip>
                 <MudTooltip Text="Delete">
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
@@ -181,6 +180,44 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Invite Player Dialog ─────────────────────────────────── *@
+<MudDialog @bind-Visible="_showInviteDialog">
+    <TitleContent>Invite "@_invitingPlayer?.DisplayName" to join</TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Send an invite link. When they register, their new account will be linked to this player
+            and any existing match history will be transferred.
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(_inviteLink))
+        {
+            <MudTextField Value="@_inviteLink" Label="Invite link" Variant="Variant.Outlined"
+                          ReadOnly="true" Class="mb-3" />
+
+            <MudStack Row="true" Spacing="2" Class="mb-4">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           OnClick="CopyInviteLink">Copy link</MudButton>
+            </MudStack>
+
+            <MudDivider Class="mb-3" />
+
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Or email the link</MudText>
+            <MudTextField @bind-Value="_inviteEmail" Label="Recipient email" Variant="Variant.Outlined"
+                          InputType="InputType.Email" Immediate="true" Class="mb-2" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showInviteDialog = false)">Close</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Email"
+                   Disabled="@(_sendingInvite || string.IsNullOrWhiteSpace(_inviteEmail))"
+                   OnClick="SendInviteEmail">
+            @(_sendingInvite ? "Sending…" : "Send email")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight);
 
@@ -206,6 +243,14 @@
     private List<FuzzySearchResult> _linkSuggestions = [];
     private FuzzySearchResult? _selectedLinkPlayer;
     private CancellationTokenSource? _linkDebounce;
+
+    // Invite dialog
+    private bool _showInviteDialog;
+    private PlayerRow? _invitingPlayer;
+    private string _inviteLink = "";
+    private Guid _inviteToken;
+    private string _inviteEmail = "";
+    private bool _sendingInvite;
 
     private sealed class LightPlayerForm
     {
@@ -558,4 +603,100 @@
 
     private static string? NullIfEmpty(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    // ── Invite ──────────────────────────────────────────────────
+
+    private async Task OpenInviteDialog(PlayerRow player)
+    {
+        _invitingPlayer = player;
+        _inviteEmail = "";
+        _sendingInvite = false;
+
+        // Reuse an existing unaccepted invitation if one exists, otherwise create a new one.
+        await using var db = DbFactory.CreateDbContext();
+        var existing = await db.PlayerInvitations
+            .Where(i => i.LightPlayerId == player.PlayerId
+                     && i.CreatedByUserId == _userId
+                     && i.AcceptedAt == null)
+            .OrderByDescending(i => i.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (existing is not null)
+        {
+            _inviteToken = existing.Token;
+        }
+        else
+        {
+            var invite = new PlayerInvitation
+            {
+                Token = Guid.NewGuid(),
+                LightPlayerId = player.PlayerId,
+                CreatedByUserId = _userId!,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.PlayerInvitations.Add(invite);
+            await db.SaveChangesAsync();
+            _inviteToken = invite.Token;
+        }
+
+        var inviteUri = NavigationManager.ToAbsoluteUri($"invite/{_inviteToken}");
+        _inviteLink = inviteUri.AbsoluteUri;
+        _showInviteDialog = true;
+    }
+
+    private async Task CopyInviteLink()
+    {
+        if (string.IsNullOrEmpty(_inviteLink)) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _inviteLink);
+            Snackbar.Add("Invite link copied to clipboard.", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Couldn't copy automatically — please copy the link manually.", Severity.Warning);
+        }
+    }
+
+    private async Task SendInviteEmail()
+    {
+        if (_invitingPlayer is null || string.IsNullOrWhiteSpace(_inviteEmail)) return;
+        if (!new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(_inviteEmail))
+        {
+            Snackbar.Add("Please enter a valid email address.", Severity.Error);
+            return;
+        }
+
+        _sendingInvite = true;
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var invite = await db.PlayerInvitations.FirstOrDefaultAsync(i => i.Token == _inviteToken);
+            if (invite is not null)
+            {
+                invite.SentToEmail = _inviteEmail.Trim();
+                await db.SaveChangesAsync();
+            }
+
+            var subject = $"You've been invited to join DropShot as \"{_invitingPlayer.DisplayName}\"";
+            var body =
+                $"Hi,\n\nYou've been invited to join DropShot as \"{_invitingPlayer.DisplayName}\". " +
+                $"Click the link below to register. Your new account will be linked to the existing " +
+                $"player record and any match history will be transferred automatically.\n\n" +
+                $"{_inviteLink}\n\n" +
+                $"If you weren't expecting this, you can safely ignore it.";
+
+            await EmailService.SendEmailAsync(_inviteEmail.Trim(), subject, body);
+            Snackbar.Add($"Invite sent to {_inviteEmail.Trim()}.", Severity.Success);
+            _showInviteDialog = false;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to send email: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _sendingInvite = false;
+        }
+    }
 }

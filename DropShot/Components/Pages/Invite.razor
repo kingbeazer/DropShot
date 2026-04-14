@@ -1,0 +1,235 @@
+@page "/invite/{token:guid}"
+@rendermode InteractiveServer
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using DropShot.Data
+@using DropShot.Models
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<MudProviders />
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    @if (_loading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3">@_errorMessage</MudAlert>
+        <MudButton Href="/" Variant="Variant.Outlined">Back home</MudButton>
+    }
+    else if (_merged)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-3">
+            Invitation accepted. Match history for "@_lightPlayerName" has been merged into your player record.
+        </MudAlert>
+        <MudButton Href="/players/mine" Variant="Variant.Filled" Color="Color.Primary">
+            Go to My Players
+        </MudButton>
+    }
+    else if (_needsAuthChoice)
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">You've been invited to DropShot</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">
+            Accept this invitation to claim the player record for <b>@_lightPlayerName</b>.
+            Any existing match history will be transferred to your account.
+        </MudText>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Href="@_registerUrl" Variant="Variant.Filled" Color="Color.Primary">
+                Create account
+            </MudButton>
+            <MudButton Href="@_loginUrl" Variant="Variant.Outlined" Color="Color.Primary">
+                Log in to existing account
+            </MudButton>
+        </MudStack>
+    }
+    else if (_needsConfirm)
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">Accept invitation?</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">
+            Match history for <b>@_lightPlayerName</b> will be merged into your player record
+            (<b>@_currentPlayerName</b>). The @_lightPlayerName record will be removed.
+        </MudText>
+        <MudStack Row="true" Spacing="2">
+            <MudButton OnClick="AcceptInvite" Variant="Variant.Filled" Color="Color.Primary"
+                       Disabled="@_accepting">
+                @(_accepting ? "Accepting…" : "Accept invitation")
+            </MudButton>
+            <MudButton Href="/" Variant="Variant.Outlined" Disabled="@_accepting">Cancel</MudButton>
+        </MudStack>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public Guid Token { get; set; }
+
+    private bool _loading = true;
+    private string? _errorMessage;
+    private bool _merged;
+    private bool _needsAuthChoice;
+    private bool _needsConfirm;
+    private bool _accepting;
+    private string _lightPlayerName = "";
+    private string _currentPlayerName = "";
+    private string _registerUrl = "";
+    private string _loginUrl = "";
+    private int _lightPlayerId;
+    private string? _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var invite = await db.PlayerInvitations
+            .Include(i => i.LightPlayer)
+            .FirstOrDefaultAsync(i => i.Token == Token);
+
+        if (invite is null)
+        {
+            _errorMessage = "This invitation link isn't valid.";
+            _loading = false;
+            return;
+        }
+
+        if (invite.AcceptedAt != null)
+        {
+            _errorMessage = "This invitation has already been accepted.";
+            _loading = false;
+            return;
+        }
+
+        if (invite.LightPlayer is null || !invite.LightPlayer.IsLight)
+        {
+            _errorMessage = "This invitation is no longer valid — the player record has changed.";
+            _loading = false;
+            return;
+        }
+
+        _lightPlayerName = invite.LightPlayer.DisplayName;
+        _lightPlayerId = invite.LightPlayerId;
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+        if (!isAuthenticated)
+        {
+            _registerUrl = $"/Account/Register?inviteToken={Token}";
+            _loginUrl = $"/Account/Login?ReturnUrl={Uri.EscapeDataString($"/invite/{Token}")}";
+            _needsAuthChoice = true;
+            _loading = false;
+            return;
+        }
+
+        _userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (invite.CreatedByUserId == _userId)
+        {
+            _errorMessage = "You can't accept an invitation that you sent yourself.";
+            _loading = false;
+            return;
+        }
+
+        var currentPlayer = await db.Players
+            .FirstOrDefaultAsync(p => p.UserId == _userId && !p.IsLight);
+
+        if (currentPlayer is null)
+        {
+            _errorMessage = "Your account isn't linked to a player record. Please contact support.";
+            _loading = false;
+            return;
+        }
+
+        if (currentPlayer.PlayerId == invite.LightPlayerId)
+        {
+            _errorMessage = "You can't accept an invitation for your own player record.";
+            _loading = false;
+            return;
+        }
+
+        _currentPlayerName = currentPlayer.DisplayName;
+        _needsConfirm = true;
+        _loading = false;
+    }
+
+    private async Task AcceptInvite()
+    {
+        _accepting = true;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        var invite = await db.PlayerInvitations
+            .FirstOrDefaultAsync(i => i.Token == Token && i.AcceptedAt == null);
+        if (invite is null)
+        {
+            _errorMessage = "Invitation is no longer valid.";
+            _needsConfirm = false;
+            _accepting = false;
+            return;
+        }
+
+        var lightPlayer = await db.Players.FindAsync(invite.LightPlayerId);
+        if (lightPlayer is not { IsLight: true })
+        {
+            _errorMessage = "The invited player record is no longer available.";
+            _needsConfirm = false;
+            _accepting = false;
+            return;
+        }
+
+        var currentPlayer = await db.Players
+            .FirstOrDefaultAsync(p => p.UserId == _userId && !p.IsLight);
+        if (currentPlayer is null)
+        {
+            _errorMessage = "Your account isn't linked to a player record.";
+            _needsConfirm = false;
+            _accepting = false;
+            return;
+        }
+
+        var lightId = lightPlayer.PlayerId;
+        var verifiedId = currentPlayer.PlayerId;
+
+        // Migrate SavedMatch references from light player to the user's verified player
+        var affected = await db.SavedMatch
+            .Where(m => m.Player1Id == lightId || m.Player2Id == lightId ||
+                        m.Player3Id == lightId || m.Player4Id == lightId ||
+                        m.WinnerPlayerId == lightId)
+            .ToListAsync();
+        foreach (var m in affected)
+        {
+            if (m.Player1Id == lightId) m.Player1Id = verifiedId;
+            if (m.Player2Id == lightId) m.Player2Id = verifiedId;
+            if (m.Player3Id == lightId) m.Player3Id = verifiedId;
+            if (m.Player4Id == lightId) m.Player4Id = verifiedId;
+            if (m.WinnerPlayerId == lightId) m.WinnerPlayerId = verifiedId;
+        }
+
+        // Mark the invitation accepted before removing the light player — the cascade delete
+        // on LightPlayerId will remove the invitation row anyway, but the audit fields are
+        // set in case that behavior is relaxed later.
+        invite.AcceptedAt = DateTime.UtcNow;
+        invite.AcceptedByUserId = _userId;
+
+        // Bookmark the now-merged player for the inviter so they keep seeing them.
+        var inviterAlreadyBookmarked = await db.UserPlayers.AnyAsync(up =>
+            up.UserId == invite.CreatedByUserId && up.PlayerId == verifiedId);
+        if (!inviterAlreadyBookmarked)
+        {
+            db.UserPlayers.Add(new UserPlayer
+            {
+                UserId = invite.CreatedByUserId,
+                PlayerId = verifiedId
+            });
+        }
+
+        db.Players.Remove(lightPlayer);
+        await db.SaveChangesAsync();
+
+        _merged = true;
+        _needsConfirm = false;
+        _accepting = false;
+    }
+}
