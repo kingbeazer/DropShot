@@ -1159,6 +1159,11 @@
             if (comp is null) { _serverError = $"Competition {Id} not found."; return; }
 
             _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, comp.HostClubId, Id);
+            if (!_canEdit)
+            {
+                Nav.NavigateTo($"/competition/{Id}/view", replace: true);
+                return;
+            }
             _isStarted = comp.IsStarted;
             _nameOverride = true; // Existing competition — preserve its name
 
@@ -1215,6 +1220,11 @@
             // Admins and ClubAdmins can create new competitions
             _canEdit = await AuthzService.IsAdminAsync(authState.User)
                 || (await AuthzService.GetAdminClubIdsAsync(authState.User)).Count > 0;
+            if (!_canEdit)
+            {
+                Nav.NavigateTo("/", replace: true);
+                return;
+            }
             Model = new CompetitionFormModel { EventId = EventId };
             _stages = [];
             _participants = [];
