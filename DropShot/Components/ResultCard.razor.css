@@ -1,0 +1,95 @@
+.result-card {
+    background-color: #0d1117;
+    color: #ffffff;
+    font-family: Georgia, 'Times New Roman', serif;
+    border: 1px solid #2a2a3a;
+    border-radius: 6px;
+    overflow: hidden;
+    min-width: 220px;
+}
+
+.rc-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: #0a0e15;
+    border-bottom: 1px solid #2a2a3a;
+    flex-wrap: wrap;
+}
+
+.rc-comp {
+    font-size: 0.7rem;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    letter-spacing: 0.12em;
+    color: #c9a84c;
+    text-transform: uppercase;
+}
+
+.rc-label {
+    font-size: 0.65rem;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #888888;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.rc-date {
+    font-size: 0.65rem;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #666666;
+    margin-left: auto;
+}
+
+.rc-player-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    min-height: 36px;
+}
+
+.rc-player-row.rc-winner {
+    background-color: #131720;
+}
+
+.rc-name {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: bold;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 12px;
+}
+
+.rc-winner .rc-name {
+    color: #c9a84c;
+}
+
+.rc-sets {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.rc-set-score {
+    display: inline-block;
+    width: 28px;
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: bold;
+    color: #cccccc;
+}
+
+.rc-winner .rc-set-score {
+    color: #ffffff;
+}
+
+.rc-separator {
+    padding: 0 12px;
+    font-size: 0.65rem;
+    color: #555555;
+    font-style: italic;
+    line-height: 1;
+}

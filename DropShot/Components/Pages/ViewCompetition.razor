@@ -95,11 +95,10 @@ else
                         <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
                     </MudTd>
                     <MudTd DataLabel="Result">
-                        @if (context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification)
+                        @if ((context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification)
+                             && !string.IsNullOrEmpty(context.ResultSummary))
                         {
-                            <MudText Typo="Typo.body2" Style="font-weight:500">
-                                @(context.ResultSummary ?? WinnerName(context))
-                            </MudText>
+                            <ResultCard Fixture="context" />
                             @if (context.ResultModifiedByAdmin)
                             {
                                 <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
@@ -110,6 +109,12 @@ else
                             {
                                 <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
                             }
+                        }
+                        else if (context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification)
+                        {
+                            <MudText Typo="Typo.body2" Style="font-weight:500">
+                                @(WinnerName(context))
+                            </MudText>
                         }
                         else
                         {
