@@ -448,6 +448,106 @@ public class CompetitionsController(
         return NoContent();
     }
 
+    [HttpDelete("{id:int}/fixtures/{fixtureId:int}/result")]
+    public async Task<IActionResult> DeleteFixtureResult(int id, int fixtureId)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var fixture = await db.CompetitionFixtures
+            .Include(f => f.Stage)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId && f.CompetitionId == id);
+        if (fixture is null) return NotFound();
+
+        if (fixture.Status != FixtureStatus.Completed && fixture.Status != FixtureStatus.AwaitingVerification)
+            return BadRequest(new { message = "Only completed or awaiting-verification fixtures can have their result deleted." });
+
+        var oldWinnerPlayerId = fixture.WinnerPlayerId;
+        var oldWinnerTeamId = fixture.WinnerTeamId;
+        bool isTeamFixture = fixture.HomeTeamId.HasValue;
+
+        // Check for downstream fixtures that have already progressed beyond Scheduled
+        if (oldWinnerPlayerId.HasValue || oldWinnerTeamId.HasValue)
+        {
+            var downstreamFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == id
+                    && f.CompetitionFixtureId != fixtureId
+                    && (f.Status == FixtureStatus.InProgress || f.Status == FixtureStatus.Completed
+                        || f.Status == FixtureStatus.AwaitingVerification))
+                .ToListAsync();
+
+            bool blocked = isTeamFixture
+                ? downstreamFixtures.Any(f =>
+                    f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId)
+                : downstreamFixtures.Any(f =>
+                    f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId);
+
+            if (blocked)
+                return BadRequest(new { message = "Cannot delete this result because the winner has already been placed in a downstream match that is in progress or completed. Delete that result first." });
+        }
+
+        // Clear winner from any next-round Scheduled fixtures
+        if (oldWinnerPlayerId.HasValue)
+        {
+            var nextFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == id
+                    && f.CompetitionFixtureId != fixtureId
+                    && f.Status == FixtureStatus.Scheduled
+                    && (f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId))
+                .ToListAsync();
+
+            foreach (var nf in nextFixtures)
+            {
+                if (nf.Player1Id == oldWinnerPlayerId) nf.Player1Id = null;
+                if (nf.Player2Id == oldWinnerPlayerId) nf.Player2Id = null;
+            }
+        }
+
+        if (oldWinnerTeamId.HasValue)
+        {
+            var nextFixtures = await db.CompetitionFixtures
+                .Include(f => f.TeamMatchSets)
+                .Where(f => f.CompetitionId == id
+                    && f.CompetitionFixtureId != fixtureId
+                    && f.Status == FixtureStatus.Scheduled
+                    && (f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId))
+                .ToListAsync();
+
+            foreach (var nf in nextFixtures)
+            {
+                if (nf.HomeTeamId == oldWinnerTeamId) nf.HomeTeamId = null;
+                if (nf.AwayTeamId == oldWinnerTeamId) nf.AwayTeamId = null;
+                // Remove auto-generated TeamMatchSets for the cleared fixture
+                if (nf.TeamMatchSets.Any())
+                    db.TeamMatchSets.RemoveRange(nf.TeamMatchSets);
+            }
+        }
+
+        // Remove linked SavedMatch if present
+        if (fixture.SavedMatchId.HasValue)
+        {
+            var savedMatch = await db.SavedMatch.FindAsync(fixture.SavedMatchId.Value);
+            if (savedMatch != null)
+                db.SavedMatch.Remove(savedMatch);
+            fixture.SavedMatchId = null;
+        }
+
+        // Reset the fixture
+        fixture.Status = FixtureStatus.Scheduled;
+        fixture.ResultSummary = null;
+        fixture.WinnerPlayerId = null;
+        fixture.WinnerTeamId = null;
+        fixture.VerificationToken = null;
+        fixture.OriginalResultSummary = null;
+        fixture.OriginalWinnerPlayerId = null;
+        fixture.ResultModifiedByAdmin = false;
+
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
     [HttpPost("{id:int}/fixtures/schedule")]
     public async Task<IActionResult> ScheduleFixtures(int id)
     {
