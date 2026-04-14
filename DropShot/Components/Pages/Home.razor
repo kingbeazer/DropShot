@@ -221,7 +221,7 @@
                         <MudStack Row="true" Spacing="1">
                             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                        StartIcon="@Icons.Material.Filled.PlayArrow"
-                                       OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}"))">
+                                       OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true"))">
                                 Play
                             </MudButton>
                             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
