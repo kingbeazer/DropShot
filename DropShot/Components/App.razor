@@ -28,7 +28,7 @@
     <HeadOutlet />
 </head>
 
-<body>
+<body class="@_bodyClass">
     <Routes />
     <script src="_content/MudBlazor/MudBlazor.min.js?v=@(MudBlazor.Metadata.Version)"></script>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
@@ -42,3 +42,20 @@
 </body>
 
 </html>
+
+@code {
+    private string _bodyClass = "";
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var path = HttpContext?.Request.Path.Value ?? "";
+        if (path.StartsWith("/match/", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/tennisscore", StringComparison.OrdinalIgnoreCase))
+        {
+            _bodyClass = "scoring-active";
+        }
+    }
+}
