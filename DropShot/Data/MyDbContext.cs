@@ -38,10 +38,31 @@ namespace DropShot.Data
         public DbSet<Event> Events { get; set; }
         public DbSet<CourtPair> CourtPairs { get; set; }
         public DbSet<TeamMatchSet> TeamMatchSets { get; set; }
+        public DbSet<PlayerInvitation> PlayerInvitations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+
+            // ── PlayerInvitation ────────────────────────────────────────────────
+            builder.Entity<PlayerInvitation>(entity =>
+            {
+                entity.Property(i => i.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(i => i.AcceptedByUserId).HasMaxLength(450);
+                entity.Property(i => i.SentToEmail).HasMaxLength(256);
+                entity.HasIndex(i => i.Token).IsUnique();
+                entity.HasIndex(i => i.CreatedByUserId);
+
+                entity.HasOne(i => i.LightPlayer)
+                      .WithMany()
+                      .HasForeignKey(i => i.LightPlayerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(i => i.CreatedByUser)
+                      .WithMany()
+                      .HasForeignKey(i => i.CreatedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
 
             // ── Player ──────────────────────────────────────────────────────────
             builder.Entity<Player>(entity =>

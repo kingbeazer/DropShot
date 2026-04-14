@@ -77,6 +77,9 @@
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
+    [SupplyParameterFromQuery]
+    private Guid? InviteToken { get; set; }
+
     private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
 
     protected override async Task OnInitializedAsync()
@@ -111,7 +114,47 @@
         var userIdStr = await UserManager.GetUserIdAsync(user);
         await using (var db = await DbFactory.CreateDbContextAsync())
         {
-            var player = await db.Players.FirstOrDefaultAsync(p =>
+            // If the user arrived via an invite link, claim the invited light player first.
+            if (InviteToken is Guid token && token != Guid.Empty)
+            {
+                var invite = await db.PlayerInvitations
+                    .FirstOrDefaultAsync(i => i.Token == token && i.AcceptedAt == null);
+                if (invite is not null)
+                {
+                    var invited = await db.Players.FirstOrDefaultAsync(p =>
+                        p.PlayerId == invite.LightPlayerId && p.IsLight && p.UserId == null);
+                    if (invited is not null)
+                    {
+                        invited.IsLight = false;
+                        invited.UserId = userIdStr;
+                        invited.Email = Input.Email;
+                        if (string.IsNullOrWhiteSpace(invited.DisplayName))
+                            invited.DisplayName = Input.DisplayName;
+                        invite.AcceptedAt = DateTime.UtcNow;
+                        invite.AcceptedByUserId = userIdStr;
+
+                        // Bookmark the now-verified player for the user who sent the invite,
+                        // so they keep seeing them in "My Players".
+                        var inviterAlreadyBookmarked = await db.UserPlayers.AnyAsync(up =>
+                            up.UserId == invite.CreatedByUserId && up.PlayerId == invited.PlayerId);
+                        if (!inviterAlreadyBookmarked)
+                        {
+                            db.UserPlayers.Add(new Models.UserPlayer
+                            {
+                                UserId = invite.CreatedByUserId,
+                                PlayerId = invited.PlayerId
+                            });
+                        }
+
+                        await db.SaveChangesAsync();
+                        linkedPlayer = true;
+                        Logger.LogInformation("Claimed invited light player {PlayerId} for new user {Email}.",
+                            invited.PlayerId, Input.Email);
+                    }
+                }
+            }
+
+            var player = linkedPlayer ? null : await db.Players.FirstOrDefaultAsync(p =>
                 p.Email == Input.Email && p.UserId == null);
             if (player is not null)
             {
