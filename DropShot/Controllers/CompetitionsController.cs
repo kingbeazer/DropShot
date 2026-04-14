@@ -483,21 +483,40 @@ public class CompetitionsController(
         var oldWinnerTeamId = fixture.WinnerTeamId;
         bool isTeamFixture = fixture.HomeTeamId.HasValue;
 
-        // Check for downstream fixtures that have already progressed beyond Scheduled
+        // Check for downstream fixtures (later stage, or later round in the same stage)
+        // that have already progressed beyond Scheduled.
         if (oldWinnerPlayerId.HasValue || oldWinnerTeamId.HasValue)
         {
+            var currentStageOrder = fixture.Stage?.StageOrder;
+            var currentRound = fixture.RoundNumber;
+
             var downstreamFixtures = await db.CompetitionFixtures
+                .Include(f => f.Stage)
                 .Where(f => f.CompetitionId == id
                     && f.CompetitionFixtureId != fixtureId
                     && (f.Status == FixtureStatus.InProgress || f.Status == FixtureStatus.Completed
                         || f.Status == FixtureStatus.AwaitingVerification))
                 .ToListAsync();
 
+            bool IsDownstream(CompetitionFixture f)
+            {
+                // Later stage
+                if (currentStageOrder.HasValue && f.Stage != null
+                    && f.Stage.StageOrder > currentStageOrder.Value)
+                    return true;
+                // Same stage, later round
+                if (f.CompetitionStageId == fixture.CompetitionStageId
+                    && currentRound.HasValue && f.RoundNumber.HasValue
+                    && f.RoundNumber.Value > currentRound.Value)
+                    return true;
+                return false;
+            }
+
             bool blocked = isTeamFixture
-                ? downstreamFixtures.Any(f =>
-                    f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId)
-                : downstreamFixtures.Any(f =>
-                    f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId);
+                ? downstreamFixtures.Any(f => IsDownstream(f)
+                    && (f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId))
+                : downstreamFixtures.Any(f => IsDownstream(f)
+                    && (f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId));
 
             if (blocked)
                 return BadRequest(new { message = "Cannot delete this result because the winner has already been placed in a downstream match that is in progress or completed. Delete that result first." });
