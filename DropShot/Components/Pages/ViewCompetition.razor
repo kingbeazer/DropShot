@@ -5,17 +5,11 @@
 @using Microsoft.AspNetCore.Authorization
 @using DropShot.Data
 @using DropShot.Models
-@using DropShot.Services
 @using DropShot.Shared.Extensions
 @using Microsoft.EntityFrameworkCore
-@using System.Security.Claims
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager Nav
-@inject ClubAuthorizationService AuthzService
-@inject AuthenticationStateProvider AuthStateProvider
-@inject IDialogService DialogService
-@inject ISnackbar Snackbar
 
 <MudProviders />
 
@@ -91,10 +85,6 @@ else
                     <MudTh>Court</MudTh>
                     <MudTh>Status</MudTh>
                     <MudTh>Result</MudTh>
-                    @if (_canEdit)
-                    {
-                        <MudTh></MudTh>
-                    }
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Date / Time">@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
@@ -126,19 +116,6 @@ else
                             <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
                         }
                     </MudTd>
-                    @if (_canEdit)
-                    {
-                        <MudTd DataLabel="Actions">
-                            @if (context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification)
-                            {
-                                <MudTooltip Text="Delete result and return match to upcoming">
-                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
-                                                   Color="Color.Error" Size="Size.Small"
-                                                   OnClick="@(() => ConfirmDeleteResultAsync(context))" />
-                                </MudTooltip>
-                            }
-                        </MudTd>
-                    }
                 </RowTemplate>
             </MudTable>
         }
@@ -279,7 +256,6 @@ else
     [Parameter] public int Id { get; set; }
 
     private bool _loading = true;
-    private bool _canEdit;
     private Competition? _competition;
     private List<CompetitionFixture> _fixtures = [];
     private List<CompetitionParticipant> _participants = [];
@@ -299,10 +275,6 @@ else
     {
         _loading = true;
         await using var db = DbFactory.CreateDbContext();
-
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User,
-            (await db.Competition.FindAsync(Id))?.HostClubId);
 
         _competition = await db.Competition
             .Include(c => c.HostClub)
@@ -499,120 +471,4 @@ else
         _ => Color.Default
     };
 
-    private async Task ConfirmDeleteResultAsync(CompetitionFixture fixture)
-    {
-        var players = FixturePlayers(fixture);
-        var result = await DialogService.ShowMessageBox(
-            "Delete Result",
-            $"Are you sure you want to delete the result for {players}? The match will return to Scheduled status and appear in the players' upcoming matches.",
-            yesText: "Delete", cancelText: "Cancel");
-
-        if (result == true)
-            await DeleteResultAsync(fixture);
-    }
-
-    private async Task DeleteResultAsync(CompetitionFixture fixture)
-    {
-        try
-        {
-            await using var db = DbFactory.CreateDbContext();
-            var fx = await db.CompetitionFixtures
-                .Include(f => f.Stage)
-                .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixture.CompetitionFixtureId);
-            if (fx == null) { Snackbar.Add("Fixture not found.", Severity.Error); return; }
-
-            if (fx.Status != FixtureStatus.Completed && fx.Status != FixtureStatus.AwaitingVerification)
-            {
-                Snackbar.Add("Only completed or pending-verification results can be deleted.", Severity.Warning);
-                return;
-            }
-
-            var oldWinnerPlayerId = fx.WinnerPlayerId;
-            var oldWinnerTeamId = fx.WinnerTeamId;
-            bool isTeamFixture = fx.HomeTeamId.HasValue;
-
-            // Block if downstream fixtures have progressed
-            if (oldWinnerPlayerId.HasValue || oldWinnerTeamId.HasValue)
-            {
-                var downstreamInProgress = await db.CompetitionFixtures
-                    .Where(f => f.CompetitionId == fx.CompetitionId
-                        && f.CompetitionFixtureId != fx.CompetitionFixtureId
-                        && (f.Status == FixtureStatus.InProgress || f.Status == FixtureStatus.Completed
-                            || f.Status == FixtureStatus.AwaitingVerification))
-                    .ToListAsync();
-
-                bool blocked = isTeamFixture
-                    ? downstreamInProgress.Any(f => f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId)
-                    : downstreamInProgress.Any(f => f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId);
-
-                if (blocked)
-                {
-                    Snackbar.Add("Cannot delete: the winner has a downstream match that is in progress or completed. Delete that result first.", Severity.Error);
-                    return;
-                }
-            }
-
-            // Clear winner from next-round Scheduled fixtures
-            if (oldWinnerPlayerId.HasValue)
-            {
-                var nextFixtures = await db.CompetitionFixtures
-                    .Where(f => f.CompetitionId == fx.CompetitionId
-                        && f.CompetitionFixtureId != fx.CompetitionFixtureId
-                        && f.Status == FixtureStatus.Scheduled
-                        && (f.Player1Id == oldWinnerPlayerId || f.Player2Id == oldWinnerPlayerId))
-                    .ToListAsync();
-
-                foreach (var nf in nextFixtures)
-                {
-                    if (nf.Player1Id == oldWinnerPlayerId) nf.Player1Id = null;
-                    if (nf.Player2Id == oldWinnerPlayerId) nf.Player2Id = null;
-                }
-            }
-
-            if (oldWinnerTeamId.HasValue)
-            {
-                var nextFixtures = await db.CompetitionFixtures
-                    .Include(f => f.TeamMatchSets)
-                    .Where(f => f.CompetitionId == fx.CompetitionId
-                        && f.CompetitionFixtureId != fx.CompetitionFixtureId
-                        && f.Status == FixtureStatus.Scheduled
-                        && (f.HomeTeamId == oldWinnerTeamId || f.AwayTeamId == oldWinnerTeamId))
-                    .ToListAsync();
-
-                foreach (var nf in nextFixtures)
-                {
-                    if (nf.HomeTeamId == oldWinnerTeamId) nf.HomeTeamId = null;
-                    if (nf.AwayTeamId == oldWinnerTeamId) nf.AwayTeamId = null;
-                    if (nf.TeamMatchSets.Any())
-                        db.TeamMatchSets.RemoveRange(nf.TeamMatchSets);
-                }
-            }
-
-            // Remove linked SavedMatch
-            if (fx.SavedMatchId.HasValue)
-            {
-                var savedMatch = await db.SavedMatch.FindAsync(fx.SavedMatchId.Value);
-                if (savedMatch != null) db.SavedMatch.Remove(savedMatch);
-                fx.SavedMatchId = null;
-            }
-
-            // Reset fixture
-            fx.Status = FixtureStatus.Scheduled;
-            fx.ResultSummary = null;
-            fx.WinnerPlayerId = null;
-            fx.WinnerTeamId = null;
-            fx.VerificationToken = null;
-            fx.OriginalResultSummary = null;
-            fx.OriginalWinnerPlayerId = null;
-            fx.ResultModifiedByAdmin = false;
-
-            await db.SaveChangesAsync();
-            Snackbar.Add("Result deleted. Match returned to upcoming.", Severity.Success);
-            await OnParametersSetAsync();
-        }
-        catch (Exception)
-        {
-            Snackbar.Add("Failed to delete result. Please try again.", Severity.Error);
-        }
-    }
 }
