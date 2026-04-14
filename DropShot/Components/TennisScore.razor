@@ -199,6 +199,8 @@
                         <span class="serve-indicator-empty"></span>
                     }
 
+                    <span class="score-player-name">@GetUserShortName()</span>
+
                     @* Completed set scores (muted) *@
                     @foreach (var set in _state.SetScores)
                     {
@@ -230,6 +232,8 @@
                     {
                         <span class="serve-indicator-empty"></span>
                     }
+
+                    <span class="score-player-name">@GetOpponentShortName()</span>
 
                     @foreach (var set in _state.SetScores)
                     {
@@ -597,6 +601,24 @@
                 ? $"{CurrentMatch.Player3} & {CurrentMatch.Player4}"
                 : CurrentMatch.Player2;
         return Label_Switch1 ? $"{_value3} & {_value4}" : _value2;
+    }
+
+    private string GetUserShortName()
+    {
+        if (CurrentMatch != null)
+            return !string.IsNullOrEmpty(CurrentMatch.Player3)
+                ? $"{CurrentMatch.Player1.GetShortName()} & {CurrentMatch.Player2.GetShortName()}"
+                : CurrentMatch.Player1.GetShortName();
+        return Label_Switch1 ? $"{_value.GetShortName()} & {_value2.GetShortName()}" : _value.GetShortName();
+    }
+
+    private string GetOpponentShortName()
+    {
+        if (CurrentMatch != null)
+            return !string.IsNullOrEmpty(CurrentMatch.Player3)
+                ? $"{CurrentMatch.Player3.GetShortName()} & {CurrentMatch.Player4.GetShortName()}"
+                : CurrentMatch.Player2.GetShortName();
+        return Label_Switch1 ? $"{_value3.GetShortName()} & {_value4.GetShortName()}" : _value2.GetShortName();
     }
 
     private string? GetPlayerAvatar(string? playerName)
