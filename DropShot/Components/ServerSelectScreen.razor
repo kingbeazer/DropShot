@@ -1,0 +1,46 @@
+@using MudBlazor
+
+<div class="server-select-overlay">
+    <div class="server-select-content">
+        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Large"
+                 Style="color: #00e6b4; font-size: 64px; margin-bottom: 8px;" />
+
+        <MudText Typo="Typo.h4" Style="color: white; font-weight: 600; letter-spacing: 1px;">
+            Who will serve first?
+        </MudText>
+
+        <div class="server-select-options">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       Size="Size.Large" Class="server-select-btn"
+                       StartIcon="@Icons.Material.Filled.Person"
+                       OnClick="@(() => OnSelected("player2"))">
+                @OpponentLabel
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       Size="Size.Large" Class="server-select-btn"
+                       StartIcon="@Icons.Material.Filled.Person"
+                       OnClick="@(() => OnSelected("player1"))">
+                @UserLabel
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                       Size="Size.Large" Class="server-select-btn"
+                       StartIcon="@Icons.Material.Filled.Casino"
+                       OnClick="@(() => OnSelected("random"))">
+                Spin
+            </MudButton>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string UserLabel { get; set; } = "You";
+    [Parameter] public string OpponentLabel { get; set; } = "Opponent";
+    [Parameter] public EventCallback<string> OnServerSelected { get; set; }
+
+    private async Task OnSelected(string choice)
+    {
+        await OnServerSelected.InvokeAsync(choice);
+    }
+}
