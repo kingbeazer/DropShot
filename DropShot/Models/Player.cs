@@ -22,6 +22,9 @@ public class Player
     public string? CreatedByUserId { get; set; }
     public ApplicationUser? CreatedByUser { get; set; }
 
+    public int? CreatedByClubId { get; set; }
+    public Club? CreatedByClub { get; set; }
+
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public DateOnly? DateOfBirth { get; set; }
@@ -34,5 +37,5 @@ public class Player
     public ICollection<CompetitionParticipant> CompetitionParticipants { get; set; } = [];
     public ICollection<PlayerFriend> Friends { get; set; } = [];
     public ICollection<PlayerFriend> FriendOf { get; set; } = [];
-    public ICollection<ClubMember> ClubMemberships { get; set; } = [];
+    public ICollection<ClubPlayer> ClubMemberships { get; set; } = [];
 }

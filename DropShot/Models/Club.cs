@@ -21,7 +21,7 @@ public class Club
     public string? Website { get; set; }
 
     public ICollection<Court> Courts { get; set; } = [];
-    public ICollection<ClubMember> Members { get; set; } = [];
+    public ICollection<ClubPlayer> Players { get; set; } = [];
     public ICollection<ClubAdministrator> Administrators { get; set; } = [];
     public ICollection<Competition> Competitions { get; set; } = [];
     public ICollection<ClubLadder> Ladders { get; set; } = [];

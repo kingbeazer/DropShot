@@ -1,6 +1,6 @@
 namespace DropShot.Models;
 
-public class ClubMember
+public class ClubPlayer
 {
     public int ClubId { get; set; }
     public int PlayerId { get; set; }

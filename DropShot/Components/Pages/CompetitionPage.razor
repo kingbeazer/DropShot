@@ -311,7 +311,45 @@
                                      ToStringFunc="@(p => p?.DisplayName ?? "")"
                                      ValueChanged="AddParticipant" ResetValueOnEmptyText="true"
                                      Variant="Variant.Outlined" Dense="true" Style="max-width:260px" />
+                    @if (Model.HostClubId.HasValue)
+                    {
+                        <MudTooltip Text="Add a new light player to this club and competition">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.PersonAdd"
+                                       OnClick="OpenNewPlayerDialog">Add new</MudButton>
+                        </MudTooltip>
+                    }
                 </MudStack>
+
+                <MudDialog @bind-Visible="_showNewPlayerDialog">
+                    <TitleContent>Add New Club Player</TitleContent>
+                    <DialogContent>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="_newPlayerForm.DisplayName" Label="Display Name"
+                                              Variant="Variant.Outlined" Required="true" Immediate="true" />
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudTextField @bind-Value="_newPlayerForm.FirstName" Label="First Name"
+                                              Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudTextField @bind-Value="_newPlayerForm.LastName" Label="Last Name"
+                                              Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="_newPlayerForm.Email" Label="Email (optional)"
+                                              Variant="Variant.Outlined" InputType="InputType.Email" />
+                            </MudItem>
+                        </MudGrid>
+                    </DialogContent>
+                    <DialogActions>
+                        <MudButton OnClick="@(() => _showNewPlayerDialog = false)">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@string.IsNullOrWhiteSpace(_newPlayerForm.DisplayName)"
+                                   OnClick="CreateAndAddClubPlayer">Add</MudButton>
+                    </DialogActions>
+                </MudDialog>
 
                 <MudTable Items="@_participants" Dense="true" Hover="true">
                     <HeaderContent>
@@ -963,6 +1001,7 @@
     private List<CompetitionStage> _stages = [];
     private List<CompetitionParticipant> _participants = [];
     private List<Player> _allPlayers = [];
+    private List<Player> _clubPlayers = [];
     private List<CompetitionFixture> _fixtures = [];
     private List<CompetitionTeam> _teams = [];
     private List<Court> _courts = [];
@@ -1202,6 +1241,11 @@
             if (comp.HostClubId.HasValue)
             {
                 _courts = await db.Courts.Where(c => c.ClubId == comp.HostClubId.Value).OrderBy(c => c.Name).ToListAsync();
+                _clubPlayers = await db.ClubPlayers
+                    .Where(cp => cp.ClubId == comp.HostClubId.Value)
+                    .Join(db.Players, cp => cp.PlayerId, p => p.PlayerId, (cp, p) => p)
+                    .OrderBy(p => p.DisplayName)
+                    .ToListAsync();
                 _clubTemplates = await db.ClubSchedulingTemplates
                     .Include(t => t.Windows)
                     .Where(t => t.ClubId == comp.HostClubId.Value)
@@ -1574,11 +1618,69 @@
     private Task<IEnumerable<Player>> SearchPlayers(string text, CancellationToken ct)
     {
         var alreadyIn = _participants.Select(p => p.PlayerId).ToHashSet();
-        var results = _allPlayers
+        // Host club's players only; fall back to all players if no host club is set.
+        var source = Model.HostClubId.HasValue ? _clubPlayers : _allPlayers;
+        var results = source
             .Where(p => !alreadyIn.Contains(p.PlayerId) &&
                         (string.IsNullOrWhiteSpace(text) || p.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)))
             .Take(10);
         return Task.FromResult(results);
+    }
+
+    // ── Add new club player from competition page ────────────────────────────
+    private bool _showNewPlayerDialog;
+    private NewPlayerForm _newPlayerForm = new();
+
+    private sealed class NewPlayerForm
+    {
+        public string DisplayName { get; set; } = "";
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Email { get; set; }
+    }
+
+    private void OpenNewPlayerDialog()
+    {
+        _newPlayerForm = new NewPlayerForm();
+        _showNewPlayerDialog = true;
+    }
+
+    private async Task CreateAndAddClubPlayer()
+    {
+        if (!Model.HostClubId.HasValue || string.IsNullOrWhiteSpace(_newPlayerForm.DisplayName)) return;
+        var clubId = Model.HostClubId.Value;
+
+        await using var db = DbFactory.CreateDbContext();
+        var newPlayer = new Player
+        {
+            DisplayName = _newPlayerForm.DisplayName.Trim(),
+            FirstName = string.IsNullOrWhiteSpace(_newPlayerForm.FirstName) ? null : _newPlayerForm.FirstName!.Trim(),
+            LastName = string.IsNullOrWhiteSpace(_newPlayerForm.LastName) ? null : _newPlayerForm.LastName!.Trim(),
+            Email = string.IsNullOrWhiteSpace(_newPlayerForm.Email) ? null : _newPlayerForm.Email!.Trim(),
+            IsLight = true,
+            CreatedByClubId = clubId
+        };
+        db.Players.Add(newPlayer);
+        await db.SaveChangesAsync();
+
+        db.ClubPlayers.Add(new ClubPlayer { ClubId = clubId, PlayerId = newPlayer.PlayerId });
+
+        var cp = new CompetitionParticipant
+        {
+            CompetitionId = Id,
+            PlayerId = newPlayer.PlayerId,
+            RegisteredAt = DateTime.UtcNow,
+            Status = ParticipantStatus.Registered
+        };
+        db.CompetitionParticipants.Add(cp);
+        await db.SaveChangesAsync();
+
+        _allPlayers.Add(newPlayer);
+        _clubPlayers.Add(newPlayer);
+        cp.Player = newPlayer;
+        _participants.Add(cp);
+        _showNewPlayerDialog = false;
+        Snackbar.Add($"{newPlayer.DisplayName} added to club and competition.", Severity.Success);
     }
 
     private async Task AddParticipant(Player player)

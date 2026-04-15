@@ -16,7 +16,7 @@ namespace DropShot.Data
         public DbSet<RulesSetItem> RulesSetItems { get; set; }
         public DbSet<Club> Clubs { get; set; }
         public DbSet<Court> Courts { get; set; }
-        public DbSet<ClubMember> ClubMembers { get; set; }
+        public DbSet<ClubPlayer> ClubPlayers { get; set; }
         public DbSet<ClubAdministrator> ClubAdministrators { get; set; }
         public DbSet<CompetitionParticipant> CompetitionParticipants { get; set; }
         public DbSet<CompetitionStage> CompetitionStages { get; set; }
@@ -88,6 +88,12 @@ namespace DropShot.Data
                 entity.HasOne(p => p.CreatedByUser)
                       .WithMany()
                       .HasForeignKey(p => p.CreatedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(p => p.CreatedByClubId);
+                entity.HasOne(p => p.CreatedByClub)
+                      .WithMany()
+                      .HasForeignKey(p => p.CreatedByClubId)
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -170,13 +176,14 @@ namespace DropShot.Data
                       .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // ── ClubMember ───────────────────────────────────────────────────────
-            builder.Entity<ClubMember>(entity =>
+            // ── ClubPlayer (table kept as "ClubMembers" for backward compatibility) ─
+            builder.Entity<ClubPlayer>(entity =>
             {
+                entity.ToTable("ClubMembers");
                 entity.HasKey(cm => new { cm.ClubId, cm.PlayerId });
 
                 entity.HasOne(cm => cm.Club)
-                      .WithMany(c => c.Members)
+                      .WithMany(c => c.Players)
                       .HasForeignKey(cm => cm.ClubId)
                       .OnDelete(DeleteBehavior.Cascade);
 
