@@ -253,6 +253,38 @@ app.MapPost("/Account/SwitchRole", async (
     return Results.Redirect(returnUrl);
 }).RequireAuthorization();
 
+// ── Club switching for ClubAdmin role (multi-club admins) ────────────────────
+app.MapPost("/Account/SwitchClub", async (
+    HttpContext httpContext,
+    UserManager<ApplicationUser> userManager,
+    IDbContextFactory<MyDbContext> dbFactory) =>
+{
+    var form = await httpContext.Request.ReadFormAsync();
+    var clubIdStr = form["clubId"].ToString();
+    var returnUrl = form["returnUrl"].ToString();
+    if (string.IsNullOrEmpty(returnUrl)) returnUrl = "/";
+
+    var user = await userManager.GetUserAsync(httpContext.User);
+    if (user is null) return Results.Redirect("/Account/Login");
+
+    if (!int.TryParse(clubIdStr, out var clubId))
+        return Results.Redirect(returnUrl);
+
+    await using var db = dbFactory.CreateDbContext();
+    var isAdmin = await db.ClubAdministrators.AnyAsync(ca => ca.UserId == user.Id && ca.ClubId == clubId);
+    if (!isAdmin) return Results.Redirect(returnUrl);
+
+    httpContext.Response.Cookies.Append("ActiveClubId", clubId.ToString(), new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = true,
+        SameSite = SameSiteMode.Strict,
+        Expires = DateTimeOffset.UtcNow.AddDays(30)
+    });
+
+    return Results.Redirect(returnUrl);
+}).RequireAuthorization();
+
 // ── Avatar upload (SSR form POST) ──────────────────────────────────────────
 app.MapPost("/Account/Manage/UploadAvatar", async (
     HttpContext httpContext,

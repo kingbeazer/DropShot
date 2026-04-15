@@ -60,9 +60,18 @@
                     </div>
 
                     <div class="nav-item">
-                        <NavLink class="nav-link" href="players/mine">
-                            <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" /> <span class="nav-label">My Players</span>
-                        </NavLink>
+                        @if (_isClubAdminActive)
+                        {
+                            <NavLink class="nav-link" href="players/club">
+                                <MudIcon Icon="@Icons.Material.Filled.Groups" Class="nav-icon" /> <span class="nav-label">Club Players</span>
+                            </NavLink>
+                        }
+                        else
+                        {
+                            <NavLink class="nav-link" href="players/mine">
+                                <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" /> <span class="nav-label">My Players</span>
+                            </NavLink>
+                        }
                     </div>
                 </Authorized>
             </AuthorizeView>
@@ -157,6 +166,7 @@
 @code {
     private string? currentUrl;
     private string? _avatarPath;
+    private bool _isClubAdminActive;
 
     [CascadingParameter]
     private HttpContext? HttpContext { get; set; }
@@ -177,6 +187,10 @@
                     .Select(u => u.ProfileImagePath)
                     .FirstOrDefaultAsync();
             }
+
+            var activeRole = HttpContext.Request.Cookies["ActiveRole"];
+            _isClubAdminActive = string.Equals(activeRole, "ClubAdmin", StringComparison.OrdinalIgnoreCase)
+                                 && HttpContext.User.IsInRole("ClubAdmin");
         }
     }
 

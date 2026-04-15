@@ -1,0 +1,353 @@
+@page "/players/club"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "ClubAdmin,Admin,SuperAdmin")]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using DropShot.Models
+@using DropShot.Data
+@using DropShot.Services
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IHttpContextAccessor HttpContextAccessor
+@inject ISnackbar Snackbar
+
+<MudProviders />
+
+<MudText Typo="Typo.h4" Class="mb-4">Club Players</MudText>
+
+@if (_activeClubId is null)
+{
+    <MudAlert Severity="Severity.Warning">
+        No club is currently selected. You may not be an administrator of any club.
+    </MudAlert>
+}
+else
+{
+    <MudText Typo="Typo.subtitle1" Class="mb-3">Managing: <strong>@_clubName</strong></MudText>
+
+    <MudStack Row="true" Spacing="2" Class="mb-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                   OnClick="OpenCreateDialog">
+            Add Light Player
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+                   OnClick="OpenAddExistingDialog">
+            Add Existing Player
+        </MudButton>
+    </MudStack>
+
+    <MudTextField @bind-Value="_searchText" Placeholder="Search club players..."
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true" Class="mb-4" />
+
+    <MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+              Filter="@(row => FilterPlayers(row))">
+        <HeaderContent>
+            <MudTh>Player</MudTh>
+            <MudTh>First Name</MudTh>
+            <MudTh>Last Name</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Player">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <MudText>@context.DisplayName</MudText>
+                    @if (!context.IsLight)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small"
+                                 Title="Verified player" />
+                    }
+                </MudStack>
+            </MudTd>
+            <MudTd DataLabel="First Name">@(context.FirstName ?? "—")</MudTd>
+            <MudTd DataLabel="Last Name">@(context.LastName ?? "—")</MudTd>
+            <MudTd DataLabel="Actions">
+                @if (context.IsLight && context.IsClubOwned)
+                {
+                    <MudTooltip Text="Edit">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => OpenEditDialog(context))" />
+                    </MudTooltip>
+                }
+                <MudTooltip Text="Remove from club">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => RemoveFromClub(context))" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No players yet. Add a player to get started.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@* ── Create / Edit Light Player Dialog ─────────────────────── *@
+<MudDialog @bind-Visible="_showPlayerDialog">
+    <TitleContent>@(_editingPlayerId.HasValue ? "Edit Player" : "Add Light Player")</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.DisplayName" Label="Display Name" Variant="Variant.Outlined"
+                              Required="true" Immediate="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.FirstName" Label="First Name" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Email" Label="Email (optional)" Variant="Variant.Outlined"
+                              InputType="InputType.Email" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showPlayerDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_form.DisplayName)"
+                   OnClick="SavePlayer">
+            @(_editingPlayerId.HasValue ? "Save" : "Add")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Add Existing Player Dialog ────────────────────────────── *@
+<MudDialog @bind-Visible="_showAddExistingDialog">
+    <TitleContent>Add Existing Player to Club</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_existingSearch" Placeholder="Search by name..."
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" TextChanged="OnExistingSearchChanged" Class="mb-2" />
+        @if (_existingResults.Count > 0)
+        {
+            <MudList T="Player" Dense="true">
+                @foreach (var p in _existingResults)
+                {
+                    <MudListItem T="Player" OnClick="@(() => AddExistingPlayer(p))">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            @if (!p.IsLight)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                            }
+                            <MudText>@p.DisplayName</MudText>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        else if (!string.IsNullOrWhiteSpace(_existingSearch))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary">No matching players.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddExistingDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, bool IsClubOwned);
+
+    private bool _loading = true;
+    private List<PlayerRow> _players = [];
+    private string _searchText = "";
+    private string? _userId;
+    private int? _activeClubId;
+    private string _clubName = "";
+
+    private bool _showPlayerDialog;
+    private int? _editingPlayerId;
+    private PlayerForm _form = new();
+
+    private bool _showAddExistingDialog;
+    private string _existingSearch = "";
+    private List<Player> _existingResults = [];
+
+    private sealed class PlayerForm
+    {
+        public string DisplayName { get; set; } = "";
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Email { get; set; }
+    }
+
+    private bool FilterPlayers(PlayerRow row) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        row.DisplayName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.FirstName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.LastName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (_userId is null) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        _activeClubId = await ActiveClubResolver.GetActiveClubIdAsync(db, _userId, HttpContextAccessor.HttpContext);
+        if (_activeClubId is not null)
+        {
+            _clubName = await db.Clubs
+                .Where(c => c.ClubId == _activeClubId.Value)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync() ?? "";
+        }
+        await LoadPlayers();
+    }
+
+    private async Task LoadPlayers()
+    {
+        _loading = true;
+        if (_activeClubId is null) { _players = []; _loading = false; return; }
+
+        await using var db = DbFactory.CreateDbContext();
+        _players = await db.ClubPlayers
+            .Where(cp => cp.ClubId == _activeClubId.Value)
+            .Join(db.Players, cp => cp.PlayerId, p => p.PlayerId,
+                (cp, p) => new PlayerRow(
+                    p.PlayerId, p.DisplayName, p.FirstName, p.LastName,
+                    p.IsLight, p.CreatedByClubId == _activeClubId.Value))
+            .OrderBy(p => p.DisplayName)
+            .ToListAsync();
+        _loading = false;
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingPlayerId = null;
+        _form = new PlayerForm();
+        _showPlayerDialog = true;
+    }
+
+    private void OpenEditDialog(PlayerRow row)
+    {
+        _editingPlayerId = row.PlayerId;
+        _form = new PlayerForm
+        {
+            DisplayName = row.DisplayName,
+            FirstName = row.FirstName,
+            LastName = row.LastName
+        };
+        _showPlayerDialog = true;
+    }
+
+    private async Task SavePlayer()
+    {
+        if (_activeClubId is null || string.IsNullOrWhiteSpace(_form.DisplayName)) return;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        if (_editingPlayerId.HasValue)
+        {
+            var p = await db.Players.FindAsync(_editingPlayerId.Value);
+            if (p is { IsLight: true } && p.CreatedByClubId == _activeClubId.Value)
+            {
+                p.DisplayName = _form.DisplayName.Trim();
+                p.FirstName = NullIfEmpty(_form.FirstName);
+                p.LastName = NullIfEmpty(_form.LastName);
+                p.Email = NullIfEmpty(_form.Email);
+                await db.SaveChangesAsync();
+                Snackbar.Add("Player updated.", Severity.Success);
+            }
+        }
+        else
+        {
+            var newPlayer = new Player
+            {
+                DisplayName = _form.DisplayName.Trim(),
+                FirstName = NullIfEmpty(_form.FirstName),
+                LastName = NullIfEmpty(_form.LastName),
+                Email = NullIfEmpty(_form.Email),
+                IsLight = true,
+                CreatedByClubId = _activeClubId.Value
+            };
+            db.Players.Add(newPlayer);
+            await db.SaveChangesAsync();
+
+            db.ClubPlayers.Add(new ClubPlayer
+            {
+                ClubId = _activeClubId.Value,
+                PlayerId = newPlayer.PlayerId
+            });
+            await db.SaveChangesAsync();
+            Snackbar.Add("Player added to club.", Severity.Success);
+        }
+
+        _showPlayerDialog = false;
+        await LoadPlayers();
+    }
+
+    private void OpenAddExistingDialog()
+    {
+        _existingSearch = "";
+        _existingResults = [];
+        _showAddExistingDialog = true;
+    }
+
+    private async Task OnExistingSearchChanged(string value)
+    {
+        _existingSearch = value;
+        if (string.IsNullOrWhiteSpace(value) || _activeClubId is null)
+        {
+            _existingResults = [];
+            return;
+        }
+
+        await using var db = DbFactory.CreateDbContext();
+        var alreadyInClub = await db.ClubPlayers
+            .Where(cp => cp.ClubId == _activeClubId.Value)
+            .Select(cp => cp.PlayerId)
+            .ToListAsync();
+
+        _existingResults = await db.Players
+            .Where(p => !alreadyInClub.Contains(p.PlayerId)
+                        && !p.IsLight
+                        && p.DisplayName.Contains(value))
+            .OrderBy(p => p.DisplayName)
+            .Take(10)
+            .ToListAsync();
+    }
+
+    private async Task AddExistingPlayer(Player p)
+    {
+        if (_activeClubId is null) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var exists = await db.ClubPlayers.AnyAsync(cp => cp.ClubId == _activeClubId.Value && cp.PlayerId == p.PlayerId);
+        if (!exists)
+        {
+            db.ClubPlayers.Add(new ClubPlayer { ClubId = _activeClubId.Value, PlayerId = p.PlayerId });
+            await db.SaveChangesAsync();
+            Snackbar.Add($"{p.DisplayName} added to club.", Severity.Success);
+        }
+        _showAddExistingDialog = false;
+        await LoadPlayers();
+    }
+
+    private async Task RemoveFromClub(PlayerRow row)
+    {
+        if (_activeClubId is null) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var cp = await db.ClubPlayers.FindAsync(_activeClubId.Value, row.PlayerId);
+        if (cp is not null)
+        {
+            db.ClubPlayers.Remove(cp);
+            // If the player is a club-owned lite player and only belonged to this club, delete the Player too.
+            if (row.IsLight && row.IsClubOwned)
+            {
+                var player = await db.Players.FindAsync(row.PlayerId);
+                if (player is not null) db.Players.Remove(player);
+            }
+            await db.SaveChangesAsync();
+            Snackbar.Add("Player removed from club.", Severity.Info);
+        }
+        await LoadPlayers();
+    }
+
+    private static string? NullIfEmpty(string? s) =>
+        string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}
