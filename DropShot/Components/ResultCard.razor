@@ -1,7 +1,8 @@
 @using DropShot.Models
+@using Newtonsoft.Json
 
 <div class="@CardClass">
-    @if (!Compact && Fixture.Competition != null)
+    @if (!Compact && Fixture?.Competition != null)
     {
         <div class="rc-header">
             <span class="rc-comp">@Fixture.Competition.CompetitionName</span>
@@ -46,30 +47,90 @@
 </div>
 
 @code {
-    [Parameter, EditorRequired] public CompetitionFixture Fixture { get; set; } = default!;
+    [Parameter] public CompetitionFixture? Fixture { get; set; }
+    [Parameter] public SavedMatch? CasualMatch { get; set; }
     [Parameter] public bool Compact { get; set; }
 
     private string CardClass => Compact ? "result-card result-card-compact" : "result-card";
 
     private List<(string P1, string P2)> _sets = [];
 
-    private string Player1Name => Fixture.Player3 != null
-        ? $"{Fixture.Player1?.DisplayName ?? "TBD"} & {Fixture.Player3?.DisplayName ?? "TBD"}"
-        : Fixture.Player1?.DisplayName ?? "TBD";
+    private string Player1Name
+    {
+        get
+        {
+            if (Fixture != null)
+            {
+                return Fixture.Player3 != null
+                    ? $"{Fixture.Player1?.DisplayName ?? "TBD"} & {Fixture.Player3?.DisplayName ?? "TBD"}"
+                    : Fixture.Player1?.DisplayName ?? "TBD";
+            }
+            if (CasualMatch != null)
+            {
+                return !string.IsNullOrWhiteSpace(CasualMatch.Player3)
+                    ? (CasualMatch.Player1 ?? "TBD") + " & " + CasualMatch.Player3
+                    : (CasualMatch.Player1 ?? "TBD");
+            }
+            return "TBD";
+        }
+    }
 
-    private string Player2Name => Fixture.Player4 != null
-        ? $"{Fixture.Player2?.DisplayName ?? "TBD"} & {Fixture.Player4?.DisplayName ?? "TBD"}"
-        : Fixture.Player2?.DisplayName ?? "TBD";
+    private string Player2Name
+    {
+        get
+        {
+            if (Fixture != null)
+            {
+                return Fixture.Player4 != null
+                    ? $"{Fixture.Player2?.DisplayName ?? "TBD"} & {Fixture.Player4?.DisplayName ?? "TBD"}"
+                    : Fixture.Player2?.DisplayName ?? "TBD";
+            }
+            if (CasualMatch != null)
+            {
+                return !string.IsNullOrWhiteSpace(CasualMatch.Player4)
+                    ? (CasualMatch.Player2 ?? "TBD") + " & " + CasualMatch.Player4
+                    : (CasualMatch.Player2 ?? "TBD");
+            }
+            return "TBD";
+        }
+    }
 
-    private bool IsPlayer1Winner => Fixture.WinnerPlayerId.HasValue
-        && Fixture.WinnerPlayerId == Fixture.Player1Id;
+    private bool IsPlayer1Winner
+    {
+        get
+        {
+            if (Fixture != null)
+                return Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player1Id;
+            if (CasualMatch != null)
+                return CasualMatch.WinnerPlayerId.HasValue
+                    && (CasualMatch.WinnerPlayerId == CasualMatch.Player1Id
+                        || CasualMatch.WinnerPlayerId == CasualMatch.Player3Id);
+            return false;
+        }
+    }
 
-    private bool IsPlayer2Winner => Fixture.WinnerPlayerId.HasValue
-        && Fixture.WinnerPlayerId == Fixture.Player2Id;
+    private bool IsPlayer2Winner
+    {
+        get
+        {
+            if (Fixture != null)
+                return Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player2Id;
+            if (CasualMatch != null)
+                return CasualMatch.WinnerPlayerId.HasValue
+                    && (CasualMatch.WinnerPlayerId == CasualMatch.Player2Id
+                        || CasualMatch.WinnerPlayerId == CasualMatch.Player4Id);
+            return false;
+        }
+    }
 
     protected override void OnParametersSet()
     {
-        _sets = ParseResultSummary(Fixture.ResultSummary);
+        if (Fixture != null)
+            _sets = ParseResultSummary(Fixture.ResultSummary);
+        else if (CasualMatch != null)
+            _sets = ParseCasualSets(CasualMatch.MatchJson);
+        else
+            _sets = [];
     }
 
     private static List<(string P1, string P2)> ParseResultSummary(string? summary)
@@ -87,5 +148,25 @@
                 result.Add((scores[0].Trim(), scores[1].Trim()));
         }
         return result;
+    }
+
+    private static List<(string P1, string P2)> ParseCasualSets(string? matchJson)
+    {
+        if (string.IsNullOrWhiteSpace(matchJson)) return [];
+        try
+        {
+            var match = JsonConvert.DeserializeObject<Match>(matchJson);
+            // HistoryList is serialized from a Stack, so index 0 is the most recent state
+            var latest = match?.HistoryList?.FirstOrDefault();
+            if (latest?.SetScores == null || latest.SetScores.Count == 0) return [];
+            return latest.SetScores
+                .OrderBy(s => s.SetNumber)
+                .Select(s => (s.UserGames.ToString(), s.OpponentGames.ToString()))
+                .ToList();
+        }
+        catch
+        {
+            return [];
+        }
     }
 }

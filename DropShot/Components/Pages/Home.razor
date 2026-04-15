@@ -244,42 +244,11 @@
                                     }
                                     else if (item.CasualMatch != null)
                                     {
-                                        var casual = item.CasualMatch!;
-                                        string p1 = !string.IsNullOrWhiteSpace(casual.Player3)
-                                            ? (casual.Player1 ?? "TBD") + " & " + casual.Player3
-                                            : (casual.Player1 ?? "TBD");
-                                        string p2 = !string.IsNullOrWhiteSpace(casual.Player4)
-                                            ? (casual.Player2 ?? "TBD") + " & " + casual.Player4
-                                            : (casual.Player2 ?? "TBD");
-                                        bool p1Winner = casual.WinnerPlayerId.HasValue
-                                            && (casual.WinnerPlayerId == casual.Player1Id || casual.WinnerPlayerId == casual.Player3Id);
-                                        bool p2Winner = casual.WinnerPlayerId.HasValue
-                                            && (casual.WinnerPlayerId == casual.Player2Id || casual.WinnerPlayerId == casual.Player4Id);
-                                        var casualSets = ParseCasualSets(casual.MatchJson);
                                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
                                             <MudText Typo="Typo.caption" Style="font-weight:500">Casual Match</MudText>
                                             <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-left:auto">@item.Date.ToString("dd MMM yyyy")</MudText>
                                         </MudStack>
-                                        <div class="result-card result-card-compact">
-                                            <div class="rc-player-row @(p1Winner ? "rc-winner" : "")">
-                                                <div class="rc-name">@p1</div>
-                                                <div class="rc-sets">
-                                                    @foreach (var set in casualSets)
-                                                    {
-                                                        <span class="rc-set-score">@set.P1</span>
-                                                    }
-                                                </div>
-                                            </div>
-                                            <div class="rc-player-row @(p2Winner ? "rc-winner" : "")">
-                                                <div class="rc-name">@p2</div>
-                                                <div class="rc-sets">
-                                                    @foreach (var set in casualSets)
-                                                    {
-                                                        <span class="rc-set-score">@set.P2</span>
-                                                    }
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <ResultCard CasualMatch="item.CasualMatch" Compact="true" />
                                     }
                                 </div>
                             }
@@ -447,26 +416,6 @@
         _showUpgradeBanner = false;
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
         await JS.InvokeVoidAsync("localStorage.setItem", "upgradeBannerDismissed", now);
-    }
-
-    private static List<(string P1, string P2)> ParseCasualSets(string? matchJson)
-    {
-        if (string.IsNullOrWhiteSpace(matchJson)) return [];
-        try
-        {
-            var match = JsonConvert.DeserializeObject<DropShot.Models.Match>(matchJson);
-            // HistoryList is serialized from a Stack, so the most recent state is FIRST
-            var latest = match?.HistoryList?.FirstOrDefault();
-            if (latest?.SetScores == null || latest.SetScores.Count == 0) return [];
-            return latest.SetScores
-                .OrderBy(s => s.SetNumber)
-                .Select(s => (s.UserGames.ToString(), s.OpponentGames.ToString()))
-                .ToList();
-        }
-        catch
-        {
-            return [];
-        }
     }
 
     private static Color StatusColor(FixtureStatus s) => s switch
