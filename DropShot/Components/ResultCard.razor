@@ -169,13 +169,26 @@
         try
         {
             var match = JsonConvert.DeserializeObject<Match>(matchJson);
-            // HistoryList is serialized from a Stack, so index 0 is the most recent state
-            var latest = match?.HistoryList?.FirstOrDefault();
-            if (latest?.SetScores == null || latest.SetScores.Count == 0) return [];
-            return latest.SetScores
-                .OrderBy(s => s.SetNumber)
-                .Select(s => (s.UserGames.ToString(), s.OpponentGames.ToString()))
-                .ToList();
+            // HistoryList is serialized from a Stack, so index 0 is the most recent state.
+            // Fall back to History (the actual Stack) for older records that don't have HistoryList populated.
+            var latest = match?.HistoryList?.FirstOrDefault()
+                ?? match?.History?.FirstOrDefault();
+            if (latest == null) return [];
+
+            if (latest.SetScores != null && latest.SetScores.Count > 0)
+            {
+                return latest.SetScores
+                    .OrderBy(s => s.SetNumber)
+                    .Select(s => (s.UserGames.ToString(), s.OpponentGames.ToString()))
+                    .ToList();
+            }
+
+            // Fallback: no set breakdown recorded (e.g. single-set / game-only
+            // scoring modes). Show the final games as a single score column.
+            if (latest.UserG > 0 || latest.OppG > 0)
+                return [(latest.UserG.ToString(), latest.OppG.ToString())];
+
+            return [];
         }
         catch
         {
