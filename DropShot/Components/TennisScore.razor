@@ -987,6 +987,13 @@
                 _restoreFullscreen = false;
                 await SetScoringFullscreen(true);
             }
+            else if (CurrentMatch == null)
+            {
+                // Make sure the body scoring-active lock (overflow:hidden, fixed
+                // viewport height) isn't left over from a previous match — otherwise
+                // the setup screen can't scroll and extends behind the footer.
+                await SetScoringFullscreen(false);
+            }
         }
     }
 
