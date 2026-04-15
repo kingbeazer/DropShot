@@ -10,7 +10,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudStack Spacing="3" Class="pa-2" Style="max-width: 600px;">
+<MudStack Spacing="3">
 
     @* ── Step 0: Match Type ──────────────────────────────── *@
     @if (_currentStep > 0)
@@ -20,7 +20,7 @@
     else
     {
         <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.h6" Class="mb-3">Match Type</MudText>
+            <MudText Typo="Typo.h6" Class="mb-3">Start a Match</MudText>
             <MudRadioGroup @bind-Value="_isDoubles">
                 <MudRadio Value="false" Color="Color.Primary">Singles</MudRadio>
                 <MudRadio Value="true" Color="Color.Primary">Doubles</MudRadio>
