@@ -204,14 +204,16 @@ else
         if (_activeClubId is null) { _players = []; _loading = false; return; }
 
         await using var db = DbFactory.CreateDbContext();
-        _players = await db.ClubPlayers
+        var rows = await db.ClubPlayers
             .Where(cp => cp.ClubId == _activeClubId.Value)
             .Join(db.Players, cp => cp.PlayerId, p => p.PlayerId,
-                (cp, p) => new PlayerRow(
-                    p.PlayerId, p.DisplayName, p.FirstName, p.LastName,
-                    p.IsLight, p.CreatedByClubId == _activeClubId.Value))
-            .OrderBy(p => p.DisplayName)
+                (cp, p) => new { p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight, p.CreatedByClubId })
+            .OrderBy(x => x.DisplayName)
             .ToListAsync();
+        _players = rows
+            .Select(x => new PlayerRow(x.PlayerId, x.DisplayName, x.FirstName, x.LastName,
+                x.IsLight, x.CreatedByClubId == _activeClubId.Value))
+            .ToList();
         _loading = false;
     }
 
