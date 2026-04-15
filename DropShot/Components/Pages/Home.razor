@@ -183,7 +183,7 @@
                                     <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
                                 </MudTd>
                                 <MudTd>
-                                    <MudStack Row="true" Spacing="1">
+                                    <MudStack Row="true" Spacing="2">
                                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                                    StartIcon="@Icons.Material.Filled.PlayArrow"
                                                    OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true"))">
