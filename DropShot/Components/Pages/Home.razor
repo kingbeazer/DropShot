@@ -148,12 +148,12 @@
     </MudCardContent>
 </MudCard>
 
-@if (_upcomingFixtures.Any() || _recentResults.Any())
+@if (_upcomingFixtures.Any() || _recentItems.Any())
 {
     <MudGrid Class="mt-4">
         @if (_upcomingFixtures.Any())
         {
-            <MudItem xs="12" md="@(_recentResults.Any() ? 7 : 12)">
+            <MudItem xs="12" md="@(_recentItems.Any() ? 7 : 12)">
                 <MudCard>
                     <MudCardHeader>
                         <CardHeaderContent>
