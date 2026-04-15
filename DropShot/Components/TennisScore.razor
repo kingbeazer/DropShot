@@ -1045,10 +1045,13 @@
         matchToSave.Player3Id = _player3Id;
         matchToSave.Player4Id = _player4Id;
         matchToSave.WinnerName = _state.IsMatchEnded ? _winner : null;
-        if (_state.IsMatchEnded && !string.IsNullOrEmpty(_winner))
+        if (_state.IsMatchEnded)
         {
-            _playerIdByName.TryGetValue(_winner, out var winnerId);
-            matchToSave.WinnerPlayerId = winnerId > 0 ? winnerId : null;
+            // Determine winner from the match state — _winner is a localised
+            // "Congratulations ..." string and can include doubles team names,
+            // so we can't look it up in _playerIdByName reliably.
+            bool userSideWon = _state.UserSets > _state.OppSets;
+            matchToSave.WinnerPlayerId = userSideWon ? _player1Id : _player2Id;
         }
         matchToSave.CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null;
         if (matchToSave.CreatedAt == default) matchToSave.CreatedAt = DateTime.UtcNow;
