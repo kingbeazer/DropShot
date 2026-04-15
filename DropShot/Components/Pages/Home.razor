@@ -455,9 +455,10 @@
         try
         {
             var match = JsonConvert.DeserializeObject<DropShot.Models.Match>(matchJson);
-            var last = match?.HistoryList?.LastOrDefault();
-            if (last?.SetScores == null) return [];
-            return last.SetScores
+            // HistoryList is serialized from a Stack, so the most recent state is FIRST
+            var latest = match?.HistoryList?.FirstOrDefault();
+            if (latest?.SetScores == null || latest.SetScores.Count == 0) return [];
+            return latest.SetScores
                 .OrderBy(s => s.SetNumber)
                 .Select(s => (s.UserGames.ToString(), s.OpponentGames.ToString()))
                 .ToList();
