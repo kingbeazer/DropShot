@@ -9,9 +9,12 @@
             {
                 <span class="rc-label">@Fixture.FixtureLabel</span>
             }
-            @if (Fixture.ScheduledAt.HasValue)
+            @{
+                var resultDate = Fixture.CompletedAt ?? Fixture.ScheduledAt;
+            }
+            @if (resultDate.HasValue)
             {
-                <span class="rc-date">@Fixture.ScheduledAt.Value.ToString("dd MMM yyyy")</span>
+                <span class="rc-date">@resultDate.Value.ToString("dd MMM yyyy")</span>
             }
         </div>
     }

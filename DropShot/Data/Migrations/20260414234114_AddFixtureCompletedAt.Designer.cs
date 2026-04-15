@@ -4,16 +4,19 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace DropShot.Migrations
+namespace DropShot.Data.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414234114_AddFixtureCompletedAt")]
+    partial class AddFixtureCompletedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1040,9 +1043,6 @@ namespace DropShot.Migrations
 
                     b.Property<bool>("Complete")
                         .HasColumnType("bit");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("CourtId")
                         .HasColumnType("int");

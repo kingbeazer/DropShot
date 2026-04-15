@@ -683,6 +683,7 @@
         if (fx == null) return;
 
         fx.Status = FixtureStatus.Completed;
+        fx.CompletedAt = DateTime.UtcNow;
         fx.VerificationToken = null;
         await db.SaveChangesAsync();
 

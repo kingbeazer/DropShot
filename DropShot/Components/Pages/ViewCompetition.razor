@@ -97,7 +97,7 @@ else
                     <MudTh>Result</MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Date / Time">@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+                    <MudTd DataLabel="Date / Time">@(((context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification) ? (context.CompletedAt ?? context.ScheduledAt) : context.ScheduledAt)?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
                     <MudTd DataLabel="Match">@(context.FixtureLabel ?? "—")</MudTd>
                     <MudTd DataLabel="Players">@FixturePlayers(context)</MudTd>
                     <MudTd DataLabel="Court">@(context.Court?.Name ?? "—")</MudTd>
