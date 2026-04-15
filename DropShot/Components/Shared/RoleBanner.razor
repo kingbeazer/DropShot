@@ -85,8 +85,9 @@
         {
             _adminClubs = await db.ClubAdministrators
                 .Where(ca => ca.UserId == userId)
-                .Join(db.Clubs, ca => ca.ClubId, c => c.ClubId, (ca, c) => new ClubInfo(c.ClubId, c.Name))
+                .Join(db.Clubs, ca => ca.ClubId, c => c.ClubId, (ca, c) => new { c.ClubId, c.Name })
                 .OrderBy(c => c.Name)
+                .Select(c => new ClubInfo(c.ClubId, c.Name))
                 .ToListAsync();
 
             if (int.TryParse(httpContext.Request.Cookies["ActiveClubId"], out var cookieClubId)
