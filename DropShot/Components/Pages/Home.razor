@@ -203,7 +203,7 @@
             </MudItem>
         }
 
-        @if (_recentResults.Any())
+        @if (_recentItems.Any())
         {
             <MudItem xs="12" md="@(_upcomingFixtures.Any() ? 5 : 12)">
                 <MudCard>
@@ -217,24 +217,57 @@
                     </MudCardHeader>
                     <MudCardContent Class="pa-0">
                         <MudStack Spacing="0">
-                            @foreach (var fixture in _recentResults)
+                            @foreach (var item in _recentItems)
                             {
                                 <div style="padding: 8px 16px; border-bottom: 1px solid var(--mud-palette-lines-default);">
-                                    @if (fixture.Competition != null)
+                                    @if (item.Fixture != null)
                                     {
-                                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
-                                            <MudText Typo="Typo.caption" Style="font-weight:500">@fixture.Competition.CompetitionName</MudText>
-                                            @if (!string.IsNullOrEmpty(fixture.FixtureLabel))
-                                            {
-                                                <MudText Typo="Typo.caption" Color="Color.Secondary">@fixture.FixtureLabel</MudText>
-                                            }
-                                            @if (fixture.ScheduledAt.HasValue)
-                                            {
-                                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-left:auto">@fixture.ScheduledAt.Value.ToString("dd MMM yyyy")</MudText>
-                                            }
-                                        </MudStack>
+                                        var fixture = item.Fixture!;
+                                        @if (fixture.Competition != null)
+                                        {
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                                                <MudText Typo="Typo.caption" Style="font-weight:500">@fixture.Competition.CompetitionName</MudText>
+                                                @if (!string.IsNullOrEmpty(fixture.FixtureLabel))
+                                                {
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@fixture.FixtureLabel</MudText>
+                                                }
+                                                @{
+                                                    var resultDate = fixture.CompletedAt ?? fixture.ScheduledAt;
+                                                }
+                                                @if (resultDate.HasValue)
+                                                {
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-left:auto">@resultDate.Value.ToString("dd MMM yyyy")</MudText>
+                                                }
+                                            </MudStack>
+                                        }
+                                        <ResultCard Fixture="fixture" Compact="true" />
                                     }
-                                    <ResultCard Fixture="fixture" Compact="true" />
+                                    else if (item.CasualMatch != null)
+                                    {
+                                        var casual = item.CasualMatch!;
+                                        string p1 = casual.Player3 != null
+                                            ? (casual.Player1 ?? "TBD") + " & " + casual.Player3
+                                            : (casual.Player1 ?? "TBD");
+                                        string p2 = casual.Player4 != null
+                                            ? (casual.Player2 ?? "TBD") + " & " + casual.Player4
+                                            : (casual.Player2 ?? "TBD");
+                                        bool p1Winner = casual.WinnerPlayerId.HasValue
+                                            && (casual.WinnerPlayerId == casual.Player1Id || casual.WinnerPlayerId == casual.Player3Id);
+                                        bool p2Winner = casual.WinnerPlayerId.HasValue
+                                            && (casual.WinnerPlayerId == casual.Player2Id || casual.WinnerPlayerId == casual.Player4Id);
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                                            <MudText Typo="Typo.caption" Style="font-weight:500">Casual Match</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-left:auto">@item.Date.ToString("dd MMM yyyy")</MudText>
+                                        </MudStack>
+                                        <div class="result-card result-card-compact">
+                                            <div class="rc-player-row @(p1Winner ? "rc-winner" : "")">
+                                                <div class="rc-name">@p1</div>
+                                            </div>
+                                            <div class="rc-player-row @(p2Winner ? "rc-winner" : "")">
+                                                <div class="rc-name">@p2</div>
+                                            </div>
+                                        </div>
+                                    }
                                 </div>
                             }
                         </MudStack>
@@ -259,6 +292,9 @@
     private List<CompetitionFixture> _upcomingFixtures = [];
     private List<CompetitionFixture> _pendingReviews = [];
     private List<CompetitionFixture> _recentResults = [];
+    private List<RecentMatchItem> _recentItems = [];
+
+    private sealed record RecentMatchItem(DateTime Date, CompetitionFixture? Fixture, SavedMatch? CasualMatch);
     private bool _showUpgradeBanner;
     private bool _eligibleForUpgradeBanner;
     private bool _isAuthenticated;
@@ -325,9 +361,29 @@
             .Where(f => (f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid)
                      && f.Status == FixtureStatus.Completed
                      && f.ResultSummary != null)
-            .OrderByDescending(f => f.ScheduledAt)
+            .OrderByDescending(f => f.CompletedAt ?? f.ScheduledAt)
             .Take(6)
             .ToListAsync();
+
+        // Recently completed casual matches (SavedMatch rows not linked to a fixture)
+        var linkedSavedMatchIds = db.CompetitionFixtures
+            .Where(f => f.SavedMatchId != null)
+            .Select(f => f.SavedMatchId!.Value);
+
+        var recentCasuals = await db.SavedMatch
+            .Where(m => m.Complete
+                     && (m.Player1Id == pid || m.Player2Id == pid || m.Player3Id == pid || m.Player4Id == pid)
+                     && !linkedSavedMatchIds.Contains(m.SavedMatchId))
+            .OrderByDescending(m => m.CompletedAt ?? m.CreatedAt)
+            .Take(6)
+            .ToListAsync();
+
+        _recentItems = _recentResults
+            .Select(f => new RecentMatchItem(f.CompletedAt ?? f.ScheduledAt ?? DateTime.MinValue, f, null))
+            .Concat(recentCasuals.Select(m => new RecentMatchItem(m.CompletedAt ?? m.CreatedAt, null, m)))
+            .OrderByDescending(i => i.Date)
+            .Take(6)
+            .ToList();
     }
 
     private async Task OpenSubmitScoreAsync(CompetitionFixture fixture)
@@ -415,6 +471,7 @@
         if (fx == null) return;
 
         fx.Status = FixtureStatus.Completed;
+        fx.CompletedAt = DateTime.UtcNow;
         fx.VerificationToken = null;
         await db.SaveChangesAsync();
 

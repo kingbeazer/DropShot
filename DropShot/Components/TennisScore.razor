@@ -1023,7 +1023,12 @@
         }
 
         matchToSave.MatchJson = JsonConvert.SerializeObject(CurrentMatch);
+        bool wasComplete = matchToSave.Complete;
         matchToSave.Complete = CurrentMatch.Complete;
+        if (matchToSave.Complete && !wasComplete)
+            matchToSave.CompletedAt = DateTime.UtcNow;
+        else if (!matchToSave.Complete)
+            matchToSave.CompletedAt = null;
         matchToSave.Player1 = CurrentMatch.Player1;
         matchToSave.Player2 = CurrentMatch.Player2;
         matchToSave.Player3 = CurrentMatch.Player3;
@@ -1058,6 +1063,7 @@
             if (fx != null && fx.Status != FixtureStatus.Completed)
             {
                 fx.Status = FixtureStatus.Completed;
+                fx.CompletedAt = DateTime.UtcNow;
                 fx.SavedMatchId = _savedMatchId;
                 bool userSideWon = _state.UserSets > _state.OppSets;
                 fx.WinnerPlayerId = userSideWon ? _competitionFixture.Player1Id : _competitionFixture.Player2Id;
@@ -1106,6 +1112,7 @@
                     if (fx != null)
                     {
                         fx.Status = FixtureStatus.Completed;
+                        fx.CompletedAt = DateTime.UtcNow;
                         fx.ResultSummary = $"{homeScore}-{awayScore}";
                         fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
                                         : awayScore > homeScore ? fx.AwayTeamId
@@ -1241,6 +1248,7 @@
                     if (fx != null)
                     {
                         fx.Status = FixtureStatus.Scheduled;
+                        fx.CompletedAt = null;
                         fx.SavedMatchId = null;
                         fx.WinnerPlayerId = null;
                         fx.WinnerTeamId = null;

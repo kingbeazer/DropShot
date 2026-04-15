@@ -574,6 +574,7 @@ public class CompetitionsController(
 
         // Reset the fixture
         fixture.Status = FixtureStatus.Scheduled;
+        fixture.CompletedAt = null;
         fixture.ResultSummary = null;
         fixture.WinnerPlayerId = null;
         fixture.WinnerTeamId = null;

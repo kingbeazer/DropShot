@@ -17,6 +17,7 @@ public class CompetitionFixture
     public int? CompetitionStageId { get; set; }
     public int? CourtId { get; set; }
     public DateTime? ScheduledAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
     public FixtureStatus Status { get; set; } = FixtureStatus.Scheduled;
 
     public int? Player1Id { get; set; }

@@ -232,6 +232,7 @@
                     fx.Status            = FixtureStatus.Completed;
                     fx.VerificationToken = null;
                 }
+                fx.CompletedAt = DateTime.UtcNow;
 
                 await db.SaveChangesAsync();
 
