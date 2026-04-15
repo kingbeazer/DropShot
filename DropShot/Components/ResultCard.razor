@@ -95,42 +95,55 @@
         }
     }
 
-    private bool IsPlayer1Winner
-    {
-        get
-        {
-            if (Fixture != null)
-                return Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player1Id;
-            if (CasualMatch != null)
-                return CasualMatch.WinnerPlayerId.HasValue
-                    && (CasualMatch.WinnerPlayerId == CasualMatch.Player1Id
-                        || CasualMatch.WinnerPlayerId == CasualMatch.Player3Id);
-            return false;
-        }
-    }
+    private bool _p1Winner;
+    private bool _p2Winner;
 
-    private bool IsPlayer2Winner
-    {
-        get
-        {
-            if (Fixture != null)
-                return Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player2Id;
-            if (CasualMatch != null)
-                return CasualMatch.WinnerPlayerId.HasValue
-                    && (CasualMatch.WinnerPlayerId == CasualMatch.Player2Id
-                        || CasualMatch.WinnerPlayerId == CasualMatch.Player4Id);
-            return false;
-        }
-    }
+    private bool IsPlayer1Winner => _p1Winner;
+    private bool IsPlayer2Winner => _p2Winner;
 
     protected override void OnParametersSet()
     {
         if (Fixture != null)
+        {
             _sets = ParseResultSummary(Fixture.ResultSummary);
+            _p1Winner = Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player1Id;
+            _p2Winner = Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player2Id;
+            if (!_p1Winner && !_p2Winner)
+                (_p1Winner, _p2Winner) = DeriveWinnerFromSets(_sets);
+        }
         else if (CasualMatch != null)
+        {
             _sets = ParseCasualSets(CasualMatch.MatchJson);
+            _p1Winner = CasualMatch.WinnerPlayerId.HasValue
+                && (CasualMatch.WinnerPlayerId == CasualMatch.Player1Id
+                    || CasualMatch.WinnerPlayerId == CasualMatch.Player3Id);
+            _p2Winner = CasualMatch.WinnerPlayerId.HasValue
+                && (CasualMatch.WinnerPlayerId == CasualMatch.Player2Id
+                    || CasualMatch.WinnerPlayerId == CasualMatch.Player4Id);
+            if (!_p1Winner && !_p2Winner)
+                (_p1Winner, _p2Winner) = DeriveWinnerFromSets(_sets);
+        }
         else
+        {
             _sets = [];
+            _p1Winner = _p2Winner = false;
+        }
+    }
+
+    private static (bool p1, bool p2) DeriveWinnerFromSets(List<(string P1, string P2)> sets)
+    {
+        int p1Sets = 0, p2Sets = 0;
+        foreach (var s in sets)
+        {
+            if (int.TryParse(s.P1, out var a) && int.TryParse(s.P2, out var b))
+            {
+                if (a > b) p1Sets++;
+                else if (b > a) p2Sets++;
+            }
+        }
+        if (p1Sets > p2Sets) return (true, false);
+        if (p2Sets > p1Sets) return (false, true);
+        return (false, false);
     }
 
     private static List<(string P1, string P2)> ParseResultSummary(string? summary)
