@@ -245,10 +245,10 @@
                                     else if (item.CasualMatch != null)
                                     {
                                         var casual = item.CasualMatch!;
-                                        string p1 = casual.Player3 != null
+                                        string p1 = !string.IsNullOrWhiteSpace(casual.Player3)
                                             ? (casual.Player1 ?? "TBD") + " & " + casual.Player3
                                             : (casual.Player1 ?? "TBD");
-                                        string p2 = casual.Player4 != null
+                                        string p2 = !string.IsNullOrWhiteSpace(casual.Player4)
                                             ? (casual.Player2 ?? "TBD") + " & " + casual.Player4
                                             : (casual.Player2 ?? "TBD");
                                         bool p1Winner = casual.WinnerPlayerId.HasValue
