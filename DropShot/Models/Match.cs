@@ -11,4 +11,11 @@ public class Match
     public bool Complete { get; set; }
     public int? CourtId { get; set; }
     public bool GameScoring { get; set; } = true;
+
+    // Match configuration — persisted with the match so it survives refresh/restore.
+    public int BestOf { get; set; } = 3;
+    public int GamesFirstTo { get; set; } = 6;
+    public bool UnlimitedDeuce { get; set; } = true;
+    public int DeuceLimit { get; set; } = 1;
+    public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
 }

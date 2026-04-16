@@ -238,13 +238,30 @@
 
             <MudDivider Class="my-3" />
 
-            <MudNumericField @bind-Value="_bestOf" Label="Best of (sets)"
-                             Variant="Variant.Outlined" Min="1" Max="7"
-                             Style="max-width: 160px;" Class="mb-2" />
+            <MudSelect T="int" @bind-Value="_bestOf" Label="Best of (sets)"
+                       Variant="Variant.Outlined"
+                       Style="max-width: 160px;" Class="mb-2">
+                <MudSelectItem T="int" Value="1">1</MudSelectItem>
+                <MudSelectItem T="int" Value="3">3</MudSelectItem>
+                <MudSelectItem T="int" Value="5">5</MudSelectItem>
+                <MudSelectItem T="int" Value="7">7</MudSelectItem>
+            </MudSelect>
 
             <MudNumericField @bind-Value="_gamesPerSet" Label="Games per set"
                              Variant="Variant.Outlined" Min="1" Max="12"
                              Style="max-width: 160px;" Class="mb-2" />
+
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Set wins on</MudText>
+            <MudRadioGroup @bind-Value="_setWinMode">
+                <MudStack Row="true" Spacing="2">
+                    <MudTooltip Text="Standard tennis: must win by 2 clear games; tie-break at games-all.">
+                        <MudRadio Value="SetWinMode.WinBy2" Color="Color.Primary">Win by 2</MudRadio>
+                    </MudTooltip>
+                    <MudTooltip Text="First player to reach the games-per-set target wins the set.">
+                        <MudRadio Value="SetWinMode.FirstTo" Color="Color.Primary">First to</MudRadio>
+                    </MudTooltip>
+                </MudStack>
+            </MudRadioGroup>
 
             <div class="d-flex justify-space-between mt-3">
                 <MudButton Variant="Variant.Text" Color="Color.Default"
@@ -336,6 +353,7 @@
     private int _deuceLimit = 1;
     private int _bestOf = 3;
     private int _gamesPerSet = 6;
+    private SetWinMode _setWinMode = SetWinMode.WinBy2;
 
     // Auth / players
     private Player? _myPlayer;
@@ -829,6 +847,7 @@
             DeuceLimit = _unlimitedDeuce ? 0 : _deuceLimit,
             BestOf = _bestOf,
             GamesPerSet = _gamesPerSet,
+            SetWinMode = _setWinMode,
             ServerChoice = "random"
         });
     }
@@ -850,6 +869,7 @@
         public int DeuceLimit { get; set; }
         public int BestOf { get; set; } = 3;
         public int GamesPerSet { get; set; } = 6;
+        public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
         public string ServerChoice { get; set; } = "random";
     }
 }

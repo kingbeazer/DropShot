@@ -532,6 +532,8 @@
         _state.BestOf = result.BestOf;
         _state.GamesFirstTo = result.GamesPerSet;
         _state.UnlimitedDeuce = result.UnlimitedDeuce;
+        _state.DeuceLimit = result.DeuceLimit;
+        _state.SetWinMode = result.SetWinMode;
 
         _showServerSelect = true;
         return Task.CompletedTask;
@@ -582,7 +584,12 @@
             Player3 = _value3,
             Player4 = _value4,
             CourtId = _selectedCourtId,
-            GameScoring = _state.GameScoring
+            GameScoring = _state.GameScoring,
+            BestOf = _state.BestOf,
+            GamesFirstTo = _state.GamesFirstTo,
+            UnlimitedDeuce = _state.UnlimitedDeuce,
+            DeuceLimit = _state.DeuceLimit,
+            SetWinMode = _state.SetWinMode
         };
 
         if (_serverChoice == "random")
@@ -863,6 +870,11 @@
                 if (history.Any())
                     ScoreService.RestoreFromGameState(_state, history.Peek());
                 _state.GameScoring = CurrentMatch.GameScoring;
+                _state.BestOf = CurrentMatch.BestOf;
+                _state.GamesFirstTo = CurrentMatch.GamesFirstTo;
+                _state.UnlimitedDeuce = CurrentMatch.UnlimitedDeuce;
+                _state.DeuceLimit = CurrentMatch.DeuceLimit;
+                _state.SetWinMode = CurrentMatch.SetWinMode;
                 Label_Switch1 = !string.IsNullOrEmpty(CurrentMatch.Player3);
                 _savedMatchId = savedMatch.SavedMatchId;
                 _selectedCourtId = savedMatch.CourtId;
