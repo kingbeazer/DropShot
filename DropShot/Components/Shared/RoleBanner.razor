@@ -12,20 +12,17 @@
 @if (_grantedRoles.Count > 1 && !_isMatchPage)
 {
     <div class="role-banner">
-        <span>Browsing as: <strong>@_activeRole</strong></span>
-        @if (_grantedRoles.Count > 1)
-        {
-            <form action="Account/SwitchRole" method="post" data-enhance-nav="false" style="display: inline;">
-                <AntiforgeryToken />
-                <input type="hidden" name="returnUrl" value="@_currentUrl" />
-                <select name="role" class="role-banner-select" onchange="this.form.submit()">
-                    @foreach (var role in _grantedRoles)
-                    {
-                        <option value="@role" selected="@(role == _activeRole)">@role</option>
-                    }
-                </select>
-            </form>
-        }
+        <form action="Account/SwitchRole" method="post" data-enhance-nav="false" style="display: inline;">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="@_currentUrl" />
+            <span>Browsing as</span>
+            <select name="role" class="role-banner-select" onchange="this.form.submit()">
+                @foreach (var role in _grantedRoles)
+                {
+                    <option value="@role" selected="@(role == _activeRole)">@role</option>
+                }
+            </select>
+        </form>
         @if (_activeRole.Equals("ClubAdmin", StringComparison.OrdinalIgnoreCase) && _adminClubs.Count > 1)
         {
             <form action="Account/SwitchClub" method="post" data-enhance-nav="false" style="display: inline; margin-left: 0.5rem;">
