@@ -7,11 +7,20 @@
             <MudTextField @bind-Value="Model.CompetitionName" Label="Competition Name"
                           Variant="Variant.Outlined" Required="true" />
 
-            <MudSelect @bind-Value="Model.CompetitionFormat" Label="Format"
-                       Variant="Variant.Outlined" T="CompetitionFormat">
-                @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
+            <MudField Label="Category" Variant="Variant.Outlined">
+                <MudRadioGroup T="CompetitionCategoryUi?" Value="Model.Category"
+                               ValueChanged="OnCategoryChanged">
+                    <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Male)" Color="Color.Primary">Male</MudRadio>
+                    <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Female)" Color="Color.Primary">Female</MudRadio>
+                    <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Mixed)" Color="Color.Primary">Mixed</MudRadio>
+                </MudRadioGroup>
+            </MudField>
+
+            <MudSelect T="CompetitionFormatUi?" @bind-Value="Model.Format" Label="Format"
+                       Variant="Variant.Outlined" Disabled="@(Model.Category == null)">
+                @foreach (var f in CompetitionFormModel.AllowedFormats(Model.Category))
                 {
-                    <MudSelectItem Value="f">@f.ToDisplayName()</MudSelectItem>
+                    <MudSelectItem T="CompetitionFormatUi?" Value="@((CompetitionFormatUi?)f)">@f.ToString()</MudSelectItem>
                 }
             </MudSelect>
 
@@ -29,14 +38,6 @@
 
             <MudNumericField @bind-Value="Model.MaxAge" Label="Max Age (leave blank = open)"
                              Variant="Variant.Outlined" Min="1" />
-
-            <MudSelect @bind-Value="Model.EligibleSex" Label="Eligible Sex" Variant="Variant.Outlined"
-                       T="PlayerSex?" Clearable="true">
-                @foreach (PlayerSex s in Enum.GetValues<PlayerSex>())
-                {
-                    <MudSelectItem Value="(PlayerSex?)s">@s</MudSelectItem>
-                }
-            </MudSelect>
 
             <MudSelect @bind-Value="Model.HostClubId" Label="Host Club" Variant="Variant.Outlined"
                        T="int?" Clearable="true">
@@ -66,7 +67,7 @@
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled"
-                   Disabled="string.IsNullOrWhiteSpace(Model.CompetitionName)"
+                   Disabled="@(string.IsNullOrWhiteSpace(Model.CompetitionName) || Model.Category == null || Model.Format == null)"
                    OnClick="Submit">Save</MudButton>
     </DialogActions>
 </MudDialog>
@@ -92,4 +93,12 @@
 
     private void Cancel() => MudDialog.Cancel();
     private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+
+    private void OnCategoryChanged(CompetitionCategoryUi? value)
+    {
+        Model.Category = value;
+        // Mixed doesn't allow Singles; clear an incompatible selection so the user re-picks.
+        if (Model.Format.HasValue && !CompetitionFormModel.AllowedFormats(value).Contains(Model.Format.Value))
+            Model.Format = null;
+    }
 }

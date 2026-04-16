@@ -7,6 +7,7 @@
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.AspNetCore.Authentication
 @using DropShot.Data
+@using DropShot.Models
 @using Microsoft.EntityFrameworkCore
 
 @inject UserManager<ApplicationUser> UserManager
@@ -50,6 +51,21 @@
                 <label for="confirm-password">Confirm Password</label>
                 <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
             </div>
+            <fieldset class="mb-3">
+                <legend class="form-label mb-1" style="font-size: 1rem;">Competition category</legend>
+                <small class="form-text text-muted d-block mb-2">Determines which events you're eligible to enter</small>
+                <InputRadioGroup @bind-Value="Input.CompetitionCategory">
+                    <div class="form-check">
+                        <InputRadio class="form-check-input" id="category-male" Value="@PlayerSex.Male" />
+                        <label class="form-check-label" for="category-male">Male events</label>
+                    </div>
+                    <div class="form-check">
+                        <InputRadio class="form-check-input" id="category-female" Value="@PlayerSex.Female" />
+                        <label class="form-check-label" for="category-female">Female events</label>
+                    </div>
+                </InputRadioGroup>
+                <ValidationMessage For="() => Input.CompetitionCategory" class="text-danger" />
+            </fieldset>
             <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
         </EditForm>
     </div>
@@ -128,6 +144,7 @@
                         invited.IsLight = false;
                         invited.UserId = userIdStr;
                         invited.Email = Input.Email;
+                        invited.Sex = Input.CompetitionCategory;
                         if (string.IsNullOrWhiteSpace(invited.DisplayName))
                             invited.DisplayName = Input.DisplayName;
                         invite.AcceptedAt = DateTime.UtcNow;
@@ -159,6 +176,7 @@
             if (player is not null)
             {
                 player.UserId = userIdStr;
+                player.Sex = Input.CompetitionCategory;
                 await db.SaveChangesAsync();
                 linkedPlayer = true;
                 Logger.LogInformation("Linked new user {Email} to existing player record.", Input.Email);
@@ -175,6 +193,7 @@
                     lightMatch.IsLight = false;
                     lightMatch.UserId = userIdStr;
                     lightMatch.Email = Input.Email;
+                    lightMatch.Sex = Input.CompetitionCategory;
                     await db.SaveChangesAsync();
                     linkedPlayer = true;
                     Logger.LogInformation("Claimed light player record for {DisplayName}.", Input.DisplayName);
@@ -188,6 +207,7 @@
                     DisplayName = Input.DisplayName,
                     Email = Input.Email,
                     UserId = userIdStr,
+                    Sex = Input.CompetitionCategory,
                     CreatedAt = DateTime.UtcNow
                 };
                 db.Players.Add(newPlayer);
@@ -260,5 +280,9 @@
         [Display(Name = "Confirm password")]
         [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; } = "";
+
+        [Required(ErrorMessage = "Please select a competition category.")]
+        [Display(Name = "Competition category")]
+        public PlayerSex? CompetitionCategory { get; set; }
     }
 }
