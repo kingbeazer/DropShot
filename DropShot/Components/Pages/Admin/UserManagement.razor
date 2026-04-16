@@ -36,6 +36,7 @@
         {
             <MudTh Style="text-align:center">Super Admin</MudTh>
             <MudTh Style="text-align:center">Admin</MudTh>
+            <MudTh Style="text-align:center">Premium</MudTh>
         }
         <MudTh>Club Admin Assignments</MudTh>
         <MudTh></MudTh>
@@ -60,6 +61,12 @@
                            ValueChanged="@(v => ToggleAdmin(context, v))"
                            Disabled="@(context.IsSuperAdmin)"
                            Color="Color.Primary" />
+            </MudTd>
+            <MudTd DataLabel="Premium" Style="text-align:center">
+                <MudSwitch T="bool"
+                           Value="@context.IsSubscribed"
+                           ValueChanged="@(v => TogglePremium(context, v))"
+                           Color="Color.Warning" />
             </MudTd>
         }
 
@@ -189,6 +196,7 @@
         public ApplicationUser User { get; init; } = null!;
         public bool IsSuperAdmin { get; set; }
         public bool IsAdmin { get; set; }
+        public bool IsSubscribed { get; set; }
         public List<ClubAdminRow> ClubAssignments { get; set; } = [];
     }
 
@@ -244,6 +252,7 @@
                 User = user,
                 IsSuperAdmin = isSuperAdmin,
                 IsAdmin = isAdmin,
+                IsSubscribed = user.IsSubscribed,
                 ClubAssignments = clubs ?? []
             });
         }
@@ -282,6 +291,24 @@
         row.IsAdmin = make;
         Snackbar.Add(
             $"{row.User.UserName} {(make ? "granted" : "removed from")} Admin role.",
+            make ? Severity.Success : Severity.Warning);
+    }
+
+    private async Task TogglePremium(UserRow row, bool make)
+    {
+        row.User.IsSubscribed = make;
+        var result = await UserManager.UpdateAsync(row.User);
+        if (!result.Succeeded)
+        {
+            Snackbar.Add(string.Join(" ", result.Errors.Select(e => e.Description)), Severity.Error);
+            // Rollback the switch value so the UI reflects reality.
+            row.User.IsSubscribed = !make;
+            return;
+        }
+
+        row.IsSubscribed = make;
+        Snackbar.Add(
+            $"{row.User.UserName} premium {(make ? "enabled" : "disabled")}.",
             make ? Severity.Success : Severity.Warning);
     }
 

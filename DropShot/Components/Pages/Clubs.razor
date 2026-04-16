@@ -1,7 +1,9 @@
 @page "/clubs"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using DropShot.Models
 @using DropShot.Data
@@ -11,6 +13,7 @@
 @inject ISnackbar Snackbar
 @inject ClubAuthorizationService AuthzService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
 
 <MudProviders />
 
@@ -35,6 +38,7 @@
         <MudTh>Town</MudTh>
         <MudTh>Email</MudTh>
         <MudTh>Courts</MudTh>
+        <MudTh>Link Status</MudTh>
         <MudTh>Actions</MudTh>
     </HeaderContent>
     <RowTemplate>
@@ -42,6 +46,29 @@
         <MudTd DataLabel="Town">@(context.Town ?? "—")</MudTd>
         <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
         <MudTd DataLabel="Courts">@context.Courts.Count</MudTd>
+        <MudTd DataLabel="Link Status">
+            @{
+                var status = GetStatus(context.ClubId);
+            }
+            @switch (status)
+            {
+                case ClubLinkState.Administered:
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">Admin</MudChip>
+                    break;
+                case ClubLinkState.Linked:
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Linked</MudChip>
+                    break;
+                case ClubLinkState.Pending:
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Request Pending</MudChip>
+                    break;
+                default:
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                               OnClick="@(() => RequestLink(context))">
+                        Request to Link
+                    </MudButton>
+                    break;
+            }
+        </MudTd>
         <MudTd DataLabel="Actions">
             @if (_isAdmin || _editableClubIds.Contains(context.ClubId))
             {
@@ -538,6 +565,19 @@
         (club.Email ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
     private bool _isAdmin;
     private HashSet<int> _editableClubIds = [];
+    private HashSet<int> _linkedClubIds = [];
+    private HashSet<int> _pendingLinkClubIds = [];
+    private string? _currentUserId;
+
+    private enum ClubLinkState { None, Pending, Linked, Administered }
+
+    private ClubLinkState GetStatus(int clubId)
+    {
+        if (_editableClubIds.Contains(clubId)) return ClubLinkState.Administered;
+        if (_linkedClubIds.Contains(clubId)) return ClubLinkState.Linked;
+        if (_pendingLinkClubIds.Contains(clubId)) return ClubLinkState.Pending;
+        return ClubLinkState.None;
+    }
 
     private bool _showClubDialog;
     private Club? _editingClub;
@@ -616,7 +656,68 @@
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _isAdmin = await AuthzService.IsAdminAsync(authState.User);
         _editableClubIds = [.. await AuthzService.GetAdminClubIdsAsync(authState.User)];
+        _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await LoadLinkState();
         await LoadClubs();
+    }
+
+    private async Task LoadLinkState()
+    {
+        if (string.IsNullOrEmpty(_currentUserId))
+        {
+            _linkedClubIds = [];
+            _pendingLinkClubIds = [];
+            return;
+        }
+
+        await using var db = DbFactory.CreateDbContext();
+        var playerId = await db.Players
+            .Where(p => p.UserId == _currentUserId && !p.IsLight)
+            .Select(p => (int?)p.PlayerId).FirstOrDefaultAsync();
+
+        _linkedClubIds = playerId is int pid
+            ? (await db.ClubPlayers.Where(cp => cp.PlayerId == pid && cp.IsActive)
+                .Select(cp => cp.ClubId).ToListAsync()).ToHashSet()
+            : [];
+
+        _pendingLinkClubIds = (await db.ClubLinkRequests
+            .Where(r => r.UserId == _currentUserId && r.Status == ClubLinkRequestStatus.Pending)
+            .Select(r => r.ClubId)
+            .ToListAsync()).ToHashSet();
+    }
+
+    private async Task RequestLink(Club club)
+    {
+        if (string.IsNullOrEmpty(_currentUserId))
+        {
+            Snackbar.Add("You must be signed in to request a link.", Severity.Warning);
+            return;
+        }
+
+        await using var db = DbFactory.CreateDbContext();
+
+        // Guard against a race with approval or an existing pending request.
+        var existingPending = await db.ClubLinkRequests
+            .AnyAsync(r => r.UserId == _currentUserId && r.ClubId == club.ClubId
+                           && r.Status == ClubLinkRequestStatus.Pending);
+        if (existingPending)
+        {
+            Snackbar.Add("You already have a pending request for this club.", Severity.Info);
+            _pendingLinkClubIds.Add(club.ClubId);
+            return;
+        }
+
+        db.ClubLinkRequests.Add(new ClubLinkRequest
+        {
+            ClubId = club.ClubId,
+            UserId = _currentUserId,
+            Status = ClubLinkRequestStatus.Pending,
+            RequestedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        _pendingLinkClubIds.Add(club.ClubId);
+        Snackbar.Add($"Request sent to {club.Name}.", Severity.Success);
     }
 
     private async Task LoadClubs()

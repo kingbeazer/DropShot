@@ -1,0 +1,171 @@
+@page "/clubadmin/link-requests"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using DropShot.Data
+@using DropShot.Models
+@using DropShot.Services
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject AdminEmailService AdminEmailService
+@inject UserManager<ApplicationUser> UserManager
+@inject ISnackbar Snackbar
+
+<MudProviders />
+
+<MudText Typo="Typo.h4" Class="mb-4">Club Link Requests</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_adminClubIds.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">
+        You don't administer any clubs, so there are no link requests to review.
+    </MudAlert>
+}
+else if (_requests.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No pending link requests.</MudAlert>
+}
+else
+{
+    <MudTable Items="@_requests" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Club</MudTh>
+            <MudTh>User</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Requested</MudTh>
+            <MudTh Style="width:200px"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Club">@context.Club.Name</MudTd>
+            <MudTd DataLabel="User">@(context.User.DisplayName?.Length > 0 ? context.User.DisplayName : context.User.UserName)</MudTd>
+            <MudTd DataLabel="Email">@(context.User.Email ?? "—")</MudTd>
+            <MudTd DataLabel="Requested">@context.RequestedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</MudTd>
+            <MudTd>
+                <MudStack Row="true" Spacing="1">
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                               OnClick="@(() => Approve(context))">Approve</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                               OnClick="@(() => Reject(context))">Reject</MudButton>
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private bool _loading = true;
+    private HashSet<int> _adminClubIds = [];
+    private List<ClubLinkRequest> _requests = [];
+    private string? _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _adminClubIds = [.. await AuthzService.GetAdminClubIdsAsync(authState.User)];
+        var isAdmin = await AuthzService.IsAdminAsync(authState.User);
+
+        await using var db = DbFactory.CreateDbContext();
+        IQueryable<ClubLinkRequest> q = db.ClubLinkRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .Where(r => r.Status == ClubLinkRequestStatus.Pending);
+
+        if (!isAdmin)
+        {
+            var adminIds = _adminClubIds;
+            q = q.Where(r => adminIds.Contains(r.ClubId));
+        }
+
+        _requests = await q.OrderByDescending(r => r.RequestedAt).ToListAsync();
+        _loading = false;
+    }
+
+    private async Task Approve(ClubLinkRequest request)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var fresh = await db.ClubLinkRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.ClubLinkRequestId == request.ClubLinkRequestId);
+        if (fresh is null || fresh.Status != ClubLinkRequestStatus.Pending)
+        {
+            Snackbar.Add("Request already resolved.", Severity.Warning);
+            _requests.Remove(request);
+            return;
+        }
+
+        var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == fresh.UserId && !p.IsLight);
+        if (player is null)
+        {
+            var displayName = fresh.User.DisplayName is { Length: > 0 }
+                ? fresh.User.DisplayName
+                : fresh.User.UserName ?? "Player";
+            player = new Player
+            {
+                DisplayName = displayName,
+                Email = fresh.User.Email,
+                UserId = fresh.UserId,
+                IsLight = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Players.Add(player);
+            await db.SaveChangesAsync();
+        }
+
+        var alreadyLinked = await db.ClubPlayers.AnyAsync(cp => cp.ClubId == fresh.ClubId && cp.PlayerId == player.PlayerId);
+        if (!alreadyLinked)
+        {
+            db.ClubPlayers.Add(new ClubPlayer
+            {
+                ClubId = fresh.ClubId,
+                PlayerId = player.PlayerId,
+                JoinedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+        }
+
+        fresh.Status = ClubLinkRequestStatus.Approved;
+        fresh.ResolvedAt = DateTime.UtcNow;
+        fresh.ResolvedByUserId = _currentUserId;
+        await db.SaveChangesAsync();
+
+        await AdminEmailService.SendClubLinkRequestApprovedAsync(fresh.Club, fresh.User);
+
+        _requests.Remove(request);
+        Snackbar.Add($"Approved {fresh.User.DisplayName ?? fresh.User.UserName} → {fresh.Club.Name}.", Severity.Success);
+    }
+
+    private async Task Reject(ClubLinkRequest request)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var fresh = await db.ClubLinkRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.ClubLinkRequestId == request.ClubLinkRequestId);
+        if (fresh is null || fresh.Status != ClubLinkRequestStatus.Pending)
+        {
+            Snackbar.Add("Request already resolved.", Severity.Warning);
+            _requests.Remove(request);
+            return;
+        }
+
+        fresh.Status = ClubLinkRequestStatus.Rejected;
+        fresh.ResolvedAt = DateTime.UtcNow;
+        fresh.ResolvedByUserId = _currentUserId;
+        await db.SaveChangesAsync();
+
+        await AdminEmailService.SendClubLinkRequestRejectedAsync(fresh.Club, fresh.User);
+
+        _requests.Remove(request);
+        Snackbar.Add($"Rejected {fresh.User.DisplayName ?? fresh.User.UserName}.", Severity.Warning);
+    }
+}

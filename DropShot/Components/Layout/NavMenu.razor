@@ -47,6 +47,11 @@
                                 <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" /> Users
                             </NavLink>
                         </AuthorizeView>
+                        <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin" Context="linkReqCtx">
+                            <NavLink class="nav-link" href="clubadmin/link-requests">
+                                <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Class="nav-icon" /> Link Requests
+                            </NavLink>
+                        </AuthorizeView>
                     </div>
                 </div>
             </AuthorizeView>

@@ -19,6 +19,7 @@
 @inject AdminEmailService AdminEmailSvc
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
+@inject Microsoft.AspNetCore.Identity.UserManager<DropShot.Data.ApplicationUser> UserManager
 
 <MudProviders />
 
@@ -986,6 +987,7 @@
     private bool _isValid;
     private bool _isSaving;
     private bool _canEdit;
+    private bool _canCreateUserComp;
     private string[] _errors = [];
     private string? _serverError;
     private bool IsEdit => Id != 0;
@@ -1266,9 +1268,13 @@
         }
         else
         {
-            // Admins and ClubAdmins can create new competitions
+            // Admins / ClubAdmins / subscribed users (acting as "User") can create new competitions.
+            // A subscribed user creates a user-owned competition (no host club).
+            var appUser = await UserManager.GetUserAsync(authState.User);
+            _canCreateUserComp = AuthzService.CanCreateUserCompetition(authState.User, appUser);
             _canEdit = await AuthzService.IsAdminAsync(authState.User)
-                || (await AuthzService.GetAdminClubIdsAsync(authState.User)).Count > 0;
+                || (await AuthzService.GetAdminClubIdsAsync(authState.User)).Count > 0
+                || _canCreateUserComp;
             if (!_canEdit)
             {
                 Nav.NavigateTo("/", replace: true);
@@ -1324,6 +1330,19 @@
             {
                 var comp = new Competition();
                 ApplyModel(comp, name);
+
+                // User-owned ("personal") competition: no host club, attribute to creator.
+                if (comp.HostClubId is null)
+                {
+                    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                    comp.CreatorUserId = UserManager.GetUserId(authState.User);
+                }
+                else
+                {
+                    // Belt-and-braces: ensure creator is only set for user competitions.
+                    comp.CreatorUserId = null;
+                }
+
                 db.Competition.Add(comp);
                 await db.SaveChangesAsync();
             }

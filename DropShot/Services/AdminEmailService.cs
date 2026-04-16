@@ -1,3 +1,4 @@
+using DropShot.Data;
 using DropShot.Models;
 
 namespace DropShot.Services;
@@ -72,5 +73,64 @@ public class AdminEmailService(
         {
             logger.LogError(ex, "Failed to send {Context} to {Email}", context, email);
         }
+    }
+
+    // ── Club link requests ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Notifies club admins that a new link request has been submitted.
+    /// </summary>
+    public async Task SendClubLinkRequestReceivedAsync(
+        Club club, ApplicationUser requester, IEnumerable<ApplicationUser> clubAdmins)
+    {
+        var manageLink = $"{BaseUrl}/clubadmin/link-requests";
+        var requesterName = requester.DisplayName is { Length: > 0 } ? requester.DisplayName : requester.UserName ?? "A user";
+
+        foreach (var admin in clubAdmins)
+        {
+            if (string.IsNullOrEmpty(admin.Email)) continue;
+
+            var subject = $"New club link request for {club.Name}";
+            var body =
+                $"Hi {System.Net.WebUtility.HtmlEncode(admin.DisplayName ?? admin.UserName ?? "")}," +
+                $"\n\n{System.Net.WebUtility.HtmlEncode(requesterName)} has asked to be linked to " +
+                $"{System.Net.WebUtility.HtmlEncode(club.Name)}." +
+                $"\n\nReview the request: {manageLink}";
+
+            await SendSafe(admin.Email, subject, body, "club link request received");
+        }
+    }
+
+    /// <summary>
+    /// Notifies the requesting user that their club link request was approved.
+    /// </summary>
+    public async Task SendClubLinkRequestApprovedAsync(Club club, ApplicationUser user)
+    {
+        if (string.IsNullOrEmpty(user.Email)) return;
+
+        var clubLink = $"{BaseUrl}/clubs";
+        var subject = $"You're now linked to {club.Name}";
+        var body =
+            $"Hi {System.Net.WebUtility.HtmlEncode(user.DisplayName ?? user.UserName ?? "")}," +
+            $"\n\nYour request to join {System.Net.WebUtility.HtmlEncode(club.Name)} was approved." +
+            $"\n\nView the club: {clubLink}";
+
+        await SendSafe(user.Email, subject, body, "club link request approved");
+    }
+
+    /// <summary>
+    /// Notifies the requesting user that their club link request was rejected.
+    /// </summary>
+    public async Task SendClubLinkRequestRejectedAsync(Club club, ApplicationUser user)
+    {
+        if (string.IsNullOrEmpty(user.Email)) return;
+
+        var subject = $"Club link request declined";
+        var body =
+            $"Hi {System.Net.WebUtility.HtmlEncode(user.DisplayName ?? user.UserName ?? "")}," +
+            $"\n\nYour request to join {System.Net.WebUtility.HtmlEncode(club.Name)} was not approved. " +
+            "If you think this is a mistake, please reach out to the club directly.";
+
+        await SendSafe(user.Email, subject, body, "club link request rejected");
     }
 }

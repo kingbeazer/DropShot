@@ -17,6 +17,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject Microsoft.AspNetCore.Identity.UserManager<DropShot.Data.ApplicationUser> UserManager
 
 <MudProviders />
 
@@ -31,6 +32,17 @@
     }
     else
     {
+        @if (_canCreateUserComp)
+        {
+            <MudStack Row="true" Class="mb-4">
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => Nav.NavigateTo("/competition/0"))">
+                    Create Competition
+                </MudButton>
+            </MudStack>
+        }
+
         <MudText Typo="Typo.h5" Class="mb-3">My Competitions</MudText>
         @if (_myEnteredComps.Count == 0)
         {
@@ -410,7 +422,7 @@
     </MudTabPanel>
 </MudTabs>
 
-@if (_isAdmin || _editableClubIds.Count > 0)
+@if (_isAdmin || _editableClubIds.Count > 0 || _canCreateUserComp)
 {
     <MudStack Row="true" Spacing="2" Class="mt-3">
         <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Primary"
@@ -440,6 +452,7 @@
 
     // Standard-user view
     private bool _isUserView;
+    private bool _canCreateUserComp;
     private Player? _userPlayer;
     private List<Competition> _myEnteredComps = [];
     private List<Competition> _availableComps = [];
@@ -463,6 +476,10 @@
         _competitionAdminIds = await AuthzService.GetEditableCompetitionIdsAsync(authState.User);
 
         _isUserView = !_isAdmin && _editableClubIds.Count == 0 && _competitionAdminIds.Count == 0;
+
+        // Subscribed plain users can create "user competitions" without a host club.
+        var appUser = await UserManager.GetUserAsync(authState.User);
+        _canCreateUserComp = AuthzService.CanCreateUserCompetition(authState.User, appUser);
 
         if (_isUserView)
         {
