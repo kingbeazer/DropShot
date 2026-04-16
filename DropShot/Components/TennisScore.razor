@@ -116,6 +116,12 @@
 @if (loaded && @CurrentMatch != null)
 {
     <section class="bg-tennis overlay-dark">
+        @* Fullscreen toggle — small overlay button in the top-right corner *@
+        <button class="fullscreen-toggle no-zoom-element" @onclick="ToggleImmersive"
+                aria-label="@(_isImmersive ? "Exit fullscreen" : "Enter fullscreen")">
+            <MudIcon Icon="@(_isImmersive ? Icons.Material.Filled.FullscreenExit : Icons.Material.Filled.Fullscreen)"
+                     Size="Size.Medium" />
+        </button>
         @* #8 — Settings as a slide-out drawer instead of a collapse that pushes content *@
         <MudDrawer @bind-Open="_expanded" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Width="320px" Elevation="4">
             <MudDrawerHeader>
@@ -650,6 +656,8 @@
         _showCoinToss = false;
         await InvokeAsync(StateHasChanged);
         await SetScoringFullscreen(true);
+        _isImmersive = true;
+        await SetImmersive(true);
 
         // #7 — Start the match timer
         StartTimer();
@@ -986,6 +994,8 @@
             {
                 _restoreFullscreen = false;
                 await SetScoringFullscreen(true);
+                _isImmersive = true;
+                await SetImmersive(true);
             }
             else if (CurrentMatch == null)
             {
@@ -998,11 +1008,28 @@
     }
 
     private bool _restoreFullscreen;
+    private bool _isImmersive = true;
 
     private async Task SetScoringFullscreen(bool enabled)
     {
         var action = enabled ? "add" : "remove";
         await JS.InvokeVoidAsync("eval", $"document.body.classList.{action}('scoring-active')");
+        // When leaving scoring, always drop the immersive lock too so the
+        // top navbar reappears on the setup screen.
+        if (!enabled)
+            await SetImmersive(false);
+    }
+
+    private async Task SetImmersive(bool enabled)
+    {
+        var action = enabled ? "add" : "remove";
+        await JS.InvokeVoidAsync("eval", $"document.body.classList.{action}('scoring-immersive')");
+    }
+
+    private async Task ToggleImmersive()
+    {
+        _isImmersive = !_isImmersive;
+        await SetImmersive(_isImmersive);
     }
 
     private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "") });

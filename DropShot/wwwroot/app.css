@@ -153,6 +153,20 @@ body.scoring-active .role-banner {
     display: none !important;
 }
 
+/* Hide the site footer while a match is being scored — otherwise on
+   mobile it sits on top of the scoring controls and makes the screen
+   unusable. */
+body.scoring-active footer.site-footer {
+    display: none !important;
+}
+
+/* Scoring-immersive mode — additionally hides the top navbar so the
+   scoring view fills the entire viewport. User-toggleable via the
+   fullscreen button on the scoring screen. */
+body.scoring-immersive .top-navbar {
+    display: none !important;
+}
+
 /* Legacy — keep for external scoreboard page if still used */
 body.scoreboard-fullscreen .sidebar,
 body.scoreboard-fullscreen .role-banner,
