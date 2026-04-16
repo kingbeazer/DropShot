@@ -44,33 +44,21 @@ public class TennisScoreService
         if (s.UserPoints >= 4 || s.OppPoints >= 4)
         {
             int diff = s.UserPoints - s.OppPoints;
+            bool shouldEnd = Math.Abs(diff) >= 2;
 
-            if (s.UnlimitedDeuce)
+            // Deuce limit: once the configured number of deuces has been played,
+            // the next point decides the game (sudden death).
+            if (!shouldEnd && !s.UnlimitedDeuce && s.DeuceCount >= Math.Max(1, s.DeuceLimit) && diff != 0)
+                shouldEnd = true;
+
+            if (shouldEnd)
             {
-                if (diff >= 2)
-                {
+                if (diff > 0)
                     s.UserGames++;
-                    ResetGame(s);
-                    CheckSet(s);
-                }
-                else if (diff <= -2)
-                {
+                else
                     s.OppGames++;
-                    ResetGame(s);
-                    CheckSet(s);
-                }
-            }
-            else
-            {
-                if (diff == 2 || diff == -2 || (diff == 1 && s.OppPoints > 3) || (diff == -1 && s.UserPoints > 3))
-                {
-                    if (diff > 0)
-                        s.UserGames++;
-                    else
-                        s.OppGames++;
-                    ResetGame(s);
-                    CheckSet(s);
-                }
+                ResetGame(s);
+                CheckSet(s);
             }
         }
 
@@ -80,6 +68,22 @@ public class TennisScoreService
 
     public void CheckSet(TennisMatchState s)
     {
+        // First-to-N: whoever reaches GamesFirstTo first wins the set (no tie-break).
+        if (s.SetWinMode == SetWinMode.FirstTo)
+        {
+            if (s.UserGames >= s.GamesFirstTo || s.OppGames >= s.GamesFirstTo)
+            {
+                if (s.UserGames > s.OppGames)
+                    s.UserSets++;
+                else
+                    s.OppSets++;
+
+                EndSet(s);
+            }
+            return;
+        }
+
+        // Win-by-2 (standard tennis): tie-break on reaching GamesFirstTo-all.
         if (s.UserGames == s.GamesFirstTo && s.OppGames == s.GamesFirstTo)
         {
             s.IsTieBreak = true;
