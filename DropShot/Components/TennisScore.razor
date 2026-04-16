@@ -63,9 +63,14 @@
 @if (loaded && CurrentMatch == null && !_showCoinToss && !_showServerSelect)
 {
     <div style="max-width: 800px; margin: 0 auto; padding: 1.5rem 0 2rem;">
+        <MatchSetupWizard OnSetupComplete="HandleSetupComplete"
+                          PresetPlayer1="@_value" PresetPlayer2="@_value2"
+                          PresetPlayer3="@_value3" PresetPlayer4="@_value4"
+                          PresetIsDoubles="@(_competitionFixture != null ? Label_Switch1 : (bool?)null)" />
+
         @if (_upcomingFixtures.Any())
         {
-            <MudCard Class="mb-4">
+            <MudCard Class="mt-4">
                 <MudCardHeader>
                     <CardHeaderContent>
                         <MudText Typo="Typo.h6">Your Upcoming Matches</MudText>
@@ -105,11 +110,6 @@
                 </MudCardContent>
             </MudCard>
         }
-
-        <MatchSetupWizard OnSetupComplete="HandleSetupComplete"
-                          PresetPlayer1="@_value" PresetPlayer2="@_value2"
-                          PresetPlayer3="@_value3" PresetPlayer4="@_value4"
-                          PresetIsDoubles="@(_competitionFixture != null ? Label_Switch1 : (bool?)null)" />
     </div>
 }
 
