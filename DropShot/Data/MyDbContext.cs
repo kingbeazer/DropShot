@@ -39,6 +39,8 @@ namespace DropShot.Data
         public DbSet<CourtPair> CourtPairs { get; set; }
         public DbSet<TeamMatchSet> TeamMatchSets { get; set; }
         public DbSet<PlayerInvitation> PlayerInvitations { get; set; }
+        public DbSet<ClubLinkRequest> ClubLinkRequests { get; set; }
+        public DbSet<CompetitionAllowedPlayer> CompetitionAllowedPlayers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -102,6 +104,8 @@ namespace DropShot.Data
             {
                 entity.Property(c => c.CompetitionName).HasMaxLength(200).IsRequired();
                 entity.Property(c => c.EligibleSex).HasConversion<byte?>();
+                entity.Property(c => c.CreatorUserId).HasMaxLength(450);
+                entity.HasIndex(c => c.CreatorUserId);
 
                 entity.HasOne(c => c.Rules)
                       .WithMany(r => r.Competitions)
@@ -117,6 +121,59 @@ namespace DropShot.Data
                       .WithMany(e => e.Competitions)
                       .HasForeignKey(c => c.EventId)
                       .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(c => c.CreatorUser)
+                      .WithMany()
+                      .HasForeignKey(c => c.CreatorUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── CompetitionAllowedPlayer ─────────────────────────────────────────
+            builder.Entity<CompetitionAllowedPlayer>(entity =>
+            {
+                entity.HasKey(ap => new { ap.CompetitionId, ap.PlayerId });
+
+                entity.HasOne(ap => ap.Competition)
+                      .WithMany(c => c.AllowedPlayers)
+                      .HasForeignKey(ap => ap.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Player FK uses Restrict to match other Player references and avoid
+                // multi-cascade-path issues.
+                entity.HasOne(ap => ap.Player)
+                      .WithMany()
+                      .HasForeignKey(ap => ap.PlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── ClubLinkRequest ──────────────────────────────────────────────────
+            builder.Entity<ClubLinkRequest>(entity =>
+            {
+                entity.Property(r => r.UserId).HasMaxLength(450).IsRequired();
+                entity.Property(r => r.ResolvedByUserId).HasMaxLength(450);
+                entity.Property(r => r.Status).HasConversion<byte>();
+
+                entity.HasOne(r => r.Club)
+                      .WithMany()
+                      .HasForeignKey(r => r.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.User)
+                      .WithMany()
+                      .HasForeignKey(r => r.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(r => r.ResolvedByUser)
+                      .WithMany()
+                      .HasForeignKey(r => r.ResolvedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // At most one Pending request per (User, Club).
+                entity.HasIndex(r => new { r.UserId, r.ClubId })
+                      .IsUnique()
+                      .HasFilter("[Status] = 1");
+
+                entity.HasIndex(r => new { r.ClubId, r.Status });
             });
 
             // ── Event ───────────────────────────────────────────────────────────────

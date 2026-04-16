@@ -3,6 +3,7 @@ using DropShot.Models;
 using DropShot.Services;
 using DropShot.Shared.Dtos;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,7 +14,8 @@ namespace DropShot.Controllers;
 [Authorize(AuthenticationSchemes = "Bearer")]
 public class CompetitionsController(
     IDbContextFactory<MyDbContext> dbFactory,
-    ClubAuthorizationService authzService) : ControllerBase
+    ClubAuthorizationService authzService,
+    UserManager<ApplicationUser> userManager) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<CompetitionDto>>> GetAll(
@@ -21,17 +23,21 @@ public class CompetitionsController(
         [FromQuery] bool includeArchived = false)
     {
         await using var db = dbFactory.CreateDbContext();
-        var query = db.Competition
+        var baseQuery = db.Competition
             .Include(c => c.HostClub)
             .Include(c => c.Rules)
             .Include(c => c.Event)
             .AsQueryable();
 
         if (!includeArchived)
-            query = query.Where(c => !c.IsArchived);
+            baseQuery = baseQuery.Where(c => !c.IsArchived);
 
         if (eventId.HasValue)
-            query = query.Where(c => c.EventId == eventId.Value);
+            baseQuery = baseQuery.Where(c => c.EventId == eventId.Value);
+
+        // Hard visibility filter — caller only sees competitions they can enter.
+        var ctx = await authzService.GetVisibilityContextAsync(User);
+        var query = authzService.ApplyVisibilityFilter(baseQuery, db, ctx);
 
         var comps = await query
             .OrderBy(c => c.CompetitionName)
@@ -52,9 +58,14 @@ public class CompetitionsController(
             .Include(x => x.Stages.OrderBy(s => s.StageOrder))
             .Include(x => x.Participants).ThenInclude(p => p.Player)
             .Include(x => x.Participants).ThenInclude(p => p.Team)
+            .Include(x => x.AllowedPlayers)
             .FirstOrDefaultAsync(x => x.CompetitionID == id);
 
         if (c is null) return NotFound();
+
+        // Enforce hard visibility for the detail view too.
+        if (!await authzService.CanViewCompetitionAsync(User, id))
+            return NotFound();
 
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
@@ -74,18 +85,40 @@ public class CompetitionsController(
                 (DropShot.Shared.PlayerGrade?)p.Grade,
                 (DropShot.Shared.PlayerSex?)p.Player?.Sex)).ToList(),
             c.IsArchived,
-            c.IsStarted);
+            c.IsStarted,
+            c.CreatorUserId,
+            c.IsRestricted,
+            c.AllowedPlayers.Select(ap => ap.PlayerId).ToList());
     }
 
     [HttpPost]
     public async Task<ActionResult<CompetitionDto>> Create([FromBody] SaveCompetitionRequest req)
     {
-        if (!await authzService.CanEditCompetitionAsync(User, req.HostClubId))
-            return Forbid();
-
         await using var db = dbFactory.CreateDbContext();
         var comp = new Competition();
+
+        if (req.HostClubId.HasValue)
+        {
+            if (!await authzService.CanCreateClubCompetitionAsync(User, req.HostClubId.Value))
+                return Forbid();
+            comp.HostClubId = req.HostClubId.Value;
+            comp.CreatorUserId = null;
+        }
+        else
+        {
+            var appUser = await userManager.GetUserAsync(User);
+            if (!authzService.CanCreateUserCompetition(User, appUser))
+                return Forbid();
+            comp.HostClubId = null;
+            comp.CreatorUserId = userManager.GetUserId(User);
+        }
+
         Apply(comp, req);
+        ApplyRestriction(comp, req);
+
+        if (comp.HostClubId.HasValue && comp.CreatorUserId != null)
+            return BadRequest(new { message = "A competition cannot have both a host club and a creator." });
+
         db.Competition.Add(comp);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(Get), new { id = comp.CompetitionID }, ToDto(comp));
@@ -94,14 +127,23 @@ public class CompetitionsController(
     [HttpPut("{id:int}")]
     public async Task<ActionResult<CompetitionDto>> Update(int id, [FromBody] SaveCompetitionRequest req)
     {
-        if (!await authzService.CanEditCompetitionAsync(User, req.HostClubId))
-            return Forbid();
-
         await using var db = dbFactory.CreateDbContext();
-        var comp = await db.Competition.FindAsync(id);
+        var comp = await db.Competition
+            .Include(c => c.AllowedPlayers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
 
+        // Authorization uses the stored HostClubId (immutable across updates) rather than the
+        // request payload, so callers can't change the owner by tweaking the body.
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId, comp.CompetitionID))
+            return Forbid();
+
+        // Creator/host ownership is immutable after creation.
+        if (req.HostClubId != comp.HostClubId)
+            return BadRequest(new { message = "The host club of a competition cannot be changed." });
+
         Apply(comp, req);
+        UpdateRestriction(db, comp, req);
         await db.SaveChangesAsync();
         return ToDto(comp);
     }
@@ -918,9 +960,37 @@ public class CompetitionsController(
         c.MaxAge = r.MaxAge;
         c.MinAge = r.MinAge;
         c.EligibleSex = (DropShot.Models.PlayerSex?)r.EligibleSex;
-        c.HostClubId = r.HostClubId;
+        // HostClubId/CreatorUserId are set explicitly at Create time and are immutable thereafter.
         c.RulesSetId = r.RulesSetId;
         c.EventId = r.EventId;
+    }
+
+    // Populates the restriction + allow-list on a fresh Competition (Create path).
+    private static void ApplyRestriction(Competition c, SaveCompetitionRequest r)
+    {
+        c.IsRestricted = r.IsRestricted;
+        if (r.IsRestricted && r.AllowedPlayerIds is { Count: > 0 })
+        {
+            foreach (var pid in r.AllowedPlayerIds.Distinct())
+                c.AllowedPlayers.Add(new CompetitionAllowedPlayer { PlayerId = pid });
+        }
+    }
+
+    // Diffs the restriction state on an existing Competition (Update path).
+    private static void UpdateRestriction(MyDbContext db, Competition c, SaveCompetitionRequest r)
+    {
+        c.IsRestricted = r.IsRestricted;
+
+        var desired = (r.IsRestricted && r.AllowedPlayerIds is { Count: > 0 })
+            ? r.AllowedPlayerIds.Distinct().ToHashSet()
+            : new HashSet<int>();
+
+        var toRemove = c.AllowedPlayers.Where(ap => !desired.Contains(ap.PlayerId)).ToList();
+        foreach (var ap in toRemove) c.AllowedPlayers.Remove(ap);
+
+        var existing = c.AllowedPlayers.Select(ap => ap.PlayerId).ToHashSet();
+        foreach (var pid in desired.Where(p => !existing.Contains(p)))
+            c.AllowedPlayers.Add(new CompetitionAllowedPlayer { PlayerId = pid });
     }
 
     private static void ApplyFixture(CompetitionFixture f, SaveFixtureRequest r)
@@ -945,7 +1015,8 @@ public class CompetitionsController(
         c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
         (DropShot.Shared.PlayerSex?)c.EligibleSex,
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
-        c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted);
+        c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted,
+        c.CreatorUserId, c.IsRestricted);
 
     private static CompetitionFixtureDto ToFixtureDto(CompetitionFixture f) => new(
         f.CompetitionFixtureId, f.CompetitionId,

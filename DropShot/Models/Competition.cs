@@ -30,6 +30,19 @@
         public bool IsArchived { get; set; } = false;
         public bool IsStarted { get; set; } = false;
 
+        /// <summary>
+        /// For "user competitions" (no host club), identifies the subscribed user who created
+        /// the competition. Mutually exclusive with <see cref="HostClubId"/>.
+        /// </summary>
+        public string? CreatorUserId { get; set; }
+        public DropShot.Data.ApplicationUser? CreatorUser { get; set; }
+
+        /// <summary>
+        /// When true, the competition is only visible/enterable to the explicit
+        /// <see cref="AllowedPlayers"/> list (in addition to the implicit access rule).
+        /// </summary>
+        public bool IsRestricted { get; set; } = false;
+
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
         public Event? Event { get; set; }
@@ -40,5 +53,6 @@
         public ICollection<CompetitionMatchWindow> MatchWindows { get; set; } = [];
         public ICollection<CompetitionAdmin> Admins { get; set; } = [];
         public ICollection<CourtPair> CourtPairs { get; set; } = [];
+        public ICollection<CompetitionAllowedPlayer> AllowedPlayers { get; set; } = [];
     }
 }

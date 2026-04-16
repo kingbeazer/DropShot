@@ -26,3 +26,5 @@ public record SwitchRoleResponse(
     string AccessToken,
     string ActiveRole,
     List<string> GrantedRoles);
+
+public record UpgradePremiumRequest(bool IsSubscribed);

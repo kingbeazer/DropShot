@@ -17,7 +17,9 @@ public record CompetitionDto(
     int? EventId,
     string? EventName,
     bool IsArchived = false,
-    bool IsStarted = false);
+    bool IsStarted = false,
+    string? CreatorUserId = null,
+    bool IsRestricted = false);
 
 public record CompetitionDetailDto(
     int CompetitionId,
@@ -38,7 +40,10 @@ public record CompetitionDetailDto(
     List<CompetitionStageDto> Stages,
     List<CompetitionParticipantDto> Participants,
     bool IsArchived = false,
-    bool IsStarted = false);
+    bool IsStarted = false,
+    string? CreatorUserId = null,
+    bool IsRestricted = false,
+    List<int>? AllowedPlayerIds = null);
 
 public record CompetitionStageDto(
     int CompetitionStageId,
@@ -112,7 +117,9 @@ public record SaveCompetitionRequest(
     PlayerSex? EligibleSex,
     int? HostClubId,
     int? RulesSetId,
-    int? EventId);
+    int? EventId,
+    bool IsRestricted = false,
+    List<int>? AllowedPlayerIds = null);
 
 public record AddStageRequest(StageType StageType, string? Name = null, int? StageOrder = null);
 
