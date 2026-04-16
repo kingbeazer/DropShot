@@ -89,21 +89,31 @@
                         }
                     </MudSelect>
 
-                    <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
-                        <MudSelect T="int?" Value="Model.HostClubId"
-                                   ValueChanged="OnHostClubChanged"
-                                   Label="Host Club (optional)" Variant="Variant.Text"
-                                   Clearable="true" Style="flex:1">
-                            @foreach (var c in _clubs)
+                    @if (!_hideHostClub)
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
+                            <MudSelect T="int?" Value="Model.HostClubId"
+                                       ValueChanged="OnHostClubChanged"
+                                       Label="@(_lockHostClub ? "Host Club" : "Host Club (optional)")"
+                                       Variant="Variant.Text"
+                                       Clearable="@(!_lockHostClub)"
+                                       ReadOnly="@_lockHostClub"
+                                       Disabled="@_lockHostClub"
+                                       Style="flex:1">
+                                @foreach (var c in _clubs)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            @if (!_lockHostClub)
                             {
-                                <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                                <MudTooltip Text="Add new club">
+                                    <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                                   Color="Color.Primary" OnClick="@(() => _showAddClubDialog = true)" />
+                                </MudTooltip>
                             }
-                        </MudSelect>
-                        <MudTooltip Text="Add new club">
-                            <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
-                                           Color="Color.Primary" OnClick="@(() => _showAddClubDialog = true)" />
-                        </MudTooltip>
-                    </MudStack>
+                        </MudStack>
+                    }
 
                     <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
                         <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
@@ -988,6 +998,15 @@
     private bool _isSaving;
     private bool _canEdit;
     private bool _canCreateUserComp;
+
+    // When true, the host-club select is rendered but locked to the caller's
+    // active ClubAdmin club — forces a club competition. Set during Create only.
+    private bool _lockHostClub;
+
+    // When true, the host-club block is hidden entirely — forces a user
+    // ("personal") competition. Set during Create only, for subscribed users in
+    // User mode.
+    private bool _hideHostClub;
     private string[] _errors = [];
     private string? _serverError;
     private bool IsEdit => Id != 0;
@@ -1272,15 +1291,30 @@
             // A subscribed user creates a user-owned competition (no host club).
             var appUser = await UserManager.GetUserAsync(authState.User);
             _canCreateUserComp = AuthzService.CanCreateUserCompetition(authState.User, appUser);
-            _canEdit = await AuthzService.IsAdminAsync(authState.User)
-                || (await AuthzService.GetAdminClubIdsAsync(authState.User)).Count > 0
-                || _canCreateUserComp;
+            var isAdminMode = await AuthzService.IsAdminAsync(authState.User);
+            var adminClubIds = await AuthzService.GetAdminClubIdsAsync(authState.User);
+            _canEdit = isAdminMode || adminClubIds.Count > 0 || _canCreateUserComp;
             if (!_canEdit)
             {
                 Nav.NavigateTo("/", replace: true);
                 return;
             }
             Model = new CompetitionFormModel { EventId = EventId };
+
+            // Role-aware host club behaviour:
+            //  • ClubAdmin (not full Admin): lock host club to their club — force a club comp.
+            //  • Premium user (User mode, not admin): hide host club — force a user comp.
+            //  • Admin/SuperAdmin: keep the current freeform behaviour.
+            if (!isAdminMode && adminClubIds.Count > 0)
+            {
+                _lockHostClub = true;
+                Model.HostClubId = adminClubIds[0];
+            }
+            else if (!isAdminMode && _canCreateUserComp)
+            {
+                _hideHostClub = true;
+                Model.HostClubId = null;
+            }
             _stages = [];
             _participants = [];
             _fixtures = [];
