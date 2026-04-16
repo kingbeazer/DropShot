@@ -58,6 +58,21 @@
                     <label for="display-name" class="form-label">Display name</label>
                     <ValidationMessage For="() => Input.DisplayName" class="text-danger" />
                 </div>
+                <fieldset class="mb-3">
+                    <legend class="form-label mb-1" style="font-size: 1rem;">Competition category</legend>
+                    <small class="form-text text-muted d-block mb-2">Determines which events you're eligible to enter</small>
+                    <InputRadioGroup @bind-Value="Input.CompetitionCategory">
+                        <div class="form-check">
+                            <InputRadio class="form-check-input" id="manage-category-male" Value="@PlayerSex.Male" />
+                            <label class="form-check-label" for="manage-category-male">Male events</label>
+                        </div>
+                        <div class="form-check">
+                            <InputRadio class="form-check-input" id="manage-category-female" Value="@PlayerSex.Female" />
+                            <label class="form-check-label" for="manage-category-female">Female events</label>
+                        </div>
+                    </InputRadioGroup>
+                    <ValidationMessage For="() => Input.CompetitionCategory" class="text-danger" />
+                </fieldset>
             }
             <div class="form-floating mb-3">
                 <InputText @bind-Value="Input.PhoneNumber" class="form-control" placeholder="Please enter your phone number." />
@@ -101,6 +116,7 @@
     private string? username;
     private string? phoneNumber;
     private string? displayName;
+    private PlayerSex? competitionCategory;
     private bool hasLinkedPlayer;
     private int? linkedPlayerId;
     private string? avatarError;
@@ -126,7 +142,10 @@
             hasLinkedPlayer = true;
             linkedPlayerId = player.PlayerId;
             displayName = player.DisplayName;
+            // Only Male/Female are offered in the category picker; Other/null → unset.
+            competitionCategory = player.Sex is PlayerSex.Male or PlayerSex.Female ? player.Sex : null;
             Input.DisplayName ??= displayName;
+            Input.CompetitionCategory ??= competitionCategory;
         }
 
         Input.PhoneNumber ??= phoneNumber;
@@ -139,16 +158,21 @@
 
     private async Task OnValidSubmitAsync()
     {
-        if (hasLinkedPlayer && linkedPlayerId.HasValue
-            && !string.IsNullOrWhiteSpace(Input.DisplayName)
-            && Input.DisplayName.Trim() != displayName)
+        if (hasLinkedPlayer && linkedPlayerId.HasValue)
         {
-            await using var db = DbFactory.CreateDbContext();
-            var player = await db.Players.FindAsync(linkedPlayerId.Value);
-            if (player is not null)
+            var nameChanged = !string.IsNullOrWhiteSpace(Input.DisplayName)
+                && Input.DisplayName.Trim() != displayName;
+            var categoryChanged = Input.CompetitionCategory != competitionCategory;
+            if (nameChanged || categoryChanged)
             {
-                player.DisplayName = Input.DisplayName.Trim();
-                await db.SaveChangesAsync();
+                await using var db = DbFactory.CreateDbContext();
+                var player = await db.Players.FindAsync(linkedPlayerId.Value);
+                if (player is not null)
+                {
+                    if (nameChanged) player.DisplayName = Input.DisplayName!.Trim();
+                    if (categoryChanged) player.Sex = Input.CompetitionCategory;
+                    await db.SaveChangesAsync();
+                }
             }
         }
 
@@ -174,5 +198,8 @@
         [Phone]
         [Display(Name = "Phone number")]
         public string? PhoneNumber { get; set; }
+
+        [Display(Name = "Competition category")]
+        public PlayerSex? CompetitionCategory { get; set; }
     }
 }

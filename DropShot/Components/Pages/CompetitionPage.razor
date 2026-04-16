@@ -79,13 +79,24 @@
 
             <MudForm @ref="_form" @bind-IsValid="_isValid" @bind-Errors="_errors">
                 <MudStack Spacing="3">
-                    <MudSelect T="CompetitionFormat?" Label="Format" Variant="Variant.Text"
+                    <MudField Label="Category" Variant="Variant.Text"
+                              Error="@(_categoryError != null)" ErrorText="@_categoryError">
+                        <MudRadioGroup T="CompetitionCategoryUi?" Value="Model.Category"
+                                       ValueChanged="OnCategoryChanged">
+                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Male)" Color="Color.Primary">Male</MudRadio>
+                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Female)" Color="Color.Primary">Female</MudRadio>
+                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Mixed)" Color="Color.Primary">Mixed</MudRadio>
+                        </MudRadioGroup>
+                    </MudField>
+
+                    <MudSelect T="CompetitionFormatUi?" Label="Format" Variant="Variant.Text"
                                Required="true" RequiredError="Please select a competition format."
-                               Value="Model.CompetitionFormat"
-                               ValueChanged="@(v => { Model.CompetitionFormat = v; AutoDetermineEligibleSex(); AutoGenerateName(); })">
-                        @foreach (CompetitionFormat f in Enum.GetValues<CompetitionFormat>())
+                               Disabled="@(Model.Category == null)"
+                               Value="Model.Format"
+                               ValueChanged="@(v => { Model.Format = v; AutoGenerateName(); })">
+                        @foreach (var f in AllowedFormats(Model.Category))
                         {
-                            <MudSelectItem T="CompetitionFormat?" Value="@((CompetitionFormat?)f)">@f.ToDisplayName()</MudSelectItem>
+                            <MudSelectItem T="CompetitionFormatUi?" Value="@((CompetitionFormatUi?)f)">@f.ToString()</MudSelectItem>
                         }
                     </MudSelect>
 
@@ -367,11 +378,11 @@
                         <MudTh>Player</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh>Registered</MudTh>
-                        @if (Model.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
+                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
                         {
                             <MudTh>Team</MudTh>
                         }
-                        @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                        @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
                         {
                             <MudTh>Sex</MudTh>
                             <MudTh>Grade</MudTh>
@@ -391,7 +402,7 @@
                             </MudSelect>
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
-                        @if (Model.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
+                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
                         {
                             <MudTd>
                                 <MudSelect T="int?" Value="context.TeamId" Dense="true" Variant="Variant.Text"
@@ -404,7 +415,7 @@
                                 </MudSelect>
                             </MudTd>
                         }
-                        @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                        @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
                         {
                             <MudTd>@(context.Player?.Sex?.ToString() ?? "—")</MudTd>
                             <MudTd>
@@ -486,7 +497,7 @@
             }
 
             @* ── Teams (for Team and MixedTeam competitions) ──────────── *@
-            @if (Model.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
+            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
             {
                 <MudPaper Class="pa-4 mb-4">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
@@ -498,7 +509,7 @@
                     <MudTable Items="@_teams" Dense="true" Hover="true">
                         <HeaderContent>
                             <MudTh>Team Name</MudTh>
-                            @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                            @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
                             {
                                 <MudTh>Captain</MudTh>
                             }
@@ -507,7 +518,7 @@
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd>@context.Name</MudTd>
-                            @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                            @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
                             {
                                 <MudTd>
                                     <MudSelect T="int?" Value="context.CaptainPlayerId" Dense="true" Variant="Variant.Text"
@@ -521,7 +532,7 @@
                                 </MudTd>
                             }
                             <MudTd>
-                                @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                                @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
                                 {
                                     @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
                                     {
@@ -537,7 +548,7 @@
                                 }
                             </MudTd>
                             <MudTd>
-                                @if (Model.CompetitionFormat == CompetitionFormat.MixedTeam)
+                                @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
                                 {
                                     <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small"
                                                    Color="Color.Info" aria-label="Validate"
@@ -855,7 +866,7 @@
                     }
                 </MudSelect>
             </MudItem>
-            @if (Model.CompetitionFormat == CompetitionFormat.Doubles || Model.CompetitionFormat == CompetitionFormat.MixedDoubles)
+            @if (EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
             {
                 <MudItem xs="12" sm="6">
                     <MudSelect @bind-Value="_fixtureForm.Player3Id" Label="Player 3 (optional)"
@@ -1107,19 +1118,61 @@
         [Required(ErrorMessage = "Competition name is required!")]
         [StringLength(200, ErrorMessage = "Name must be 200 characters or fewer.")]
         public string CompetitionName { get; set; } = "";
-        public CompetitionFormat? CompetitionFormat { get; set; }
+        public CompetitionCategoryUi? Category { get; set; }
+        public CompetitionFormatUi? Format { get; set; }
         public int? MaxParticipants { get; set; }
         public DateTime? StartDateDt { get; set; }
         public DateTime? EndDateDt { get; set; }
         public DateTime? RegisterByDateDt { get; set; }
         public int? MaxAge { get; set; }
         public int? MinAge { get; set; }
-        public PlayerSex? EligibleSex { get; set; }
         public int? HostClubId { get; set; }
         public int? RulesSetId { get; set; }
         public int? EventId { get; set; }
         public int BestOf { get; set; } = 3;
         public bool RequireVerification { get; set; } = false;
+    }
+
+    // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the
+    // dropdown (Singles/Doubles/Team). The persisted CompetitionFormat + EligibleSex pair is
+    // derived from these two on save; see EffectivePersistedFormat / EffectiveEligibleSex.
+    private enum CompetitionCategoryUi { Male, Female, Mixed }
+    private enum CompetitionFormatUi { Singles, Doubles, Team }
+
+    private static IEnumerable<CompetitionFormatUi> AllowedFormats(CompetitionCategoryUi? category) =>
+        category == CompetitionCategoryUi.Mixed
+            ? new[] { CompetitionFormatUi.Doubles, CompetitionFormatUi.Team }
+            : new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team };
+
+    private CompetitionFormat? EffectivePersistedFormat() =>
+        (Model.Category, Model.Format) switch
+        {
+            (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Doubles) => CompetitionFormat.MixedDoubles,
+            (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team)    => CompetitionFormat.MixedTeam,
+            (_, CompetitionFormatUi.Singles) => CompetitionFormat.Singles,
+            (_, CompetitionFormatUi.Doubles) => CompetitionFormat.Doubles,
+            (_, CompetitionFormatUi.Team)    => CompetitionFormat.Team,
+            _ => (CompetitionFormat?)null
+        };
+
+    private PlayerSex? EffectiveEligibleSex() => Model.Category switch
+    {
+        CompetitionCategoryUi.Male   => PlayerSex.Male,
+        CompetitionCategoryUi.Female => PlayerSex.Female,
+        CompetitionCategoryUi.Mixed  => null,
+        _ => null
+    };
+
+    private string? _categoryError;
+
+    private void OnCategoryChanged(CompetitionCategoryUi? value)
+    {
+        Model.Category = value;
+        _categoryError = value == null ? "Please select a category." : null;
+        // Mixed doesn't allow Singles; clear an incompatible selection so the user re-picks.
+        if (Model.Format.HasValue && !AllowedFormats(value).Contains(Model.Format.Value))
+            Model.Format = null;
+        AutoGenerateName();
     }
 
     private sealed class StageForm
@@ -1231,17 +1284,18 @@
             _isStarted = comp.IsStarted;
             _nameOverride = true; // Existing competition — preserve its name
 
+            var (loadedCategory, loadedFormat) = SplitPersistedFormat(comp.CompetitionFormat, comp.EligibleSex);
             Model = new CompetitionFormModel
             {
                 CompetitionName = comp.CompetitionName,
-                CompetitionFormat = comp.CompetitionFormat,
+                Category = loadedCategory,
+                Format = loadedFormat,
                 MaxParticipants = comp.MaxParticipants,
                 StartDateDt = comp.StartDate,
                 EndDateDt = comp.EndDate,
                 RegisterByDateDt = comp.RegisterByDate,
                 MaxAge = comp.MaxAge,
                 MinAge = comp.MinAge,
-                EligibleSex = comp.EligibleSex,
                 HostClubId = comp.HostClubId,
                 RulesSetId = comp.RulesSetId,
                 EventId = comp.EventId,
@@ -1326,7 +1380,8 @@
     {
         _serverError = null;
         if (_form is not null) await _form.Validate();
-        if (!_isValid) return;
+        _categoryError = Model.Category == null ? "Please select a category." : null;
+        if (!_isValid || _categoryError != null) return;
 
         _isSaving = true;
         try
@@ -1477,55 +1532,69 @@
         Snackbar.Add($"Event '{ev.Name}' created.", Severity.Success);
     }
 
-    private void AutoDetermineEligibleSex()
-    {
-        Model.EligibleSex = Model.CompetitionFormat switch
-        {
-            CompetitionFormat.MixedDoubles or CompetitionFormat.MixedTeam => null,
-            _ => null  // null = open to all; eligibility enforced at participant level if needed
-        };
-    }
-
     private void AutoGenerateName()
     {
         if (_nameOverride) return;
-        if (Model.CompetitionFormat == null) { Model.CompetitionName = ""; return; }
+        if (Model.Category == null || Model.Format == null) { Model.CompetitionName = ""; return; }
 
         var parts = new List<string>();
-
-        if (Model.EligibleSex == PlayerSex.Male) parts.Add("Men's");
-        else if (Model.EligibleSex == PlayerSex.Female) parts.Add("Women's");
 
         if (Model.MinAge is > 0) parts.Add($"Over {Model.MinAge}");
         if (Model.MaxAge is > 0) parts.Add($"U{Model.MaxAge}");
 
-        parts.Add(Model.CompetitionFormat switch
+        var formatLabel = Model.Format.Value.ToString();
+
+        if (Model.Category == CompetitionCategoryUi.Mixed)
         {
-            CompetitionFormat.Singles => "Singles",
-            CompetitionFormat.Doubles => "Doubles",
-            CompetitionFormat.MixedDoubles => "Mixed Doubles",
-            CompetitionFormat.Team => "Team",
-            CompetitionFormat.MixedTeam => "Mixed Team Tennis",
-            _ => Model.CompetitionFormat.Value.ToString()
-        });
+            parts.Add($"Mixed {formatLabel}");
+        }
+        else
+        {
+            var isJunior = Model.MaxAge is > 0 and < 18;
+            var prefix = Model.Category switch
+            {
+                CompetitionCategoryUi.Male   => isJunior ? "Boys" : "Men's",
+                CompetitionCategoryUi.Female => isJunior ? "Girls" : "Women's",
+                _ => ""
+            };
+            parts.Add($"{prefix} {formatLabel}");
+        }
 
         Model.CompetitionName = string.Join(" ", parts);
     }
 
+    private static (CompetitionCategoryUi Category, CompetitionFormatUi Format) SplitPersistedFormat(
+        CompetitionFormat persisted, PlayerSex? eligibleSex) => persisted switch
+    {
+        CompetitionFormat.MixedDoubles => (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Doubles),
+        CompetitionFormat.MixedTeam    => (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team),
+        _ => (
+            eligibleSex switch
+            {
+                PlayerSex.Female => CompetitionCategoryUi.Female,
+                // Legacy EligibleSex=null Singles/Doubles/Team → default to Male category
+                // (per migration decision). User can change it on edit.
+                _ => CompetitionCategoryUi.Male
+            },
+            persisted switch
+            {
+                CompetitionFormat.Doubles => CompetitionFormatUi.Doubles,
+                CompetitionFormat.Team    => CompetitionFormatUi.Team,
+                _ => CompetitionFormatUi.Singles
+            })
+    };
+
     private void ApplyModel(Competition comp, string name)
     {
         comp.CompetitionName = name;
-        var format = Model.CompetitionFormat ?? CompetitionFormat.Singles;
-        comp.CompetitionFormat = format;
+        comp.CompetitionFormat = EffectivePersistedFormat() ?? CompetitionFormat.Singles;
+        comp.EligibleSex = EffectiveEligibleSex();
         comp.MaxParticipants = Model.MaxParticipants;
         comp.StartDate = Model.StartDateDt;
         comp.EndDate = Model.EndDateDt;
         comp.RegisterByDate = Model.RegisterByDateDt;
         comp.MaxAge = Model.MaxAge;
         comp.MinAge = Model.MinAge;
-        comp.EligibleSex = format is CompetitionFormat.MixedDoubles or CompetitionFormat.MixedTeam
-            ? null
-            : Model.EligibleSex;
         comp.HostClubId = Model.HostClubId;
         comp.RulesSetId = Model.RulesSetId;
         comp.EventId = Model.EventId;
@@ -2240,8 +2309,9 @@
 
         if (t.Format.HasValue)
         {
-            Model.CompetitionFormat = t.Format.Value;
-            AutoDetermineEligibleSex();
+            var (cat, fmt) = SplitPersistedFormat(t.Format.Value, t.EligibleSex);
+            Model.Category = cat;
+            Model.Format = fmt;
         }
         if (t.RulesSetId.HasValue) Model.RulesSetId = t.RulesSetId;
         if (t.BestOf.HasValue) Model.BestOf = t.BestOf.Value;

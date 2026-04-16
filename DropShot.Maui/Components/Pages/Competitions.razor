@@ -229,8 +229,10 @@ else
     {
         try
         {
+            // Dialog's Save button is disabled until Category and Format are both picked,
+            // so CompetitionFormat should never be null here — fall back to Singles for safety.
             var req = new SaveCompetitionRequest(
-                model.CompetitionName, model.CompetitionFormat,
+                model.CompetitionName, model.CompetitionFormat ?? CompetitionFormat.Singles,
                 model.MaxParticipants, model.StartDate, model.EndDate,
                 model.MaxAge, model.MinAge, model.EligibleSex,
                 model.HostClubId, model.RulesSetId, model.EventId);
