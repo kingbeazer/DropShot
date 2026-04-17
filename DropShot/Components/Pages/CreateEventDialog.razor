@@ -69,7 +69,15 @@
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="3" Class="d-flex align-center">
+                @if (_buildFormatUi == FormatUi.Team)
+                {
+                    <MudItem xs="6" sm="2">
+                        <MudNumericField @bind-Value="_buildTeamSize" Label="Team Size"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         Min="2" Max="20" />
+                    </MudItem>
+                }
+                <MudItem xs="6" sm="@(_buildFormatUi == FormatUi.Team ? 1 : 3)" Class="d-flex align-center">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                                OnClick="AddFromBuilder">Add</MudButton>
                 </MudItem>
@@ -137,6 +145,7 @@
     private CategoryUi _buildCategory = CategoryUi.Male;
     private FormatUi _buildFormatUi = FormatUi.Singles;
     private AgeBracket _buildAgeBracket = _ageBrackets[0];
+    private int _buildTeamSize = 4;
 
     public enum CategoryUi { Male, Female, Mixed }
     public enum FormatUi { Singles, Doubles, Team }
@@ -164,7 +173,7 @@
         _                => CompetitionFormat.Singles
     };
 
-    public record CompetitionEntry(string Name, CompetitionFormat Format, PlayerSex? EligibleSex, int? MinAge, int? MaxAge);
+    public record CompetitionEntry(string Name, CompetitionFormat Format, PlayerSex? EligibleSex, int? MinAge, int? MaxAge, int? TeamSize = null);
 
     public record AgeBracket(string Label, int? MinAge, int? MaxAge);
 
@@ -217,24 +226,30 @@
         var name = BuildAutoName();
         if (Competitions.Any(c => c.Name == name)) return;
         var (format, eligibleSex) = MapToPersisted(_buildCategory, _buildFormatUi);
+        int? teamSize = _buildFormatUi switch
+        {
+            FormatUi.Team => _buildTeamSize,
+            FormatUi.Doubles => 2,
+            _ => null
+        };
         Competitions.Add(new CompetitionEntry(name, format, eligibleSex,
-            _buildAgeBracket.MinAge, _buildAgeBracket.MaxAge));
+            _buildAgeBracket.MinAge, _buildAgeBracket.MaxAge, teamSize));
     }
 
     private void AddStandard5()
     {
-        var standard = new (string Name, CompetitionFormat Format, PlayerSex? Sex)[]
+        var standard = new (string Name, CompetitionFormat Format, PlayerSex? Sex, int? TeamSize)[]
         {
-            ("Men's Singles", CompetitionFormat.Singles, PlayerSex.Male),
-            ("Women's Singles", CompetitionFormat.Singles, PlayerSex.Female),
-            ("Men's Doubles", CompetitionFormat.Doubles, PlayerSex.Male),
-            ("Women's Doubles", CompetitionFormat.Doubles, PlayerSex.Female),
-            ("Mixed Doubles", CompetitionFormat.MixedDoubles, null),
+            ("Men's Singles", CompetitionFormat.Singles, PlayerSex.Male, null),
+            ("Women's Singles", CompetitionFormat.Singles, PlayerSex.Female, null),
+            ("Men's Doubles", CompetitionFormat.Doubles, PlayerSex.Male, 2),
+            ("Women's Doubles", CompetitionFormat.Doubles, PlayerSex.Female, 2),
+            ("Mixed Doubles", CompetitionFormat.MixedDoubles, null, 2),
         };
-        foreach (var (name, format, sex) in standard)
+        foreach (var (name, format, sex, teamSize) in standard)
         {
             if (!Competitions.Any(c => c.Name == name))
-                Competitions.Add(new CompetitionEntry(name, format, sex, null, null));
+                Competitions.Add(new CompetitionEntry(name, format, sex, null, null, teamSize));
         }
     }
 
