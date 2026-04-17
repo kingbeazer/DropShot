@@ -643,7 +643,25 @@
                     </MudButton>
                     <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
                                OnClick="OpenAddFixtureDialog">Add Fixture</MudButton>
+                    @if (_fixtures.Count > 0)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.DeleteSweep"
+                                   OnClick="@(() => _showDeleteAllFixturesConfirm = true)">Delete All</MudButton>
+                    }
                 </MudStack>
+
+                @if (_showDeleteAllFixturesConfirm)
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                              CloseIconClicked="@(() => _showDeleteAllFixturesConfirm = false)">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Typo="Typo.body2">Delete all @_fixtures.Count fixture(s)? This cannot be undone.</MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                       OnClick="DeleteAllFixtures">Confirm Delete</MudButton>
+                        </MudStack>
+                    </MudAlert>
+                }
 
                 <MudTable Items="@_fixtures" Dense="true" Hover="true">
                     <HeaderContent>
@@ -1190,6 +1208,7 @@
 
     // Schedule confirm dialog
     private bool _showScheduleConfirm;
+    private bool _showDeleteAllFixturesConfirm;
     private bool _showSeedConfirm;
 
     // Fixture dialog
@@ -2607,6 +2626,25 @@
             _fixtures.Remove(fixture);
             Snackbar.Add("Fixture removed.", Severity.Warning);
         }
+    }
+
+    private async Task DeleteAllFixtures()
+    {
+        _showDeleteAllFixturesConfirm = false;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        // Delete any TeamMatchSets first
+        var fixtureIds = _fixtures.Select(f => f.CompetitionFixtureId).ToList();
+        var teamSets = await db.TeamMatchSets.Where(s => fixtureIds.Contains(s.CompetitionFixtureId)).ToListAsync();
+        if (teamSets.Count > 0) db.TeamMatchSets.RemoveRange(teamSets);
+
+        var all = await db.CompetitionFixtures.Where(f => f.CompetitionId == Id).ToListAsync();
+        db.CompetitionFixtures.RemoveRange(all);
+        await db.SaveChangesAsync();
+
+        _fixtures.Clear();
+        Snackbar.Add($"{all.Count} fixture(s) deleted.", Severity.Warning);
     }
 
     private async Task AddMatchWindow()
