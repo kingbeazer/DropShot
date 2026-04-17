@@ -91,6 +91,22 @@
                 <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined"
                               Immediate="true" />
             </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Email" Label="Email address" Variant="Variant.Outlined"
+                              InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile number" Variant="Variant.Outlined"
+                              InputType="InputType.Telephone" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.body2" Class="mb-1">Competition category</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Determines which events they're eligible to enter</MudText>
+                <MudRadioGroup @bind-Value="_form.CompetitionCategory">
+                    <MudRadio Value="@PlayerSex.Male" Color="Color.Primary">Male events</MudRadio>
+                    <MudRadio Value="@PlayerSex.Female" Color="Color.Primary">Female events</MudRadio>
+                </MudRadioGroup>
+            </MudItem>
         </MudGrid>
 
         @if (_suggestions.Count > 0)
@@ -219,7 +235,7 @@
 </MudDialog>
 
 @code {
-    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight);
+    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, string? Email, string? MobileNumber, PlayerSex? Sex);
 
     private bool _loading = true;
     private List<PlayerRow> _players = [];
@@ -257,6 +273,9 @@
         public string DisplayName { get; set; } = "";
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
+        public string? Email { get; set; }
+        public string? MobileNumber { get; set; }
+        public PlayerSex? CompetitionCategory { get; set; }
     }
 
     private bool FilterPlayers(PlayerRow row) =>
@@ -301,7 +320,7 @@
         var lightPlayers = await db.Players
             .Where(p => p.IsLight && p.CreatedByUserId == _userId)
             .OrderBy(p => p.DisplayName)
-            .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, true))
+            .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, true, p.Email, p.MobileNumber, p.Sex))
             .ToListAsync();
 
         // Verified players I've bookmarked (via UserPlayer), excluding myself
@@ -314,7 +333,7 @@
             ? await db.Players
                 .Where(p => bookmarkedIds.Contains(p.PlayerId) && p.UserId != _userId)
                 .OrderBy(p => p.DisplayName)
-                .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false))
+                .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false, p.Email, p.MobileNumber, p.Sex))
                 .ToListAsync()
             : [];
 
@@ -341,7 +360,10 @@
         {
             DisplayName = player.DisplayName,
             FirstName = player.FirstName,
-            LastName = player.LastName
+            LastName = player.LastName,
+            Email = player.Email,
+            MobileNumber = player.MobileNumber,
+            CompetitionCategory = player.Sex
         };
         _firstNamePreFilled = !string.IsNullOrEmpty(player.FirstName);
         _lastNamePreFilled = !string.IsNullOrEmpty(player.LastName);
@@ -399,6 +421,9 @@
                 p.DisplayName = _form.DisplayName.Trim();
                 p.FirstName = NullIfEmpty(_form.FirstName);
                 p.LastName = NullIfEmpty(_form.LastName);
+                p.Email = NullIfEmpty(_form.Email);
+                p.MobileNumber = NullIfEmpty(_form.MobileNumber);
+                p.Sex = _form.CompetitionCategory;
                 await db.SaveChangesAsync();
                 Snackbar.Add("Player updated.", Severity.Success);
             }
@@ -410,6 +435,9 @@
                 DisplayName = _form.DisplayName.Trim(),
                 FirstName = NullIfEmpty(_form.FirstName),
                 LastName = NullIfEmpty(_form.LastName),
+                Email = NullIfEmpty(_form.Email),
+                MobileNumber = NullIfEmpty(_form.MobileNumber),
+                Sex = _form.CompetitionCategory,
                 IsLight = true,
                 CreatedByUserId = _userId
             });
@@ -609,7 +637,7 @@
     private async Task OpenInviteDialog(PlayerRow player)
     {
         _invitingPlayer = player;
-        _inviteEmail = "";
+        _inviteEmail = player.Email ?? "";
         _sendingInvite = false;
 
         // Reuse an existing unaccepted invitation if one exists, otherwise create a new one.
