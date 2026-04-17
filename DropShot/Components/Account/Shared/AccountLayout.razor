@@ -11,6 +11,47 @@ else
     @Body
 }
 
+<style>
+    .btn-submitting {
+        position: relative;
+        pointer-events: none;
+        opacity: 0.75;
+    }
+    .btn-submitting .btn-spinner {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: btn-spin 0.75s linear infinite;
+        vertical-align: middle;
+        margin-right: 0.4rem;
+    }
+    @@keyframes btn-spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+<script>
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form || form.tagName !== 'FORM') return;
+
+        // Only act on forms inside the account layout
+        var btn = form.querySelector('button[type="submit"]');
+        if (!btn || btn.classList.contains('btn-submitting')) return;
+
+        // Let the browser validate first — if invalid, don't show spinner
+        if (!form.checkValidity()) return;
+
+        btn.classList.add('btn-submitting');
+        btn.disabled = true;
+        var original = btn.innerHTML;
+        btn.innerHTML = '<span class="btn-spinner"></span>' + original;
+    });
+</script>
+
 @code {
     [CascadingParameter]
     private HttpContext? HttpContext { get; set; }
