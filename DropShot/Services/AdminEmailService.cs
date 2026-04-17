@@ -5,6 +5,7 @@ namespace DropShot.Services;
 
 public class AdminEmailService(
     EmailService emailService,
+    EmailTemplateService emailTemplateService,
     IConfiguration config,
     ILogger<AdminEmailService> logger)
 {
@@ -31,7 +32,8 @@ public class AdminEmailService(
         {
             var resolvedSubject = SubstituteVariables(subject, player!.DisplayName, competitionName, matchLink);
             var resolvedBody = SubstituteVariables(body, player.DisplayName, competitionName, matchLink);
-            return SendSafe(player.Email!, resolvedSubject, resolvedBody, "match-specific admin email");
+            var html = emailTemplateService.AdminCustomEmail(resolvedBody);
+            return SendSafe(player.Email!, resolvedSubject, html, "match-specific admin email", isHtml: true);
         }));
     }
 
@@ -53,7 +55,8 @@ public class AdminEmailService(
             {
                 var resolvedSubject = SubstituteVariables(subject, player.DisplayName, competitionName, link);
                 var resolvedBody = SubstituteVariables(body, player.DisplayName, competitionName, link);
-                return SendSafe(player.Email!, resolvedSubject, resolvedBody, "competition-wide admin email");
+                var html = emailTemplateService.AdminCustomEmail(resolvedBody);
+                return SendSafe(player.Email!, resolvedSubject, html, "competition-wide admin email", isHtml: true);
             }));
     }
 
@@ -63,11 +66,11 @@ public class AdminEmailService(
             .Replace("{CompetitionName}", System.Net.WebUtility.HtmlEncode(competitionName))
             .Replace("{MatchLink}", System.Net.WebUtility.HtmlEncode(matchLink));
 
-    private async Task SendSafe(string email, string subject, string body, string context)
+    private async Task SendSafe(string email, string subject, string body, string context, bool isHtml = false)
     {
         try
         {
-            await emailService.SendEmailAsync(email, subject, body);
+            await emailService.SendEmailAsync(email, subject, body, isHtml);
         }
         catch (Exception ex)
         {
@@ -90,14 +93,10 @@ public class AdminEmailService(
         {
             if (string.IsNullOrEmpty(admin.Email)) continue;
 
+            var adminName = admin.DisplayName ?? admin.UserName ?? "";
             var subject = $"New club link request for {club.Name}";
-            var body =
-                $"Hi {System.Net.WebUtility.HtmlEncode(admin.DisplayName ?? admin.UserName ?? "")}," +
-                $"\n\n{System.Net.WebUtility.HtmlEncode(requesterName)} has asked to be linked to " +
-                $"{System.Net.WebUtility.HtmlEncode(club.Name)}." +
-                $"\n\nReview the request: {manageLink}";
-
-            await SendSafe(admin.Email, subject, body, "club link request received");
+            var html = emailTemplateService.ClubLinkRequestReceivedEmail(adminName, requesterName, club.Name, manageLink);
+            await SendSafe(admin.Email, subject, html, "club link request received", isHtml: true);
         }
     }
 
@@ -109,13 +108,10 @@ public class AdminEmailService(
         if (string.IsNullOrEmpty(user.Email)) return;
 
         var clubLink = $"{BaseUrl}/clubs";
+        var userName = user.DisplayName ?? user.UserName ?? "";
         var subject = $"You're now linked to {club.Name}";
-        var body =
-            $"Hi {System.Net.WebUtility.HtmlEncode(user.DisplayName ?? user.UserName ?? "")}," +
-            $"\n\nYour request to join {System.Net.WebUtility.HtmlEncode(club.Name)} was approved." +
-            $"\n\nView the club: {clubLink}";
-
-        await SendSafe(user.Email, subject, body, "club link request approved");
+        var html = emailTemplateService.ClubLinkRequestApprovedEmail(userName, club.Name, clubLink);
+        await SendSafe(user.Email, subject, html, "club link request approved", isHtml: true);
     }
 
     /// <summary>
@@ -125,12 +121,9 @@ public class AdminEmailService(
     {
         if (string.IsNullOrEmpty(user.Email)) return;
 
-        var subject = $"Club link request declined";
-        var body =
-            $"Hi {System.Net.WebUtility.HtmlEncode(user.DisplayName ?? user.UserName ?? "")}," +
-            $"\n\nYour request to join {System.Net.WebUtility.HtmlEncode(club.Name)} was not approved. " +
-            "If you think this is a mistake, please reach out to the club directly.";
-
-        await SendSafe(user.Email, subject, body, "club link request rejected");
+        var userName = user.DisplayName ?? user.UserName ?? "";
+        var subject = "Club link request declined";
+        var html = emailTemplateService.ClubLinkRequestRejectedEmail(userName, club.Name);
+        await SendSafe(user.Email, subject, html, "club link request rejected", isHtml: true);
     }
 }

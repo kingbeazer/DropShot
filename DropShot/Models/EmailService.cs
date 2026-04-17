@@ -1,4 +1,5 @@
-﻿using Azure.Communication.Email;
+﻿using System.Text.RegularExpressions;
+using Azure.Communication.Email;
 
 public class EmailService
 {
@@ -18,7 +19,7 @@ public class EmailService
         _emailClient = new EmailClient(connectionString);
     }
 
-    public async Task SendEmailAsync(string recipient, string subject, string body)
+    public async Task SendEmailAsync(string recipient, string subject, string body, bool isHtml = false)
     {
         if (_emailClient is null || _sender is null)
         {
@@ -26,17 +27,39 @@ public class EmailService
             return;
         }
 
-        var emailContent = new EmailContent(subject)
+        EmailContent emailContent;
+
+        if (isHtml)
         {
-            PlainText = body,
-            Html = $"<html><body><p>{System.Net.WebUtility.HtmlEncode(body)}</p></body></html>"
-        };
+            emailContent = new EmailContent(subject)
+            {
+                Html = body,
+                PlainText = StripHtmlForPlainText(body)
+            };
+        }
+        else
+        {
+            emailContent = new EmailContent(subject)
+            {
+                PlainText = body,
+                Html = $"<html><body><p>{System.Net.WebUtility.HtmlEncode(body)}</p></body></html>"
+            };
+        }
 
         var recipients = new EmailRecipients(new List<EmailAddress> { new EmailAddress(recipient) });
 
         var message = new EmailMessage(_sender, recipients, emailContent);
 
-        // Fix: Specify WaitUntil.Completed as required by the method signature
         await _emailClient.SendAsync(Azure.WaitUntil.Completed, message);
+    }
+
+    private static string StripHtmlForPlainText(string html)
+    {
+        var text = Regex.Replace(html, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"</p>", "\n\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"<[^>]+>", "");
+        text = System.Net.WebUtility.HtmlDecode(text);
+        text = Regex.Replace(text, @"\n{3,}", "\n\n");
+        return text.Trim();
     }
 }

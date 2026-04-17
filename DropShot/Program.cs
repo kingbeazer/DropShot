@@ -112,6 +112,7 @@ builder.Services.AddScoped<TennisScoreService>();
 builder.Services.AddScoped<ClubAuthorizationService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<EmailService>();
+builder.Services.AddSingleton<EmailTemplateService>();
 builder.Services.AddScoped<ResultVerificationService>();
 builder.Services.AddScoped<AdminEmailService>();
 builder.Services.AddScoped<FuzzySearchService>();
