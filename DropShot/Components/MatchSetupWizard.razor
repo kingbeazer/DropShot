@@ -110,16 +110,23 @@
 
                         <tr>
                             <td>
-                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                    @if (idx == 0 && _myPlayer != null)
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    @if (entry.IsVerified || (idx == 0 && _myPlayer != null))
                                     {
-                                        <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Size="Size.Small" />
+                                        @if (!string.IsNullOrEmpty(entry.ProfileImagePath))
+                                        {
+                                            <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                                <MudImage Src="@entry.ProfileImagePath" />
+                                            </MudAvatar>
+                                        }
+                                        else
+                                        {
+                                            <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                                <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                                            </MudAvatar>
+                                        }
                                     }
-                                    else if (entry.IsVerified)
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
-                                    }
-                                    else if (entry.IsLight)
+                                    else
                                     {
                                         <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
                                     }
@@ -168,7 +175,7 @@
                                  Immediate="true"
                                  Variant="Variant.Outlined" CoerceValue="true">
                     <ItemTemplate Context="item">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                             @if (item.IsCreateOption)
                             {
                                 <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Primary" Size="Size.Small" />
@@ -176,7 +183,18 @@
                             }
                             else if (item.IsVerified)
                             {
-                                <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                                @if (!string.IsNullOrEmpty(item.ProfileImagePath))
+                                {
+                                    <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                        <MudImage Src="@item.ProfileImagePath" />
+                                    </MudAvatar>
+                                }
+                                else
+                                {
+                                    <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                        <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                                    </MudAvatar>
+                                }
                                 <MudText>@item.DisplayName</MudText>
                             }
                             else
@@ -421,8 +439,22 @@
                 {
                     var suggestion = s;
                     <MudListItem T="FuzzySearchResult" OnClick="@(() => UseVerifiedPlayerInstead(suggestion))">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                            <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            @{
+                                var sugAvatar = _playerAvatars.GetValueOrDefault(suggestion.PlayerId);
+                            }
+                            @if (!string.IsNullOrEmpty(sugAvatar))
+                            {
+                                <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                    <MudImage Src="@sugAvatar" />
+                                </MudAvatar>
+                            }
+                            else
+                            {
+                                <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                    <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                                </MudAvatar>
+                            }
                             <MudText>@suggestion.DisplayName</MudText>
                             <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Color="Color.Secondary" />
                         </MudStack>
@@ -479,6 +511,7 @@
     private Player? _myPlayer;
     private string? _userId;
     private List<PlayerSelection> _searchablePlayers = [];
+    private Dictionary<int, string?> _playerAvatars = [];
     private bool _fuzzyInitialized;
 
     // Inline light player creation
@@ -507,6 +540,7 @@
         public bool IsVerified => PlayerId.HasValue && !IsLight;
         public bool IsCreateOption { get; set; }
         public string? CreateName { get; set; }
+        public string? ProfileImagePath { get; set; }
     }
 
     protected override async Task OnInitializedAsync()
@@ -526,11 +560,13 @@
         // Add logged-in user as first player
         if (_myPlayer != null)
         {
+            var myUser = await db.Users.FindAsync(_myPlayer.UserId);
             _players.Add(new PlayerSelection
             {
                 PlayerId = _myPlayer.PlayerId,
                 DisplayName = _myPlayer.DisplayName,
-                IsLight = false
+                IsLight = false,
+                ProfileImagePath = myUser?.ProfileImagePath ?? _myPlayer.ProfileImagePath
             });
         }
         else if (!string.IsNullOrWhiteSpace(PresetPlayer1))
@@ -550,7 +586,7 @@
         var myLightPlayers = await db.Players
             .Where(p => p.IsLight && p.CreatedByUserId == _userId)
             .OrderBy(p => p.DisplayName)
-            .Select(p => new { p.PlayerId, p.DisplayName, p.IsLight })
+            .Select(p => new { p.PlayerId, p.DisplayName, p.IsLight, p.ProfileImagePath })
             .ToListAsync();
 
         var bookmarkedIds = _userId != null
@@ -564,7 +600,7 @@
             ? await db.Players
                 .Where(p => bookmarkedIds.Contains(p.PlayerId) && p.UserId != _userId)
                 .OrderBy(p => p.DisplayName)
-                .Select(p => new { p.PlayerId, p.DisplayName, p.IsLight })
+                .Select(p => new { p.PlayerId, p.DisplayName, p.IsLight, ProfileImagePath = p.User != null ? p.User.ProfileImagePath : p.ProfileImagePath })
                 .ToListAsync()
             : [];
 
@@ -575,9 +611,15 @@
             {
                 PlayerId = p.PlayerId,
                 DisplayName = p.DisplayName,
-                IsLight = p.IsLight
+                IsLight = p.IsLight,
+                ProfileImagePath = p.ProfileImagePath
             })
             .ToList();
+
+        // Build avatar lookup for fuzzy search results
+        _playerAvatars = _searchablePlayers
+            .Where(p => p.PlayerId.HasValue)
+            .ToDictionary(p => p.PlayerId!.Value, p => p.ProfileImagePath);
 
         _allClubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
     }
@@ -769,7 +811,8 @@
             {
                 PlayerId = _addPlayerNudge.PlayerId,
                 DisplayName = _addPlayerNudge.DisplayName,
-                IsLight = false
+                IsLight = false,
+                ProfileImagePath = _playerAvatars.GetValueOrDefault(_addPlayerNudge.PlayerId)
             };
         }
         _addPlayerNudge = null;
@@ -802,7 +845,8 @@
                 {
                     PlayerId = r.PlayerId,
                     DisplayName = r.DisplayName,
-                    IsLight = r.IsLight
+                    IsLight = r.IsLight,
+                    ProfileImagePath = _playerAvatars.GetValueOrDefault(r.PlayerId)
                 })
                 .ToList();
         }
@@ -888,7 +932,8 @@
         {
             PlayerId = suggestion.PlayerId,
             DisplayName = suggestion.DisplayName,
-            IsLight = false
+            IsLight = false,
+            ProfileImagePath = _playerAvatars.GetValueOrDefault(suggestion.PlayerId)
         });
         _showInlineCreate = false;
     }

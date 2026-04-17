@@ -41,13 +41,27 @@
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Player">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                <MudText>@context.DisplayName</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                 @if (!context.IsLight)
                 {
-                    <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small"
-                             Title="Verified player" />
+                    @if (!string.IsNullOrEmpty(context.ProfileImagePath))
+                    {
+                        <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                            <MudImage Src="@context.ProfileImagePath" />
+                        </MudAvatar>
+                    }
+                    else
+                    {
+                        <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                            <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                        </MudAvatar>
+                    }
                 }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
+                }
+                <MudText>@context.DisplayName</MudText>
             </MudStack>
         </MudTd>
         <MudTd DataLabel="First Name">@(context.FirstName ?? "—")</MudTd>
@@ -236,7 +250,7 @@
 </MudDialog>
 
 @code {
-    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, string? Email, string? MobileNumber, PlayerSex? Sex);
+    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, string? Email, string? MobileNumber, PlayerSex? Sex, string? ProfileImagePath);
 
     private bool _loading = true;
     private List<PlayerRow> _players = [];
@@ -321,7 +335,7 @@
         var lightPlayers = await db.Players
             .Where(p => p.IsLight && p.CreatedByUserId == _userId)
             .OrderBy(p => p.DisplayName)
-            .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, true, p.Email, p.MobileNumber, p.Sex))
+            .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, true, p.Email, p.MobileNumber, p.Sex, p.ProfileImagePath))
             .ToListAsync();
 
         // Verified players I've bookmarked (via UserPlayer), excluding myself
@@ -334,7 +348,7 @@
             ? await db.Players
                 .Where(p => bookmarkedIds.Contains(p.PlayerId) && p.UserId != _userId)
                 .OrderBy(p => p.DisplayName)
-                .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false, p.Email, p.MobileNumber, p.Sex))
+                .Select(p => new PlayerRow(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false, p.Email, p.MobileNumber, p.Sex, p.User != null ? p.User.ProfileImagePath : p.ProfileImagePath))
                 .ToListAsync()
             : [];
 
