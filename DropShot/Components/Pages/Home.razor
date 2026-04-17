@@ -153,6 +153,26 @@
     </MudCardContent>
 </MudCard>
 
+@if (_isAuthenticated)
+{
+    <MudPaper Class="mt-4 pa-5" Elevation="0"
+              Style="background: linear-gradient(135deg, #004d40 0%, #00897b 60%, #4db6ac 100%); border-radius: 16px; text-align: center;">
+        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Style="font-size: 48px; color: rgba(255,255,255,0.85);" />
+        <MudText Typo="Typo.h5" Style="color: white; font-weight: 700; margin-top: 8px;">
+            Ready to play?
+        </MudText>
+        <MudText Typo="Typo.body1" Style="color: rgba(255,255,255,0.85); margin-top: 4px;">
+            Start a casual match and track your score live.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Dark" Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   Href="/match" Class="mt-3"
+                   Style="font-weight: 600; border-radius: 24px; padding: 10px 32px;">
+            Start a Match
+        </MudButton>
+    </MudPaper>
+}
+
 @if (_upcomingFixtures.Any() || _recentItems.Any())
 {
     <MudGrid Class="mt-4">
