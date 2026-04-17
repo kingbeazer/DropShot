@@ -353,7 +353,7 @@
                 </MudStack>
 
                 <MudDialog @bind-Visible="_showNewPlayerDialog">
-                    <TitleContent>Add New Club Player</TitleContent>
+                    <TitleContent>@(_editingLightPlayerId.HasValue ? "Edit Player" : "Add New Club Player")</TitleContent>
                     <DialogContent>
                         <MudGrid Spacing="2">
                             <MudItem xs="12">
@@ -378,7 +378,9 @@
                         <MudButton OnClick="@(() => _showNewPlayerDialog = false)">Cancel</MudButton>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                    Disabled="@string.IsNullOrWhiteSpace(_newPlayerForm.DisplayName)"
-                                   OnClick="CreateAndAddClubPlayer">Add</MudButton>
+                                   OnClick="@(_editingLightPlayerId.HasValue ? SaveLightPlayerEdit : CreateAndAddClubPlayer)">
+                            @(_editingLightPlayerId.HasValue ? "Save" : "Add")
+                        </MudButton>
                     </DialogActions>
                 </MudDialog>
 
@@ -439,6 +441,11 @@
                             </MudTd>
                         }
                         <MudTd>
+                            @if (context.Player?.IsLight == true)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                               OnClick="@(() => OpenEditLightPlayerDialog(context))" />
+                            }
                             <MudIconButton Icon="@Icons.Material.Filled.PersonRemove" Size="Size.Small"
                                            Color="Color.Error" OnClick="@(() => RemoveParticipant(context))" />
                         </MudTd>
@@ -1871,6 +1878,7 @@
     private bool _showNewPlayerDialog;
     private MudAutocomplete<Player>? _participantAutocomplete;
     private NewPlayerForm _newPlayerForm = new();
+    private int? _editingLightPlayerId;
 
     private sealed class NewPlayerForm
     {
@@ -1882,8 +1890,50 @@
 
     private void OpenNewPlayerDialog()
     {
+        _editingLightPlayerId = null;
         _newPlayerForm = new NewPlayerForm();
         _showNewPlayerDialog = true;
+    }
+
+    private void OpenEditLightPlayerDialog(CompetitionParticipant cp)
+    {
+        _editingLightPlayerId = cp.PlayerId;
+        _newPlayerForm = new NewPlayerForm
+        {
+            DisplayName = cp.Player?.DisplayName ?? "",
+            FirstName = cp.Player?.FirstName,
+            LastName = cp.Player?.LastName,
+            Email = cp.Player?.Email
+        };
+        _showNewPlayerDialog = true;
+    }
+
+    private async Task SaveLightPlayerEdit()
+    {
+        if (!_editingLightPlayerId.HasValue || string.IsNullOrWhiteSpace(_newPlayerForm.DisplayName)) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var player = await db.Players.FindAsync(_editingLightPlayerId.Value);
+        if (player is not { IsLight: true }) return;
+
+        player.DisplayName = _newPlayerForm.DisplayName.Trim();
+        player.FirstName = string.IsNullOrWhiteSpace(_newPlayerForm.FirstName) ? null : _newPlayerForm.FirstName.Trim();
+        player.LastName = string.IsNullOrWhiteSpace(_newPlayerForm.LastName) ? null : _newPlayerForm.LastName.Trim();
+        player.Email = string.IsNullOrWhiteSpace(_newPlayerForm.Email) ? null : _newPlayerForm.Email.Trim();
+        await db.SaveChangesAsync();
+
+        // Update local state
+        var cp = _participants.FirstOrDefault(p => p.PlayerId == _editingLightPlayerId.Value);
+        if (cp?.Player != null)
+        {
+            cp.Player.DisplayName = player.DisplayName;
+            cp.Player.FirstName = player.FirstName;
+            cp.Player.LastName = player.LastName;
+            cp.Player.Email = player.Email;
+        }
+
+        _showNewPlayerDialog = false;
+        Snackbar.Add("Player updated.", Severity.Success);
     }
 
     private async Task CreateAndAddClubPlayer()
