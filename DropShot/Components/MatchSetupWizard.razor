@@ -12,36 +12,31 @@
 
 <MudStack Spacing="3">
 
-    @* ── Step 0: Match Type ──────────────────────────────── *@
+    @* ── Step 0: Players (with match type toggle) ────────── *@
     @if (_currentStep > 0)
     {
-        <StepSummary Label="Match Type" Summary="@(_isDoubles ? "Doubles" : "Singles")" OnEdit="@(() => GoToStep(0))" />
+        <StepSummary Label="Players" Summary="@($"{(_isDoubles ? "Doubles" : "Singles")} — {PlayersSummary()}")" OnEdit="@(() => GoToStep(0))" />
     }
-    else
+    else if (_currentStep == 0)
     {
         <MudPaper Class="pa-4" Elevation="2">
             <MudText Typo="Typo.h6" Class="mb-3">Start a Match</MudText>
-            <MudRadioGroup @bind-Value="_isDoubles">
-                <MudRadio Value="false" Color="Color.Primary">Singles</MudRadio>
-                <MudRadio Value="true" Color="Color.Primary">Doubles</MudRadio>
-            </MudRadioGroup>
-            <div class="d-flex justify-end mt-3">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           EndIcon="@Icons.Material.Filled.ArrowForward"
-                           OnClick="@(() => GoToStep(1))">Next</MudButton>
-            </div>
-        </MudPaper>
-    }
 
-    @* ── Step 1: Players ─────────────────────────────────── *@
-    @if (_currentStep > 1)
-    {
-        <StepSummary Label="Players" Summary="@PlayersSummary()" OnEdit="@(() => GoToStep(1))" />
-    }
-    else if (_currentStep == 1)
-    {
-        <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.h6" Class="mb-3">Players</MudText>
+            @* ── Colourful match type toggle ─────────────── *@
+            <div class="match-type-toggle mb-4">
+                <div class="toggle-track @(_isDoubles ? "doubles-active" : "singles-active")"
+                     @onclick="ToggleMatchType">
+                    <span class="toggle-label toggle-label-left @(!_isDoubles ? "active" : "")">
+                        <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                        Singles
+                    </span>
+                    <span class="toggle-label toggle-label-right @(_isDoubles ? "active" : "")">
+                        <MudIcon Icon="@Icons.Material.Filled.Groups" Size="Size.Small" />
+                        Doubles
+                    </span>
+                    <div class="toggle-thumb"></div>
+                </div>
+            </div>
 
             @* ── Player List ─────────────────────────────── *@
             <MudSimpleTable Dense="true" Hover="true" Class="mb-3" Elevation="0">
@@ -56,6 +51,35 @@
                     {
                         var idx = i;
                         var entry = _players[i];
+
+                        @* ── Team divider for doubles ─────────── *@
+                        @if (_isDoubles && idx == 2)
+                        {
+                            <tr>
+                                <td colspan="2" style="padding: 4px 0;">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="my-1">
+                                        <MudDivider Style="flex: 1;" />
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined"
+                                                 Style="font-weight: 600; letter-spacing: 1px;">VS</MudChip>
+                                        <MudDivider Style="flex: 1;" />
+                                    </MudStack>
+                                </td>
+                            </tr>
+                        }
+
+                        @if (_isDoubles && idx == 0)
+                        {
+                            <tr><td colspan="2" style="padding: 2px 0 0;">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 600;">Your Side</MudText>
+                            </td></tr>
+                        }
+                        @if (_isDoubles && idx == 2)
+                        {
+                            <tr><td colspan="2" style="padding: 2px 0 0;">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 600;">Opponents</MudText>
+                            </td></tr>
+                        }
+
                         <tr>
                             <td>
                                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
@@ -100,15 +124,21 @@
                                  Variant="Variant.Outlined" CoerceValue="true">
                     <ItemTemplate Context="item">
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                            @if (item.IsVerified)
+                            @if (item.IsCreateOption)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Primary" Size="Size.Small" />
+                                <MudText Color="Color.Primary" Style="font-weight: 500;">@item.DisplayName</MudText>
+                            }
+                            else if (item.IsVerified)
                             {
                                 <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                                <MudText>@item.DisplayName</MudText>
                             }
-                            else if (item.IsLight)
+                            else
                             {
                                 <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
+                                <MudText>@item.DisplayName</MudText>
                             }
-                            <MudText>@item.DisplayName</MudText>
                         </MudStack>
                     </ItemTemplate>
                 </MudAutocomplete>
@@ -143,10 +173,7 @@
                 </MudAlert>
             }
 
-            <div class="d-flex justify-space-between mt-3">
-                <MudButton Variant="Variant.Text" Color="Color.Default"
-                           StartIcon="@Icons.Material.Filled.ArrowBack"
-                           OnClick="@(() => GoToStep(0))">Back</MudButton>
+            <div class="d-flex justify-end mt-3">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            EndIcon="@Icons.Material.Filled.ArrowForward"
                            OnClick="TryAdvanceFromPlayers">Next</MudButton>
@@ -155,11 +182,11 @@
     }
 
     @* ── Court Selection ─────────────────────────────────── *@
-    @if (_currentStep > 2)
+    @if (_currentStep > 1)
     {
-        <StepSummary Label="Court" Summary="@CourtSummary()" OnEdit="@(() => GoToStep(2))" />
+        <StepSummary Label="Court" Summary="@CourtSummary()" OnEdit="@(() => GoToStep(1))" />
     }
-    else if (_currentStep == 2)
+    else if (_currentStep == 1)
     {
         <MudPaper Class="pa-4" Elevation="2">
             <MudText Typo="Typo.h6" Class="mb-3">Court Selection</MudText>
@@ -192,10 +219,10 @@
             <div class="d-flex justify-space-between mt-3">
                 <MudButton Variant="Variant.Text" Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.ArrowBack"
-                           OnClick="@(() => GoToStep(1))">Back</MudButton>
+                           OnClick="@(() => GoToStep(0))">Back</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            EndIcon="@Icons.Material.Filled.ArrowForward"
-                           OnClick="@(() => GoToStep(3))">
+                           OnClick="@(() => GoToStep(2))">
                     @(_selectedCourtId == null ? "Skip" : "Next")
                 </MudButton>
             </div>
@@ -203,72 +230,84 @@
     }
 
     @* ── Match Settings ──────────────────────────────────── *@
-    @if (_currentStep == 3)
+    @if (_currentStep == 2)
     {
         <MudPaper Class="pa-4" Elevation="2">
             <MudText Typo="Typo.h6" Class="mb-3">Match Settings</MudText>
 
-            <MudText Typo="Typo.subtitle2" Class="mb-1">Scoring Type</MudText>
-            <MudRadioGroup @bind-Value="_gameScoring">
-                <MudStack Row="true" Spacing="2">
-                    <MudTooltip Text="Each tap awards a full game. Fast scoring for casual play.">
-                        <MudRadio Value="true" Color="Color.Primary">Game Scoring</MudRadio>
-                    </MudTooltip>
-                    <MudTooltip Text="Track individual points (15, 30, 40, deuce). Traditional tennis scoring.">
-                        <MudRadio Value="false" Color="Color.Primary">Point Scoring</MudRadio>
-                    </MudTooltip>
-                </MudStack>
-            </MudRadioGroup>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                @SettingsSummary()
+            </MudText>
 
-            <MudDivider Class="my-3" />
+            <MudExpansionPanels Elevation="0" Class="mb-3">
+                <MudExpansionPanel Text="Customise Rules" MaxHeight="600"
+                                   Style="background: transparent;">
+                    <MudText Typo="Typo.subtitle2" Class="mb-1">Scoring Type</MudText>
+                    <MudRadioGroup @bind-Value="_gameScoring">
+                        <MudStack Row="true" Spacing="2">
+                            <MudTooltip Text="Each tap awards a full game. Fast scoring for casual play.">
+                                <MudRadio Value="true" Color="Color.Primary">Game Scoring</MudRadio>
+                            </MudTooltip>
+                            <MudTooltip Text="Track individual points (15, 30, 40, deuce). Traditional tennis scoring.">
+                                <MudRadio Value="false" Color="Color.Primary">Point Scoring</MudRadio>
+                            </MudTooltip>
+                        </MudStack>
+                    </MudRadioGroup>
 
-            <MudText Typo="Typo.subtitle2" Class="mb-1">Deuce</MudText>
-            <MudRadioGroup @bind-Value="_unlimitedDeuce">
-                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-                    <MudRadio Value="true" Color="Color.Primary">Unlimited</MudRadio>
-                    <MudRadio Value="false" Color="Color.Primary">Limited</MudRadio>
+                    <MudDivider Class="my-3" />
+
+                    <MudText Typo="Typo.subtitle2" Class="mb-1">Deuce</MudText>
+                    <MudRadioGroup @bind-Value="_unlimitedDeuce">
+                        <MudStack Row="true" Spacing="2">
+                            <MudRadio Value="true" Color="Color.Primary">Unlimited</MudRadio>
+                            <MudRadio Value="false" Color="Color.Primary">Limited</MudRadio>
+                        </MudStack>
+                    </MudRadioGroup>
                     @if (!_unlimitedDeuce)
                     {
-                        <MudNumericField @bind-Value="_deuceLimit" Label="Max deuces"
-                                         Variant="Variant.Outlined" Min="1" Max="99"
-                                         Style="max-width: 120px;" />
+                        <div style="margin-left: 32px; margin-top: 8px;">
+                            <MudNumericField @bind-Value="_deuceLimit" Label="Max deuces"
+                                             Variant="Variant.Outlined" Min="1" Max="99"
+                                             Style="max-width: 120px;" />
+                        </div>
                     }
-                </MudStack>
-            </MudRadioGroup>
 
-            <MudDivider Class="my-3" />
+                    <MudDivider Class="my-3" />
 
-            <MudSelect T="int" @bind-Value="_bestOf" Label="Best of (sets)"
-                       Variant="Variant.Outlined"
-                       Style="max-width: 160px;" Class="mb-2">
-                <MudSelectItem T="int" Value="1">1</MudSelectItem>
-                <MudSelectItem T="int" Value="3">3</MudSelectItem>
-                <MudSelectItem T="int" Value="5">5</MudSelectItem>
-                <MudSelectItem T="int" Value="7">7</MudSelectItem>
-            </MudSelect>
+                    <MudSelect T="int" @bind-Value="_bestOf" Label="Best of (sets)"
+                               Variant="Variant.Outlined"
+                               Style="max-width: 160px;" Class="mb-2">
+                        <MudSelectItem T="int" Value="1">1</MudSelectItem>
+                        <MudSelectItem T="int" Value="3">3</MudSelectItem>
+                        <MudSelectItem T="int" Value="5">5</MudSelectItem>
+                        <MudSelectItem T="int" Value="7">7</MudSelectItem>
+                    </MudSelect>
 
-            <MudNumericField @bind-Value="_gamesPerSet" Label="Games per set"
-                             Variant="Variant.Outlined" Min="1" Max="12"
-                             Style="max-width: 160px;" Class="mb-2" />
+                    <MudNumericField @bind-Value="_gamesPerSet" Label="Games per set"
+                                     Variant="Variant.Outlined" Min="1" Max="12"
+                                     Style="max-width: 160px;" Class="mb-2" />
 
-            <MudText Typo="Typo.subtitle2" Class="mb-1">Set wins on</MudText>
-            <MudRadioGroup @bind-Value="_setWinMode">
-                <MudStack Row="true" Spacing="2">
-                    <MudTooltip Text="Standard tennis: must win by 2 clear games; tie-break at games-all.">
-                        <MudRadio Value="SetWinMode.WinBy2" Color="Color.Primary">Win by 2</MudRadio>
-                    </MudTooltip>
-                    <MudTooltip Text="First player to reach the games-per-set target wins the set.">
-                        <MudRadio Value="SetWinMode.FirstTo" Color="Color.Primary">First to</MudRadio>
-                    </MudTooltip>
-                </MudStack>
-            </MudRadioGroup>
+                    <MudText Typo="Typo.subtitle2" Class="mb-1">Set wins on</MudText>
+                    <MudRadioGroup @bind-Value="_setWinMode">
+                        <MudStack Row="true" Spacing="2">
+                            <MudTooltip Text="Standard tennis: must win by 2 clear games; tie-break at games-all.">
+                                <MudRadio Value="SetWinMode.WinBy2" Color="Color.Primary">Win by 2</MudRadio>
+                            </MudTooltip>
+                            <MudTooltip Text="First player to reach the games-per-set target wins the set.">
+                                <MudRadio Value="SetWinMode.FirstTo" Color="Color.Primary">First to</MudRadio>
+                            </MudTooltip>
+                        </MudStack>
+                    </MudRadioGroup>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
 
             <div class="d-flex justify-space-between mt-3">
                 <MudButton Variant="Variant.Text" Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.ArrowBack"
-                           OnClick="@(() => GoToStep(2))">Back</MudButton>
+                           OnClick="@(() => GoToStep(1))">Back</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Success"
                            EndIcon="@Icons.Material.Filled.PlayArrow"
+                           Disabled="@_starting"
                            OnClick="StartMatch">Start Match</MudButton>
             </div>
         </MudPaper>
@@ -331,6 +370,7 @@
 
     private int _currentStep;
     private bool _isDoubles;
+    private bool _starting;
 
     // Player list — index 0 is always the logged-in user (or anonymous name)
     private List<PlayerSelection> _players = [];
@@ -385,6 +425,8 @@
         public string DisplayName { get; set; } = "";
         public bool IsLight { get; set; }
         public bool IsVerified => PlayerId.HasValue && !IsLight;
+        public bool IsCreateOption { get; set; }
+        public string? CreateName { get; set; }
     }
 
     protected override async Task OnInitializedAsync()
@@ -511,8 +553,7 @@
 
     private void GoToStep(int step)
     {
-        // When going back to step 0 (match type), trim excess players if switching format
-        if (step == 1)
+        if (step == 0)
         {
             // Trim players if we have more than needed (e.g. switched from doubles to singles)
             while (_players.Count > RequiredPlayersCount)
@@ -530,7 +571,26 @@
             return;
         }
         _showPlayerValidation = false;
-        GoToStep(2);
+        GoToStep(1);
+    }
+
+    private void ToggleMatchType()
+    {
+        _isDoubles = !_isDoubles;
+        // Trim excess players when switching from doubles to singles
+        while (_players.Count > RequiredPlayersCount)
+            _players.RemoveAt(_players.Count - 1);
+        _showPlayerValidation = false;
+    }
+
+    private string SettingsSummary()
+    {
+        var scoring = _gameScoring ? "Game scoring" : "Point scoring";
+        var deuce = _unlimitedDeuce ? "Unlimited deuce" : $"Max {_deuceLimit} deuce(s)";
+        var sets = _bestOf == 1 ? "1 set" : $"Best of {_bestOf}";
+        var games = $"{_gamesPerSet} games/set";
+        var winMode = _setWinMode == SetWinMode.WinBy2 ? "Win by 2" : "First to";
+        return $"{scoring} · {sets} · {games} · {winMode} · {deuce}";
     }
 
     // ── Player List Management ──────────────────────────────
@@ -589,6 +649,20 @@
         if (val == null || string.IsNullOrWhiteSpace(val.DisplayName))
             return;
 
+        // Handle "Create player" option from autocomplete
+        if (val.IsCreateOption)
+        {
+            if (_addPlayerAutocomplete != null)
+                await _addPlayerAutocomplete.ClearAsync();
+            _inlineForm = new InlineForm { DisplayName = val.CreateName ?? "" };
+            AutoFillInlineNames(_inlineForm.DisplayName);
+            _inlineFirstNamePreFilled = false;
+            _inlineLastNamePreFilled = false;
+            _inlineSuggestions = [];
+            _showInlineCreate = true;
+            return;
+        }
+
         // Prevent duplicates
         if (val.PlayerId.HasValue && _players.Any(p => p.PlayerId == val.PlayerId))
         {
@@ -639,6 +713,8 @@
                 .Where(p => !p.PlayerId.HasValue || !excluded.Contains(p.PlayerId.Value))
                 .Take(20);
 
+        List<PlayerSelection> results;
+
         if (_fuzzyInitialized)
         {
             // Fuzzy index has all players, but autocomplete should only show my players
@@ -647,23 +723,38 @@
                 .Select(p => p.PlayerId!.Value)
                 .ToHashSet();
 
-            var results = await FuzzySearch.SearchAsync(value, 30);
-            return results
+            var fuzzyResults = await FuzzySearch.SearchAsync(value, 30);
+            results = fuzzyResults
                 .Where(r => myPlayerIds.Contains(r.PlayerId) && !excluded.Contains(r.PlayerId))
-                .Take(15)
+                .Take(14)
                 .Select(r => new PlayerSelection
                 {
                     PlayerId = r.PlayerId,
                     DisplayName = r.DisplayName,
                     IsLight = r.IsLight
-                });
+                })
+                .ToList();
+        }
+        else
+        {
+            // Fallback before fuzzy index is ready
+            results = _searchablePlayers
+                .Where(p => p.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase)
+                            && (!p.PlayerId.HasValue || !excluded.Contains(p.PlayerId.Value)))
+                .Take(14)
+                .ToList();
         }
 
-        // Fallback before fuzzy index is ready
-        return _searchablePlayers
-            .Where(p => p.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase)
-                        && (!p.PlayerId.HasValue || !excluded.Contains(p.PlayerId.Value)))
-            .Take(15);
+        // Append a "Create player" option at the end
+        results.Add(new PlayerSelection
+        {
+            DisplayName = $"Create \"{value.Trim()}\"",
+            IsLight = true,
+            IsCreateOption = true,
+            CreateName = value.Trim()
+        });
+
+        return results;
     }
 
     // ── Inline Light Player Creation ────────────────────────
@@ -805,6 +896,11 @@
 
     private async Task StartMatch()
     {
+        if (_starting) return;
+        _starting = true;
+
+        try
+        {
         // Auto-bookmark any verified players to "My Players"
         if (_userId != null)
         {
@@ -850,6 +946,11 @@
             SetWinMode = _setWinMode,
             ServerChoice = "random"
         });
+        }
+        finally
+        {
+            _starting = false;
+        }
     }
 
     public class MatchSetupResult
