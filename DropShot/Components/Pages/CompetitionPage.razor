@@ -213,11 +213,19 @@
                         {
                             <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
                         }
-                        Save
+                        @(IsEdit ? "Save" : "Save & Continue")
                     </MudButton>
+                    @if (IsEdit)
+                    {
+                        <MudButton Color="Color.Success" Variant="Variant.Outlined"
+                                   Disabled="@(_isSaving || !_canEdit)" OnClick="SaveAndExitAsync"
+                                   StartIcon="@Icons.Material.Filled.ExitToApp">
+                            Save & Exit
+                        </MudButton>
+                    }
                     <MudButton Color="Color.Default" Variant="Variant.Outlined"
                                Disabled="@_isSaving" OnClick="@(() => Nav.NavigateTo("/Competitions"))">
-                        Cancel
+                        @(IsEdit ? "Back" : "Cancel")
                     </MudButton>
                 </MudStack>
             </MudForm>
@@ -1570,13 +1578,24 @@
 
                 db.Competition.Add(comp);
                 await db.SaveChangesAsync();
+
+                // Navigate to the edit page so the user can continue configuring
+                Nav.NavigateTo($"/competition/{comp.CompetitionID}", forceLoad: true);
+                return;
             }
 
-            Nav.NavigateTo("/Competitions");
+            Snackbar.Add("Competition saved.", Severity.Success);
         }
         catch (DbUpdateException ex) { _serverError = "Database error: " + ex.InnerException?.Message ?? ex.Message; }
         catch (Exception ex) { _serverError = ex.Message; }
         finally { _isSaving = false; }
+    }
+
+    private async Task SaveAndExitAsync()
+    {
+        await SubmitAsync();
+        if (_serverError == null)
+            Nav.NavigateTo("/Competitions");
     }
 
     private async Task ToggleStartedAsync()
