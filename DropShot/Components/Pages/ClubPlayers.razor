@@ -99,8 +99,20 @@ else
                 <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined" />
             </MudItem>
             <MudItem xs="12">
-                <MudTextField @bind-Value="_form.Email" Label="Email (optional)" Variant="Variant.Outlined"
+                <MudTextField @bind-Value="_form.Email" Label="Email address" Variant="Variant.Outlined"
                               InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile number" Variant="Variant.Outlined"
+                              InputType="InputType.Telephone" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.body2" Class="mb-1">Competition category</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Determines which events they're eligible to enter</MudText>
+                <MudRadioGroup T="PlayerSex?" @bind-Value="_form.CompetitionCategory">
+                    <MudRadio T="PlayerSex?" Value="@PlayerSex.Male" Color="Color.Primary">Male events</MudRadio>
+                    <MudRadio T="PlayerSex?" Value="@PlayerSex.Female" Color="Color.Primary">Female events</MudRadio>
+                </MudRadioGroup>
             </MudItem>
         </MudGrid>
     </DialogContent>
@@ -149,7 +161,7 @@ else
 </MudDialog>
 
 @code {
-    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, bool IsClubOwned);
+    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, bool IsClubOwned, string? Email, string? MobileNumber, PlayerSex? Sex);
 
     private bool _loading = true;
     private List<PlayerRow> _players = [];
@@ -172,6 +184,8 @@ else
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
         public string? Email { get; set; }
+        public string? MobileNumber { get; set; }
+        public PlayerSex? CompetitionCategory { get; set; }
     }
 
     private bool FilterPlayers(PlayerRow row) =>
@@ -207,12 +221,12 @@ else
         var rows = await db.ClubPlayers
             .Where(cp => cp.ClubId == _activeClubId.Value)
             .Join(db.Players, cp => cp.PlayerId, p => p.PlayerId,
-                (cp, p) => new { p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight, p.CreatedByClubId })
+                (cp, p) => new { p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight, p.CreatedByClubId, p.Email, p.MobileNumber, p.Sex })
             .OrderBy(x => x.DisplayName)
             .ToListAsync();
         _players = rows
             .Select(x => new PlayerRow(x.PlayerId, x.DisplayName, x.FirstName, x.LastName,
-                x.IsLight, x.CreatedByClubId == _activeClubId.Value))
+                x.IsLight, x.CreatedByClubId == _activeClubId.Value, x.Email, x.MobileNumber, x.Sex))
             .ToList();
         _loading = false;
     }
@@ -231,7 +245,10 @@ else
         {
             DisplayName = row.DisplayName,
             FirstName = row.FirstName,
-            LastName = row.LastName
+            LastName = row.LastName,
+            Email = row.Email,
+            MobileNumber = row.MobileNumber,
+            CompetitionCategory = row.Sex
         };
         _showPlayerDialog = true;
     }
@@ -251,6 +268,8 @@ else
                 p.FirstName = NullIfEmpty(_form.FirstName);
                 p.LastName = NullIfEmpty(_form.LastName);
                 p.Email = NullIfEmpty(_form.Email);
+                p.MobileNumber = NullIfEmpty(_form.MobileNumber);
+                p.Sex = _form.CompetitionCategory;
                 await db.SaveChangesAsync();
                 Snackbar.Add("Player updated.", Severity.Success);
             }
@@ -263,6 +282,8 @@ else
                 FirstName = NullIfEmpty(_form.FirstName),
                 LastName = NullIfEmpty(_form.LastName),
                 Email = NullIfEmpty(_form.Email),
+                MobileNumber = NullIfEmpty(_form.MobileNumber),
+                Sex = _form.CompetitionCategory,
                 IsLight = true,
                 CreatedByClubId = _activeClubId.Value
             };
