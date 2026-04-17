@@ -15,6 +15,7 @@
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<ExternalLogin> Logger
 @inject EmailService EmailService
+@inject EmailTemplateService EmailTemplateService
 
 <PageTitle>Register</PageTitle>
 
@@ -150,7 +151,8 @@
                 var callbackUrl = NavigationManager.GetUriWithQueryParameters(
                     NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
                     new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
-                await EmailService.SendEmailAsync(Input.Email, "Confirm Registration", $"Please confirm your account by <a href='{callbackUrl}'>clicking here</a>.");
+                await EmailService.SendEmailAsync(Input.Email, "Confirm Your Email",
+                    EmailTemplateService.ConfirmationEmail(callbackUrl), isHtml: true);
 
 
                 // If account confirmation is required, we need to show the link if we don't have a real email sender

@@ -11,6 +11,7 @@
 @inject IdentityUserAccessor UserAccessor
 @inject NavigationManager NavigationManager
 @inject EmailService EmailService
+@inject EmailTemplateService EmailTemplateService
 
 <PageTitle>Manage email</PageTitle>
 
@@ -91,7 +92,8 @@
             NavigationManager.ToAbsoluteUri("Account/ConfirmEmailChange").AbsoluteUri,
             new Dictionary<string, object?> { ["userId"] = userId, ["email"] = Input.NewEmail, ["code"] = code });
 
-        await EmailService.SendEmailAsync(Input.NewEmail, "Confirm Registration", $"Please confirm your account by <a href='{callbackUrl}'>clicking here</a>.");
+        await EmailService.SendEmailAsync(Input.NewEmail, "Confirm Your New Email",
+            EmailTemplateService.EmailChangeEmail(callbackUrl), isHtml: true);
 
         message = "Confirmation link to change email sent. Please check your email.";
     }
@@ -110,7 +112,8 @@
             NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
             new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
 
-        await EmailService.SendEmailAsync(email, "Confirm Registration", $"Please confirm your account by <a href='{callbackUrl}'>clicking here</a>.");
+        await EmailService.SendEmailAsync(email, "Confirm Your Email",
+            EmailTemplateService.ConfirmationEmail(callbackUrl), isHtml: true);
 
         message = "Verification email sent. Please check your email.";
     }

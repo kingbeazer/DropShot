@@ -4,19 +4,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DropShot.Services;
 
-public class ResultVerificationService(EmailService emailService, IConfiguration config, ILogger<ResultVerificationService> logger)
+public class ResultVerificationService(EmailService emailService, EmailTemplateService emailTemplateService, IConfiguration config, ILogger<ResultVerificationService> logger)
 {
     private string BaseUrl => config["App:BaseUrl"]?.TrimEnd('/') ?? "";
 
     public async Task SendResultNotificationAsync(CompetitionFixture fixture)
     {
-        var (subject, body) = ResultEmailContent(fixture);
+        var title = FixtureTitle(fixture);
+        var resultSummary = fixture.ResultSummary ?? "";
+        var subject = $"Match result: {title}";
+        var html = emailTemplateService.MatchResultEmail(title, resultSummary);
 
         var emails = new[] { fixture.Player1, fixture.Player2, fixture.Player3, fixture.Player4 }
             .Where(p => p?.Email != null)
             .Select(p => p!.Email!)
             .Distinct()
-            .Select(email => SendSafe(email, subject, body, "result notification"));
+            .Select(email => SendSafe(email, subject, html, "result notification", isHtml: true));
 
         await Task.WhenAll(emails);
     }
@@ -28,9 +31,9 @@ public class ResultVerificationService(EmailService emailService, IConfiguration
         var title = FixtureTitle(fixture);
         var verifyUrl = $"{BaseUrl}/verify-result/{fixture.VerificationToken}";
         var subject = $"Result verification required: {title}";
-        var body = $"A result has been submitted for {title}.\n\nResult: {fixture.ResultSummary}\n\nClick the link below to verify this result:\n{verifyUrl}";
+        var html = emailTemplateService.AdminVerificationEmail(title, fixture.ResultSummary ?? "", verifyUrl);
 
-        await Task.WhenAll(adminEmails.Select(email => SendSafe(email, subject, body, "admin verification")));
+        await Task.WhenAll(adminEmails.Select(email => SendSafe(email, subject, html, "admin verification", isHtml: true)));
     }
 
     public async Task<List<string>> GetAdminEmailsForCompetitionAsync(int competitionId, MyDbContext db)
@@ -49,20 +52,11 @@ public class ResultVerificationService(EmailService emailService, IConfiguration
         return fixture.FixtureLabel != null ? $"{name} — {fixture.FixtureLabel}" : name;
     }
 
-    private static (string subject, string body) ResultEmailContent(CompetitionFixture fixture)
-    {
-        var title = FixtureTitle(fixture);
-        return (
-            $"Match result: {title}",
-            $"The result for your match in {title} has been recorded: {fixture.ResultSummary}."
-        );
-    }
-
-    private async Task SendSafe(string email, string subject, string body, string context)
+    private async Task SendSafe(string email, string subject, string body, string context, bool isHtml = false)
     {
         try
         {
-            await emailService.SendEmailAsync(email, subject, body);
+            await emailService.SendEmailAsync(email, subject, body, isHtml);
         }
         catch (Exception ex)
         {

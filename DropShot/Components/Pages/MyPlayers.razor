@@ -16,6 +16,7 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
 @inject EmailService EmailService
+@inject EmailTemplateService EmailTemplateService
 
 <MudProviders />
 
@@ -707,14 +708,9 @@
             }
 
             var subject = $"You've been invited to join DropShot as \"{_invitingPlayer.DisplayName}\"";
-            var body =
-                $"Hi,\n\nYou've been invited to join DropShot as \"{_invitingPlayer.DisplayName}\". " +
-                $"Click the link below to register. Your new account will be linked to the existing " +
-                $"player record and any match history will be transferred automatically.\n\n" +
-                $"{_inviteLink}\n\n" +
-                $"If you weren't expecting this, you can safely ignore it.";
+            var html = EmailTemplateService.PlayerInvitationEmail(_invitingPlayer.DisplayName, _inviteLink);
 
-            await EmailService.SendEmailAsync(_inviteEmail.Trim(), subject, body);
+            await EmailService.SendEmailAsync(_inviteEmail.Trim(), subject, html, isHtml: true);
             Snackbar.Add($"Invite sent to {_inviteEmail.Trim()}.", Severity.Success);
             _showInviteDialog = false;
         }
