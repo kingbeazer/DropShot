@@ -1,6 +1,7 @@
 @using MudBlazor
 
-<MudPaper Class="step-summary pa-3 d-flex align-center" Elevation="1"
+<MudPaper Class="pa-3 d-flex align-center" Elevation="0"
+          Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white; cursor: pointer; position: relative; overflow: hidden;"
           @onclick="OnEdit">
     <div class="step-summary-accent" style="background: @AccentColor;"></div>
     <MudIcon Icon="@Icon" Size="Size.Small" Class="mr-3" Style="@($"color: {AccentColor};")" />
