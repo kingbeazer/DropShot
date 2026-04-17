@@ -689,15 +689,20 @@ public class CompetitionsController(
             };
         }
 
+        var isTeamFormat = comp.CompetitionFormat is DropShot.Models.CompetitionFormat.MixedTeam
+            or DropShot.Models.CompetitionFormat.Team
+            or DropShot.Models.CompetitionFormat.Doubles
+            or DropShot.Models.CompetitionFormat.MixedDoubles;
+
         foreach (var stage in comp.Stages)
         {
             switch (stage.StageType)
             {
                 case DropShot.Models.StageType.RoundRobin:
                 {
-                    if (comp.CompetitionFormat == DropShot.Models.CompetitionFormat.MixedTeam)
+                    if (isTeamFormat && comp.Teams.Count >= 2)
                     {
-                        // Team round-robin using circle method
+                        // Team/pair round-robin using circle method
                         var teamIds = comp.Teams.Select(t => t.CompetitionTeamId).ToList();
                         var courtPairIds = comp.CourtPairs.Select(cp => cp.CourtPairId).ToList();
                         int cpIdx = 0;
@@ -709,7 +714,7 @@ public class CompetitionsController(
                         int total = teamIds.Count;
                         int rounds = total - 1;
 
-                        // Load all team members for set creation
+                        // Load all team members for MixedTeam set creation
                         var allMembers = comp.Participants
                             .Where(p => p.TeamId != null && p.Player != null
                                 && (p.Status == DropShot.Models.ParticipantStatus.Registered
@@ -744,26 +749,43 @@ public class CompetitionsController(
                                     cpIdx++;
                                 }
 
-                                db.CompetitionFixtures.Add(fixture);
-                                await db.SaveChangesAsync(); // Need ID for TeamMatchSets
-
-                                // Create 8 TeamMatchSet rows
-                                var homeMembers = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
-                                var awayMembers = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
-
-                                if (homeMembers.Count == 4 && awayMembers.Count == 4
-                                    && homeMembers.All(m => m.Grade != null && m.Player?.Sex != null)
-                                    && awayMembers.All(m => m.Grade != null && m.Player?.Sex != null))
+                                // For non-team doubles formats, also set Player1-4 from team members
+                                if (comp.CompetitionFormat is DropShot.Models.CompetitionFormat.Doubles
+                                    or DropShot.Models.CompetitionFormat.MixedDoubles)
                                 {
-                                    var sets = TeamMatchService.CreateSetsForFixture(
-                                        fixture.CompetitionFixtureId, homeMembers, awayMembers);
-                                    db.TeamMatchSets.AddRange(sets);
+                                    var homePair = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
+                                    var awayPair = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
+                                    if (homePair.Count >= 1) fixture.Player1Id = homePair[0].PlayerId;
+                                    if (homePair.Count >= 2) fixture.Player3Id = homePair[1].PlayerId;
+                                    if (awayPair.Count >= 1) fixture.Player2Id = awayPair[0].PlayerId;
+                                    if (awayPair.Count >= 2) fixture.Player4Id = awayPair[1].PlayerId;
+                                }
+
+                                db.CompetitionFixtures.Add(fixture);
+
+                                // For MixedTeam, create 8 TeamMatchSet rows
+                                if (comp.CompetitionFormat == DropShot.Models.CompetitionFormat.MixedTeam)
+                                {
+                                    await db.SaveChangesAsync(); // Need ID for TeamMatchSets
+
+                                    var homeMembers = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
+                                    var awayMembers = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
+
+                                    if (homeMembers.Count == 4 && awayMembers.Count == 4
+                                        && homeMembers.All(m => m.Grade != null && m.Player?.Sex != null)
+                                        && awayMembers.All(m => m.Grade != null && m.Player?.Sex != null))
+                                    {
+                                        var sets = TeamMatchService.CreateSetsForFixture(
+                                            fixture.CompetitionFixtureId, homeMembers, awayMembers);
+                                        db.TeamMatchSets.AddRange(sets);
+                                    }
                                 }
                             }
                         }
                     }
                     else
                     {
+                        // Individual player round-robin (Singles or formats without teams)
                         var players = activePlayers.ToList();
                         for (int i = 0; i < players.Count; i++)
                         {
@@ -781,7 +803,7 @@ public class CompetitionsController(
 
                 case DropShot.Models.StageType.Knockout:
                 {
-                    int n = comp.CompetitionFormat == DropShot.Models.CompetitionFormat.MixedTeam
+                    int n = (isTeamFormat && comp.Teams.Count >= 2)
                         ? comp.Teams.Count
                         : activePlayers.Count;
                     if (n < 2) break;
