@@ -2210,7 +2210,7 @@
                 var members = new List<CompetitionParticipant>();
                 members.AddRange(males.Skip(i * perGender).Take(perGender));
                 members.AddRange(females.Skip(i * perGender).Take(perGender));
-                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {i + 1}", members));
+                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {(char)('A' + i)}", members));
             }
         }
         else
@@ -2232,7 +2232,7 @@
             for (int i = 0; i < teamCount; i++)
             {
                 var members = shuffled.Skip(i * teamSize).Take(teamSize).ToList();
-                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {i + 1}", members));
+                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {(char)('A' + i)}", members));
             }
         }
     }
