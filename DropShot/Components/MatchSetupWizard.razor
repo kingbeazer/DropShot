@@ -46,7 +46,7 @@
     }
     else if (_currentStep == 0)
     {
-        <MudPaper Class="pa-4" Elevation="2">
+        <MudPaper Class="pa-4 setup-card" Elevation="0">
             <MudText Typo="Typo.h6" Class="mb-3">Start a Match</MudText>
 
             @* ── Colourful match type toggle ─────────────── *@
@@ -236,7 +236,7 @@
     }
     else if (_currentStep == 1)
     {
-        <MudPaper Class="pa-4" Elevation="2">
+        <MudPaper Class="pa-4 setup-card" Elevation="0">
             <MudText Typo="Typo.h6" Class="mb-3">Court Selection</MudText>
 
             <MudAutocomplete T="Club" Label="Search for a club"
@@ -280,7 +280,7 @@
     @* ── Match Settings ──────────────────────────────────── *@
     @if (_currentStep == 2)
     {
-        <MudPaper Class="pa-4" Elevation="2">
+        <MudPaper Class="pa-4 setup-card" Elevation="0">
             <div class="d-flex justify-space-between align-center mb-3">
                 <MudText Typo="Typo.h6">Match Settings</MudText>
                 <MudTooltip Text="Customise rules">
