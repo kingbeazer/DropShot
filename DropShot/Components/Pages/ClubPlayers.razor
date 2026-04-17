@@ -52,13 +52,27 @@ else
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Player">
-                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                    <MudText>@context.DisplayName</MudText>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                     @if (!context.IsLight)
                     {
-                        <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small"
-                                 Title="Verified player" />
+                        @if (!string.IsNullOrEmpty(context.ProfileImagePath))
+                        {
+                            <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                <MudImage Src="@context.ProfileImagePath" />
+                            </MudAvatar>
+                        }
+                        else
+                        {
+                            <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                            </MudAvatar>
+                        }
                     }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
+                    }
+                    <MudText>@context.DisplayName</MudText>
                 </MudStack>
             </MudTd>
             <MudTd DataLabel="First Name">@(context.FirstName ?? "—")</MudTd>
@@ -139,10 +153,21 @@ else
                 @foreach (var p in _existingResults)
                 {
                     <MudListItem T="Player" OnClick="@(() => AddExistingPlayer(p))">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                            @if (!p.IsLight)
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            @{
+                                var img = p.User?.ProfileImagePath ?? p.ProfileImagePath;
+                            }
+                            @if (!string.IsNullOrEmpty(img))
                             {
-                                <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                                <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                    <MudImage Src="@img" />
+                                </MudAvatar>
+                            }
+                            else
+                            {
+                                <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                    <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                                </MudAvatar>
                             }
                             <MudText>@p.DisplayName</MudText>
                         </MudStack>
@@ -161,7 +186,7 @@ else
 </MudDialog>
 
 @code {
-    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, bool IsClubOwned, string? Email, string? MobileNumber, PlayerSex? Sex);
+    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, bool IsClubOwned, string? Email, string? MobileNumber, PlayerSex? Sex, string? ProfileImagePath);
 
     private bool _loading = true;
     private List<PlayerRow> _players = [];
@@ -221,12 +246,12 @@ else
         var rows = await db.ClubPlayers
             .Where(cp => cp.ClubId == _activeClubId.Value)
             .Join(db.Players, cp => cp.PlayerId, p => p.PlayerId,
-                (cp, p) => new { p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight, p.CreatedByClubId, p.Email, p.MobileNumber, p.Sex })
+                (cp, p) => new { p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight, p.CreatedByClubId, p.Email, p.MobileNumber, p.Sex, p.ProfileImagePath, UserImage = p.User != null ? p.User.ProfileImagePath : null })
             .OrderBy(x => x.DisplayName)
             .ToListAsync();
         _players = rows
             .Select(x => new PlayerRow(x.PlayerId, x.DisplayName, x.FirstName, x.LastName,
-                x.IsLight, x.CreatedByClubId == _activeClubId.Value, x.Email, x.MobileNumber, x.Sex))
+                x.IsLight, x.CreatedByClubId == _activeClubId.Value, x.Email, x.MobileNumber, x.Sex, x.UserImage ?? x.ProfileImagePath))
             .ToList();
         _loading = false;
     }
@@ -326,6 +351,7 @@ else
             .ToListAsync();
 
         _existingResults = await db.Players
+            .Include(p => p.User)
             .Where(p => !alreadyInClub.Contains(p.PlayerId)
                         && !p.IsLight
                         && p.DisplayName.Contains(value))
