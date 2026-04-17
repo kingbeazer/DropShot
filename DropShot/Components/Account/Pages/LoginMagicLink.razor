@@ -1,0 +1,78 @@
+@page "/Account/LoginMagicLink"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using DropShot.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject EmailService EmailService
+@inject EmailTemplateService EmailTemplateService
+
+<PageTitle>Sign in with magic link</PageTitle>
+
+<h1>Sign in with magic link</h1>
+<h2>Enter your email to receive a sign-in link.</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm Model="Input" FormName="magic-link" OnValidSubmit="OnValidSubmitAsync" method="post">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+                <label for="email" class="form-label">Email</label>
+                <ValidationMessage For="() => Input.Email" class="text-danger" />
+            </div>
+            <button type="submit" class="w-100 btn btn-lg btn-primary">Send magic link</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private InputModel _input = new();
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get => _input; set => _input = value ?? _input; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private async Task OnValidSubmitAsync()
+    {
+        var user = await UserManager.FindByEmailAsync(Input.Email);
+        if (user is null || !(await UserManager.IsEmailConfirmedAsync(user)))
+        {
+            // Don't reveal that the user does not exist or is not confirmed
+            RedirectManager.RedirectTo("Account/LoginMagicLinkConfirmation");
+        }
+
+        var code = await UserManager.GenerateUserTokenAsync(user, "MagicLogin", "magic-link");
+        code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+
+        var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+            NavigationManager.ToAbsoluteUri("Account/LoginMagicLinkCallback").AbsoluteUri,
+            new Dictionary<string, object?>
+            {
+                ["userId"] = user.Id,
+                ["code"] = code,
+                ["returnUrl"] = ReturnUrl
+            });
+
+        await EmailService.SendEmailAsync(Input.Email, "Sign In to DropShot",
+            EmailTemplateService.MagicLinkEmail(callbackUrl), isHtml: true);
+
+        RedirectManager.RedirectTo("Account/LoginMagicLinkConfirmation");
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = "";
+    }
+}

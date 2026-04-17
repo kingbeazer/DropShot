@@ -28,3 +28,7 @@ public record SwitchRoleResponse(
     List<string> GrantedRoles);
 
 public record UpgradePremiumRequest(bool IsSubscribed);
+
+public record MagicLinkRequest(string Email);
+
+public record MagicLinkVerifyRequest(string UserId, string Code);

@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MudBlazor.Services;
 using System.Text;
+using Microsoft.AspNetCore.WebUtilities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -200,6 +201,32 @@ app.MapGet("/Account/QrLogin", async (
 
     if (session.CourtId.HasValue)
         return Results.Redirect($"/score?courtId={session.CourtId.Value}");
+
+    return Results.Redirect("/");
+});
+
+// ── Magic link login callback (validates token, sets identity cookie, redirects) ──
+app.MapGet("/Account/LoginMagicLinkCallback", async (
+    string userId,
+    string code,
+    string? returnUrl,
+    UserManager<ApplicationUser> userManager,
+    SignInManager<ApplicationUser> signInManager) =>
+{
+    var user = await userManager.FindByIdAsync(userId);
+    if (user is null)
+        return Results.Redirect("/Account/Login");
+
+    var decodedCode = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
+    var isValid = await userManager.VerifyUserTokenAsync(user, "MagicLogin", "magic-link", decodedCode);
+    if (!isValid)
+        return Results.Redirect("/Account/Login");
+
+    await signInManager.SignInAsync(user, isPersistent: false);
+
+    // Prevent open redirects
+    if (!string.IsNullOrEmpty(returnUrl) && Uri.IsWellFormedUriString(returnUrl, UriKind.Relative))
+        return Results.LocalRedirect(returnUrl);
 
     return Results.Redirect("/");
 });
