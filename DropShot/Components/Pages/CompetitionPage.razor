@@ -1881,8 +1881,7 @@
         var source = Model.HostClubId.HasValue ? _clubPlayers : _allPlayers;
         var results = source
             .Where(p => !alreadyIn.Contains(p.PlayerId) &&
-                        (string.IsNullOrWhiteSpace(text) || p.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)))
-            .Take(10);
+                        (string.IsNullOrWhiteSpace(text) || p.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)));
         return Task.FromResult(results);
     }
 
