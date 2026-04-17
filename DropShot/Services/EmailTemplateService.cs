@@ -157,6 +157,19 @@ public class EmailTemplateService
         return WrapInBaseLayout("Reset Your Password", body, "Reset your DropShot password.");
     }
 
+    // ── Magic link login ──────────────────────────────────────────────────────
+
+    public string MagicLinkEmail(string callbackUrl)
+    {
+        var body = $@"
+<h2 style=""margin:0 0 16px 0;font-size:22px;color:#1b5e20;"">Sign In to DropShot</h2>
+<p style=""margin:0 0 8px 0;"">Click the button below to sign in to your account. No password needed!</p>
+{ActionButton("Sign In", callbackUrl)}
+<p style=""margin:16px 0 0 0;font-size:13px;color:#888888;"">This link is single-use and will expire shortly. If you didn't request this, you can safely ignore this email.</p>";
+
+        return WrapInBaseLayout("Sign In to DropShot", body, "Click to sign in to your DropShot account.");
+    }
+
     // ── Player invitation ────────────────────────────────────────────────────
 
     public string PlayerInvitationEmail(string playerName, string inviteLink)
