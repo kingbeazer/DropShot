@@ -23,6 +23,10 @@
 
 <MudProviders />
 
+<div style="position: relative; min-height: 100vh; background-image: url('images/background.png'); background-repeat: no-repeat; background-size: cover; background-position: center; margin: -24px; padding: 0;">
+    <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
+    <div style="position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 1rem 0.5rem 2rem;">
+
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
     @if (_nameOverride)
     {
@@ -66,7 +70,8 @@
 <MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
 
     @* ── Details form ───────────────────────────────────────── *@
-    <MudPaper Class="pa-4 mb-4">
+    <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
         <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
 
             @if (!_canEdit)
@@ -221,7 +226,8 @@
         @* ── Stages ─────────────────────────────────────────── *@
         @if (IsEdit)
         {
-            <MudPaper Class="pa-4 mb-4">
+            <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Stages</MudText>
                     <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
@@ -247,7 +253,8 @@
             </MudPaper>
 
             @* ── Match Windows ───────────────────────────────── *@
-            <MudPaper Class="pa-4 mb-4">
+            <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudText Typo="Typo.h6" Class="mb-3">Match Windows</MudText>
 
                 <MudGrid Spacing="1" Class="mb-2">
@@ -326,7 +333,8 @@
             </MudPaper>
 
             @* ── Participants ────────────────────────────────── *@
-            <MudPaper Class="pa-4 mb-4">
+            <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Participants</MudText>
                     <MudAutocomplete T="Player" Label="Add player" SearchFunc="SearchPlayers"
@@ -441,7 +449,8 @@
             @* ── Apply Competition Template ───────────────────── *@
             @if (_competitionTemplates.Count > 0)
             {
-                <MudPaper Class="pa-4 mb-4">
+                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudText Typo="Typo.h6" Class="mb-3">Apply Competition Template</MudText>
                     <MudSelect T="int?" Label="Choose a template to apply" Variant="Variant.Outlined"
                                Value="_selectedCompetitionTemplateId" Clearable="true"
@@ -460,7 +469,8 @@
             @* ── Competition Admins ───────────────────────────── *@
             @if (IsEdit && _canEdit)
             {
-                <MudPaper Class="pa-4 mb-4">
+                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudText Typo="Typo.h6" Class="mb-3">Competition Admins</MudText>
                     <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-3">
                         <MudTextField @bind-Value="_newAdminEmail" Label="User email"
@@ -503,7 +513,8 @@
                 var sectionLabel = isDoubles ? "Pairings" : "Teams";
                 var itemLabel = isDoubles ? "Pair" : "Team";
 
-                <MudPaper Class="pa-4 mb-4">
+                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                         <MudText Typo="Typo.h6" Style="flex:1">@sectionLabel</MudText>
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
@@ -580,7 +591,8 @@
             }
 
             @* ── Fixtures ────────────────────────────────────── *@
-            <MudPaper Class="pa-4">
+            <MudPaper Class="pa-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
                     @if (_stages.Any(s => s.StageType == StageType.RoundRobin) &&
@@ -679,7 +691,8 @@
 
     @if (_errors.Length > 0)
     {
-        <MudPaper Class="pa-4 mb-4">
+        <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
             <MudText Typo="Typo.subtitle2">Validation errors</MudText>
             <MudDivider Class="my-2" />
             @foreach (var e in _errors)
@@ -693,7 +706,8 @@
 
 @* ── Email Tab ─────────────────────────────────────────────── *@
 <MudTabPanel Text="Email" Icon="@Icons.Material.Filled.Email" Disabled="@(!IsEdit || !_canEdit)">
-    <MudPaper Class="pa-4 mb-4">
+    <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
         <MudText Typo="Typo.h6" Class="mb-3">Match-Specific Email</MudText>
         <MudGrid Spacing="2">
             <MudItem xs="12" sm="6">
@@ -734,7 +748,8 @@
         </MudGrid>
     </MudPaper>
 
-    <MudPaper Class="pa-4 mb-4">
+    <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
         <MudText Typo="Typo.h6" Class="mb-3">Competition-Wide Email</MudText>
         <MudGrid Spacing="2">
             @if (_emailTemplates.Count > 0)
@@ -1086,6 +1101,8 @@
         <MudButton OnClick="@(() => _showQrDialog = false)">Close</MudButton>
     </DialogActions>
 </MudDialog>
+
+</div></div>
 
 @code {
     [Parameter] public int Id { get; set; }
