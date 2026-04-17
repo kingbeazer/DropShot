@@ -28,8 +28,18 @@
                 <label for="email" class="form-label">Email</label>
                 <ValidationMessage For="() => Input.Email" class="text-danger" />
             </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Send magic link</button>
+            <button type="submit" class="w-100 btn btn-lg btn-primary" data-magic-btn>Send magic link</button>
         </EditForm>
+
+        <script>
+            document.addEventListener('submit', function (e) {
+                var btn = e.target.querySelector('[data-magic-btn]');
+                if (!btn) return;
+                btn.disabled = true;
+                btn.classList.add('btn-submitting');
+                btn.innerHTML = '<span class="btn-spinner"></span> Sending\u2026';
+            });
+        </script>
     </div>
 </div>
 
