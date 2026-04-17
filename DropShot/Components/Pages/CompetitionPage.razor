@@ -223,10 +223,13 @@
                             Save & Exit
                         </MudButton>
                     }
-                    <MudButton Color="Color.Default" Variant="Variant.Outlined"
-                               Disabled="@_isSaving" OnClick="@(() => Nav.NavigateTo("/Competitions"))">
-                        @(IsEdit ? "Back" : "Cancel")
-                    </MudButton>
+                    @if (!IsEdit)
+                    {
+                        <MudButton Color="Color.Default" Variant="Variant.Outlined"
+                                   Disabled="@_isSaving" OnClick="@(() => Nav.NavigateTo("/Competitions"))">
+                            Cancel
+                        </MudButton>
+                    }
                 </MudStack>
             </MudForm>
         </MudPaper>
