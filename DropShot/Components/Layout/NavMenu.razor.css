@@ -284,14 +284,20 @@
     .nav-content {
         display: none;
         flex-direction: column;
-        position: absolute;
+        position: fixed;
         top: 3.5rem;
-        left: 0;
-        width: 100%;
-        max-height: calc(100vh - 3.5rem);
+        right: 0;
+        width: 280px;
+        max-width: 85vw;
+        height: calc(100vh - 3.5rem);
         overflow-y: auto;
-        background-image: linear-gradient(120deg, rgb(5, 98, 103) 0%, rgb(5, 39, 103) 70%);
+        background: rgba(18, 18, 18, 0.95);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
         z-index: 100;
+        padding-bottom: 1rem;
     }
 
     .navbar-toggler:checked ~ .nav-content {
@@ -312,8 +318,20 @@
     .nav-item ::deep .nav-link,
     .nav-item > .nav-link {
         height: 3rem;
-        padding: 0 1rem;
+        padding: 0 1.25rem;
         width: 100%;
+        border-radius: 0;
+    }
+
+    .nav-item ::deep .nav-link:hover,
+    .nav-item > .nav-link:hover {
+        background-color: rgba(0, 137, 123, 0.15);
+    }
+
+    .nav-item ::deep a.active {
+        background-color: rgba(0, 137, 123, 0.2);
+        border-left: 3px solid #00897b;
+        color: #4db6ac;
     }
 
     .nav-item:first-child {
@@ -335,7 +353,7 @@
     .nav-dropdown-menu > .nav-link,
     .nav-dropdown-menu a.nav-link,
     .nav-dropdown-item .nav-link {
-        padding: 0.5rem 1rem 0.5rem 2.5rem;
+        padding: 0.5rem 1.25rem 0.5rem 2.75rem;
         height: 3rem;
     }
 
@@ -345,7 +363,7 @@
 
     .nav-dropdown-trigger {
         height: 3rem;
-        padding: 0 1rem;
+        padding: 0 1.25rem;
         width: 100%;
     }
 
@@ -355,8 +373,12 @@
 
     .theme-toggle-btn {
         height: 3rem;
-        padding: 0 1rem;
+        padding: 0 1.25rem;
         width: 100%;
+    }
+
+    .theme-toggle-btn:hover {
+        background-color: rgba(0, 137, 123, 0.15);
     }
 
     .nav-label {
@@ -365,8 +387,8 @@
 
     /* Divider between primary and utils on mobile */
     .nav-utils {
-        border-top: 1px solid rgba(255,255,255,0.15);
-        padding-top: 0.25rem;
-        margin-top: 0.25rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding-top: 0.5rem;
+        margin-top: 0.5rem;
     }
 }
