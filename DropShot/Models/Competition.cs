@@ -43,6 +43,11 @@
         /// </summary>
         public bool IsRestricted { get; set; } = false;
 
+        /// <summary>
+        /// Number of players per team (or pair). Defaults: 2 for Doubles/MixedDoubles, 4 for MixedTeam.
+        /// </summary>
+        public int? TeamSize { get; set; }
+
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
         public Event? Event { get; set; }

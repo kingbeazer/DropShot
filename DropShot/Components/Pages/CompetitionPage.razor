@@ -378,9 +378,9 @@
                         <MudTh>Player</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh>Registered</MudTh>
-                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
+                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
                         {
-                            <MudTh>Team</MudTh>
+                            <MudTh>@(EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pair" : "Team")</MudTh>
                         }
                         @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
                         {
@@ -402,7 +402,7 @@
                             </MudSelect>
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
-                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
+                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
                         {
                             <MudTd>
                                 <MudSelect T="int?" Value="context.TeamId" Dense="true" Variant="Variant.Text"
@@ -496,15 +496,29 @@
                 </MudPaper>
             }
 
-            @* ── Teams (for Team and MixedTeam competitions) ──────────── *@
-            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam)
+            @* ── Teams / Pairings ──────────────────────────────── *@
+            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
             {
+                var isDoubles = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+                var sectionLabel = isDoubles ? "Pairings" : "Teams";
+                var itemLabel = isDoubles ? "Pair" : "Team";
+
                 <MudPaper Class="pa-4 mb-4">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
-                        <MudText Typo="Typo.h6" Style="flex:1">Teams</MudText>
+                        <MudText Typo="Typo.h6" Style="flex:1">@sectionLabel</MudText>
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                                   OnClick="OpenAddTeamDialog">Add Team</MudButton>
+                                   OnClick="OpenAddTeamDialog">Add @itemLabel</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                   OnClick="OpenGenerateDialog">Generate @sectionLabel</MudButton>
                     </MudStack>
+
+                    @if (!isDoubles)
+                    {
+                        <MudNumericField @bind-Value="Model.TeamSize" Label="Team size (players per team)"
+                                         Variant="Variant.Outlined" Min="2" Max="20"
+                                         Style="max-width: 220px;" Class="mb-3" />
+                    }
 
                     <MudTable Items="@_teams" Dense="true" Hover="true">
                         <HeaderContent>
@@ -924,6 +938,79 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Auto-Generate Teams / Pairings Dialog ────────────────── *@
+<MudDialog @bind-Visible="_showGenerateDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>Generate @(IsDoublesFormat() ? "Pairings" : "Teams")</TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudNumericField @bind-Value="_generateTeamSize"
+                             Label="@(IsDoublesFormat() ? "Players per pair" : "Players per team")"
+                             Variant="Variant.Outlined" Min="2" Max="20"
+                             Style="max-width: 200px;" />
+
+            @if (EffectivePersistedFormat() is CompetitionFormat.MixedTeam or CompetitionFormat.MixedDoubles)
+            {
+                <MudSwitch @bind-Value="_generateGenderBalance" Color="Color.Primary"
+                           Label="Require equal male/female players per team" />
+            }
+
+            @if (_generateWarnings.Count > 0)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true">
+                    <MudStack Spacing="0">
+                        @foreach (var w in _generateWarnings)
+                        {
+                            <MudText Typo="Typo.body2">@w</MudText>
+                        }
+                    </MudStack>
+                </MudAlert>
+            }
+
+            @if (_generatedPreview.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-2">Preview</MudText>
+                <MudSimpleTable Dense="true" Hover="true" Elevation="0">
+                    <thead>
+                        <tr>
+                            <th>@(IsDoublesFormat() ? "Pair" : "Team")</th>
+                            <th>Members</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var team in _generatedPreview)
+                        {
+                            <tr>
+                                <td><strong>@team.Name</strong></td>
+                                <td>
+                                    @foreach (var m in team.Members)
+                                    {
+                                        var sexLabel = m.Player?.Sex switch { PlayerSex.Male => "M", PlayerSex.Female => "F", _ => "?" };
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@(m.Player?.DisplayName) (@sexLabel)</MudChip>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="PreviewGeneratedTeams">
+                @(_generatedPreview.Count > 0 ? "Re-shuffle" : "Preview")
+            </MudButton>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showGenerateDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success"
+                   Disabled="@(_generatedPreview.Count == 0 || _generating)"
+                   OnClick="ConfirmGenerateTeams">
+            @(_generating ? "Creating..." : $"Create {_generatedPreview.Count} {(IsDoublesFormat() ? "Pairings" : "Teams")}")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
 @* ── Add Club Dialog ───────────────────────────────────────── *@
 <MudDialog @bind-Visible="_showAddClubDialog">
     <TitleContent>Add Club</TitleContent>
@@ -1066,6 +1153,16 @@
     private CompetitionTeam? _editingTeam;
     private string _teamName = "";
 
+    // Auto-generate teams/pairings dialog
+    private bool _showGenerateDialog;
+    private int _generateTeamSize = 4;
+    private bool _generateGenderBalance = true;
+    private List<string> _generateWarnings = [];
+    private List<GeneratedTeamPreview> _generatedPreview = [];
+    private bool _generating;
+
+    private record GeneratedTeamPreview(string Name, List<CompetitionParticipant> Members);
+
     // Match windows
     private List<CompetitionMatchWindow> _matchWindows = [];
     private DayOfWeek _newMatchWindowDay = DayOfWeek.Monday;
@@ -1131,6 +1228,7 @@
         public int? EventId { get; set; }
         public int BestOf { get; set; } = 3;
         public bool RequireVerification { get; set; } = false;
+        public int? TeamSize { get; set; }
     }
 
     // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the
@@ -1300,7 +1398,8 @@
                 RulesSetId = comp.RulesSetId,
                 EventId = comp.EventId,
                 BestOf = comp.BestOf,
-                RequireVerification = comp.RequireVerification
+                RequireVerification = comp.RequireVerification,
+                TeamSize = comp.TeamSize
             };
             _stages = comp.Stages.ToList();
             _participants = comp.Participants.ToList();
@@ -1600,6 +1699,7 @@
         comp.EventId = Model.EventId;
         comp.BestOf = Model.BestOf;
         comp.RequireVerification = Model.RequireVerification;
+        comp.TeamSize = Model.TeamSize;
     }
 
     // ── Stages ──────────────────────────────────────────────────────────────
@@ -1947,6 +2047,166 @@
         if (t != null) { db.CompetitionTeams.Remove(t); await db.SaveChangesAsync(); }
         _teams.Remove(team);
         Snackbar.Add("Team removed.", Severity.Warning);
+    }
+
+    private bool IsDoublesFormat() =>
+        EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+
+    // ── Auto-generate teams/pairings ────────────────────────────────────────
+
+    private void OpenGenerateDialog()
+    {
+        var format = EffectivePersistedFormat();
+        var isDoubles = format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+        _generateTeamSize = isDoubles ? 2 : (Model.TeamSize ?? 4);
+        _generateGenderBalance = format is CompetitionFormat.MixedTeam or CompetitionFormat.MixedDoubles;
+        _generateWarnings = [];
+        _generatedPreview = [];
+        _generating = false;
+        _showGenerateDialog = true;
+    }
+
+    private void PreviewGeneratedTeams()
+    {
+        _generateWarnings = [];
+        _generatedPreview = [];
+
+        var active = _participants
+            .Where(p => p.Status is ParticipantStatus.Registered or ParticipantStatus.Confirmed)
+            .ToList();
+
+        if (active.Count == 0)
+        {
+            _generateWarnings.Add("No active participants to generate from.");
+            return;
+        }
+
+        var rng = new Random();
+        var format = EffectivePersistedFormat();
+        var isDoubles = format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+        var itemLabel = isDoubles ? "Pair" : "Team";
+        var teamSize = _generateTeamSize;
+
+        if (_generateGenderBalance && format is CompetitionFormat.MixedTeam or CompetitionFormat.MixedDoubles)
+        {
+            // Gender-balanced generation
+            var males = active.Where(p => p.Player?.Sex == PlayerSex.Male).OrderBy(_ => rng.Next()).ToList();
+            var females = active.Where(p => p.Player?.Sex == PlayerSex.Female).OrderBy(_ => rng.Next()).ToList();
+            var noSex = active.Where(p => p.Player?.Sex == null || p.Player.Sex == PlayerSex.Other).ToList();
+
+            if (noSex.Count > 0)
+                _generateWarnings.Add($"{noSex.Count} player(s) have no gender set and will be skipped.");
+
+            var perGender = teamSize / 2;
+            if (teamSize % 2 != 0)
+                _generateWarnings.Add($"Team size {teamSize} is odd — cannot split equally by gender. Using {perGender} of each.");
+
+            var teamCount = Math.Min(males.Count / perGender, females.Count / perGender);
+            if (teamCount == 0)
+            {
+                _generateWarnings.Add($"Not enough players: {males.Count} male(s), {females.Count} female(s) for teams of {teamSize}.");
+                return;
+            }
+
+            var leftoverMales = males.Count - (teamCount * perGender);
+            var leftoverFemales = females.Count - (teamCount * perGender);
+            if (leftoverMales > 0 || leftoverFemales > 0)
+                _generateWarnings.Add($"{leftoverMales + leftoverFemales} player(s) will be unassigned ({leftoverMales} male, {leftoverFemales} female).");
+
+            for (int i = 0; i < teamCount; i++)
+            {
+                var members = new List<CompetitionParticipant>();
+                members.AddRange(males.Skip(i * perGender).Take(perGender));
+                members.AddRange(females.Skip(i * perGender).Take(perGender));
+                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {i + 1}", members));
+            }
+        }
+        else
+        {
+            // Non-gendered generation
+            var shuffled = active.OrderBy(_ => rng.Next()).ToList();
+            var teamCount = shuffled.Count / teamSize;
+            var leftover = shuffled.Count % teamSize;
+
+            if (teamCount == 0)
+            {
+                _generateWarnings.Add($"Not enough players ({shuffled.Count}) for teams of {teamSize}.");
+                return;
+            }
+
+            if (leftover > 0)
+                _generateWarnings.Add($"{leftover} player(s) will be unassigned.");
+
+            for (int i = 0; i < teamCount; i++)
+            {
+                var members = shuffled.Skip(i * teamSize).Take(teamSize).ToList();
+                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {i + 1}", members));
+            }
+        }
+    }
+
+    private async Task ConfirmGenerateTeams()
+    {
+        if (_generatedPreview.Count == 0 || _generating) return;
+        _generating = true;
+
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+
+            // Delete existing teams and unassign participants
+            var existingTeams = await db.CompetitionTeams.Where(t => t.CompetitionId == Id).ToListAsync();
+            if (existingTeams.Count > 0)
+            {
+                var existingMembers = await db.CompetitionParticipants
+                    .Where(cp => cp.CompetitionId == Id && cp.TeamId != null)
+                    .ToListAsync();
+                foreach (var m in existingMembers) m.TeamId = null;
+                db.CompetitionTeams.RemoveRange(existingTeams);
+                await db.SaveChangesAsync();
+            }
+
+            // Create new teams and assign participants
+            foreach (var preview in _generatedPreview)
+            {
+                var team = new CompetitionTeam { CompetitionId = Id, Name = preview.Name };
+                db.CompetitionTeams.Add(team);
+                await db.SaveChangesAsync(); // get the ID
+
+                foreach (var member in preview.Members)
+                {
+                    var cp = await db.CompetitionParticipants.FindAsync(Id, member.PlayerId);
+                    if (cp != null) cp.TeamId = team.CompetitionTeamId;
+                }
+                await db.SaveChangesAsync();
+            }
+
+            // Update TeamSize on competition
+            var comp = await db.Competition.FindAsync(Id);
+            if (comp != null)
+            {
+                comp.TeamSize = _generateTeamSize;
+                Model.TeamSize = _generateTeamSize;
+                await db.SaveChangesAsync();
+            }
+
+            // Reload teams and participants
+            _teams = await db.CompetitionTeams.Where(t => t.CompetitionId == Id).OrderBy(t => t.Name).ToListAsync();
+            _participants = await db.CompetitionParticipants
+                .Include(p => p.Player)
+                .Include(p => p.Team)
+                .Where(p => p.CompetitionId == Id)
+                .OrderBy(p => p.Player!.DisplayName)
+                .ToListAsync();
+
+            _showGenerateDialog = false;
+            var label = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "pairings" : "teams";
+            Snackbar.Add($"{_generatedPreview.Count} {label} created.", Severity.Success);
+        }
+        finally
+        {
+            _generating = false;
+        }
     }
 
     // ── Fixtures ─────────────────────────────────────────────────────────────
