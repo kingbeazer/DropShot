@@ -27,5 +27,14 @@
 </div>
 
 @code {
-    private MudTheme _theme = new();
+    private MudTheme _theme = new()
+    {
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#00897b",
+            PrimaryDarken = "#00695c",
+            PrimaryLighten = "#4db6ac",
+            Secondary = "#26a69a",
+        }
+    };
 }
