@@ -1,0 +1,22 @@
+.step-summary {
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: box-shadow 0.2s ease, transform 0.15s ease;
+    background: var(--mud-palette-surface);
+}
+
+.step-summary:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+}
+
+.step-summary-accent {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    border-radius: 4px 0 0 4px;
+}
