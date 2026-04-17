@@ -33,7 +33,8 @@
 {
     <ServerSelectScreen UserLabel="@GetUserDisplayName()"
                         OpponentLabel="@GetOpponentDisplayName()"
-                        OnServerSelected="HandleServerSelected" />
+                        OnServerSelected="HandleServerSelected"
+                        OnBack="HandleServerSelectBack" />
 }
 
 @if (_showCoinToss)
@@ -539,6 +540,11 @@
 
         _showServerSelect = true;
         return Task.CompletedTask;
+    }
+
+    private void HandleServerSelectBack()
+    {
+        _showServerSelect = false;
     }
 
     private async Task HandleServerSelected(string choice)

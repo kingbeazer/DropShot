@@ -31,6 +31,13 @@
                 Spin
             </MudButton>
         </div>
+
+        <MudButton Variant="Variant.Text" Class="mt-4"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Style="color: rgba(255,255,255,0.6);"
+                   OnClick="@(() => OnBack.InvokeAsync())">
+            Back to setup
+        </MudButton>
     </div>
 </div>
 
@@ -38,6 +45,7 @@
     [Parameter] public string UserLabel { get; set; } = "You";
     [Parameter] public string OpponentLabel { get; set; } = "Opponent";
     [Parameter] public EventCallback<string> OnServerSelected { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
 
     private async Task OnSelected(string choice)
     {
