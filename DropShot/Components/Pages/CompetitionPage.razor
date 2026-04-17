@@ -349,6 +349,7 @@
                                      @ref="_participantAutocomplete"
                                      ToStringFunc="@(p => p?.DisplayName ?? "")"
                                      ValueChanged="AddParticipant" ResetValueOnEmptyText="true"
+                                     MaxItems="null"
                                      Variant="Variant.Outlined" Dense="true" Style="max-width:260px" />
                     @if (Model.HostClubId.HasValue)
                     {
