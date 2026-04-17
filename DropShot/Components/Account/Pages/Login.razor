@@ -42,9 +42,11 @@
                     <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
                 </div>
                 <div>
-                    <p>
-                        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/LoginMagicLink", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Sign in with magic link</a>
-                    </p>
+                    <div class="mb-3">
+                        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/LoginMagicLink", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))" class="w-100 btn btn-outline-primary">
+                            <MudIcon Icon="@Icons.Material.Filled.AutoFixHigh" Size="Size.Small" Class="me-1" /> Sign in with magic link
+                        </a>
+                    </div>
                     <p>
                         <a href="Account/ForgotPassword">Forgot your password?</a>
                     </p>
