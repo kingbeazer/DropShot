@@ -5,7 +5,6 @@ public class EmailService
 {
     private readonly EmailClient? _emailClient;
     private readonly string? _sender;
-    private readonly string? _senderDisplayName;
 
     public EmailService(IConfiguration config)
     {
@@ -17,7 +16,6 @@ public class EmailService
         }
 
         _sender = config["ACS:SenderAddress"] ?? throw new InvalidOperationException("ACS:SenderAddress not configured");
-        _senderDisplayName = config["ACS:SenderDisplayName"] ?? "DropShot";
         _emailClient = new EmailClient(connectionString);
     }
 
@@ -50,10 +48,7 @@ public class EmailService
 
         var recipients = new EmailRecipients(new List<EmailAddress> { new EmailAddress(recipient) });
 
-        var senderFormatted = !string.IsNullOrEmpty(_senderDisplayName)
-            ? $"{_senderDisplayName} <{_sender}>"
-            : _sender;
-        var message = new EmailMessage(senderFormatted, recipients, emailContent);
+        var message = new EmailMessage(_sender, recipients, emailContent);
 
         await _emailClient.SendAsync(Azure.WaitUntil.Completed, message);
     }
