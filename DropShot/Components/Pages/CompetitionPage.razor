@@ -338,6 +338,7 @@
                 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Participants</MudText>
                     <MudAutocomplete T="Player" Label="Add player" SearchFunc="SearchPlayers"
+                                     @ref="_participantAutocomplete"
                                      ToStringFunc="@(p => p?.DisplayName ?? "")"
                                      ValueChanged="AddParticipant" ResetValueOnEmptyText="true"
                                      Variant="Variant.Outlined" Dense="true" Style="max-width:260px" />
@@ -1868,6 +1869,7 @@
 
     // ── Add new club player from competition page ────────────────────────────
     private bool _showNewPlayerDialog;
+    private MudAutocomplete<Player>? _participantAutocomplete;
     private NewPlayerForm _newPlayerForm = new();
 
     private sealed class NewPlayerForm
@@ -1938,6 +1940,8 @@
         cp.Player = player;
         _participants.Add(cp);
         Snackbar.Add($"{player.DisplayName} added.", Severity.Success);
+        if (_participantAutocomplete != null)
+            await _participantAutocomplete.ClearAsync();
     }
 
     private async Task UpdateParticipantStatus(CompetitionParticipant cp, ParticipantStatus status)
