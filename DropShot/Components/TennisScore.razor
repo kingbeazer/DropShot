@@ -968,9 +968,11 @@
             && !string.IsNullOrEmpty(_value) && !string.IsNullOrEmpty(_value2))
         {
             _state.BestOf = BestOfOverride ?? _competitionFixture?.Competition?.BestOf ?? 3;
+            _state.IsFixedSets = _competitionFixture?.Competition?.MatchFormat == MatchFormatType.FixedSets;
+            _state.FixedSetCount = _competitionFixture?.Competition?.NumberOfSets ?? 3;
             _state.GameScoring = true;
             _state.UnlimitedDeuce = true;
-            _state.GamesFirstTo = 6;
+            _state.GamesFirstTo = _competitionFixture?.Competition?.GamesPerSet ?? 6;
             _selectedCourtId = _competitionFixture?.CourtId;
             _player1Id = _competitionFixture?.Player1Id;
             _player2Id = _competitionFixture?.Player2Id;
