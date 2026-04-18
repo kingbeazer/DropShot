@@ -2608,13 +2608,24 @@
             var oldWinnerPlayerId = fx.WinnerPlayerId;
             var oldWinnerTeamId = fx.WinnerTeamId;
             bool isTeamFixture = fx.HomeTeamId.HasValue;
+            var currentStageOrder = fx.Stage?.StageOrder;
+            var currentRound = fx.RoundNumber;
+
+            bool IsDownstream(CompetitionFixture f)
+            {
+                if (currentStageOrder.HasValue && f.Stage != null
+                    && f.Stage.StageOrder > currentStageOrder.Value)
+                    return true;
+                if (f.CompetitionStageId == fx.CompetitionStageId
+                    && currentRound.HasValue && f.RoundNumber.HasValue
+                    && f.RoundNumber.Value > currentRound.Value)
+                    return true;
+                return false;
+            }
 
             // Block if downstream fixtures (later stage, or later round in the same stage) have progressed
             if (oldWinnerPlayerId.HasValue || oldWinnerTeamId.HasValue)
             {
-                var currentStageOrder = fx.Stage?.StageOrder;
-                var currentRound = fx.RoundNumber;
-
                 var downstream = await db.CompetitionFixtures
                     .Include(f => f.Stage)
                     .Where(f => f.CompetitionId == fx.CompetitionId
@@ -2622,18 +2633,6 @@
                         && (f.Status == FixtureStatus.InProgress || f.Status == FixtureStatus.Completed
                             || f.Status == FixtureStatus.AwaitingVerification))
                     .ToListAsync();
-
-                bool IsDownstream(CompetitionFixture f)
-                {
-                    if (currentStageOrder.HasValue && f.Stage != null
-                        && f.Stage.StageOrder > currentStageOrder.Value)
-                        return true;
-                    if (f.CompetitionStageId == fx.CompetitionStageId
-                        && currentRound.HasValue && f.RoundNumber.HasValue
-                        && f.RoundNumber.Value > currentRound.Value)
-                        return true;
-                    return false;
-                }
 
                 bool blocked = isTeamFixture
                     ? downstream.Any(f => IsDownstream(f)
@@ -2648,10 +2647,12 @@
                 }
             }
 
-            // Clear winner from next-round Scheduled fixtures
+            // Clear winner from downstream Scheduled fixtures only
+            // (later stages or later rounds in the same stage — NOT same-round RR fixtures)
             if (oldWinnerPlayerId.HasValue)
             {
                 var nextFixtures = await db.CompetitionFixtures
+                    .Include(f => f.Stage)
                     .Where(f => f.CompetitionId == fx.CompetitionId
                         && f.CompetitionFixtureId != fx.CompetitionFixtureId
                         && f.Status == FixtureStatus.Scheduled
@@ -2659,6 +2660,7 @@
                     .ToListAsync();
                 foreach (var nf in nextFixtures)
                 {
+                    if (!IsDownstream(nf)) continue;
                     if (nf.Player1Id == oldWinnerPlayerId) nf.Player1Id = null;
                     if (nf.Player2Id == oldWinnerPlayerId) nf.Player2Id = null;
                 }
@@ -2667,6 +2669,7 @@
             if (oldWinnerTeamId.HasValue)
             {
                 var nextFixtures = await db.CompetitionFixtures
+                    .Include(f => f.Stage)
                     .Include(f => f.TeamMatchSets)
                     .Where(f => f.CompetitionId == fx.CompetitionId
                         && f.CompetitionFixtureId != fx.CompetitionFixtureId
@@ -2675,6 +2678,7 @@
                     .ToListAsync();
                 foreach (var nf in nextFixtures)
                 {
+                    if (!IsDownstream(nf)) continue;
                     if (nf.HomeTeamId == oldWinnerTeamId) nf.HomeTeamId = null;
                     if (nf.AwayTeamId == oldWinnerTeamId) nf.AwayTeamId = null;
                     if (nf.TeamMatchSets.Any())
