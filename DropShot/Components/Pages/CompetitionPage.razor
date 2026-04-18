@@ -3008,9 +3008,38 @@
             : new List<Court>();
         var occupied = new HashSet<(DateTime, int?)>();
 
+        // Track which players/teams are busy at each time slot to prevent double-booking
+        var playerBusyAt = new Dictionary<DateTime, HashSet<int>>(); // time -> set of player IDs busy
+        var teamBusyAt = new Dictionary<DateTime, HashSet<int>>();   // time -> set of team IDs busy
+
+        void MarkBusy(DateTime time, List<int> playerIds, List<int> teamIds)
+        {
+            if (playerIds.Count > 0)
+            {
+                if (!playerBusyAt.TryGetValue(time, out var pSet))
+                    playerBusyAt[time] = pSet = new HashSet<int>();
+                foreach (var pid in playerIds) pSet.Add(pid);
+            }
+            if (teamIds.Count > 0)
+            {
+                if (!teamBusyAt.TryGetValue(time, out var tSet))
+                    teamBusyAt[time] = tSet = new HashSet<int>();
+                foreach (var tid in teamIds) tSet.Add(tid);
+            }
+        }
+
+        bool AnyBusy(DateTime time, List<int> playerIds, List<int> teamIds)
+        {
+            if (playerIds.Count > 0 && playerBusyAt.TryGetValue(time, out var pSet))
+                if (playerIds.Any(pid => pSet.Contains(pid))) return true;
+            if (teamIds.Count > 0 && teamBusyAt.TryGetValue(time, out var tSet))
+                if (teamIds.Any(tid => tSet.Contains(tid))) return true;
+            return false;
+        }
+
         // Returns a (DateTime, CourtId) within the given phase's date window.
-        // Respects match windows and assigns courts from those windows.
-        (DateTime slot, int? courtId) PhaseSlot(string phase, int matchIndex = 0, int totalInPhase = 1)
+        // Respects match windows, assigns courts, and avoids player conflicts.
+        (DateTime slot, int? courtId) PhaseSlot(string phase, List<int> playerIds, List<int> teamIds, int matchIndex = 0, int totalInPhase = 1)
         {
             int phaseIdx = phases.IndexOf(phase);
             if (phaseIdx < 0) phaseIdx = 0;
@@ -3020,27 +3049,46 @@
                 ? startDate.AddDays((phaseIdx + 1) * sliceSize - 1)
                 : endDate;
 
-            if (phase == "rr")
+            // Try up to 50 times to find a slot where none of the players/teams are busy
+            for (int attempt = 0; attempt < 50; attempt++)
             {
-                var result = SchedulingSlotPicker.PickCourtSlot(_matchWindows, scheduleCourts, occupied, windowStart, windowEnd, rng);
+                (DateTime slot, int? courtId) result;
+                if (phase == "rr")
+                {
+                    result = SchedulingSlotPicker.PickCourtSlot(_matchWindows, scheduleCourts, occupied, windowStart, windowEnd, rng);
+                }
+                else
+                {
+                    int windowDays = Math.Max(0, (windowEnd - windowStart).Days);
+                    int dayOffset = totalInPhase > 1
+                        ? (int)Math.Round((double)matchIndex / (totalInPhase - 1) * windowDays)
+                        : windowDays / 2;
+                    var specificDay = windowStart.AddDays(dayOffset);
+                    result = SchedulingSlotPicker.PickCourtSlot(_matchWindows, scheduleCourts, occupied, specificDay, specificDay, rng);
+                }
+
+                if (!AnyBusy(result.slot, playerIds, teamIds))
+                {
+                    occupied.Add(result);
+                    MarkBusy(result.slot, playerIds, teamIds);
+                    return result;
+                }
+
+                // Slot conflicts with a player — mark it occupied so PickCourtSlot picks a different one
                 occupied.Add(result);
-                return result;
             }
 
-            int windowDays = Math.Max(0, (windowEnd - windowStart).Days);
-            int dayOffset = totalInPhase > 1
-                ? (int)Math.Round((double)matchIndex / (totalInPhase - 1) * windowDays)
-                : windowDays / 2;
-            var specificDay = windowStart.AddDays(dayOffset);
-            var koResult = SchedulingSlotPicker.PickCourtSlot(_matchWindows, scheduleCourts, occupied, specificDay, specificDay, rng);
-            occupied.Add(koResult);
-            return koResult;
+            // Fallback: accept the last attempt even with conflicts
+            var fallback = SchedulingSlotPicker.PickCourtSlot(_matchWindows, scheduleCourts, occupied, windowStart, windowEnd, rng);
+            occupied.Add(fallback);
+            MarkBusy(fallback.slot, playerIds, teamIds);
+            return fallback;
         }
 
         // Helper to create a fixture with scheduled time and court from PhaseSlot
-        CompetitionFixture NewScheduledFixture(string phase, int matchIndex = 0, int totalInPhase = 1)
+        CompetitionFixture NewScheduledFixture(string phase, List<int>? playerIds = null, List<int>? teamIds = null, int matchIndex = 0, int totalInPhase = 1)
         {
-            var (slot, courtId) = PhaseSlot(phase, matchIndex, totalInPhase);
+            var (slot, courtId) = PhaseSlot(phase, playerIds ?? [], teamIds ?? [], matchIndex, totalInPhase);
             return new CompetitionFixture
             {
                 CompetitionId = Id,
@@ -3101,7 +3149,7 @@
                                                (int?)stage.CompetitionStageId);
                                 if (existingTeamPairs.Contains(teamKey)) continue;
 
-                                var fixture = NewScheduledFixture("rr");
+                                var fixture = NewScheduledFixture("rr", teamIds: [homeTeamId, awayTeamId]);
                                 fixture.CompetitionStageId = stage.CompetitionStageId;
                                 fixture.HomeTeamId = homeTeamId;
                                 fixture.AwayTeamId = awayTeamId;
@@ -3132,7 +3180,7 @@
                                            Math.Max(players[i], players[j]),
                                            (int?)stage.CompetitionStageId);
                                 if (existingRrPairs.Contains(key)) continue;
-                                var pf = NewScheduledFixture("rr");
+                                var pf = NewScheduledFixture("rr", playerIds: [players[i], players[j]]);
                                 pf.CompetitionStageId = stage.CompetitionStageId;
                                 pf.Player1Id = players[i];
                                 pf.Player2Id = players[j];
@@ -3158,7 +3206,7 @@
                         {
                             var label = $"Quarter-Final {m + 1}";
                             if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                            var qfF = NewScheduledFixture("qf", m, 4);
+                            var qfF = NewScheduledFixture("qf", matchIndex: m, totalInPhase: 4);
                             qfF.CompetitionStageId = stage.CompetitionStageId;
                             qfF.FixtureLabel = label;
                             qfF.RoundNumber = 1;
@@ -3172,7 +3220,7 @@
                         {
                             var label = $"Semi-Final {m + 1}";
                             if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                            var sfF = NewScheduledFixture("sf", m, 2);
+                            var sfF = NewScheduledFixture("sf", matchIndex: m, totalInPhase: 2);
                             sfF.CompetitionStageId = stage.CompetitionStageId;
                             sfF.FixtureLabel = label;
                             sfF.RoundNumber = koGeneratesQF ? 2 : 1;
@@ -3182,7 +3230,7 @@
 
                     if (koGeneratesFinal && !existingLabels.Contains(((int?)stage.CompetitionStageId, "Final")))
                     {
-                        var finalF = NewScheduledFixture("final", 0, 1);
+                        var finalF = NewScheduledFixture("final");
                         finalF.CompetitionStageId = stage.CompetitionStageId;
                         finalF.FixtureLabel = "Final";
                         finalF.RoundNumber = koGeneratesQF ? 3 : koGeneratesSF ? 2 : 1;
@@ -3197,7 +3245,7 @@
                     {
                         var label = $"Quarter-Final {m + 1}";
                         if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                        var qf = NewScheduledFixture("qf", m, 4);
+                        var qf = NewScheduledFixture("qf", matchIndex: m, totalInPhase: 4);
                         qf.CompetitionStageId = stage.CompetitionStageId;
                         qf.FixtureLabel = label;
                         qf.RoundNumber = 1;
@@ -3212,7 +3260,7 @@
                     {
                         var label = $"Semi-Final {m + 1}";
                         if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                        var sf = NewScheduledFixture("sf", m, 2);
+                        var sf = NewScheduledFixture("sf", matchIndex: m, totalInPhase: 2);
                         sf.CompetitionStageId = stage.CompetitionStageId;
                         sf.FixtureLabel = label;
                         sf.RoundNumber = 1;
@@ -3224,7 +3272,7 @@
                 case StageType.Final:
                     if (!existingLabels.Contains(((int?)stage.CompetitionStageId, "Final")))
                     {
-                        var fin = NewScheduledFixture("final", 0, 1);
+                        var fin = NewScheduledFixture("final");
                         fin.CompetitionStageId = stage.CompetitionStageId;
                         fin.FixtureLabel = "Final";
                         fin.RoundNumber = 1;
