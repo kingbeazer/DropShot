@@ -927,28 +927,34 @@
                     </MudAlert>
                 </MudItem>
             }
-            <MudItem xs="12" sm="6">
-                <MudSelect @bind-Value="_fixtureForm.Player1Id" Label="Player 1 (optional)"
-                           Variant="Variant.Outlined" Clearable="true">
-                    @foreach (var p in _participants.Where(p => p.Player != null))
-                    {
-                        <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudSelect @bind-Value="_fixtureForm.Player2Id" Label="Player 2 (optional)"
-                           Variant="Variant.Outlined" Clearable="true">
-                    @foreach (var p in _participants.Where(p => p.Player != null))
-                    {
-                        <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            @if (EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam
+                 or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles
+                 && _teams.Count > 0)
+            {
+                var teamLabel = IsDoublesFormat() ? "Pair" : "Team";
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_fixtureForm.HomeTeamId" Label="@($"Home {teamLabel}")"
+                               Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var t in _teams)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_fixtureForm.AwayTeamId" Label="@($"Away {teamLabel}")"
+                               Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var t in _teams)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+            else
             {
                 <MudItem xs="12" sm="6">
-                    <MudSelect @bind-Value="_fixtureForm.Player3Id" Label="Player 3 (optional)"
+                    <MudSelect @bind-Value="_fixtureForm.Player1Id" Label="Player 1 (optional)"
                                Variant="Variant.Outlined" Clearable="true">
                         @foreach (var p in _participants.Where(p => p.Player != null))
                         {
@@ -957,7 +963,7 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect @bind-Value="_fixtureForm.Player4Id" Label="Player 4 (optional)"
+                    <MudSelect @bind-Value="_fixtureForm.Player2Id" Label="Player 2 (optional)"
                                Variant="Variant.Outlined" Clearable="true">
                         @foreach (var p in _participants.Where(p => p.Player != null))
                         {
@@ -965,6 +971,27 @@
                         }
                     </MudSelect>
                 </MudItem>
+                @if (EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="_fixtureForm.Player3Id" Label="Player 3 (optional)"
+                                   Variant="Variant.Outlined" Clearable="true">
+                            @foreach (var p in _participants.Where(p => p.Player != null))
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="_fixtureForm.Player4Id" Label="Player 4 (optional)"
+                                   Variant="Variant.Outlined" Clearable="true">
+                            @foreach (var p in _participants.Where(p => p.Player != null))
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.Player!.DisplayName</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
             }
             <MudItem xs="12" sm="6">
                 <MudSelect @bind-Value="_fixtureForm.CourtId" Label="Court (optional)"
@@ -1401,6 +1428,8 @@
         public int? Player2Id { get; set; }
         public int? Player3Id { get; set; }
         public int? Player4Id { get; set; }
+        public int? HomeTeamId { get; set; }
+        public int? AwayTeamId { get; set; }
         public int? CourtId { get; set; }
         public FixtureStatus Status { get; set; } = FixtureStatus.Scheduled;
 
@@ -2366,6 +2395,8 @@
             Player2Id = fixture.Player2Id,
             Player3Id = fixture.Player3Id,
             Player4Id = fixture.Player4Id,
+            HomeTeamId = fixture.HomeTeamId,
+            AwayTeamId = fixture.AwayTeamId,
             CourtId = fixture.CourtId,
             Status = fixture.Status
         };
@@ -2430,6 +2461,8 @@
         f.Player2Id = _fixtureForm.Player2Id;
         f.Player3Id = _fixtureForm.Player3Id;
         f.Player4Id = _fixtureForm.Player4Id;
+        f.HomeTeamId = _fixtureForm.HomeTeamId;
+        f.AwayTeamId = _fixtureForm.AwayTeamId;
         f.CourtId = _fixtureForm.CourtId;
         f.Status = _fixtureForm.Status;
     }
@@ -2884,7 +2917,10 @@
         bool hasExplicitSF    = _stages.Any(s => s.StageType == StageType.SemiFinal);
         bool hasExplicitFinal = _stages.Any(s => s.StageType == StageType.Final);
         bool hasKnockout      = _stages.Any(s => s.StageType == StageType.Knockout);
-        int  n                = activePlayers.Count;
+        var efmt = EffectivePersistedFormat();
+        var isTeamComp = efmt is CompetitionFormat.Team or CompetitionFormat.MixedTeam
+            or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+        int  n                = (isTeamComp && _teams.Count >= 2) ? _teams.Count : activePlayers.Count;
 
         var phases = new List<string>();
         if (_stages.Any(s => s.StageType == StageType.RoundRobin))  phases.Add("rr");
@@ -2928,24 +2964,96 @@
             {
                 case StageType.RoundRobin:
                 {
-                    var players = activePlayers.ToList();
-                    for (int i = 0; i < players.Count; i++)
-                        for (int j = i + 1; j < players.Count; j++)
+                    var format = EffectivePersistedFormat();
+                    var isTeamFmt = format is CompetitionFormat.Team or CompetitionFormat.MixedTeam
+                        or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+
+                    if (isTeamFmt && _teams.Count >= 2)
+                    {
+                        // Team/pair round-robin using circle method
+                        var teamIds = _teams.Select(t => t.CompetitionTeamId).ToList();
+                        int tn = teamIds.Count;
+                        if (tn % 2 != 0) teamIds.Add(-1); // BYE sentinel
+                        int total = teamIds.Count;
+                        int rounds = total - 1;
+
+                        // Deduplication set for team pairs
+                        var existingTeamPairs = existing
+                            .Where(f => f.HomeTeamId.HasValue && f.AwayTeamId.HasValue)
+                            .Select(f => (Math.Min(f.HomeTeamId!.Value, f.AwayTeamId!.Value),
+                                          Math.Max(f.HomeTeamId!.Value, f.AwayTeamId!.Value),
+                                          f.CompetitionStageId))
+                            .ToHashSet();
+
+                        // Members for populating Player1-4 on doubles fixtures
+                        var allMembers = _participants
+                            .Where(p => p.TeamId != null && (p.Status is ParticipantStatus.Registered or ParticipantStatus.Confirmed))
+                            .ToList();
+
+                        for (int round = 0; round < rounds; round++)
                         {
-                            var key = (Math.Min(players[i], players[j]),
-                                       Math.Max(players[i], players[j]),
-                                       (int?)stage.CompetitionStageId);
-                            if (existingRrPairs.Contains(key)) continue;
-                            newFixtures.Add(new CompetitionFixture
+                            for (int match = 0; match < total / 2; match++)
                             {
-                                CompetitionId      = Id,
-                                CompetitionStageId = stage.CompetitionStageId,
-                                Player1Id          = players[i],
-                                Player2Id          = players[j],
-                                ScheduledAt        = PhaseSlot("rr"),
-                                Status             = FixtureStatus.Scheduled
-                            });
+                                int home = match == 0 ? 0 : ((round + match - 1) % (total - 1)) + 1;
+                                int away = ((round + total - 1 - match) % (total - 1)) + 1;
+                                if (match == 0) { home = 0; away = ((round) % (total - 1)) + 1; }
+
+                                int homeTeamId = teamIds[home];
+                                int awayTeamId = teamIds[away];
+                                if (homeTeamId == -1 || awayTeamId == -1) continue;
+
+                                var teamKey = (Math.Min(homeTeamId, awayTeamId),
+                                               Math.Max(homeTeamId, awayTeamId),
+                                               (int?)stage.CompetitionStageId);
+                                if (existingTeamPairs.Contains(teamKey)) continue;
+
+                                var fixture = new CompetitionFixture
+                                {
+                                    CompetitionId      = Id,
+                                    CompetitionStageId = stage.CompetitionStageId,
+                                    HomeTeamId         = homeTeamId,
+                                    AwayTeamId         = awayTeamId,
+                                    ScheduledAt        = PhaseSlot("rr"),
+                                    Status             = FixtureStatus.Scheduled
+                                };
+
+                                // For doubles, also populate Player1-4
+                                if (format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+                                {
+                                    var homePair = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
+                                    var awayPair = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
+                                    if (homePair.Count >= 1) fixture.Player1Id = homePair[0].PlayerId;
+                                    if (homePair.Count >= 2) fixture.Player3Id = homePair[1].PlayerId;
+                                    if (awayPair.Count >= 1) fixture.Player2Id = awayPair[0].PlayerId;
+                                    if (awayPair.Count >= 2) fixture.Player4Id = awayPair[1].PlayerId;
+                                }
+
+                                newFixtures.Add(fixture);
+                            }
                         }
+                    }
+                    else
+                    {
+                        // Individual player round-robin (Singles or no teams defined)
+                        var players = activePlayers.ToList();
+                        for (int i = 0; i < players.Count; i++)
+                            for (int j = i + 1; j < players.Count; j++)
+                            {
+                                var key = (Math.Min(players[i], players[j]),
+                                           Math.Max(players[i], players[j]),
+                                           (int?)stage.CompetitionStageId);
+                                if (existingRrPairs.Contains(key)) continue;
+                                newFixtures.Add(new CompetitionFixture
+                                {
+                                    CompetitionId      = Id,
+                                    CompetitionStageId = stage.CompetitionStageId,
+                                    Player1Id          = players[i],
+                                    Player2Id          = players[j],
+                                    ScheduledAt        = PhaseSlot("rr"),
+                                    Status             = FixtureStatus.Scheduled
+                                });
+                            }
+                    }
                     break;
                 }
 
