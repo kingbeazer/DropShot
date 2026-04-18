@@ -140,7 +140,7 @@ else
                               InputType="InputType.Telephone" />
             </MudItem>
             <MudItem xs="12">
-                <MudDatePicker @bind-Date="_form.DateOfBirth" Label="Date of birth" Variant="Variant.Outlined"
+                <MudDatePicker @bind-Date="_form.DateOfBirth" Label="Date of birth *" Variant="Variant.Outlined"
                                DateFormat="dd/MM/yyyy" Editable="true" />
             </MudItem>
             <MudItem xs="12">
@@ -156,7 +156,7 @@ else
     <DialogActions>
         <MudButton OnClick="@(() => _showPlayerDialog = false)">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   Disabled="@string.IsNullOrWhiteSpace(_form.DisplayName)"
+                   Disabled="@(string.IsNullOrWhiteSpace(_form.DisplayName) || !_form.DateOfBirth.HasValue)"
                    OnClick="SavePlayer">
             @(_editingPlayerId.HasValue ? "Save" : "Add")
         </MudButton>

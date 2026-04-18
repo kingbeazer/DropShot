@@ -472,6 +472,10 @@
                                               Variant="Variant.Outlined" InputType="InputType.Telephone" />
                             </MudItem>
                             <MudItem xs="12">
+                                <MudDatePicker @bind-Date="_newPlayerForm.DateOfBirth" Label="Date of birth *"
+                                               Variant="Variant.Outlined" DateFormat="dd/MM/yyyy" Editable="true" />
+                            </MudItem>
+                            <MudItem xs="12">
                                 <MudText Typo="Typo.body2" Class="mb-1">Competition category</MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Determines which events they're eligible to enter</MudText>
                                 <MudRadioGroup T="PlayerSex?" @bind-Value="_newPlayerForm.CompetitionCategory">
@@ -484,7 +488,7 @@
                     <DialogActions>
                         <MudButton OnClick="@(() => _showNewPlayerDialog = false)">Cancel</MudButton>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                   Disabled="@string.IsNullOrWhiteSpace(_newPlayerForm.DisplayName)"
+                                   Disabled="@(string.IsNullOrWhiteSpace(_newPlayerForm.DisplayName) || !_newPlayerForm.DateOfBirth.HasValue)"
                                    OnClick="@(_editingLightPlayerId.HasValue ? SaveLightPlayerEdit : CreateAndAddClubPlayer)">
                             @(_editingLightPlayerId.HasValue ? "Save" : "Add")
                         </MudButton>
@@ -2050,6 +2054,7 @@
         public string? Email { get; set; }
         public string? MobileNumber { get; set; }
         public PlayerSex? CompetitionCategory { get; set; }
+        public DateTime? DateOfBirth { get; set; }
     }
 
     private void OpenNewPlayerDialog()
@@ -2069,7 +2074,8 @@
             LastName = cp.Player?.LastName,
             Email = cp.Player?.Email,
             MobileNumber = cp.Player?.MobileNumber,
-            CompetitionCategory = cp.Player?.Sex
+            CompetitionCategory = cp.Player?.Sex,
+            DateOfBirth = cp.Player?.DateOfBirth?.ToDateTime(TimeOnly.MinValue)
         };
         _showNewPlayerDialog = true;
     }
@@ -2088,6 +2094,7 @@
         player.Email = string.IsNullOrWhiteSpace(_newPlayerForm.Email) ? null : _newPlayerForm.Email.Trim();
         player.MobileNumber = string.IsNullOrWhiteSpace(_newPlayerForm.MobileNumber) ? null : _newPlayerForm.MobileNumber.Trim();
         player.Sex = _newPlayerForm.CompetitionCategory;
+        player.DateOfBirth = _newPlayerForm.DateOfBirth.HasValue ? DateOnly.FromDateTime(_newPlayerForm.DateOfBirth.Value) : null;
         await db.SaveChangesAsync();
 
         // Update local state
@@ -2100,6 +2107,7 @@
             cp.Player.Email = player.Email;
             cp.Player.MobileNumber = player.MobileNumber;
             cp.Player.Sex = player.Sex;
+            cp.Player.DateOfBirth = player.DateOfBirth;
         }
 
         _showNewPlayerDialog = false;
@@ -2120,6 +2128,7 @@
             Email = string.IsNullOrWhiteSpace(_newPlayerForm.Email) ? null : _newPlayerForm.Email!.Trim(),
             MobileNumber = string.IsNullOrWhiteSpace(_newPlayerForm.MobileNumber) ? null : _newPlayerForm.MobileNumber!.Trim(),
             Sex = _newPlayerForm.CompetitionCategory,
+            DateOfBirth = _newPlayerForm.DateOfBirth.HasValue ? DateOnly.FromDateTime(_newPlayerForm.DateOfBirth.Value) : null,
             IsLight = true,
             CreatedByClubId = clubId
         };
