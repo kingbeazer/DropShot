@@ -533,6 +533,8 @@
 
         _state.GameScoring = result.GameScoring;
         _state.BestOf = result.BestOf;
+        _state.IsFixedSets = result.IsFixedSets;
+        _state.FixedSetCount = result.FixedSetCount;
         _state.GamesFirstTo = result.GamesPerSet;
         _state.UnlimitedDeuce = result.UnlimitedDeuce;
         _state.DeuceLimit = result.DeuceLimit;
@@ -594,6 +596,8 @@
             CourtId = _selectedCourtId,
             GameScoring = _state.GameScoring,
             BestOf = _state.BestOf,
+            IsFixedSets = _state.IsFixedSets,
+            FixedSetCount = _state.FixedSetCount,
             GamesFirstTo = _state.GamesFirstTo,
             UnlimitedDeuce = _state.UnlimitedDeuce,
             DeuceLimit = _state.DeuceLimit,
@@ -879,6 +883,8 @@
                     ScoreService.RestoreFromGameState(_state, history.Peek());
                 _state.GameScoring = CurrentMatch.GameScoring;
                 _state.BestOf = CurrentMatch.BestOf;
+                _state.IsFixedSets = CurrentMatch.IsFixedSets;
+                _state.FixedSetCount = CurrentMatch.FixedSetCount;
                 _state.GamesFirstTo = CurrentMatch.GamesFirstTo;
                 _state.UnlimitedDeuce = CurrentMatch.UnlimitedDeuce;
                 _state.DeuceLimit = CurrentMatch.DeuceLimit;

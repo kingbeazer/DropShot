@@ -114,8 +114,15 @@ public class TennisScoreService
         s.UserPoints = s.OppPoints = 0;
         s.IsTieBreak = false;
 
-        if (s.UserSets == GetMaxSetsToWin(s.BestOf) || s.OppSets == GetMaxSetsToWin(s.BestOf))
+        if (s.IsFixedSets)
+        {
+            if (s.UserSets + s.OppSets >= s.FixedSetCount)
+                s.IsMatchEnded = true;
+        }
+        else if (s.UserSets == GetMaxSetsToWin(s.BestOf) || s.OppSets == GetMaxSetsToWin(s.BestOf))
+        {
             s.IsMatchEnded = true;
+        }
     }
 
     public string? EndMatch(TennisMatchState s, Match match, bool isDoubles)

@@ -1,5 +1,18 @@
 ﻿namespace DropShot.Models
 {
+    public enum MatchFormatType : byte
+    {
+        BestOf = 1,
+        FixedSets = 2
+    }
+
+    public enum LeagueScoringMode : byte
+    {
+        WinPoints = 1,
+        SetsWon = 2,
+        GamesWon = 3
+    }
+
     public enum CompetitionFormat
     {
         Singles = 1,
@@ -47,6 +60,10 @@
         /// Number of players per team (or pair). Defaults: 2 for Doubles/MixedDoubles, 4 for MixedTeam.
         /// </summary>
         public int? TeamSize { get; set; }
+
+        public MatchFormatType MatchFormat { get; set; } = MatchFormatType.BestOf;
+        public int NumberOfSets { get; set; } = 3;
+        public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
 
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }

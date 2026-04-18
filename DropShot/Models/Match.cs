@@ -18,4 +18,6 @@ public class Match
     public bool UnlimitedDeuce { get; set; } = true;
     public int DeuceLimit { get; set; } = 1;
     public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
+    public bool IsFixedSets { get; set; }
+    public int FixedSetCount { get; set; } = 3;
 }

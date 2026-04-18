@@ -319,7 +319,7 @@
                 </MudStack>
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                     <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Small" Color="Color.Secondary" />
-                    <MudText Typo="Typo.body2">Best of @_bestOf @(_bestOf == 1 ? "set" : "sets")</MudText>
+                    <MudText Typo="Typo.body2">@(_isFixedSets ? $"{_fixedSetCount} fixed set(s)" : $"Best of {_bestOf}")</MudText>
                 </MudStack>
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                     <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Secondary" />
@@ -372,14 +372,30 @@
 
                 <MudDivider Class="my-3" />
 
-                <MudSelect T="int" @bind-Value="_bestOf" Label="Best of (sets)"
-                           Variant="Variant.Outlined"
-                           Style="max-width: 160px;" Class="mb-2">
-                    <MudSelectItem T="int" Value="1">1</MudSelectItem>
-                    <MudSelectItem T="int" Value="3">3</MudSelectItem>
-                    <MudSelectItem T="int" Value="5">5</MudSelectItem>
-                    <MudSelectItem T="int" Value="7">7</MudSelectItem>
-                </MudSelect>
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Match Format</MudText>
+                <MudRadioGroup @bind-Value="_isFixedSets">
+                    <MudStack Row="true" Spacing="2">
+                        <MudRadio Value="false" Color="Color.Primary">Best of</MudRadio>
+                        <MudRadio Value="true" Color="Color.Primary">Fixed sets</MudRadio>
+                    </MudStack>
+                </MudRadioGroup>
+                @if (!_isFixedSets)
+                {
+                    <MudSelect T="int" @bind-Value="_bestOf" Label="Best of (sets)"
+                               Variant="Variant.Outlined"
+                               Style="max-width: 160px;" Class="mb-2">
+                        <MudSelectItem T="int" Value="1">1</MudSelectItem>
+                        <MudSelectItem T="int" Value="3">3</MudSelectItem>
+                        <MudSelectItem T="int" Value="5">5</MudSelectItem>
+                        <MudSelectItem T="int" Value="7">7</MudSelectItem>
+                    </MudSelect>
+                }
+                else
+                {
+                    <MudNumericField @bind-Value="_fixedSetCount" Label="Number of sets"
+                                     Variant="Variant.Outlined" Min="1" Max="20"
+                                     Style="max-width: 160px;" Class="mb-2" />
+                }
 
                 <MudNumericField @bind-Value="_gamesPerSet" Label="Games per set"
                                  Variant="Variant.Outlined" Min="1" Max="12"
@@ -504,6 +520,8 @@
     private bool _unlimitedDeuce = true;
     private int _deuceLimit = 1;
     private int _bestOf = 3;
+    private bool _isFixedSets;
+    private int _fixedSetCount = 3;
     private int _gamesPerSet = 6;
     private SetWinMode _setWinMode = SetWinMode.WinBy2;
 
@@ -1058,6 +1076,8 @@
             UnlimitedDeuce = _unlimitedDeuce,
             DeuceLimit = _unlimitedDeuce ? 0 : _deuceLimit,
             BestOf = _bestOf,
+            IsFixedSets = _isFixedSets,
+            FixedSetCount = _fixedSetCount,
             GamesPerSet = _gamesPerSet,
             SetWinMode = _setWinMode,
             ServerChoice = "random"
@@ -1085,6 +1105,8 @@
         public bool UnlimitedDeuce { get; set; } = true;
         public int DeuceLimit { get; set; }
         public int BestOf { get; set; } = 3;
+        public bool IsFixedSets { get; set; }
+        public int FixedSetCount { get; set; } = 3;
         public int GamesPerSet { get; set; } = 6;
         public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
         public string ServerChoice { get; set; } = "random";
