@@ -3051,18 +3051,16 @@
         var usedSlots = new HashSet<(DateTime, int?)>();
         var playerBusyAt = new Dictionary<DateTime, HashSet<int>>();
         var teamBusyAt = new Dictionary<DateTime, HashSet<int>>();
-        int slotCursor = 0;
 
         (DateTime time, int? courtId)? PickSlot(List<int> playerIds, List<int> teamIds)
         {
-            // Scan from cursor forward for a valid slot
+            // Scan all slots from the beginning for the earliest valid one
             for (int i = 0; i < allSlots.Count; i++)
             {
-                var idx = (slotCursor + i) % allSlots.Count;
-                var slot = allSlots[idx];
+                var slot = allSlots[i];
                 if (usedSlots.Contains(slot)) continue;
 
-                // Check player conflicts
+                // Check player/team conflicts at this TIME (not court-specific)
                 bool conflict = false;
                 if (playerIds.Count > 0 && playerBusyAt.TryGetValue(slot.time, out var pBusy))
                     conflict = playerIds.Any(pid => pBusy.Contains(pid));
@@ -3084,7 +3082,6 @@
                         teamBusyAt[slot.time] = tSet = new HashSet<int>();
                     foreach (var tid in teamIds) tSet.Add(tid);
                 }
-                slotCursor = (idx + 1) % allSlots.Count;
                 return slot;
             }
             return null; // No valid slot found
@@ -3178,22 +3175,37 @@
                     }
                     else
                     {
-                        // Individual player round-robin (Singles or no teams defined)
+                        // Individual player round-robin using circle method
+                        // (spreads each player's matches evenly across the schedule)
                         var players = activePlayers.ToList();
-                        for (int i = 0; i < players.Count; i++)
-                            for (int j = i + 1; j < players.Count; j++)
+                        int pn = players.Count;
+                        if (pn % 2 != 0) players.Add(-1); // BYE sentinel
+                        int pTotal = players.Count;
+                        int pRounds = pTotal - 1;
+
+                        for (int round = 0; round < pRounds; round++)
+                        {
+                            for (int match = 0; match < pTotal / 2; match++)
                             {
-                                var key = (Math.Min(players[i], players[j]),
-                                           Math.Max(players[i], players[j]),
-                                           (int?)stage.CompetitionStageId);
+                                int home = match == 0 ? 0 : ((round + match - 1) % (pTotal - 1)) + 1;
+                                int away = ((round + pTotal - 1 - match) % (pTotal - 1)) + 1;
+                                if (match == 0) { home = 0; away = ((round) % (pTotal - 1)) + 1; }
+
+                                int p1 = players[home];
+                                int p2 = players[away];
+                                if (p1 == -1 || p2 == -1) continue; // BYE
+
+                                var key = (Math.Min(p1, p2), Math.Max(p1, p2), (int?)stage.CompetitionStageId);
                                 if (existingRrPairs.Contains(key)) continue;
-                                var pf = NewScheduledFixture(playerIds: [players[i], players[j]]);
+
+                                var pf = NewScheduledFixture(playerIds: [p1, p2]);
                                 if (pf == null) { unscheduledCount++; continue; }
                                 pf.CompetitionStageId = stage.CompetitionStageId;
-                                pf.Player1Id = players[i];
-                                pf.Player2Id = players[j];
+                                pf.Player1Id = p1;
+                                pf.Player2Id = p2;
                                 newFixtures.Add(pf);
                             }
+                        }
                     }
                     break;
                 }
