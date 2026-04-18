@@ -1436,6 +1436,7 @@
                 .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair)
                 .Include(c => c.Teams).ThenInclude(t => t.Captain)
                 .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
+                .AsSplitQuery()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.CompetitionID == Id);
 
