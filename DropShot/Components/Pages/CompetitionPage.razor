@@ -1949,11 +1949,32 @@
     private Task<IEnumerable<Player>> SearchPlayers(string text, CancellationToken ct)
     {
         var alreadyIn = _participants.Select(p => p.PlayerId).ToHashSet();
+        var eligibleSex = EffectiveEligibleSex();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
         // Host club's players only; fall back to all players if no host club is set.
         var source = Model.HostClubId.HasValue ? _clubPlayers : _allPlayers;
         var results = source
-            .Where(p => !alreadyIn.Contains(p.PlayerId) &&
-                        (string.IsNullOrWhiteSpace(text) || p.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)));
+            .Where(p =>
+            {
+                if (alreadyIn.Contains(p.PlayerId)) return false;
+                if (!string.IsNullOrWhiteSpace(text) && !p.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)) return false;
+
+                // Gender filter — skip players whose sex doesn't match (allow null/unset through)
+                if (eligibleSex.HasValue && p.Sex.HasValue && p.Sex != eligibleSex) return false;
+
+                // Age filter — only apply if player has a date of birth
+                if (p.DateOfBirth.HasValue)
+                {
+                    int age = today.Year - p.DateOfBirth.Value.Year;
+                    if (p.DateOfBirth.Value.AddYears(age) > today) age--;
+
+                    if (Model.MaxAge.HasValue && age >= Model.MaxAge.Value) return false;
+                    if (Model.MinAge.HasValue && age < Model.MinAge.Value) return false;
+                }
+
+                return true;
+            });
         return Task.FromResult(results);
     }
 
@@ -2070,6 +2091,15 @@
     private async Task AddParticipant(Player player)
     {
         if (player == null || _participants.Any(p => p.PlayerId == player.PlayerId)) return;
+
+        if (Model.MaxParticipants.HasValue && _participants.Count >= Model.MaxParticipants.Value)
+        {
+            Snackbar.Add($"Maximum of {Model.MaxParticipants.Value} participants reached.", Severity.Warning);
+            if (_participantAutocomplete != null)
+                await _participantAutocomplete.ClearAsync();
+            return;
+        }
+
         await using var db = DbFactory.CreateDbContext();
         var cp = new CompetitionParticipant
         {
