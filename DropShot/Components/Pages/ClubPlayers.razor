@@ -52,7 +52,9 @@ else
             <MudTh>Player</MudTh>
             <MudTh>First Name</MudTh>
             <MudTh>Last Name</MudTh>
+            <MudTh>Age</MudTh>
             <MudTh>Category</MudTh>
+            <MudTh>Email</MudTh>
             <MudTh>Mobile</MudTh>
             <MudTh Style="width: 100px;">Actions</MudTh>
         </HeaderContent>
@@ -83,7 +85,9 @@ else
             </MudTd>
             <MudTd DataLabel="First Name">@(context.FirstName ?? "—")</MudTd>
             <MudTd DataLabel="Last Name">@(context.LastName ?? "—")</MudTd>
+            <MudTd DataLabel="Age">@(context.Age?.ToString() ?? "—")</MudTd>
             <MudTd DataLabel="Category">@(context.Sex?.ToString() ?? "—")</MudTd>
+            <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
             <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
             <MudTd DataLabel="Actions">
                 <MudStack Row="true" Spacing="0">
@@ -134,6 +138,10 @@ else
             <MudItem xs="12">
                 <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile number" Variant="Variant.Outlined"
                               InputType="InputType.Telephone" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudDatePicker @bind-Date="_form.DateOfBirth" Label="Date of birth" Variant="Variant.Outlined"
+                               DateFormat="dd/MM/yyyy" Editable="true" />
             </MudItem>
             <MudItem xs="12">
                 <MudText Typo="Typo.body2" Class="mb-1">Competition category</MudText>
@@ -203,7 +211,12 @@ else
 </div></div>
 
 @code {
-    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, bool IsClubOwned, string? Email, string? MobileNumber, PlayerSex? Sex, string? ProfileImagePath);
+    private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, bool IsClubOwned, string? Email, string? MobileNumber, PlayerSex? Sex, string? ProfileImagePath, DateOnly? DateOfBirth)
+    {
+        public int? Age => DateOfBirth.HasValue
+            ? (int)((DateTime.Today.ToOADate() - DateOfBirth.Value.ToDateTime(TimeOnly.MinValue).ToOADate()) / 365.25)
+            : null;
+    }
 
     private bool _loading = true;
     private List<PlayerRow> _players = [];
@@ -228,6 +241,7 @@ else
         public string? Email { get; set; }
         public string? MobileNumber { get; set; }
         public PlayerSex? CompetitionCategory { get; set; }
+        public DateTime? DateOfBirth { get; set; }
     }
 
     private bool FilterPlayers(PlayerRow row) =>
@@ -263,12 +277,12 @@ else
         var rows = await db.ClubPlayers
             .Where(cp => cp.ClubId == _activeClubId.Value)
             .Join(db.Players, cp => cp.PlayerId, p => p.PlayerId,
-                (cp, p) => new { p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight, p.CreatedByClubId, p.Email, p.MobileNumber, p.Sex, p.ProfileImagePath, UserImage = p.User != null ? p.User.ProfileImagePath : null })
+                (cp, p) => new { p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight, p.CreatedByClubId, p.Email, p.MobileNumber, p.Sex, p.ProfileImagePath, p.DateOfBirth, UserImage = p.User != null ? p.User.ProfileImagePath : null })
             .OrderBy(x => x.DisplayName)
             .ToListAsync();
         _players = rows
             .Select(x => new PlayerRow(x.PlayerId, x.DisplayName, x.FirstName, x.LastName,
-                x.IsLight, x.CreatedByClubId == _activeClubId.Value, x.Email, x.MobileNumber, x.Sex, x.UserImage ?? x.ProfileImagePath))
+                x.IsLight, x.CreatedByClubId == _activeClubId.Value, x.Email, x.MobileNumber, x.Sex, x.UserImage ?? x.ProfileImagePath, x.DateOfBirth))
             .ToList();
         _loading = false;
     }
@@ -290,7 +304,8 @@ else
             LastName = row.LastName,
             Email = row.Email,
             MobileNumber = row.MobileNumber,
-            CompetitionCategory = row.Sex
+            CompetitionCategory = row.Sex,
+            DateOfBirth = row.DateOfBirth?.ToDateTime(TimeOnly.MinValue)
         };
         _showPlayerDialog = true;
     }
@@ -312,6 +327,7 @@ else
                 p.Email = NullIfEmpty(_form.Email);
                 p.MobileNumber = NullIfEmpty(_form.MobileNumber);
                 p.Sex = _form.CompetitionCategory;
+                p.DateOfBirth = _form.DateOfBirth.HasValue ? DateOnly.FromDateTime(_form.DateOfBirth.Value) : null;
                 await db.SaveChangesAsync();
                 Snackbar.Add("Player updated.", Severity.Success);
             }
@@ -326,6 +342,7 @@ else
                 Email = NullIfEmpty(_form.Email),
                 MobileNumber = NullIfEmpty(_form.MobileNumber),
                 Sex = _form.CompetitionCategory,
+                DateOfBirth = _form.DateOfBirth.HasValue ? DateOnly.FromDateTime(_form.DateOfBirth.Value) : null,
                 IsLight = true,
                 CreatedByClubId = _activeClubId.Value
             };
