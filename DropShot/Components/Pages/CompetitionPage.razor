@@ -192,13 +192,40 @@
                         </MudItem>
                     </MudGrid>
 
-                    <MudSelect @bind-Value="Model.BestOf" Label="Best Of" Variant="Variant.Text">
-                        <MudSelectItem T="int" Value="1">Best of 1</MudSelectItem>
-                        <MudSelectItem T="int" Value="3">Best of 3</MudSelectItem>
-                        <MudSelectItem T="int" Value="5">Best of 5</MudSelectItem>
-                    </MudSelect>
+                    <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Match Format</MudText>
+                    <MudRadioGroup @bind-Value="Model.MatchFormat">
+                        <MudStack Row="true" Spacing="2">
+                            <MudRadio Value="MatchFormatType.BestOf" Color="Color.Primary">Best of</MudRadio>
+                            <MudRadio Value="MatchFormatType.FixedSets" Color="Color.Primary">Fixed sets</MudRadio>
+                        </MudStack>
+                    </MudRadioGroup>
+                    @if (Model.MatchFormat == MatchFormatType.BestOf)
+                    {
+                        <MudSelect @bind-Value="Model.BestOf" Label="Best of (sets)" Variant="Variant.Outlined"
+                                   Style="max-width: 160px;" Class="mt-1">
+                            <MudSelectItem T="int" Value="1">1</MudSelectItem>
+                            <MudSelectItem T="int" Value="3">3</MudSelectItem>
+                            <MudSelectItem T="int" Value="5">5</MudSelectItem>
+                            <MudSelectItem T="int" Value="7">7</MudSelectItem>
+                        </MudSelect>
+                    }
+                    else
+                    {
+                        <MudNumericField @bind-Value="Model.NumberOfSets" Label="Number of sets to play"
+                                         Variant="Variant.Outlined" Min="1" Max="20"
+                                         Style="max-width: 160px;" Class="mt-1" />
+                    }
 
-                    <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" />
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">League Scoring</MudText>
+                    <MudRadioGroup @bind-Value="Model.LeagueScoring">
+                        <MudStack Spacing="1">
+                            <MudRadio Value="LeagueScoringMode.WinPoints" Color="Color.Primary">3 points for a win, 1 for a draw</MudRadio>
+                            <MudRadio Value="LeagueScoringMode.SetsWon" Color="Color.Primary">1 point per set won</MudRadio>
+                            <MudRadio Value="LeagueScoringMode.GamesWon" Color="Color.Primary">1 point per game won</MudRadio>
+                        </MudStack>
+                    </MudRadioGroup>
+
+                    <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" Class="mt-2" />
                 </MudStack>
 
                 @if (!string.IsNullOrWhiteSpace(_serverError))
@@ -1324,6 +1351,9 @@
         public int BestOf { get; set; } = 3;
         public bool RequireVerification { get; set; } = false;
         public int? TeamSize { get; set; }
+        public MatchFormatType MatchFormat { get; set; } = MatchFormatType.BestOf;
+        public int NumberOfSets { get; set; } = 3;
+        public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
     }
 
     // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the
@@ -1497,7 +1527,10 @@
                 EventId = comp.EventId,
                 BestOf = comp.BestOf,
                 RequireVerification = comp.RequireVerification,
-                TeamSize = comp.TeamSize
+                TeamSize = comp.TeamSize,
+                MatchFormat = comp.MatchFormat,
+                NumberOfSets = comp.NumberOfSets,
+                LeagueScoring = comp.LeagueScoring
             };
             _stages = comp.Stages.ToList();
             _participants = comp.Participants.ToList();
@@ -1809,6 +1842,9 @@
         comp.BestOf = Model.BestOf;
         comp.RequireVerification = Model.RequireVerification;
         comp.TeamSize = Model.TeamSize;
+        comp.MatchFormat = Model.MatchFormat;
+        comp.NumberOfSets = Model.NumberOfSets;
+        comp.LeagueScoring = Model.LeagueScoring;
     }
 
     // ── Stages ──────────────────────────────────────────────────────────────
@@ -3284,8 +3320,14 @@
                 foreach (var pid in pids)
                 {
                     bool win = pid == f.WinnerPlayerId;
+                    int points = Model.LeagueScoring switch
+                    {
+                        LeagueScoringMode.SetsWon => ParseSetsWon(f.ResultSummary, pid == f.Player1Id || pid == f.Player3Id),
+                        LeagueScoringMode.GamesWon => ParseGamesWon(f.ResultSummary, pid == f.Player1Id || pid == f.Player3Id),
+                        _ => win ? 3 : (!f.WinnerPlayerId.HasValue ? 1 : 0) // WinPoints: 3 win, 1 draw, 0 loss
+                    };
                     var cur = pts[pid];
-                    pts[pid] = (cur.Points + (win ? 3 : 0), cur.Won + (win ? 1 : 0));
+                    pts[pid] = (cur.Points + points, cur.Won + (win ? 1 : 0));
                 }
             }
             seededPlayers = pts
@@ -3317,6 +3359,37 @@
             .ToListAsync();
 
         Snackbar.Add($"Quarter-final fixtures seeded from standings.", Severity.Success);
+    }
+
+    // ── League scoring helpers ──────────────────────────────────────────────
+
+    /// <summary>Parse result summary like "6-4 3-6 7-5" and return sets won by side1 or side2.</summary>
+    private static int ParseSetsWon(string? resultSummary, bool isSide1)
+    {
+        if (string.IsNullOrWhiteSpace(resultSummary)) return 0;
+        int count = 0;
+        foreach (var set in resultSummary.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = set.Split('-');
+            if (parts.Length != 2 || !int.TryParse(parts[0], out var g1) || !int.TryParse(parts[1], out var g2)) continue;
+            if (isSide1 && g1 > g2) count++;
+            else if (!isSide1 && g2 > g1) count++;
+        }
+        return count;
+    }
+
+    /// <summary>Parse result summary and return total games won by side1 or side2.</summary>
+    private static int ParseGamesWon(string? resultSummary, bool isSide1)
+    {
+        if (string.IsNullOrWhiteSpace(resultSummary)) return 0;
+        int total = 0;
+        foreach (var set in resultSummary.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = set.Split('-');
+            if (parts.Length != 2 || !int.TryParse(parts[0], out var g1) || !int.TryParse(parts[1], out var g2)) continue;
+            total += isSide1 ? g1 : g2;
+        }
+        return total;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

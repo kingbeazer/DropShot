@@ -104,6 +104,9 @@ public static class CompetitionProgressionService
             .Select(p => p.PlayerId)
             .ToListAsync();
 
+        var comp = await db.Competition.AsNoTracking().FirstOrDefaultAsync(c => c.CompetitionID == competitionId);
+        var scoringMode = comp?.LeagueScoring ?? LeagueScoringMode.WinPoints;
+
         var pts = activePids.ToDictionary(pid => pid, _ => (Points: 0, Won: 0));
         foreach (var f in rrFixtures.Where(f => f.Status == FixtureStatus.Completed && f.WinnerPlayerId.HasValue))
         {
@@ -113,8 +116,15 @@ public static class CompetitionProgressionService
             foreach (var pid in pids)
             {
                 bool win = pid == f.WinnerPlayerId;
+                bool isSide1 = pid == f.Player1Id || pid == f.Player3Id;
+                int points = scoringMode switch
+                {
+                    LeagueScoringMode.SetsWon => ParseSetsWon(f.ResultSummary, isSide1),
+                    LeagueScoringMode.GamesWon => ParseGamesWon(f.ResultSummary, isSide1),
+                    _ => win ? 3 : (!f.WinnerPlayerId.HasValue ? 1 : 0)
+                };
                 var cur = pts[pid];
-                pts[pid] = (cur.Points + (win ? 3 : 0), cur.Won + (win ? 1 : 0));
+                pts[pid] = (cur.Points + points, cur.Won + (win ? 1 : 0));
             }
         }
 
@@ -448,5 +458,32 @@ public static class CompetitionProgressionService
             targets[i].Player1Id = i     < winners.Count ? winners[i]     : null;
             targets[i].Player2Id = p2Idx < winners.Count ? winners[p2Idx] : null;
         }
+    }
+
+    private static int ParseSetsWon(string? resultSummary, bool isSide1)
+    {
+        if (string.IsNullOrWhiteSpace(resultSummary)) return 0;
+        int count = 0;
+        foreach (var set in resultSummary.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = set.Split('-');
+            if (parts.Length != 2 || !int.TryParse(parts[0], out var g1) || !int.TryParse(parts[1], out var g2)) continue;
+            if (isSide1 && g1 > g2) count++;
+            else if (!isSide1 && g2 > g1) count++;
+        }
+        return count;
+    }
+
+    private static int ParseGamesWon(string? resultSummary, bool isSide1)
+    {
+        if (string.IsNullOrWhiteSpace(resultSummary)) return 0;
+        int total = 0;
+        foreach (var set in resultSummary.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = set.Split('-');
+            if (parts.Length != 2 || !int.TryParse(parts[0], out var g1) || !int.TryParse(parts[1], out var g2)) continue;
+            total += isSide1 ? g1 : g2;
+        }
+        return total;
     }
 }

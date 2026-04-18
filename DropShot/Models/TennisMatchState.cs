@@ -30,4 +30,6 @@ public class TennisMatchState
     public int DeuceLimit { get; set; } = 1;
     public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
     public bool GameScoring { get; set; } = true;
+    public bool IsFixedSets { get; set; }
+    public int FixedSetCount { get; set; } = 3;
 }
