@@ -148,15 +148,40 @@
         _error = null;
     }
 
-    // After player 1's score: move focus to player 2's field in the same set.
-    // After player 2's score: move focus to player 1's field in the next set.
-    private Task Score1Changed(int idx, int? v) => ScoreChanged(idx, v, _score1, _f2, idx);
-    private Task Score2Changed(int idx, int? v) => ScoreChanged(idx, v, _score2, _f1, idx + 1);
+    // After player 1's score: auto-fill player 2 if losing score, then move focus.
+    // After player 2's score: auto-fill player 1 if losing score, then move focus to next set.
+    private Task Score1Changed(int idx, int? v) => ScoreChanged(idx, v, _score1, _score2, _f2, idx, _f1, idx + 1);
+    private Task Score2Changed(int idx, int? v) => ScoreChanged(idx, v, _score2, _score1, _f1, idx + 1, _f2, idx);
 
-    private async Task ScoreChanged(int idx, int? v, int?[] scores, MudTextField<int?>[] nextFields, int nextIdx)
+    private async Task ScoreChanged(int idx, int? v, int?[] thisScores, int?[] otherScores,
+        MudTextField<int?>[] nextFields, int nextIdx,
+        MudTextField<int?>[] sameFields, int sameIdx)
     {
-        scores[idx] = v;
+        thisScores[idx] = v;
+
+        // Auto-fill the winning score for the other side
+        if (v.HasValue && v.Value >= 0 && !otherScores[idx].HasValue)
+        {
+            if (_setWinMode == SetWinMode.FirstTo)
+            {
+                // FirstTo: winner always reaches exactly GamesPerSet
+                if (v.Value < _gamesPerSet)
+                    otherScores[idx] = _gamesPerSet;
+            }
+            else
+            {
+                // WinBy2: determine the minimum winning score
+                if (v.Value < _gamesPerSet - 1)
+                    otherScores[idx] = _gamesPerSet;                // e.g. 4 → 6
+                else if (v.Value == _gamesPerSet - 1)
+                    otherScores[idx] = _gamesPerSet + 1;            // e.g. 5 → 7 (win by 2)
+                else if (v.Value >= _gamesPerSet)
+                    otherScores[idx] = v.Value + 1;                 // e.g. 6 → 7 (tie-break)
+            }
+        }
+
         AutoDetectWinner();
+
         if (v.HasValue && nextIdx < _bestOf && nextFields[nextIdx] != null)
             await nextFields[nextIdx].FocusAsync();
     }
