@@ -3067,6 +3067,10 @@
         var playerBusyAt = new Dictionary<DateTime, HashSet<int>>();
         var teamBusyAt = new Dictionary<DateTime, HashSet<int>>();
 
+        // Track the latest scheduled time across all prior stages so later stages
+        // are always scheduled after earlier ones (players may be in both)
+        DateTime? earliestAllowedTime = null;
+
         (DateTime time, int? courtId)? PickSlot(List<int> playerIds, List<int> teamIds)
         {
             // Scan all slots from the beginning for the earliest valid one
@@ -3074,6 +3078,9 @@
             {
                 var slot = allSlots[i];
                 if (usedSlots.Contains(slot)) continue;
+
+                // Must be after all prior stages
+                if (earliestAllowedTime.HasValue && slot.time <= earliestAllowedTime.Value) continue;
 
                 // Check player/team conflicts at this TIME (not court-specific)
                 bool conflict = false;
@@ -3120,6 +3127,8 @@
 
         foreach (var stage in _stages)
         {
+            int fixtureCountBefore = newFixtures.Count;
+
             switch (stage.StageType)
             {
                 case StageType.RoundRobin:
@@ -3326,6 +3335,16 @@
                         else unscheduledCount++;
                     }
                     break;
+            }
+
+            // After each stage: update the earliest allowed time for the next stage
+            // so later stages are always scheduled after earlier ones
+            var stageFixtures = newFixtures.Skip(fixtureCountBefore).ToList();
+            if (stageFixtures.Count > 0)
+            {
+                var latestInStage = stageFixtures.Max(f => f.ScheduledAt ?? DateTime.MinValue);
+                if (!earliestAllowedTime.HasValue || latestInStage > earliestAllowedTime)
+                    earliestAllowedTime = latestInStage;
             }
         }
 
