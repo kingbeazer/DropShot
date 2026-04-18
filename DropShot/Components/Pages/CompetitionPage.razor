@@ -206,7 +206,7 @@
                     <MudAlert Severity="Severity.Error" Class="mt-3">@_serverError</MudAlert>
                 }
 
-                <MudStack Row="true" Spacing="2" Class="mt-4">
+                <MudStack Row="true" Spacing="2" Class="mt-4" Justify="Justify.FlexEnd">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled"
                                Disabled="@(_isSaving || !_canEdit)" OnClick="SubmitAsync">
                         @if (_isSaving)
@@ -233,6 +233,46 @@
                 </MudStack>
             </MudForm>
         </MudPaper>
+
+        @* ── Competition Admins ───────────────────────────── *@
+        @if (IsEdit && _canEdit)
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+                <MudText Typo="Typo.h6" Class="mb-3">Competition Admins</MudText>
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-3">
+                    <MudTextField @bind-Value="_newAdminEmail" Label="User email"
+                                  Variant="Variant.Outlined" Style="max-width:300px" Margin="Margin.Dense" />
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               Disabled="@string.IsNullOrWhiteSpace(_newAdminEmail)"
+                               OnClick="AddCompetitionAdmin">Add Admin</MudButton>
+                </MudStack>
+                @if (_competitionAdmins.Count > 0)
+                {
+                    <MudSimpleTable Dense="true">
+                        <thead><tr><th>User</th><th>Assigned</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var a in _competitionAdmins)
+                            {
+                                <tr>
+                                    <td>@a.UserEmail</td>
+                                    <td>@a.AssignedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                    <td>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Size="Size.Small" Color="Color.Error"
+                                                       OnClick="@(() => RemoveCompetitionAdmin(a))" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">No competition-specific admins assigned.</MudText>
+                }
+            </MudPaper>
+        }
 
         @* ── Stages ─────────────────────────────────────────── *@
         @if (IsEdit)
@@ -495,46 +535,6 @@
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
                         Applying a template updates format, scoring, age, and match windows in-memory. Save the competition to persist.
                     </MudText>
-                </MudPaper>
-            }
-
-            @* ── Competition Admins ───────────────────────────── *@
-            @if (IsEdit && _canEdit)
-            {
-                <MudPaper Class="pa-4 mb-4" Elevation="0"
-                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudText Typo="Typo.h6" Class="mb-3">Competition Admins</MudText>
-                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-3">
-                        <MudTextField @bind-Value="_newAdminEmail" Label="User email"
-                                      Variant="Variant.Outlined" Style="max-width:300px" Margin="Margin.Dense" />
-                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
-                                   Disabled="@string.IsNullOrWhiteSpace(_newAdminEmail)"
-                                   OnClick="AddCompetitionAdmin">Add Admin</MudButton>
-                    </MudStack>
-                    @if (_competitionAdmins.Count > 0)
-                    {
-                        <MudSimpleTable Dense="true">
-                            <thead><tr><th>User</th><th>Assigned</th><th></th></tr></thead>
-                            <tbody>
-                                @foreach (var a in _competitionAdmins)
-                                {
-                                    <tr>
-                                        <td>@a.UserEmail</td>
-                                        <td>@a.AssignedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
-                                        <td>
-                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                                           Size="Size.Small" Color="Color.Error"
-                                                           OnClick="@(() => RemoveCompetitionAdmin(a))" />
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </MudSimpleTable>
-                    }
-                    else
-                    {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">No competition-specific admins assigned.</MudText>
-                    }
                 </MudPaper>
             }
 
