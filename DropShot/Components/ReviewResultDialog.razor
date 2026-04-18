@@ -128,7 +128,10 @@
 
     protected override void OnParametersSet()
     {
-        _bestOf = Math.Max(1, Fixture.Competition?.BestOf ?? 3);
+        var comp = Fixture.Competition;
+        _bestOf = comp?.MatchFormat == MatchFormatType.FixedSets
+            ? Math.Max(1, comp.NumberOfSets)
+            : Math.Max(1, comp?.BestOf ?? 3);
         _score1 = new int?[_bestOf];
         _score2 = new int?[_bestOf];
 
@@ -147,11 +150,12 @@
     private void ParseResultSummary(string? summary)
     {
         if (string.IsNullOrEmpty(summary)) return;
-        var sets = summary.Split(',', StringSplitOptions.TrimEntries);
+        // Handle both comma-separated and space-separated formats
+        var sets = summary.Replace(",", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < Math.Min(sets.Length, _bestOf); i++)
         {
-            // Expect format "6-4" or "6\u20134"
-            var parts = sets[i].Split(new[] { '-', '\u2013' }, StringSplitOptions.TrimEntries);
+            // Handle both regular dash and en-dash
+            var parts = sets[i].Replace("\u2013", "-").Split('-', StringSplitOptions.TrimEntries);
             if (parts.Length == 2 && int.TryParse(parts[0], out var s1) && int.TryParse(parts[1], out var s2))
             {
                 _score1[i] = s1;
@@ -202,7 +206,7 @@
 
             if (_editing)
             {
-                var newSummary = string.Join(", ", Enumerable.Range(0, _bestOf)
+                var newSummary = string.Join(" ", Enumerable.Range(0, _bestOf)
                     .Where(i => _score1[i].HasValue || _score2[i].HasValue)
                     .Select(i => $"{_score1[i] ?? 0}\u2013{_score2[i] ?? 0}"));
 
