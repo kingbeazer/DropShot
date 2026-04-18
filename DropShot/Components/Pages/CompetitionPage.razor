@@ -2993,27 +2993,24 @@
 
         if (_matchWindows.Count > 0)
         {
-            // Strict: only use match window days/times/courts
+            // Strict: each match window is one slot (the whole window is reserved for one match)
             for (var d = startDate; d <= endDate; d = d.AddDays(1))
             {
                 foreach (var w in _matchWindows.Where(w => w.DayOfWeek == d.DayOfWeek))
                 {
-                    for (var t = w.StartTime; t < w.EndTime; t = t.Add(TimeSpan.FromMinutes(90)))
+                    if (w.CourtId.HasValue)
                     {
-                        if (w.CourtId.HasValue)
-                        {
-                            allSlots.Add((d + t, w.CourtId));
-                        }
-                        else if (_courts.Count > 0)
-                        {
-                            // Global window: expand to all courts
-                            foreach (var court in _courts)
-                                allSlots.Add((d + t, court.CourtId));
-                        }
-                        else
-                        {
-                            allSlots.Add((d + t, null));
-                        }
+                        allSlots.Add((d + w.StartTime, w.CourtId));
+                    }
+                    else if (_courts.Count > 0)
+                    {
+                        // Global window: one slot per court
+                        foreach (var court in _courts)
+                            allSlots.Add((d + w.StartTime, court.CourtId));
+                    }
+                    else
+                    {
+                        allSlots.Add((d + w.StartTime, null));
                     }
                 }
             }
