@@ -12,8 +12,10 @@ public class ResultVerificationService(EmailService emailService, EmailTemplateS
     {
         var title = FixtureTitle(fixture);
         var resultSummary = fixture.ResultSummary ?? "";
-        var subject = $"Match result: {title}";
-        var html = emailTemplateService.MatchResultEmail(title, resultSummary);
+        var (side1, side2) = SideNames(fixture);
+        var winnerName = WinnerName(fixture);
+        var subject = $"Match result: {side1} vs {side2}";
+        var html = emailTemplateService.MatchResultEmail(title, resultSummary, side1, side2, winnerName);
 
         var emails = new[] { fixture.Player1, fixture.Player2, fixture.Player3, fixture.Player4 }
             .Where(p => p?.Email != null)
@@ -29,9 +31,11 @@ public class ResultVerificationService(EmailService emailService, EmailTemplateS
         if (fixture.VerificationToken == null) return;
 
         var title = FixtureTitle(fixture);
+        var (side1, side2) = SideNames(fixture);
+        var winnerName = WinnerName(fixture);
         var verifyUrl = $"{BaseUrl}/verify-result/{fixture.VerificationToken}";
-        var subject = $"Result verification required: {title}";
-        var html = emailTemplateService.AdminVerificationEmail(title, fixture.ResultSummary ?? "", verifyUrl);
+        var subject = $"Result verification required: {side1} vs {side2}";
+        var html = emailTemplateService.AdminVerificationEmail(title, fixture.ResultSummary ?? "", verifyUrl, side1, side2, winnerName);
 
         await Task.WhenAll(adminEmails.Select(email => SendSafe(email, subject, html, "admin verification", isHtml: true)));
     }
@@ -50,6 +54,37 @@ public class ResultVerificationService(EmailService emailService, EmailTemplateS
     {
         var name = fixture.Competition?.CompetitionName ?? "Competition";
         return fixture.FixtureLabel != null ? $"{name} — {fixture.FixtureLabel}" : name;
+    }
+
+    private static (string side1, string side2) SideNames(CompetitionFixture f)
+    {
+        if (f.HomeTeam != null || f.AwayTeam != null)
+            return (f.HomeTeam?.Name ?? "TBD", f.AwayTeam?.Name ?? "TBD");
+
+        var s1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
+            .Where(n => n != null);
+        var s2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
+            .Where(n => n != null);
+        return (
+            s1.Any() ? string.Join(" & ", s1) : "TBD",
+            s2.Any() ? string.Join(" & ", s2) : "TBD"
+        );
+    }
+
+    private static string? WinnerName(CompetitionFixture f)
+    {
+        if (f.WinnerTeamId.HasValue)
+        {
+            if (f.HomeTeam != null && f.WinnerTeamId == f.HomeTeamId) return f.HomeTeam.Name;
+            if (f.AwayTeam != null && f.WinnerTeamId == f.AwayTeamId) return f.AwayTeam.Name;
+        }
+        if (f.WinnerPlayerId.HasValue)
+        {
+            var (side1, side2) = SideNames(f);
+            if (f.WinnerPlayerId == f.Player1Id) return side1;
+            if (f.WinnerPlayerId == f.Player2Id) return side2;
+        }
+        return null;
     }
 
     private async Task SendSafe(string email, string subject, string body, string context, bool isHtml = false)
