@@ -64,6 +64,7 @@
         public MatchFormatType MatchFormat { get; set; } = MatchFormatType.BestOf;
         public int NumberOfSets { get; set; } = 3;
         public int GamesPerSet { get; set; } = 6;
+        public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
 
         public RulesSet? Rules { get; set; }
