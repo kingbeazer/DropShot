@@ -15,7 +15,11 @@
 
 <MudProviders />
 
-<MudText Typo="Typo.h4" Class="mb-4">Club Players</MudText>
+<div style="position: relative; min-height: 100vh; background-image: url('images/background.png'); background-repeat: no-repeat; background-size: cover; background-position: center; margin: -24px; padding: 0;">
+    <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
+    <div style="position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 1rem 0.5rem 2rem;">
+
+<MudText Typo="Typo.h4" Class="mb-4" Style="color: white;">Club Players</MudText>
 
 @if (_activeClubId is null)
 {
@@ -25,7 +29,7 @@
 }
 else
 {
-    <MudText Typo="Typo.subtitle1" Class="mb-3">Managing: <strong>@_clubName</strong></MudText>
+    <MudText Typo="Typo.subtitle1" Class="mb-3" Style="color: rgba(255,255,255,0.85);">Managing: <strong>@_clubName</strong></MudText>
 
     <MudStack Row="true" Spacing="2" Class="mb-4">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
@@ -48,7 +52,9 @@ else
             <MudTh>Player</MudTh>
             <MudTh>First Name</MudTh>
             <MudTh>Last Name</MudTh>
-            <MudTh>Actions</MudTh>
+            <MudTh>Category</MudTh>
+            <MudTh>Mobile</MudTh>
+            <MudTh Style="width: 100px;">Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Player">
@@ -77,18 +83,27 @@ else
             </MudTd>
             <MudTd DataLabel="First Name">@(context.FirstName ?? "—")</MudTd>
             <MudTd DataLabel="Last Name">@(context.LastName ?? "—")</MudTd>
+            <MudTd DataLabel="Category">@(context.Sex?.ToString() ?? "—")</MudTd>
+            <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
             <MudTd DataLabel="Actions">
-                @if (context.IsLight && context.IsClubOwned)
-                {
-                    <MudTooltip Text="Edit">
+                <MudStack Row="true" Spacing="0">
+                    @if (context.IsLight && context.IsClubOwned)
+                    {
+                        <MudTooltip Text="Edit">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           OnClick="@(() => OpenEditDialog(context))" />
+                        </MudTooltip>
+                    }
+                    else
+                    {
                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                       OnClick="@(() => OpenEditDialog(context))" />
+                                       Style="visibility: hidden;" />
+                    }
+                    <MudTooltip Text="Remove from club">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => RemoveFromClub(context))" />
                     </MudTooltip>
-                }
-                <MudTooltip Text="Remove from club">
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                   OnClick="@(() => RemoveFromClub(context))" />
-                </MudTooltip>
+                </MudStack>
             </MudTd>
         </RowTemplate>
         <NoRecordsContent>
@@ -184,6 +199,8 @@ else
         <MudButton OnClick="@(() => _showAddExistingDialog = false)">Close</MudButton>
     </DialogActions>
 </MudDialog>
+
+</div></div>
 
 @code {
     private record PlayerRow(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, bool IsClubOwned, string? Email, string? MobileNumber, PlayerSex? Sex, string? ProfileImagePath);
