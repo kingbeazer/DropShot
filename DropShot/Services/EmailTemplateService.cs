@@ -186,27 +186,64 @@ public class EmailTemplateService
 
     // ── Match / result emails ────────────────────────────────────────────────
 
-    public string MatchResultEmail(string fixtureTitle, string resultSummary)
+    public string MatchResultEmail(string fixtureTitle, string resultSummary, string side1Name, string side2Name, string? winnerName)
     {
         var body = $@"
 <h2 style=""margin:0 0 16px 0;font-size:22px;color:#1b5e20;"">Match Result</h2>
 <p style=""margin:0 0 12px 0;"">The result for your match has been recorded:</p>
-{InfoBox($@"<strong>{Encode(fixtureTitle)}</strong><br>{Encode(resultSummary)}")}
+{InfoBox($@"<strong>{Encode(fixtureTitle)}</strong>")}
+{ScoreCard(side1Name, side2Name, resultSummary, winnerName)}
 <p style=""margin:16px 0 0 0;font-size:13px;color:#888888;"">This is an automated notification from DropShot.</p>";
 
-        return WrapInBaseLayout($"Match Result: {fixtureTitle}", body, $"Result recorded: {resultSummary}");
+        return WrapInBaseLayout($"Match Result: {fixtureTitle}", body, $"Result recorded: {side1Name} vs {side2Name} — {resultSummary}");
     }
 
-    public string AdminVerificationEmail(string fixtureTitle, string resultSummary, string verifyUrl)
+    public string AdminVerificationEmail(string fixtureTitle, string resultSummary, string verifyUrl, string side1Name, string side2Name, string? winnerName)
     {
         var body = $@"
 <h2 style=""margin:0 0 16px 0;font-size:22px;color:#1b5e20;"">Result Verification Required</h2>
 <p style=""margin:0 0 12px 0;"">A result has been submitted and requires your verification:</p>
-{InfoBox($@"<strong>{Encode(fixtureTitle)}</strong><br>{Encode(resultSummary)}")}
+{InfoBox($@"<strong>{Encode(fixtureTitle)}</strong>")}
+{ScoreCard(side1Name, side2Name, resultSummary, winnerName)}
 {ActionButton("Verify Result", verifyUrl)}
 <p style=""margin:16px 0 0 0;font-size:13px;color:#888888;"">Please review and verify this result at your earliest convenience.</p>";
 
-        return WrapInBaseLayout($"Verify Result: {fixtureTitle}", body, $"Result verification needed: {fixtureTitle}");
+        return WrapInBaseLayout($"Verify Result: {fixtureTitle}", body, $"Result verification needed: {side1Name} vs {side2Name}");
+    }
+
+    private string ScoreCard(string side1Name, string side2Name, string resultSummary, string? winnerName)
+    {
+        var sets = resultSummary.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var setHeaders = "";
+        var side1Scores = "";
+        var side2Scores = "";
+        for (int i = 0; i < sets.Length; i++)
+        {
+            var parts = sets[i].Split('-');
+            var g1 = parts.Length > 0 ? parts[0] : "";
+            var g2 = parts.Length > 1 ? parts[1] : "";
+            setHeaders += $@"<th style=""padding:6px 12px;text-align:center;font-size:13px;color:#888;"">Set {i + 1}</th>";
+            side1Scores += $@"<td style=""padding:6px 12px;text-align:center;font-size:16px;font-weight:bold;"">{Encode(g1)}</td>";
+            side2Scores += $@"<td style=""padding:6px 12px;text-align:center;font-size:16px;font-weight:bold;"">{Encode(g2)}</td>";
+        }
+
+        var side1Style = winnerName == side1Name ? "color:#1b5e20;font-weight:bold;" : "";
+        var side2Style = winnerName == side2Name ? "color:#1b5e20;font-weight:bold;" : "";
+
+        return $@"<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin:16px 0;border-collapse:collapse;"">
+    <tr style=""border-bottom:2px solid #e0e0e0;"">
+        <th style=""padding:6px 12px;text-align:left;font-size:13px;color:#888;"">Player</th>
+        {setHeaders}
+    </tr>
+    <tr style=""border-bottom:1px solid #f0f0f0;background-color:#fafafa;"">
+        <td style=""padding:8px 12px;font-size:15px;{side1Style}"">{Encode(side1Name)}{(winnerName == side1Name ? " &#9733;" : "")}</td>
+        {side1Scores}
+    </tr>
+    <tr style=""background-color:#ffffff;"">
+        <td style=""padding:8px 12px;font-size:15px;{side2Style}"">{Encode(side2Name)}{(winnerName == side2Name ? " &#9733;" : "")}</td>
+        {side2Scores}
+    </tr>
+</table>";
     }
 
     // ── Club link request emails ─────────────────────────────────────────────
