@@ -204,7 +204,7 @@
         _saving = true;
         try
         {
-            var resultSummary = string.Join(", ", enteredSets);
+            var resultSummary = string.Join(" ", enteredSets);
 
             await using var db = DbFactory.CreateDbContext();
             var fx = await db.CompetitionFixtures.FindAsync(Fixture.CompetitionFixtureId);

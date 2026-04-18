@@ -213,15 +213,19 @@ public class EmailTemplateService
 
     private string ScoreCard(string side1Name, string side2Name, string resultSummary, string? winnerName)
     {
-        var sets = resultSummary.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // Handle both "6-4 3-6" and "6–4, 3–6" formats
+        var sets = resultSummary
+            .Replace(",", " ")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var setHeaders = "";
         var side1Scores = "";
         var side2Scores = "";
         for (int i = 0; i < sets.Length; i++)
         {
-            var parts = sets[i].Split('-');
-            var g1 = parts.Length > 0 ? parts[0] : "";
-            var g2 = parts.Length > 1 ? parts[1] : "";
+            // Handle both regular dash and en-dash
+            var parts = sets[i].Replace("\u2013", "-").Split('-');
+            var g1 = parts.Length > 0 ? parts[0].Trim() : "";
+            var g2 = parts.Length > 1 ? parts[1].Trim() : "";
             setHeaders += $@"<th style=""padding:6px 12px;text-align:center;font-size:13px;color:#888;"">Set {i + 1}</th>";
             side1Scores += $@"<td style=""padding:6px 12px;text-align:center;font-size:16px;font-weight:bold;"">{Encode(g1)}</td>";
             side2Scores += $@"<td style=""padding:6px 12px;text-align:center;font-size:16px;font-weight:bold;"">{Encode(g2)}</td>";
