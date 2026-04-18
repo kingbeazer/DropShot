@@ -2998,10 +2998,15 @@
         int totalDays = Math.Max(1, (endDate - startDate).Days);
         int sliceSize = Math.Max(1, totalDays / phases.Count);
 
-        // Returns a DateTime within the given phase's date window.
-        // For RR fixtures a random day is chosen; for knockout rounds the
-        // matchIndex spreads fixtures evenly so earlier matches come first.
-        DateTime PhaseSlot(string phase, int matchIndex = 0, int totalInPhase = 1)
+        // Load courts for the host club (needed for court assignment)
+        var scheduleCourts = Model.HostClubId.HasValue
+            ? _courts
+            : new List<Court>();
+        var occupied = new HashSet<(DateTime, int?)>();
+
+        // Returns a (DateTime, CourtId) within the given phase's date window.
+        // Respects match windows and assigns courts from those windows.
+        (DateTime slot, int? courtId) PhaseSlot(string phase, int matchIndex = 0, int totalInPhase = 1)
         {
             int phaseIdx = phases.IndexOf(phase);
             if (phaseIdx < 0) phaseIdx = 0;
@@ -3012,14 +3017,33 @@
                 : endDate;
 
             if (phase == "rr")
-                return SchedulingSlotPicker.PickSlot(_matchWindows, windowStart, windowEnd, rng);
+            {
+                var result = SchedulingSlotPicker.PickCourtSlot(_matchWindows, scheduleCourts, occupied, windowStart, windowEnd, rng);
+                occupied.Add(result);
+                return result;
+            }
 
             int windowDays = Math.Max(0, (windowEnd - windowStart).Days);
             int dayOffset = totalInPhase > 1
                 ? (int)Math.Round((double)matchIndex / (totalInPhase - 1) * windowDays)
                 : windowDays / 2;
             var specificDay = windowStart.AddDays(dayOffset);
-            return SchedulingSlotPicker.PickSlot(_matchWindows, specificDay, specificDay, rng);
+            var koResult = SchedulingSlotPicker.PickCourtSlot(_matchWindows, scheduleCourts, occupied, specificDay, specificDay, rng);
+            occupied.Add(koResult);
+            return koResult;
+        }
+
+        // Helper to create a fixture with scheduled time and court from PhaseSlot
+        CompetitionFixture NewScheduledFixture(string phase, int matchIndex = 0, int totalInPhase = 1)
+        {
+            var (slot, courtId) = PhaseSlot(phase, matchIndex, totalInPhase);
+            return new CompetitionFixture
+            {
+                CompetitionId = Id,
+                ScheduledAt = slot,
+                CourtId = courtId,
+                Status = FixtureStatus.Scheduled
+            };
         }
 
         var newFixtures = new List<CompetitionFixture>();
@@ -3073,15 +3097,10 @@
                                                (int?)stage.CompetitionStageId);
                                 if (existingTeamPairs.Contains(teamKey)) continue;
 
-                                var fixture = new CompetitionFixture
-                                {
-                                    CompetitionId      = Id,
-                                    CompetitionStageId = stage.CompetitionStageId,
-                                    HomeTeamId         = homeTeamId,
-                                    AwayTeamId         = awayTeamId,
-                                    ScheduledAt        = PhaseSlot("rr"),
-                                    Status             = FixtureStatus.Scheduled
-                                };
+                                var fixture = NewScheduledFixture("rr");
+                                fixture.CompetitionStageId = stage.CompetitionStageId;
+                                fixture.HomeTeamId = homeTeamId;
+                                fixture.AwayTeamId = awayTeamId;
 
                                 // For doubles, also populate Player1-4
                                 if (format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
@@ -3109,15 +3128,11 @@
                                            Math.Max(players[i], players[j]),
                                            (int?)stage.CompetitionStageId);
                                 if (existingRrPairs.Contains(key)) continue;
-                                newFixtures.Add(new CompetitionFixture
-                                {
-                                    CompetitionId      = Id,
-                                    CompetitionStageId = stage.CompetitionStageId,
-                                    Player1Id          = players[i],
-                                    Player2Id          = players[j],
-                                    ScheduledAt        = PhaseSlot("rr"),
-                                    Status             = FixtureStatus.Scheduled
-                                });
+                                var pf = NewScheduledFixture("rr");
+                                pf.CompetitionStageId = stage.CompetitionStageId;
+                                pf.Player1Id = players[i];
+                                pf.Player2Id = players[j];
+                                newFixtures.Add(pf);
                             }
                     }
                     break;
@@ -3139,15 +3154,11 @@
                         {
                             var label = $"Quarter-Final {m + 1}";
                             if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                            newFixtures.Add(new CompetitionFixture
-                            {
-                                CompetitionId      = Id,
-                                CompetitionStageId = stage.CompetitionStageId,
-                                FixtureLabel       = label,
-                                RoundNumber        = 1,
-                                ScheduledAt        = PhaseSlot("qf", m, 4),
-                                Status             = FixtureStatus.Scheduled
-                            });
+                            var qfF = NewScheduledFixture("qf", m, 4);
+                            qfF.CompetitionStageId = stage.CompetitionStageId;
+                            qfF.FixtureLabel = label;
+                            qfF.RoundNumber = 1;
+                            newFixtures.Add(qfF);
                         }
                     }
 
@@ -3157,28 +3168,22 @@
                         {
                             var label = $"Semi-Final {m + 1}";
                             if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                            newFixtures.Add(new CompetitionFixture
-                            {
-                                CompetitionId      = Id,
-                                CompetitionStageId = stage.CompetitionStageId,
-                                FixtureLabel       = label,
-                                RoundNumber        = koGeneratesQF ? 2 : 1,
-                                ScheduledAt        = PhaseSlot("sf", m, 2),
-                                Status             = FixtureStatus.Scheduled
-                            });
+                            var sfF = NewScheduledFixture("sf", m, 2);
+                            sfF.CompetitionStageId = stage.CompetitionStageId;
+                            sfF.FixtureLabel = label;
+                            sfF.RoundNumber = koGeneratesQF ? 2 : 1;
+                            newFixtures.Add(sfF);
                         }
                     }
 
                     if (koGeneratesFinal && !existingLabels.Contains(((int?)stage.CompetitionStageId, "Final")))
-                        newFixtures.Add(new CompetitionFixture
-                        {
-                            CompetitionId      = Id,
-                            CompetitionStageId = stage.CompetitionStageId,
-                            FixtureLabel       = "Final",
-                            RoundNumber        = koGeneratesQF ? 3 : koGeneratesSF ? 2 : 1,
-                            ScheduledAt        = PhaseSlot("final", 0, 1),
-                            Status             = FixtureStatus.Scheduled
-                        });
+                    {
+                        var finalF = NewScheduledFixture("final", 0, 1);
+                        finalF.CompetitionStageId = stage.CompetitionStageId;
+                        finalF.FixtureLabel = "Final";
+                        finalF.RoundNumber = koGeneratesQF ? 3 : koGeneratesSF ? 2 : 1;
+                        newFixtures.Add(finalF);
+                    }
                     break;
                 }
 
@@ -3188,15 +3193,11 @@
                     {
                         var label = $"Quarter-Final {m + 1}";
                         if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                        newFixtures.Add(new CompetitionFixture
-                        {
-                            CompetitionId      = Id,
-                            CompetitionStageId = stage.CompetitionStageId,
-                            FixtureLabel       = label,
-                            RoundNumber        = 1,
-                            ScheduledAt        = PhaseSlot("qf", m, 4),
-                            Status             = FixtureStatus.Scheduled
-                        });
+                        var qf = NewScheduledFixture("qf", m, 4);
+                        qf.CompetitionStageId = stage.CompetitionStageId;
+                        qf.FixtureLabel = label;
+                        qf.RoundNumber = 1;
+                        newFixtures.Add(qf);
                     }
                     break;
                 }
@@ -3207,30 +3208,24 @@
                     {
                         var label = $"Semi-Final {m + 1}";
                         if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                        newFixtures.Add(new CompetitionFixture
-                        {
-                            CompetitionId      = Id,
-                            CompetitionStageId = stage.CompetitionStageId,
-                            FixtureLabel       = label,
-                            RoundNumber        = 1,
-                            ScheduledAt        = PhaseSlot("sf", m, 2),
-                            Status             = FixtureStatus.Scheduled
-                        });
+                        var sf = NewScheduledFixture("sf", m, 2);
+                        sf.CompetitionStageId = stage.CompetitionStageId;
+                        sf.FixtureLabel = label;
+                        sf.RoundNumber = 1;
+                        newFixtures.Add(sf);
                     }
                     break;
                 }
 
                 case StageType.Final:
                     if (!existingLabels.Contains(((int?)stage.CompetitionStageId, "Final")))
-                        newFixtures.Add(new CompetitionFixture
-                        {
-                            CompetitionId      = Id,
-                            CompetitionStageId = stage.CompetitionStageId,
-                            FixtureLabel       = "Final",
-                            RoundNumber        = 1,
-                            ScheduledAt        = PhaseSlot("final", 0, 1),
-                            Status             = FixtureStatus.Scheduled
-                        });
+                    {
+                        var fin = NewScheduledFixture("final", 0, 1);
+                        fin.CompetitionStageId = stage.CompetitionStageId;
+                        fin.FixtureLabel = "Final";
+                        fin.RoundNumber = 1;
+                        newFixtures.Add(fin);
+                    }
                     break;
             }
         }
