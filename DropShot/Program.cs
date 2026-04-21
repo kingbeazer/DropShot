@@ -118,6 +118,8 @@ builder.Services.AddSingleton<EmailTemplateService>();
 builder.Services.AddScoped<ResultVerificationService>();
 builder.Services.AddScoped<AdminEmailService>();
 builder.Services.AddScoped<FuzzySearchService>();
+builder.Services.AddScoped<ICompetitionRubberTemplateProvider, CompetitionRubberTemplateProvider>();
+builder.Services.AddScoped<RubberResolutionService>();
 builder.Services.AddSingleton<QrLoginService>();
 builder.Services.AddHostedService<QrSessionCleanupService>();
 builder.Services.AddMudServices();

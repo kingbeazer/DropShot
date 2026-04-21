@@ -28,7 +28,7 @@ public static class CompetitionProgressionService
         var stage = fixture.Stage;
         if (stage is null) return;
 
-        // Check if this is a team fixture (MixedTeam format)
+        // Check if this is a team fixture (TeamMatch format)
         bool isTeamFixture = fixture.HomeTeamId.HasValue;
 
         // For non-team fixtures, require a player winner
@@ -241,7 +241,7 @@ public static class CompetitionProgressionService
             .Where(f => f.CompetitionId == competitionId
                      && f.CompetitionStageId.HasValue
                      && rrStageIds.Contains(f.CompetitionStageId.Value))
-            .Include(f => f.TeamMatchSets)
+            .Include(f => f.Rubbers)
             .ToListAsync();
 
         bool allDone = rrFixtures.All(f =>
@@ -269,44 +269,40 @@ public static class CompetitionProgressionService
 
         if (!targetFixtures.Any()) return;
 
-        // Rank teams by sets won
+        // Rank teams by rubbers won
         var teamIds = await db.CompetitionTeams
             .Where(t => t.CompetitionId == competitionId)
             .Select(t => t.CompetitionTeamId)
             .ToListAsync();
 
-        var setsWon = teamIds.ToDictionary(tid => tid, _ => 0);
-        var setsAgainst = teamIds.ToDictionary(tid => tid, _ => 0);
+        var rubbersWon = teamIds.ToDictionary(tid => tid, _ => 0);
+        var rubbersAgainst = teamIds.ToDictionary(tid => tid, _ => 0);
 
         foreach (var f in rrFixtures.Where(f => f.Status == FixtureStatus.Completed
                     && f.HomeTeamId.HasValue && f.AwayTeamId.HasValue))
         {
             int hid = f.HomeTeamId!.Value;
             int aid = f.AwayTeamId!.Value;
-            if (!setsWon.ContainsKey(hid) || !setsWon.ContainsKey(aid)) continue;
+            if (!rubbersWon.ContainsKey(hid) || !rubbersWon.ContainsKey(aid)) continue;
 
-            var completed = f.TeamMatchSets.Where(s => s.IsComplete).ToList();
-            int hw = completed.Count(s => s.WinnerTeamId == hid);
-            int aw = completed.Count(s => s.WinnerTeamId == aid);
+            var completed = f.Rubbers.Where(r => r.IsComplete).ToList();
+            int hw = completed.Count(r => r.WinnerTeamId == hid);
+            int aw = completed.Count(r => r.WinnerTeamId == aid);
 
-            setsWon[hid] += hw;
-            setsAgainst[hid] += aw;
-            setsWon[aid] += aw;
-            setsAgainst[aid] += hw;
+            rubbersWon[hid] += hw;
+            rubbersAgainst[hid] += aw;
+            rubbersWon[aid] += aw;
+            rubbersAgainst[aid] += hw;
         }
 
         var seeded = teamIds
-            .OrderByDescending(tid => setsWon[tid])
-            .ThenByDescending(tid => setsWon[tid] - setsAgainst[tid])
-            .ThenBy(tid => setsAgainst[tid])
+            .OrderByDescending(tid => rubbersWon[tid])
+            .ThenByDescending(tid => rubbersWon[tid] - rubbersAgainst[tid])
+            .ThenBy(tid => rubbersAgainst[tid])
             .Take(targetFixtures.Count * 2)
             .ToList();
 
         AssignTeamWinners(targetFixtures, seeded);
-
-        // Create TeamMatchSet rows for the newly assigned knockout fixtures
-        await CreateTeamMatchSetsForFixtures(db, competitionId, targetFixtures);
-
         await db.SaveChangesAsync();
     }
 
@@ -379,9 +375,6 @@ public static class CompetitionProgressionService
         if (!targetFixtures.Any()) return;
 
         AssignTeamWinners(targetFixtures, winners);
-
-        await CreateTeamMatchSetsForFixtures(db, competitionId, targetFixtures);
-
         await db.SaveChangesAsync();
     }
 
@@ -402,35 +395,6 @@ public static class CompetitionProgressionService
             int p2Idx = 2 * n - 1 - i;
             targets[i].HomeTeamId = i < teamIds.Count ? teamIds[i] : null;
             targets[i].AwayTeamId = p2Idx < teamIds.Count ? teamIds[p2Idx] : null;
-        }
-    }
-
-    // ── Helper: create TeamMatchSet rows for newly assigned fixtures ────────
-
-    private static async Task CreateTeamMatchSetsForFixtures(
-        MyDbContext db, int competitionId, List<CompetitionFixture> fixtures)
-    {
-        foreach (var fx in fixtures.Where(f => f.HomeTeamId.HasValue && f.AwayTeamId.HasValue))
-        {
-            var homeMembers = await db.CompetitionParticipants
-                .Where(cp => cp.CompetitionId == competitionId && cp.TeamId == fx.HomeTeamId
-                    && (cp.Status == ParticipantStatus.Registered || cp.Status == ParticipantStatus.Confirmed))
-                .Include(cp => cp.Player)
-                .ToListAsync();
-
-            var awayMembers = await db.CompetitionParticipants
-                .Where(cp => cp.CompetitionId == competitionId && cp.TeamId == fx.AwayTeamId
-                    && (cp.Status == ParticipantStatus.Registered || cp.Status == ParticipantStatus.Confirmed))
-                .Include(cp => cp.Player)
-                .ToListAsync();
-
-            if (homeMembers.Count == 4 && awayMembers.Count == 4
-                && homeMembers.All(m => m.Grade != null && m.Player?.Sex != null)
-                && awayMembers.All(m => m.Grade != null && m.Player?.Sex != null))
-            {
-                var sets = TeamMatchService.CreateSetsForFixture(fx.CompetitionFixtureId, homeMembers, awayMembers);
-                db.TeamMatchSets.AddRange(sets);
-            }
         }
     }
 

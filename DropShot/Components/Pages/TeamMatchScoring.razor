@@ -9,6 +9,7 @@
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager Navigation
+@inject RubberResolutionService RubberResolver
 
 <MudProviders />
 
@@ -20,10 +21,19 @@ else if (_fixture == null)
 {
     <MudAlert Severity="Severity.Error">Fixture not found.</MudAlert>
 }
+else if (_resolutionError != null)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="py-4">
+        <MudAlert Severity="Severity.Error" Class="mb-3">@_resolutionError</MudAlert>
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Href="@($"/competition/{_fixture.CompetitionId}/view")">
+            Back to Competition
+        </MudButton>
+    </MudContainer>
+}
 else
 {
     <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
-        @* Header *@
         <MudPaper Class="pa-4 mb-4" Elevation="2">
             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
                 <MudStack Spacing="0">
@@ -42,43 +52,18 @@ else
             </MudStack>
         </MudPaper>
 
-        @* Phase 1: Gender Doubles *@
-        <MudText Typo="Typo.h6" Class="mb-2">Phase 1 — Gender Doubles</MudText>
-        <MudGrid Spacing="3" Class="mb-4">
-            <MudItem xs="12" md="6">
-                <MudText Typo="Typo.subtitle2" Class="mb-1">Court 1 — Men's Doubles</MudText>
-                @foreach (var s in _sets.Where(s => s.SetType == TeamMatchSetType.MensDoubles))
-                {
-                    @RenderSet(s)
-                }
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText Typo="Typo.subtitle2" Class="mb-1">Court 2 — Women's Doubles</MudText>
-                @foreach (var s in _sets.Where(s => s.SetType == TeamMatchSetType.WomensDoubles))
-                {
-                    @RenderSet(s)
-                }
-            </MudItem>
-        </MudGrid>
-
-        @* Phase 2: Mixed Doubles *@
-        <MudText Typo="Typo.h6" Class="mb-2">Phase 2 — Mixed Doubles</MudText>
-        <MudGrid Spacing="3" Class="mb-4">
-            <MudItem xs="12" md="6">
-                <MudText Typo="Typo.subtitle2" Class="mb-1">Court 1 — A-Grade Mixed</MudText>
-                @foreach (var s in _sets.Where(s => s.SetType == TeamMatchSetType.MixedDoublesA))
-                {
-                    @RenderSet(s)
-                }
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText Typo="Typo.subtitle2" Class="mb-1">Court 2 — B-Grade Mixed</MudText>
-                @foreach (var s in _sets.Where(s => s.SetType == TeamMatchSetType.MixedDoublesB))
-                {
-                    @RenderSet(s)
-                }
-            </MudItem>
-        </MudGrid>
+        @foreach (var group in _rubbers.GroupBy(r => r.CourtNumber).OrderBy(g => g.Key))
+        {
+            <MudText Typo="Typo.h6" Class="mb-2">Court @group.Key</MudText>
+            <MudGrid Spacing="3" Class="mb-4">
+                <MudItem xs="12">
+                    @foreach (var r in group.OrderBy(r => r.Order))
+                    {
+                        @RenderRubber(r)
+                    }
+                </MudItem>
+            </MudGrid>
+        }
 
         @if (_allComplete)
         {
@@ -102,21 +87,32 @@ else
     [Parameter] public int FixtureId { get; set; }
 
     private CompetitionFixture? _fixture;
-    private List<TeamMatchSet> _sets = [];
+    private List<Rubber> _rubbers = [];
     private bool _loading = true;
     private int _homeScore;
     private int _awayScore;
     private bool _allComplete;
+    private string? _resolutionError;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadData();
+        await EnsureAndLoad();
         _loading = false;
     }
 
-    private async Task LoadData()
+    private async Task EnsureAndLoad()
     {
         await using var db = DbFactory.CreateDbContext();
+
+        try
+        {
+            await RubberResolver.EnsureRubbersAsync(db, FixtureId);
+        }
+        catch (RubberResolutionException ex)
+        {
+            _resolutionError = ex.Message;
+        }
+
         _fixture = await db.CompetitionFixtures
             .Include(f => f.Competition)
             .Include(f => f.HomeTeam)
@@ -126,13 +122,13 @@ else
 
         if (_fixture == null) return;
 
-        _sets = await db.TeamMatchSets
-            .Where(s => s.CompetitionFixtureId == FixtureId)
-            .Include(s => s.HomePlayer1)
-            .Include(s => s.HomePlayer2)
-            .Include(s => s.AwayPlayer1)
-            .Include(s => s.AwayPlayer2)
-            .OrderBy(s => s.SetNumber)
+        _rubbers = await db.Rubbers
+            .Where(r => r.CompetitionFixtureId == FixtureId)
+            .Include(r => r.HomePlayer1)
+            .Include(r => r.HomePlayer2)
+            .Include(r => r.AwayPlayer1)
+            .Include(r => r.AwayPlayer2)
+            .OrderBy(r => r.Order)
             .ToListAsync();
 
         ComputeScores();
@@ -142,69 +138,68 @@ else
     {
         if (_fixture?.HomeTeamId != null && _fixture?.AwayTeamId != null)
         {
-            (_homeScore, _awayScore) = TeamMatchService.ComputeScore(
-                _sets, _fixture.HomeTeamId.Value, _fixture.AwayTeamId.Value);
+            (_homeScore, _awayScore) = RubberResolutionService.ComputeScore(
+                _rubbers, _fixture.HomeTeamId.Value, _fixture.AwayTeamId.Value);
         }
-        _allComplete = _sets.Count == 8 && TeamMatchService.AllSetsComplete(_sets);
+        _allComplete = _rubbers.Count > 0 && RubberResolutionService.AllComplete(_rubbers);
     }
 
-    private bool CanStart(TeamMatchSet set)
+    private bool CanStart(Rubber rubber)
     {
-        if (set.IsComplete || set.SavedMatchId.HasValue) return false;
+        if (rubber.IsComplete || rubber.SavedMatchId.HasValue) return false;
 
-        // First set on each court can always start
-        // Within same SetType (same court pair), sets are sequential
-        var sameType = _sets.Where(s => s.SetType == set.SetType).OrderBy(s => s.SetNumber).ToList();
-        var idx = sameType.IndexOf(set);
+        // Within the same court, rubbers play sequentially by Order
+        var sameCourt = _rubbers.Where(r => r.CourtNumber == rubber.CourtNumber).OrderBy(r => r.Order).ToList();
+        var idx = sameCourt.IndexOf(rubber);
         if (idx == 0) return true;
-        return sameType[idx - 1].IsComplete;
+        return sameCourt[idx - 1].IsComplete;
     }
 
-    private void StartSet(TeamMatchSet set)
+    private void StartRubber(Rubber rubber)
     {
         var returnUrl = $"/team-match/{FixtureId}";
         Navigation.NavigateTo(
-            $"/tennisscore?TeamMatchSetId={set.TeamMatchSetId}&BestOfOverride=1&ReturnUrl={Uri.EscapeDataString(returnUrl)}&AutoStart=true");
+            $"/tennisscore?RubberId={rubber.RubberId}&BestOfOverride=1&ReturnUrl={Uri.EscapeDataString(returnUrl)}&AutoStart=true");
     }
 
-    private void ResumeSet(TeamMatchSet set)
+    private void ResumeRubber(Rubber rubber)
     {
-        if (set.SavedMatchId.HasValue)
+        if (rubber.SavedMatchId.HasValue)
         {
             var returnUrl = $"/team-match/{FixtureId}";
-            Navigation.NavigateTo($"/match/{set.SavedMatchId}?ReturnUrl={Uri.EscapeDataString(returnUrl)}");
+            Navigation.NavigateTo($"/match/{rubber.SavedMatchId}?ReturnUrl={Uri.EscapeDataString(returnUrl)}");
         }
     }
 
-    private RenderFragment RenderSet(TeamMatchSet set) => __builder =>
+    private RenderFragment RenderRubber(Rubber rubber) => __builder =>
     {
         <MudCard Class="mb-2" Outlined="true">
             <MudCardContent>
                 <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
                     <MudStack Spacing="0">
+                        <MudText Typo="Typo.subtitle2">@rubber.Name (set @rubber.Order)</MudText>
                         <MudText Typo="Typo.body2">
-                            Set @set.SetNumber:
-                            @(set.HomePlayer1?.DisplayName) & @(set.HomePlayer2?.DisplayName)
+                            @(rubber.HomePlayer1?.DisplayName) & @(rubber.HomePlayer2?.DisplayName)
                             vs
-                            @(set.AwayPlayer1?.DisplayName) & @(set.AwayPlayer2?.DisplayName)
+                            @(rubber.AwayPlayer1?.DisplayName) & @(rubber.AwayPlayer2?.DisplayName)
                         </MudText>
                     </MudStack>
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                        @if (set.IsComplete)
+                        @if (rubber.IsComplete)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Success">
-                                @set.HomeGames — @set.AwayGames
+                                @rubber.HomeGames — @rubber.AwayGames
                             </MudChip>
                         }
-                        else if (set.SavedMatchId.HasValue)
+                        else if (rubber.SavedMatchId.HasValue)
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
-                                       OnClick="@(() => ResumeSet(set))">Resume</MudButton>
+                                       OnClick="@(() => ResumeRubber(rubber))">Resume</MudButton>
                         }
-                        else if (CanStart(set))
+                        else if (CanStart(rubber))
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                       OnClick="@(() => StartSet(set))">Start</MudButton>
+                                       OnClick="@(() => StartRubber(rubber))">Start</MudButton>
                         }
                         else
                         {

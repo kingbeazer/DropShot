@@ -155,8 +155,8 @@ else
                 <MudTh>W</MudTh>
                 <MudTh>D</MudTh>
                 <MudTh>L</MudTh>
-                <MudTh>SW</MudTh>
-                <MudTh>SA</MudTh>
+                <MudTh>RW</MudTh>
+                <MudTh>RA</MudTh>
                 <MudTh>Pts</MudTh>
             </HeaderContent>
             <RowTemplate>
@@ -167,8 +167,8 @@ else
                 <MudTd>@context.Won</MudTd>
                 <MudTd>@context.Drawn</MudTd>
                 <MudTd>@context.Lost</MudTd>
-                <MudTd>@context.SetsWon</MudTd>
-                <MudTd>@context.SetsAgainst</MudTd>
+                <MudTd>@context.RubbersWon</MudTd>
+                <MudTd>@context.RubbersAgainst</MudTd>
                 <MudTd Style="font-weight:bold">@context.Points</MudTd>
             </RowTemplate>
         </MudTable>
@@ -201,7 +201,7 @@ else
     <MudDivider Class="my-4" />
     <MudText Typo="Typo.h5" Class="mb-3">Competitors</MudText>
 
-    @if (_competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.MixedTeam && _teams.Any())
+    @if (_competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch && _teams.Any())
     {
         @foreach (var team in _teams)
         {
@@ -286,7 +286,7 @@ else
     private record LeagueRow(int PlayerId, string PlayerName, int Played, int Won, int Lost, int Points);
     private List<LeagueRow> _leagueTable = [];
 
-    private record TeamLeagueRow(int TeamId, string TeamName, string? CaptainName, int Played, int Won, int Drawn, int Lost, int SetsWon, int SetsAgainst, int Points);
+    private record TeamLeagueRow(int TeamId, string TeamName, string? CaptainName, int Played, int Won, int Drawn, int Lost, int RubbersWon, int RubbersAgainst, int Points);
     private List<TeamLeagueRow> _teamLeagueTable = [];
 
 #pragma warning disable CS8714 // Null keys are intentionally used for unstaged fixtures
@@ -311,7 +311,7 @@ else
             .Include(c => c.Fixtures).ThenInclude(f => f.Player4)
             .Include(c => c.Fixtures).ThenInclude(f => f.HomeTeam)
             .Include(c => c.Fixtures).ThenInclude(f => f.AwayTeam)
-            .Include(c => c.Fixtures).ThenInclude(f => f.TeamMatchSets)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers)
             .Include(c => c.Teams).ThenInclude(t => t.Captain)
             .AsSplitQuery()
             .AsNoTracking()
@@ -412,15 +412,15 @@ else
                     .ToList();
             }
 
-            // Team league table for MixedTeam format
-            if (_competition.CompetitionFormat == CompetitionFormat.MixedTeam && rrStageIds.Any())
+            // Team league table for TeamMatch format
+            if (_competition.CompetitionFormat == CompetitionFormat.TeamMatch && rrStageIds.Any())
             {
                 var tPlayed = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tDrawn = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tLost = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
-                var tSetsWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
-                var tSetsAgainst = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tRubbersWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tRubbersAgainst = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
 
                 foreach (var f in _fixtures.Where(f =>
                     f.CompetitionStageId.HasValue &&
@@ -432,16 +432,16 @@ else
                     int aid = f.AwayTeamId!.Value;
                     if (!tPlayed.ContainsKey(hid) || !tPlayed.ContainsKey(aid)) continue;
 
-                    var completed = f.TeamMatchSets.Where(s => s.IsComplete).ToList();
-                    int hw = completed.Count(s => s.WinnerTeamId == hid);
-                    int aw = completed.Count(s => s.WinnerTeamId == aid);
+                    var completed = f.Rubbers.Where(r => r.IsComplete).ToList();
+                    int hw = completed.Count(r => r.WinnerTeamId == hid);
+                    int aw = completed.Count(r => r.WinnerTeamId == aid);
 
                     tPlayed[hid]++;
                     tPlayed[aid]++;
-                    tSetsWon[hid] += hw;
-                    tSetsAgainst[hid] += aw;
-                    tSetsWon[aid] += aw;
-                    tSetsAgainst[aid] += hw;
+                    tRubbersWon[hid] += hw;
+                    tRubbersAgainst[hid] += aw;
+                    tRubbersWon[aid] += aw;
+                    tRubbersAgainst[aid] += hw;
 
                     if (hw > aw) { tWon[hid]++; tLost[aid]++; }
                     else if (aw > hw) { tWon[aid]++; tLost[hid]++; }
@@ -453,11 +453,11 @@ else
                         t.CompetitionTeamId, t.Name, t.Captain?.DisplayName,
                         tPlayed[t.CompetitionTeamId], tWon[t.CompetitionTeamId],
                         tDrawn[t.CompetitionTeamId], tLost[t.CompetitionTeamId],
-                        tSetsWon[t.CompetitionTeamId], tSetsAgainst[t.CompetitionTeamId],
-                        tSetsWon[t.CompetitionTeamId]))
+                        tRubbersWon[t.CompetitionTeamId], tRubbersAgainst[t.CompetitionTeamId],
+                        tRubbersWon[t.CompetitionTeamId]))
                     .OrderByDescending(r => r.Points)
-                    .ThenByDescending(r => r.SetsWon - r.SetsAgainst)
-                    .ThenBy(r => r.SetsAgainst)
+                    .ThenByDescending(r => r.RubbersWon - r.RubbersAgainst)
+                    .ThenBy(r => r.RubbersAgainst)
                     .ToList();
             }
         }

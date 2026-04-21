@@ -37,7 +37,9 @@ namespace DropShot.Data
         public DbSet<RoleSwitchLog> RoleSwitchLogs { get; set; }
         public DbSet<Event> Events { get; set; }
         public DbSet<CourtPair> CourtPairs { get; set; }
-        public DbSet<TeamMatchSet> TeamMatchSets { get; set; }
+        public DbSet<Rubber> Rubbers { get; set; }
+        public DbSet<CompetitionRubberTemplate> CompetitionRubberTemplates { get; set; }
+        public DbSet<RubberTemplateRubber> RubberTemplateRubbers { get; set; }
         public DbSet<PlayerInvitation> PlayerInvitations { get; set; }
         public DbSet<ClubLinkRequest> ClubLinkRequests { get; set; }
         public DbSet<CompetitionAllowedPlayer> CompetitionAllowedPlayers { get; set; }
@@ -287,7 +289,7 @@ namespace DropShot.Data
             {
                 entity.HasKey(cp => new { cp.CompetitionId, cp.PlayerId });
                 entity.Property(cp => cp.Status).HasConversion<byte>();
-                entity.Property(cp => cp.Grade).HasConversion<byte?>();
+                entity.Property(cp => cp.Role).HasMaxLength(8);
 
                 entity.HasOne(cp => cp.Competition)
                       .WithMany(c => c.Participants)
@@ -566,32 +568,55 @@ namespace DropShot.Data
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // ── TeamMatchSet ───────────────────────────────────────────────────
-            builder.Entity<TeamMatchSet>(entity =>
+            // ── Rubber ─────────────────────────────────────────────────────────
+            builder.Entity<Rubber>(entity =>
             {
-                entity.Property(s => s.Phase).HasConversion<byte>();
-                entity.Property(s => s.SetType).HasConversion<byte>();
+                entity.ToTable("Rubbers");
+                entity.Property(r => r.Name).HasMaxLength(32).IsRequired();
+                entity.Property(r => r.HomeRolesJson).HasMaxLength(128).IsRequired();
+                entity.Property(r => r.AwayRolesJson).HasMaxLength(128).IsRequired();
 
-                entity.HasOne(s => s.Fixture)
-                      .WithMany(f => f.TeamMatchSets)
-                      .HasForeignKey(s => s.CompetitionFixtureId)
+                entity.HasOne(r => r.Fixture)
+                      .WithMany(f => f.Rubbers)
+                      .HasForeignKey(r => r.CompetitionFixtureId)
                       .OnDelete(DeleteBehavior.Cascade);
 
                 // Multiple player FKs — all Restrict
-                entity.HasOne(s => s.HomePlayer1).WithMany().HasForeignKey(s => s.HomePlayer1Id).OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(s => s.HomePlayer2).WithMany().HasForeignKey(s => s.HomePlayer2Id).OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(s => s.AwayPlayer1).WithMany().HasForeignKey(s => s.AwayPlayer1Id).OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(s => s.AwayPlayer2).WithMany().HasForeignKey(s => s.AwayPlayer2Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.HomePlayer1).WithMany().HasForeignKey(r => r.HomePlayer1Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.HomePlayer2).WithMany().HasForeignKey(r => r.HomePlayer2Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.AwayPlayer1).WithMany().HasForeignKey(r => r.AwayPlayer1Id).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.AwayPlayer2).WithMany().HasForeignKey(r => r.AwayPlayer2Id).OnDelete(DeleteBehavior.Restrict);
 
-                entity.HasOne(s => s.WinnerTeam)
+                entity.HasOne(r => r.WinnerTeam)
                       .WithMany()
-                      .HasForeignKey(s => s.WinnerTeamId)
+                      .HasForeignKey(r => r.WinnerTeamId)
                       .OnDelete(DeleteBehavior.NoAction);
 
-                entity.HasOne(s => s.SavedMatch)
+                entity.HasOne(r => r.SavedMatch)
                       .WithMany()
-                      .HasForeignKey(s => s.SavedMatchId)
+                      .HasForeignKey(r => r.SavedMatchId)
                       .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── CompetitionRubberTemplate ──────────────────────────────────────
+            builder.Entity<CompetitionRubberTemplate>(entity =>
+            {
+                entity.HasIndex(t => t.CompetitionId).IsUnique();
+                entity.HasOne(t => t.Competition)
+                      .WithOne(c => c.RubberTemplate!)
+                      .HasForeignKey<CompetitionRubberTemplate>(t => t.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<RubberTemplateRubber>(entity =>
+            {
+                entity.Property(r => r.Name).HasMaxLength(32).IsRequired();
+                entity.Property(r => r.HomeRolesJson).HasMaxLength(128).IsRequired();
+                entity.Property(r => r.AwayRolesJson).HasMaxLength(128).IsRequired();
+                entity.HasOne(r => r.Template)
+                      .WithMany(t => t.Rubbers)
+                      .HasForeignKey(r => r.CompetitionRubberTemplateId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── RoleSwitchLog ───────────────────────────────────────────────────

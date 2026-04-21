@@ -830,10 +830,10 @@
         await using var db = DbFactory.CreateDbContext();
 
         // Remove child entities with Restrict/NoAction FK to avoid violations
-        var teamMatchSets = await db.TeamMatchSets
-            .Where(s => s.Fixture.CompetitionId == comp.CompetitionID)
+        var rubbers = await db.Rubbers
+            .Where(r => r.Fixture.CompetitionId == comp.CompetitionID)
             .ToListAsync();
-        db.TeamMatchSets.RemoveRange(teamMatchSets);
+        db.Rubbers.RemoveRange(rubbers);
 
         var fixtures = await db.CompetitionFixtures
             .Where(f => f.CompetitionId == comp.CompetitionID)

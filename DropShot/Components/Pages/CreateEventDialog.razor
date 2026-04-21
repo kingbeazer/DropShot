@@ -159,7 +159,7 @@
         CategoryUi category, FormatUi format) => (category, format) switch
     {
         (CategoryUi.Mixed, FormatUi.Doubles) => (CompetitionFormat.MixedDoubles, (PlayerSex?)null),
-        (CategoryUi.Mixed, FormatUi.Team)    => (CompetitionFormat.MixedTeam,    (PlayerSex?)null),
+        (CategoryUi.Mixed, FormatUi.Team)    => (CompetitionFormat.TeamMatch,    (PlayerSex?)null),
         (CategoryUi.Male,   _) => (ToPersistedFormat(format), PlayerSex.Male),
         (CategoryUi.Female, _) => (ToPersistedFormat(format), PlayerSex.Female),
         _ => (CompetitionFormat.Singles, (PlayerSex?)null)
@@ -262,7 +262,7 @@
 
     private static string CategoryLabel(CompetitionFormat format, PlayerSex? eligibleSex)
     {
-        if (format is CompetitionFormat.MixedDoubles or CompetitionFormat.MixedTeam) return "Mixed";
+        if (format is CompetitionFormat.MixedDoubles or CompetitionFormat.TeamMatch) return "Mixed";
         return eligibleSex switch
         {
             PlayerSex.Male   => "Male",
@@ -274,7 +274,7 @@
     private static string FormatLabel(CompetitionFormat format) => format switch
     {
         CompetitionFormat.MixedDoubles => "Doubles",
-        CompetitionFormat.MixedTeam    => "Team",
+        CompetitionFormat.TeamMatch    => "Team",
         _                              => format.ToString()
     };
 
