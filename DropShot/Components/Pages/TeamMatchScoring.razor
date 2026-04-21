@@ -159,7 +159,7 @@ else
     {
         var returnUrl = $"/team-match/{FixtureId}";
         Navigation.NavigateTo(
-            $"/tennisscore?RubberId={rubber.RubberId}&BestOfOverride=1&ReturnUrl={Uri.EscapeDataString(returnUrl)}&AutoStart=true");
+            $"/tennisscore?RubberId={rubber.RubberId}&ReturnUrl={Uri.EscapeDataString(returnUrl)}&AutoStart=true");
     }
 
     private void ResumeRubber(Rubber rubber)
@@ -188,7 +188,11 @@ else
                         @if (rubber.IsComplete)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Success">
-                                @rubber.HomeGames — @rubber.AwayGames
+                                @* Prefer sets-won; fall back to games-in-last-set for rows *@
+                                @* predating the sets-won column. *@
+                                @(rubber.HomeSetsWon.HasValue && rubber.AwaySetsWon.HasValue
+                                    ? $"{rubber.HomeSetsWon} — {rubber.AwaySetsWon} sets"
+                                    : $"{rubber.HomeGames} — {rubber.AwayGames}")
                             </MudChip>
                         }
                         else if (rubber.SavedMatchId.HasValue)

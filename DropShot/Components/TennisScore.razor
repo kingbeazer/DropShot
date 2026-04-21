@@ -963,22 +963,37 @@
             }
         }
 
-        // Auto-start: skip wizard and show server selection screen
+        // Auto-start: skip wizard and show server selection screen.
+        // For rubber scoring, pull players + competition config from the rubber's
+        // parent fixture/competition (since _competitionFixture is null in that path).
         if (AutoStart == true && (_competitionFixture != null || _rubber != null)
             && !string.IsNullOrEmpty(_value) && !string.IsNullOrEmpty(_value2))
         {
-            _state.BestOf = BestOfOverride ?? _competitionFixture?.Competition?.BestOf ?? 3;
-            _state.IsFixedSets = _competitionFixture?.Competition?.MatchFormat == MatchFormatType.FixedSets;
-            _state.FixedSetCount = _competitionFixture?.Competition?.NumberOfSets ?? 3;
+            var comp = _competitionFixture?.Competition ?? _rubber?.Fixture?.Competition;
+            _state.BestOf = BestOfOverride ?? comp?.BestOf ?? 3;
+            _state.IsFixedSets = comp?.MatchFormat == MatchFormatType.FixedSets;
+            _state.FixedSetCount = comp?.NumberOfSets ?? 3;
             _state.GameScoring = true;
             _state.UnlimitedDeuce = true;
-            _state.GamesFirstTo = _competitionFixture?.Competition?.GamesPerSet ?? 6;
-            _state.SetWinMode = _competitionFixture?.Competition?.SetWinMode ?? SetWinMode.WinBy2;
-            _selectedCourtId = _competitionFixture?.CourtId;
-            _player1Id = _competitionFixture?.Player1Id;
-            _player2Id = _competitionFixture?.Player2Id;
-            _player3Id = _competitionFixture?.Player3Id;
-            _player4Id = _competitionFixture?.Player4Id;
+            _state.GamesFirstTo = comp?.GamesPerSet ?? 6;
+            _state.SetWinMode = comp?.SetWinMode ?? SetWinMode.WinBy2;
+
+            if (_rubber != null)
+            {
+                _selectedCourtId = null;
+                _player1Id = _rubber.HomePlayer1Id;
+                _player2Id = _rubber.AwayPlayer1Id;
+                _player3Id = _rubber.HomePlayer2Id;
+                _player4Id = _rubber.AwayPlayer2Id;
+            }
+            else
+            {
+                _selectedCourtId = _competitionFixture?.CourtId;
+                _player1Id = _competitionFixture?.Player1Id;
+                _player2Id = _competitionFixture?.Player2Id;
+                _player3Id = _competitionFixture?.Player3Id;
+                _player4Id = _competitionFixture?.Player4Id;
+            }
             _showServerSelect = true;
         }
 
@@ -1153,7 +1168,10 @@
                 rub.IsComplete = true;
                 rub.SavedMatchId = _savedMatchId;
 
-                // Get the final set score
+                rub.HomeSetsWon = _state.UserSets;
+                rub.AwaySetsWon = _state.OppSets;
+
+                // Last-set games for display; sets-won is the authoritative score.
                 var lastSet = _state.SetScores.LastOrDefault();
                 if (lastSet != null)
                 {

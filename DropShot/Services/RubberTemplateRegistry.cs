@@ -27,16 +27,15 @@ public static class RubberTemplateRegistry
     public const string MttKey = "mtt";
     public const string CountyDoublesKey = "county-doubles";
 
+    // One rubber per matchup, played as the competition's configured
+    // best-of-sets × games-per-set format. Two rubbers run simultaneously
+    // (court 1: Men's Doubles then Mixed A; court 2: Women's Doubles then Mixed B).
     private static readonly IReadOnlyList<RubberDef> MttTemplate =
     [
         new(1, "Men's Doubles",   1, [Roles.MA, Roles.MB], [Roles.MA, Roles.MB]),
-        new(2, "Men's Doubles",   1, [Roles.MA, Roles.MB], [Roles.MA, Roles.MB]),
-        new(3, "Women's Doubles", 2, [Roles.FA, Roles.FB], [Roles.FA, Roles.FB]),
-        new(4, "Women's Doubles", 2, [Roles.FA, Roles.FB], [Roles.FA, Roles.FB]),
-        new(5, "Mixed A",         1, [Roles.MA, Roles.FA], [Roles.MA, Roles.FA]),
-        new(6, "Mixed A",         1, [Roles.MA, Roles.FA], [Roles.MA, Roles.FA]),
-        new(7, "Mixed B",         2, [Roles.MB, Roles.FB], [Roles.MB, Roles.FB]),
-        new(8, "Mixed B",         2, [Roles.MB, Roles.FB], [Roles.MB, Roles.FB]),
+        new(2, "Women's Doubles", 2, [Roles.FA, Roles.FB], [Roles.FA, Roles.FB]),
+        new(3, "Mixed A",         1, [Roles.MA, Roles.FA], [Roles.MA, Roles.FA]),
+        new(4, "Mixed B",         2, [Roles.MB, Roles.FB], [Roles.MB, Roles.FB]),
     ];
 
     // County Doubles: 4 players per team split into two pairs (D1A+D1B, D2A+D2B).

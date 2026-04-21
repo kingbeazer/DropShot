@@ -29,6 +29,8 @@ public class Rubber
 
     public int? HomeGames { get; set; }
     public int? AwayGames { get; set; }
+    public int? HomeSetsWon { get; set; }
+    public int? AwaySetsWon { get; set; }
     public int? WinnerTeamId { get; set; }
     public bool IsComplete { get; set; }
     public int? SavedMatchId { get; set; }
