@@ -105,7 +105,7 @@ else
                     <MudTd DataLabel="Date / Time">@(((context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification) ? (context.CompletedAt ?? context.ScheduledAt) : context.ScheduledAt)?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
                     <MudTd DataLabel="Match">@(context.FixtureLabel ?? "—")</MudTd>
                     <MudTd DataLabel="Players">@FixturePlayers(context)</MudTd>
-                    <MudTd DataLabel="Court">@(context.Court?.Name ?? "—")</MudTd>
+                    <MudTd DataLabel="Court">@FixtureCourtLabel(context)</MudTd>
                     <MudTd DataLabel="Status">
                         <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
                     </MudTd>
@@ -305,6 +305,8 @@ else
             .Include(c => c.Participants).ThenInclude(p => p.Player)
             .Include(c => c.Fixtures).ThenInclude(f => f.Stage)
             .Include(c => c.Fixtures).ThenInclude(f => f.Court)
+            .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
+            .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
             .Include(c => c.Fixtures).ThenInclude(f => f.Player1)
             .Include(c => c.Fixtures).ThenInclude(f => f.Player2)
             .Include(c => c.Fixtures).ThenInclude(f => f.Player3)
@@ -479,6 +481,20 @@ else
         var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
             .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
         return $"{side1} vs {side2}";
+    }
+
+    private static string FixtureCourtLabel(CompetitionFixture f)
+    {
+        if (f.CourtPair != null)
+        {
+            var c1 = f.CourtPair.Court1?.Name;
+            var c2 = f.CourtPair.Court2?.Name;
+            if (!string.IsNullOrEmpty(c1) && !string.IsNullOrEmpty(c2))
+                return $"{c1} & {c2}";
+            if (!string.IsNullOrEmpty(f.CourtPair.Name))
+                return f.CourtPair.Name;
+        }
+        return f.Court?.Name ?? "—";
     }
 
     private string? WinnerName(CompetitionFixture f)
