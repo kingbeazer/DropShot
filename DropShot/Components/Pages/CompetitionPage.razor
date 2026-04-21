@@ -583,90 +583,6 @@
                 </MudPaper>
             }
 
-            @* ── Teams / Pairings ──────────────────────────────── *@
-            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
-            {
-                var isDoubles = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
-                var sectionLabel = isDoubles ? "Pairings" : "Teams";
-                var itemLabel = isDoubles ? "Pair" : "Team";
-
-                <MudPaper Class="pa-4 mb-4" Elevation="0"
-                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
-                        <MudText Typo="Typo.h6" Style="flex:1">@sectionLabel</MudText>
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                                   OnClick="OpenAddTeamDialog">Add @itemLabel</MudButton>
-                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
-                                   OnClick="OpenGenerateDialog">Generate @sectionLabel</MudButton>
-                    </MudStack>
-
-                    @if (!isDoubles)
-                    {
-                        <MudNumericField @bind-Value="Model.TeamSize" Label="Team size (players per team)"
-                                         Variant="Variant.Outlined" Min="2" Max="20"
-                                         Style="max-width: 220px;" Class="mb-3" />
-                    }
-
-                    <MudTable Items="@_teams" Dense="true" Hover="true">
-                        <HeaderContent>
-                            <MudTh>Team Name</MudTh>
-                            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
-                            {
-                                <MudTh>Captain</MudTh>
-                            }
-                            <MudTh>Members</MudTh>
-                            <MudTh></MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd>@context.Name</MudTd>
-                            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
-                            {
-                                <MudTd>
-                                    <MudSelect T="int?" Value="context.CaptainPlayerId" Dense="true" Variant="Variant.Text"
-                                               Clearable="true"
-                                               ValueChanged="@((int? pid) => AssignCaptain(context, pid))">
-                                        @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
-                                        {
-                                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@(p.Player?.DisplayName ?? "")</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudTd>
-                            }
-                            <MudTd>
-                                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
-                                {
-                                    @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
-                                    {
-                                        var label = $"{p.Player?.DisplayName} ({p.Role ?? "—"})";
-                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@label</MudChip>
-                                    }
-                                }
-                                else
-                                {
-                                    @string.Join(", ", _participants
-                                        .Where(p => p.TeamId == context.CompetitionTeamId)
-                                        .Select(p => p.Player?.DisplayName ?? ""))
-                                }
-                            </MudTd>
-                            <MudTd>
-                                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
-                                {
-                                    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small"
-                                                   Color="Color.Info" aria-label="Validate"
-                                                   OnClick="@(() => ValidateTeam(context))" />
-                                }
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                               OnClick="@(() => OpenEditTeamDialog(context))" />
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                               Color="Color.Error" OnClick="@(() => DeleteTeam(context))" />
-                            </MudTd>
-                        </RowTemplate>
-                        <NoRecordsContent><MudText Typo="Typo.caption">No teams yet.</MudText></NoRecordsContent>
-                    </MudTable>
-                </MudPaper>
-            }
-
             @* ── Rubber Template ─────────────────────────────── *@
             @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
             {
@@ -682,6 +598,10 @@
                             @statusLabel
                         </MudChip>
                     </MudStack>
+
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.8">
+                        Configure the rubber template before generating teams — the template determines team size and which roles each player must fill.
+                    </MudText>
 
                     <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.End">
                         <MudSelect T="string" Label="Load preset" Value="_selectedRubberPresetKey"
@@ -756,7 +676,7 @@
                     }
 
                     <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.7">
-                        Active roles: @(string.Join(", ", _availableRoles))
+                        Team size: @_availableRoles.Count • Roles: @(string.Join(", ", _availableRoles))
                     </MudText>
                 </MudPaper>
 
@@ -777,6 +697,100 @@
                         </DialogActions>
                     </MudDialog>
                 }
+            }
+
+            @* ── Teams / Pairings ──────────────────────────────── *@
+            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+            {
+                var isDoubles = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+                var sectionLabel = isDoubles ? "Pairings" : "Teams";
+                var itemLabel = isDoubles ? "Pair" : "Team";
+                var isTeamMatch = EffectivePersistedFormat() == CompetitionFormat.TeamMatch;
+
+                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                        <MudText Typo="Typo.h6" Style="flex:1">@sectionLabel</MudText>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenAddTeamDialog">Add @itemLabel</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                   OnClick="OpenGenerateDialog">Generate @sectionLabel</MudButton>
+                    </MudStack>
+
+                    @if (!isDoubles)
+                    {
+                        @if (isTeamMatch)
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                                Team size is <b>@_availableRoles.Count</b> — derived from the rubber template above.
+                            </MudAlert>
+                        }
+                        else
+                        {
+                            <MudNumericField @bind-Value="Model.TeamSize" Label="Team size (players per team)"
+                                             Variant="Variant.Outlined" Min="2" Max="20"
+                                             Style="max-width: 220px;" Class="mb-3" />
+                        }
+                    }
+
+                    <MudTable Items="@_teams" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>Team Name</MudTh>
+                            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+                            {
+                                <MudTh>Captain</MudTh>
+                            }
+                            <MudTh>Members</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.Name</MudTd>
+                            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+                            {
+                                <MudTd>
+                                    <MudSelect T="int?" Value="context.CaptainPlayerId" Dense="true" Variant="Variant.Text"
+                                               Clearable="true"
+                                               ValueChanged="@((int? pid) => AssignCaptain(context, pid))">
+                                        @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@(p.Player?.DisplayName ?? "")</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudTd>
+                            }
+                            <MudTd>
+                                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+                                {
+                                    @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
+                                    {
+                                        var label = $"{p.Player?.DisplayName} ({p.Role ?? "—"})";
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@label</MudChip>
+                                    }
+                                }
+                                else
+                                {
+                                    @string.Join(", ", _participants
+                                        .Where(p => p.TeamId == context.CompetitionTeamId)
+                                        .Select(p => p.Player?.DisplayName ?? ""))
+                                }
+                            </MudTd>
+                            <MudTd>
+                                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small"
+                                                   Color="Color.Info" aria-label="Validate"
+                                                   OnClick="@(() => ValidateTeam(context))" />
+                                }
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                               OnClick="@(() => OpenEditTeamDialog(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error" OnClick="@(() => DeleteTeam(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><MudText Typo="Typo.caption">No teams yet.</MudText></NoRecordsContent>
+                    </MudTable>
+                </MudPaper>
             }
 
             @* ── Fixtures ────────────────────────────────────── *@
@@ -1192,15 +1206,27 @@
     <TitleContent>Generate @(IsDoublesFormat() ? "Pairings" : "Teams")</TitleContent>
     <DialogContent>
         <MudStack Spacing="3">
-            <MudNumericField @bind-Value="_generateTeamSize"
-                             Label="@(IsDoublesFormat() ? "Players per pair" : "Players per team")"
-                             Variant="Variant.Outlined" Min="2" Max="20"
-                             Style="max-width: 200px;" />
-
-            @if (EffectivePersistedFormat() is CompetitionFormat.TeamMatch or CompetitionFormat.MixedDoubles)
+            @{
+                var genIsTeamMatch = EffectivePersistedFormat() == CompetitionFormat.TeamMatch;
+            }
+            @if (genIsTeamMatch)
             {
-                <MudSwitch @bind-Value="_generateGenderBalance" Color="Color.Primary"
-                           Label="Require equal male/female players per team" />
+                <MudAlert Severity="Severity.Info" Dense="true">
+                    Team size <b>@_generateTeamSize</b> and roles <b>@(string.Join(", ", _availableRoles))</b> are taken from the rubber template.
+                </MudAlert>
+            }
+            else
+            {
+                <MudNumericField @bind-Value="_generateTeamSize"
+                                 Label="@(IsDoublesFormat() ? "Players per pair" : "Players per team")"
+                                 Variant="Variant.Outlined" Min="2" Max="20"
+                                 Style="max-width: 200px;" />
+
+                @if (EffectivePersistedFormat() == CompetitionFormat.MixedDoubles)
+                {
+                    <MudSwitch @bind-Value="_generateGenderBalance" Color="Color.Primary"
+                               Label="Require equal male/female players per team" />
+                }
             }
 
             @if (_generateWarnings.Count > 0)
@@ -1234,7 +1260,9 @@
                                     @foreach (var m in team.Members)
                                     {
                                         var sexLabel = m.Player?.Sex switch { PlayerSex.Male => "M", PlayerSex.Female => "F", _ => "?" };
-                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@(m.Player?.DisplayName) (@sexLabel)</MudChip>
+                                        var role = team.Roles.TryGetValue(m.PlayerId, out var r) ? r : null;
+                                        var chipLabel = role != null ? $"{m.Player?.DisplayName} [{role}]" : $"{m.Player?.DisplayName} ({sexLabel})";
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@chipLabel</MudChip>
                                     }
                                 </td>
                             </tr>
@@ -1426,7 +1454,7 @@
     private List<GeneratedTeamPreview> _generatedPreview = [];
     private bool _generating;
 
-    private record GeneratedTeamPreview(string Name, List<CompetitionParticipant> Members);
+    private record GeneratedTeamPreview(string Name, List<CompetitionParticipant> Members, Dictionary<int, string> Roles);
 
     // Match windows
     private List<CompetitionMatchWindow> _matchWindows = [];
@@ -2441,8 +2469,21 @@
     {
         var format = EffectivePersistedFormat();
         var isDoubles = format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
-        _generateTeamSize = isDoubles ? 2 : (Model.TeamSize ?? 4);
-        _generateGenderBalance = format is CompetitionFormat.TeamMatch or CompetitionFormat.MixedDoubles;
+        var isTeamMatch = format == CompetitionFormat.TeamMatch;
+
+        if (isTeamMatch && _availableRoles.Count > 0)
+        {
+            _generateTeamSize = _availableRoles.Count;
+            // Gender-balance flag no longer drives TeamMatch generation — the role
+            // assigner for the active preset handles any gender-aware split.
+            _generateGenderBalance = false;
+        }
+        else
+        {
+            _generateTeamSize = isDoubles ? 2 : (Model.TeamSize ?? 4);
+            _generateGenderBalance = format == CompetitionFormat.MixedDoubles;
+        }
+
         _generateWarnings = [];
         _generatedPreview = [];
         _generating = false;
@@ -2467,12 +2508,30 @@
         var rng = new Random();
         var format = EffectivePersistedFormat();
         var isDoubles = format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+        var isTeamMatch = format == CompetitionFormat.TeamMatch;
         var itemLabel = isDoubles ? "Pair" : "Team";
         var teamSize = _generateTeamSize;
 
-        if (_generateGenderBalance && format is CompetitionFormat.TeamMatch or CompetitionFormat.MixedDoubles)
+        // For TeamMatch, the preset's role-assignment strategy may require a specific
+        // player-attribute split (MTT needs 2M + 2F). Drive selection from the strategy.
+        RubberTemplateRegistry.RoleAssigner? assigner = null;
+        if (isTeamMatch)
         {
-            // Gender-balanced generation
+            var presetKey = _rubberTemplateSource switch
+            {
+                "preset"  => _selectedRubberPresetKey,
+                "default" => RubberTemplateRegistry.GetFormatDefaultKey(format),
+                _         => null
+            };
+            assigner = RubberTemplateRegistry.GetRoleAssigner(presetKey);
+        }
+
+        var useMttSplit = isTeamMatch && _selectedRubberPresetKey == RubberTemplateRegistry.MttKey
+            || (_rubberTemplateSource == "default" && format == CompetitionFormat.TeamMatch);
+
+        if (useMttSplit || (_generateGenderBalance && format == CompetitionFormat.MixedDoubles))
+        {
+            // Gender-balanced generation (MTT or MixedDoubles)
             var males = active.Where(p => p.Player?.Sex == PlayerSex.Male).OrderBy(_ => rng.Next()).ToList();
             var females = active.Where(p => p.Player?.Sex == PlayerSex.Female).OrderBy(_ => rng.Next()).ToList();
             var noSex = active.Where(p => p.Player?.Sex == null || p.Player.Sex == PlayerSex.Other).ToList();
@@ -2501,7 +2560,8 @@
                 var members = new List<CompetitionParticipant>();
                 members.AddRange(males.Skip(i * perGender).Take(perGender));
                 members.AddRange(females.Skip(i * perGender).Take(perGender));
-                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {(char)('A' + i)}", members));
+                var roles = AssignRoles(assigner, members);
+                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {(char)('A' + i)}", members, roles));
             }
         }
         else
@@ -2523,9 +2583,24 @@
             for (int i = 0; i < teamCount; i++)
             {
                 var members = shuffled.Skip(i * teamSize).Take(teamSize).ToList();
-                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {(char)('A' + i)}", members));
+                var roles = AssignRoles(assigner, members);
+                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {(char)('A' + i)}", members, roles));
             }
         }
+
+        if (isTeamMatch && assigner == null && _rubberTemplateSource == "custom")
+            _generateWarnings.Add("Custom template: roles will not be auto-assigned. Set each player's role after teams are created.");
+    }
+
+    private static Dictionary<int, string> AssignRoles(
+        RubberTemplateRegistry.RoleAssigner? assigner, List<CompetitionParticipant> members)
+    {
+        if (assigner == null) return [];
+        var candidates = members
+            .Select(m => new RubberTemplateRegistry.AssignmentCandidate(
+                m.PlayerId, m.Player?.DisplayName ?? "", m.Player?.Sex))
+            .ToList();
+        return assigner(candidates).ToDictionary(kv => kv.Key, kv => kv.Value);
     }
 
     private async Task ConfirmGenerateTeams()
@@ -2549,7 +2624,8 @@
                 await db.SaveChangesAsync();
             }
 
-            // Create new teams and assign participants
+            // Create new teams and assign participants (+ roles, where the preset's
+            // assigner provided them)
             foreach (var preview in _generatedPreview)
             {
                 var team = new CompetitionTeam { CompetitionId = Id, Name = preview.Name };
@@ -2559,7 +2635,12 @@
                 foreach (var member in preview.Members)
                 {
                     var cp = await db.CompetitionParticipants.FindAsync(Id, member.PlayerId);
-                    if (cp != null) cp.TeamId = team.CompetitionTeamId;
+                    if (cp != null)
+                    {
+                        cp.TeamId = team.CompetitionTeamId;
+                        if (preview.Roles.TryGetValue(member.PlayerId, out var role))
+                            cp.Role = role;
+                    }
                 }
                 await db.SaveChangesAsync();
             }
