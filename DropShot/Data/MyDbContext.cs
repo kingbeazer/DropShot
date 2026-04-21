@@ -107,6 +107,7 @@ namespace DropShot.Data
                 entity.Property(c => c.CompetitionName).HasMaxLength(200).IsRequired();
                 entity.Property(c => c.EligibleSex).HasConversion<byte?>();
                 entity.Property(c => c.CreatorUserId).HasMaxLength(450);
+                entity.Property(c => c.RubberTemplateKey).HasMaxLength(32);
                 entity.HasIndex(c => c.CreatorUserId);
 
                 entity.HasOne(c => c.Rules)
