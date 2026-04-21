@@ -10,6 +10,7 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject NavigationManager Navigation
 @inject RubberResolutionService RubberResolver
+@inject IDialogService DialogService
 
 <MudProviders />
 
@@ -171,6 +172,20 @@ else
         }
     }
 
+    private async Task EnterRubberScore(Rubber rubber)
+    {
+        var parameters = new DialogParameters<RubberScoreDialog> { { x => x.Rubber, rubber } };
+        var dialog = await DialogService.ShowAsync<RubberScoreDialog>("Enter rubber score", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            // Refresh the page so the completed rubber and any cascading fixture
+            // result update are reflected.
+            await EnsureAndLoad();
+            StateHasChanged();
+        }
+    }
+
     private RenderFragment RenderRubber(Rubber rubber) => __builder =>
     {
         <MudCard Class="mb-2" Outlined="true">
@@ -203,7 +218,9 @@ else
                         else if (CanStart(rubber))
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                       OnClick="@(() => StartRubber(rubber))">Start</MudButton>
+                                       OnClick="@(() => StartRubber(rubber))">Play</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                       OnClick="@(() => EnterRubberScore(rubber))">Enter score</MudButton>
                         }
                         else
                         {
