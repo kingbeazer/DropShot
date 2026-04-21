@@ -417,12 +417,14 @@ else
             // Team league table for TeamMatch format
             if (_competition.CompetitionFormat == CompetitionFormat.TeamMatch && rrStageIds.Any())
             {
+                var scoringMode = _competition.LeagueScoring;
                 var tPlayed = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tDrawn = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tLost = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tRubbersWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tRubbersAgainst = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tPoints = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
 
                 foreach (var f in _fixtures.Where(f =>
                     f.CompetitionStageId.HasValue &&
@@ -435,19 +437,35 @@ else
                     if (!tPlayed.ContainsKey(hid) || !tPlayed.ContainsKey(aid)) continue;
 
                     var completed = f.Rubbers.Where(r => r.IsComplete).ToList();
-                    int hw = completed.Count(r => r.WinnerTeamId == hid);
-                    int aw = completed.Count(r => r.WinnerTeamId == aid);
+                    int homeRubbers = completed.Count(r => r.WinnerTeamId == hid);
+                    int awayRubbers = completed.Count(r => r.WinnerTeamId == aid);
+                    int homeSets = completed.Sum(r => r.HomeSetsWon ?? 0);
+                    int awaySets = completed.Sum(r => r.AwaySetsWon ?? 0);
+                    int homeGames = completed.Sum(r => r.HomeGamesTotal ?? 0);
+                    int awayGames = completed.Sum(r => r.AwayGamesTotal ?? 0);
 
                     tPlayed[hid]++;
                     tPlayed[aid]++;
-                    tRubbersWon[hid] += hw;
-                    tRubbersAgainst[hid] += aw;
-                    tRubbersWon[aid] += aw;
-                    tRubbersAgainst[aid] += hw;
+                    tRubbersWon[hid] += homeRubbers;
+                    tRubbersAgainst[hid] += awayRubbers;
+                    tRubbersWon[aid] += awayRubbers;
+                    tRubbersAgainst[aid] += homeRubbers;
 
-                    if (hw > aw) { tWon[hid]++; tLost[aid]++; }
-                    else if (aw > hw) { tWon[aid]++; tLost[hid]++; }
+                    bool homeWin = homeRubbers > awayRubbers;
+                    bool awayWin = awayRubbers > homeRubbers;
+                    if (homeWin) { tWon[hid]++; tLost[aid]++; }
+                    else if (awayWin) { tWon[aid]++; tLost[hid]++; }
                     else { tDrawn[hid]++; tDrawn[aid]++; }
+
+                    (int homePts, int awayPts) = scoringMode switch
+                    {
+                        LeagueScoringMode.SetsWon  => (homeSets, awaySets),
+                        LeagueScoringMode.GamesWon => (homeGames, awayGames),
+                        _ => (homeWin ? 3 : (!awayWin ? 1 : 0),
+                              awayWin ? 3 : (!homeWin ? 1 : 0)),
+                    };
+                    tPoints[hid] += homePts;
+                    tPoints[aid] += awayPts;
                 }
 
                 _teamLeagueTable = _teams
@@ -456,7 +474,7 @@ else
                         tPlayed[t.CompetitionTeamId], tWon[t.CompetitionTeamId],
                         tDrawn[t.CompetitionTeamId], tLost[t.CompetitionTeamId],
                         tRubbersWon[t.CompetitionTeamId], tRubbersAgainst[t.CompetitionTeamId],
-                        tRubbersWon[t.CompetitionTeamId]))
+                        tPoints[t.CompetitionTeamId]))
                     .OrderByDescending(r => r.Points)
                     .ThenByDescending(r => r.RubbersWon - r.RubbersAgainst)
                     .ThenBy(r => r.RubbersAgainst)

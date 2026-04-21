@@ -238,6 +238,9 @@
                     </MudRadioGroup>
 
                     <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">League Scoring</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                        For TeamMatch competitions, sets and games aggregate across every rubber in the fixture.
+                    </MudText>
                     <MudRadioGroup @bind-Value="Model.LeagueScoring">
                         <MudStack Spacing="1">
                             <MudRadio Value="LeagueScoringMode.WinPoints" Color="Color.Primary">3 points for a win, 1 for a draw</MudRadio>

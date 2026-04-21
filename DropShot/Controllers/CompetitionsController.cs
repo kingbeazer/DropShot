@@ -1338,6 +1338,9 @@ public class CompetitionsController(
     {
         await using var db = dbFactory.CreateDbContext();
 
+        var comp = await db.Competition.AsNoTracking().FirstOrDefaultAsync(c => c.CompetitionID == id);
+        var scoringMode = comp?.LeagueScoring ?? DropShot.Models.LeagueScoringMode.WinPoints;
+
         var rrStageIds = await db.CompetitionStages
             .Where(s => s.CompetitionId == id && s.StageType == DropShot.Models.StageType.RoundRobin)
             .Select(s => s.CompetitionStageId)
@@ -1365,6 +1368,7 @@ public class CompetitionsController(
         var lost = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
         var rubbersWon = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
         var rubbersAgainst = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var points = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
 
         foreach (var f in fixtures)
         {
@@ -1373,19 +1377,37 @@ public class CompetitionsController(
             if (!played.ContainsKey(homeId) || !played.ContainsKey(awayId)) continue;
 
             var completed = f.Rubbers.Where(r => r.IsComplete).ToList();
-            int homeWon = completed.Count(r => r.WinnerTeamId == homeId);
-            int awayWon = completed.Count(r => r.WinnerTeamId == awayId);
+            int homeRubbers = completed.Count(r => r.WinnerTeamId == homeId);
+            int awayRubbers = completed.Count(r => r.WinnerTeamId == awayId);
+            int homeSets = completed.Sum(r => r.HomeSetsWon ?? 0);
+            int awaySets = completed.Sum(r => r.AwaySetsWon ?? 0);
+            int homeGames = completed.Sum(r => r.HomeGamesTotal ?? 0);
+            int awayGames = completed.Sum(r => r.AwayGamesTotal ?? 0);
 
             played[homeId]++;
             played[awayId]++;
-            rubbersWon[homeId] += homeWon;
-            rubbersAgainst[homeId] += awayWon;
-            rubbersWon[awayId] += awayWon;
-            rubbersAgainst[awayId] += homeWon;
+            rubbersWon[homeId] += homeRubbers;
+            rubbersAgainst[homeId] += awayRubbers;
+            rubbersWon[awayId] += awayRubbers;
+            rubbersAgainst[awayId] += homeRubbers;
 
-            if (homeWon > awayWon) { won[homeId]++; lost[awayId]++; }
-            else if (awayWon > homeWon) { won[awayId]++; lost[homeId]++; }
+            bool homeWin = homeRubbers > awayRubbers;
+            bool awayWin = awayRubbers > homeRubbers;
+            if (homeWin) { won[homeId]++; lost[awayId]++; }
+            else if (awayWin) { won[awayId]++; lost[homeId]++; }
             else { drawn[homeId]++; drawn[awayId]++; }
+
+            (int homePts, int awayPts) = scoringMode switch
+            {
+                DropShot.Models.LeagueScoringMode.SetsWon =>
+                    (homeSets, awaySets),
+                DropShot.Models.LeagueScoringMode.GamesWon =>
+                    (homeGames, awayGames),
+                _ => (homeWin ? 3 : (!awayWin ? 1 : 0),
+                      awayWin ? 3 : (!homeWin ? 1 : 0)),
+            };
+            points[homeId] += homePts;
+            points[awayId] += awayPts;
         }
 
         var entries = teams
@@ -1394,7 +1416,7 @@ public class CompetitionsController(
                 played[t.CompetitionTeamId], won[t.CompetitionTeamId],
                 drawn[t.CompetitionTeamId], lost[t.CompetitionTeamId],
                 rubbersWon[t.CompetitionTeamId], rubbersAgainst[t.CompetitionTeamId],
-                rubbersWon[t.CompetitionTeamId]))
+                points[t.CompetitionTeamId]))
             .OrderByDescending(e => e.Points)
             .ThenByDescending(e => e.RubbersWon - e.RubbersAgainst)
             .ThenBy(e => e.RubbersAgainst)
