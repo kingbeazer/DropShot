@@ -685,8 +685,18 @@
         await SaveInitialMatchAsync();
 
         // Navigate to /match/{id} so that refreshing the page restores this exact match.
+        // Preserve rubber/return-url query params — without them the component would lose
+        // its rubber context on re-initialisation, so the rubber-completion block at match
+        // end would skip (score lost) and the post-match navigation would fall back to
+        // "/match" instead of returning to the team-match page.
         if (_savedMatchId > 0)
-            Navigation.NavigateTo($"/match/{_savedMatchId}", replace: true);
+        {
+            var preserved = new List<string>();
+            if (RubberId.HasValue && RubberId > 0) preserved.Add($"RubberId={RubberId}");
+            if (!string.IsNullOrEmpty(ReturnUrl)) preserved.Add($"ReturnUrl={Uri.EscapeDataString(ReturnUrl)}");
+            var qs = preserved.Count > 0 ? "?" + string.Join("&", preserved) : "";
+            Navigation.NavigateTo($"/match/{_savedMatchId}{qs}", replace: true);
+        }
 
         // Broadcast initial state so the scoreboard shows player names and serve indicator immediately.
         var initialState = new GameState(
