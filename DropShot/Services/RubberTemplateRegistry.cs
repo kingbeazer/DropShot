@@ -61,6 +61,25 @@ public static class RubberTemplateRegistry
     };
 
     /// <summary>
+    /// Player attributes the assigner needs. Kept as a plain record so the registry
+    /// stays decoupled from EF models.
+    /// </summary>
+    public record AssignmentCandidate(int PlayerId, string DisplayName, PlayerSex? Sex);
+
+    /// <summary>
+    /// Maps players to the roles of a team. Returns a dictionary keyed by PlayerId.
+    /// Players omitted from the map are left without a role (captain assigns manually).
+    /// </summary>
+    public delegate IReadOnlyDictionary<int, string> RoleAssigner(
+        IReadOnlyList<AssignmentCandidate> players);
+
+    private static readonly Dictionary<string, RoleAssigner> Assigners = new()
+    {
+        [MttKey]           = AssignMtt,
+        [CountyDoublesKey] = AssignSequential,
+    };
+
+    /// <summary>
     /// Resolve a preset by explicit key, falling back to the format's default.
     /// </summary>
     public static IReadOnlyList<RubberDef>? Resolve(CompetitionFormat? format, string? key)
@@ -87,4 +106,47 @@ public static class RubberTemplateRegistry
 
     public static IEnumerable<(string Key, string Label)> AvailablePresets() =>
         Presets.Select(kv => (kv.Key, kv.Value.Label));
+
+    public static string? GetFormatDefaultKey(CompetitionFormat? format) =>
+        format.HasValue && FormatDefaults.TryGetValue(format.Value, out var key) ? key : null;
+
+    /// <summary>
+    /// Returns a role-assignment strategy for a given preset key, or null if the
+    /// preset is unknown (e.g. fully custom template, where the captain assigns roles).
+    /// </summary>
+    public static RoleAssigner? GetRoleAssigner(string? key) =>
+        key != null && Assigners.TryGetValue(key, out var a) ? a : null;
+
+    // ── Built-in assigners ──────────────────────────────────────────────────
+
+    private static IReadOnlyDictionary<int, string> AssignMtt(
+        IReadOnlyList<AssignmentCandidate> players)
+    {
+        var result = new Dictionary<int, string>();
+        var males = players.Where(p => p.Sex == PlayerSex.Male).OrderBy(p => p.DisplayName).ToList();
+        var females = players.Where(p => p.Sex == PlayerSex.Female).OrderBy(p => p.DisplayName).ToList();
+        if (males.Count >= 1)   result[males[0].PlayerId]   = Roles.MA;
+        if (males.Count >= 2)   result[males[1].PlayerId]   = Roles.MB;
+        if (females.Count >= 1) result[females[0].PlayerId] = Roles.FA;
+        if (females.Count >= 2) result[females[1].PlayerId] = Roles.FB;
+        return result;
+    }
+
+    private static IReadOnlyDictionary<int, string> AssignSequential(
+        IReadOnlyList<AssignmentCandidate> players)
+    {
+        // Deterministic fallback: assign the preset's roles (alphabetical order) to
+        // players (also alphabetical order) in turn.
+        var roles = players.Count == 0 ? [] : Presets[CountyDoublesKey].Template
+            .SelectMany(d => d.HomeRoles.Concat(d.AwayRoles))
+            .Distinct()
+            .OrderBy(r => r)
+            .ToList();
+
+        var ordered = players.OrderBy(p => p.DisplayName).ToList();
+        var result = new Dictionary<int, string>();
+        for (int i = 0; i < Math.Min(ordered.Count, roles.Count); i++)
+            result[ordered[i].PlayerId] = roles[i];
+        return result;
+    }
 }
