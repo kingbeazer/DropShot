@@ -1163,13 +1163,34 @@
                 }
             }
             <MudItem xs="12" sm="6">
-                <MudSelect @bind-Value="_fixtureForm.CourtId" Label="Court (optional)"
-                           Variant="Variant.Outlined" Clearable="true">
-                    @foreach (var c in _courts)
+                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+                {
+                    <MudSelect @bind-Value="_fixtureForm.CourtPairId" Label="Court pair (optional)"
+                               Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var cp in _courtPairs)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)cp.CourtPairId)">
+                                @(string.IsNullOrEmpty(cp.Name) ? $"{cp.Court1?.Name} & {cp.Court2?.Name}" : cp.Name)
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    @if (_courtPairs.Count == 0)
                     {
-                        <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
+                        <MudText Typo="Typo.caption" Color="Color.Warning">
+                            No court pairs configured — add a pair under Court Pairs, or leave blank.
+                        </MudText>
                     }
-                </MudSelect>
+                }
+                else
+                {
+                    <MudSelect @bind-Value="_fixtureForm.CourtId" Label="Court (optional)"
+                               Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var c in _courts)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudSelect @bind-Value="_fixtureForm.Status" Label="Status" Variant="Variant.Outlined">
@@ -1401,6 +1422,7 @@
     private List<CompetitionFixture> _fixtures = [];
     private List<CompetitionTeam> _teams = [];
     private List<Court> _courts = [];
+    private List<CourtPair> _courtPairs = [];
 
     // Rubber template editor
     private List<string> _availableRoles = [];
@@ -1632,6 +1654,7 @@
         public int? HomeTeamId { get; set; }
         public int? AwayTeamId { get; set; }
         public int? CourtId { get; set; }
+        public int? CourtPairId { get; set; }
         public FixtureStatus Status { get; set; } = FixtureStatus.Scheduled;
 
         public DateTime? ScheduledAt => DatePart.HasValue
@@ -1716,6 +1739,13 @@
             _matchWindows = comp.MatchWindows
                 .OrderBy(w => w.DayOfWeek).ThenBy(w => w.StartTime)
                 .ToList();
+
+            _courtPairs = await db.CourtPairs
+                .Where(cp => cp.CompetitionId == Id)
+                .Include(cp => cp.Court1)
+                .Include(cp => cp.Court2)
+                .OrderBy(cp => cp.Name)
+                .ToListAsync();
 
             if (comp.HostClubId.HasValue)
             {
@@ -2697,6 +2727,7 @@
             HomeTeamId = fixture.HomeTeamId,
             AwayTeamId = fixture.AwayTeamId,
             CourtId = fixture.CourtId,
+            CourtPairId = fixture.CourtPairId,
             Status = fixture.Status
         };
         _showFixtureDialog = true;
@@ -2724,6 +2755,7 @@
             // Reload with nav props
             f.Stage = _stages.FirstOrDefault(s => s.CompetitionStageId == f.CompetitionStageId);
             f.Court = _courts.FirstOrDefault(c => c.CourtId == f.CourtId);
+            f.CourtPair = _courtPairs.FirstOrDefault(cp => cp.CourtPairId == f.CourtPairId);
             f.Player1 = _allPlayers.FirstOrDefault(p => p.PlayerId == f.Player1Id);
             f.Player2 = _allPlayers.FirstOrDefault(p => p.PlayerId == f.Player2Id);
             f.Player3 = _allPlayers.FirstOrDefault(p => p.PlayerId == f.Player3Id);
@@ -2741,6 +2773,7 @@
                 ApplyFixtureForm(_editingFixture);
                 _editingFixture.Stage = _stages.FirstOrDefault(s => s.CompetitionStageId == _editingFixture.CompetitionStageId);
                 _editingFixture.Court = _courts.FirstOrDefault(c => c.CourtId == _editingFixture.CourtId);
+                _editingFixture.CourtPair = _courtPairs.FirstOrDefault(cp => cp.CourtPairId == _editingFixture.CourtPairId);
                 _editingFixture.Player1 = _allPlayers.FirstOrDefault(p => p.PlayerId == _editingFixture.Player1Id);
                 _editingFixture.Player2 = _allPlayers.FirstOrDefault(p => p.PlayerId == _editingFixture.Player2Id);
                 _editingFixture.Player3 = _allPlayers.FirstOrDefault(p => p.PlayerId == _editingFixture.Player3Id);
@@ -2762,7 +2795,18 @@
         f.Player4Id = _fixtureForm.Player4Id;
         f.HomeTeamId = _fixtureForm.HomeTeamId;
         f.AwayTeamId = _fixtureForm.AwayTeamId;
-        f.CourtId = _fixtureForm.CourtId;
+        // TeamMatch fixtures use a CourtPair (pairing two courts); other formats use a single court.
+        // Keep the two fields mutually exclusive so the display helper renders the right thing.
+        if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+        {
+            f.CourtPairId = _fixtureForm.CourtPairId;
+            f.CourtId = null;
+        }
+        else
+        {
+            f.CourtId = _fixtureForm.CourtId;
+            f.CourtPairId = null;
+        }
         f.Status = _fixtureForm.Status;
     }
 
@@ -3398,7 +3442,35 @@
         var efmt = EffectivePersistedFormat();
         var isTeamComp = efmt is CompetitionFormat.Team or CompetitionFormat.TeamMatch
             or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+        var isTeamMatchScheduling = efmt == CompetitionFormat.TeamMatch;
         int  n                = (isTeamComp && _teams.Count >= 2) ? _teams.Count : activePlayers.Count;
+
+        // ── For TeamMatch, ensure we have CourtPairs ──────────────────────────
+        // Each fixture plays multiple rubbers across two courts simultaneously, so
+        // we book a CourtPair rather than a single court. Auto-pair courts in order
+        // when the admin hasn't defined pairs explicitly.
+        if (isTeamMatchScheduling && _courtPairs.Count == 0 && _courts.Count >= 2)
+        {
+            var autoCreated = new List<CourtPair>();
+            for (int i = 0; i + 1 < _courts.Count; i += 2)
+            {
+                autoCreated.Add(new CourtPair
+                {
+                    CompetitionId = Id,
+                    Court1Id = _courts[i].CourtId,
+                    Court2Id = _courts[i + 1].CourtId,
+                    Name = $"{_courts[i].Name} & {_courts[i + 1].Name}",
+                    Court1 = _courts[i],
+                    Court2 = _courts[i + 1],
+                });
+            }
+            if (autoCreated.Count > 0)
+            {
+                db.CourtPairs.AddRange(autoCreated);
+                await db.SaveChangesAsync();
+                _courtPairs = autoCreated;
+            }
+        }
 
         // ── Build all valid scheduling slots from match windows ────────────────
         var hasStartDate = Model.StartDateDt.HasValue;
@@ -3406,8 +3478,29 @@
         var startDate = Model.StartDateDt?.Date ?? DateTime.Today;
         var endDate   = Model.EndDateDt?.Date ?? startDate.AddDays(365); // up to 1 year if no end date
 
-        // Generate all valid (time, courtId) slots from match windows
+        // For TeamMatch, each slot books a CourtPair (stored in courtId) and we
+        // additionally mark both underlying courts as busy at that time.
+        // For other formats, each slot books a single Court.
         var allSlots = new List<(DateTime time, int? courtId)>();
+        var courtIdToPair = _courtPairs.ToDictionary(
+            cp => cp.CourtPairId,
+            cp => (cp.Court1Id, cp.Court2Id));
+
+        void AddTeamMatchSlotsForTime(DateTime time, int? windowCourtId)
+        {
+            if (_courtPairs.Count == 0)
+            {
+                allSlots.Add((time, null));
+                return;
+            }
+            // Window-specific court: include pairs containing that court.
+            // Global window: include every pair.
+            var candidates = windowCourtId.HasValue
+                ? _courtPairs.Where(cp => cp.Court1Id == windowCourtId || cp.Court2Id == windowCourtId)
+                : _courtPairs;
+            foreach (var cp in candidates)
+                allSlots.Add((time, cp.CourtPairId));
+        }
 
         if (_matchWindows.Count > 0)
         {
@@ -3416,19 +3509,23 @@
             {
                 foreach (var w in _matchWindows.Where(w => w.DayOfWeek == d.DayOfWeek))
                 {
-                    if (w.CourtId.HasValue)
+                    var time = d + w.StartTime;
+                    if (isTeamMatchScheduling)
                     {
-                        allSlots.Add((d + w.StartTime, w.CourtId));
+                        AddTeamMatchSlotsForTime(time, w.CourtId);
+                    }
+                    else if (w.CourtId.HasValue)
+                    {
+                        allSlots.Add((time, w.CourtId));
                     }
                     else if (_courts.Count > 0)
                     {
-                        // Global window: one slot per court
                         foreach (var court in _courts)
-                            allSlots.Add((d + w.StartTime, court.CourtId));
+                            allSlots.Add((time, court.CourtId));
                     }
                     else
                     {
-                        allSlots.Add((d + w.StartTime, null));
+                        allSlots.Add((time, null));
                     }
                 }
             }
@@ -3441,14 +3538,19 @@
             {
                 foreach (var mins in defaultTimes)
                 {
-                    if (_courts.Count > 0)
+                    var time = d.AddMinutes(mins);
+                    if (isTeamMatchScheduling)
+                    {
+                        AddTeamMatchSlotsForTime(time, null);
+                    }
+                    else if (_courts.Count > 0)
                     {
                         foreach (var court in _courts)
-                            allSlots.Add((d.AddMinutes(mins), court.CourtId));
+                            allSlots.Add((time, court.CourtId));
                     }
                     else
                     {
-                        allSlots.Add((d.AddMinutes(mins), null));
+                        allSlots.Add((time, null));
                     }
                 }
             }
@@ -3460,6 +3562,7 @@
 
         // Track occupied court-slots and player/team busy times
         var usedSlots = new HashSet<(DateTime, int?)>();
+        var courtBusyAt = new Dictionary<DateTime, HashSet<int>>();
         var playerBusyAt = new Dictionary<DateTime, HashSet<int>>();
         var teamBusyAt = new Dictionary<DateTime, HashSet<int>>();
 
@@ -3484,6 +3587,17 @@
                     conflict = playerIds.Any(pid => pBusy.Contains(pid));
                 if (!conflict && teamIds.Count > 0 && teamBusyAt.TryGetValue(slot.time, out var tBusy))
                     conflict = teamIds.Any(tid => tBusy.Contains(tid));
+
+                // For TeamMatch, slot.courtId is a CourtPairId and we additionally
+                // need both underlying courts to be free at this time.
+                if (!conflict && isTeamMatchScheduling && slot.courtId.HasValue
+                    && courtIdToPair.TryGetValue(slot.courtId.Value, out var pairCourts))
+                {
+                    if (courtBusyAt.TryGetValue(slot.time, out var cBusy)
+                        && (cBusy.Contains(pairCourts.Court1Id) || cBusy.Contains(pairCourts.Court2Id)))
+                        conflict = true;
+                }
+
                 if (conflict) continue;
 
                 // Found a valid slot
@@ -3500,6 +3614,14 @@
                         teamBusyAt[slot.time] = tSet = new HashSet<int>();
                     foreach (var tid in teamIds) tSet.Add(tid);
                 }
+                if (isTeamMatchScheduling && slot.courtId.HasValue
+                    && courtIdToPair.TryGetValue(slot.courtId.Value, out var pc))
+                {
+                    if (!courtBusyAt.TryGetValue(slot.time, out var cSet))
+                        courtBusyAt[slot.time] = cSet = new HashSet<int>();
+                    cSet.Add(pc.Court1Id);
+                    cSet.Add(pc.Court2Id);
+                }
                 return slot;
             }
             return null; // No valid slot found
@@ -3509,13 +3631,17 @@
         {
             var slot = PickSlot(playerIds ?? [], teamIds ?? []);
             if (slot == null) return null;
-            return new CompetitionFixture
+            var fixture = new CompetitionFixture
             {
                 CompetitionId = Id,
                 ScheduledAt = slot.Value.time,
-                CourtId = slot.Value.courtId,
-                Status = FixtureStatus.Scheduled
+                Status = FixtureStatus.Scheduled,
             };
+            if (isTeamMatchScheduling)
+                fixture.CourtPairId = slot.Value.courtId;
+            else
+                fixture.CourtId = slot.Value.courtId;
+            return fixture;
         }
 
         var newFixtures = new List<CompetitionFixture>();
@@ -3758,7 +3884,8 @@
             .Include(f => f.Player4)
             .Include(f => f.HomeTeam)
             .Include(f => f.AwayTeam)
-            .Include(f => f.CourtPair)
+            .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
+            .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
             .OrderBy(f => f.RoundNumber)
             .ThenBy(f => f.ScheduledAt)
             .ToListAsync();
@@ -3865,7 +3992,8 @@
             .Include(f => f.Player4)
             .Include(f => f.HomeTeam)
             .Include(f => f.AwayTeam)
-            .Include(f => f.CourtPair)
+            .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
+            .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
             .OrderBy(f => f.RoundNumber)
             .ThenBy(f => f.ScheduledAt)
             .ToListAsync();
