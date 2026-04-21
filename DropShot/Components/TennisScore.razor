@@ -1181,13 +1181,17 @@
                 rub.HomeSetsWon = _state.UserSets;
                 rub.AwaySetsWon = _state.OppSets;
 
-                // Last-set games for display; sets-won is the authoritative score.
+                // Last-set games for quick display; sets-won is the authoritative
+                // rubber score. Games-total sums every set and drives league-table
+                // aggregation when the competition uses per-game league scoring.
                 var lastSet = _state.SetScores.LastOrDefault();
                 if (lastSet != null)
                 {
                     rub.HomeGames = lastSet.UserGames;
                     rub.AwayGames = lastSet.OpponentGames;
                 }
+                rub.HomeGamesTotal = _state.SetScores.Sum(s => s.UserGames);
+                rub.AwayGamesTotal = _state.SetScores.Sum(s => s.OpponentGames);
 
                 bool homeSideWon = (_state.UserSets > _state.OppSets);
                 rub.WinnerTeamId = homeSideWon ? rub.Fixture.HomeTeamId : rub.Fixture.AwayTeamId;
