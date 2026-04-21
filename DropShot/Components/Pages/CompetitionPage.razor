@@ -3455,6 +3455,9 @@
         // when the admin hasn't defined pairs explicitly.
         if (isTeamMatchScheduling && _courtPairs.Count == 0 && _courts.Count >= 2)
         {
+            // Insert pairs using only FK ids — the Court navigation entities are
+            // tracked by a different (disposed) DbContext, so attaching them here
+            // produces tracking conflicts and a DbUpdateException.
             var autoCreated = new List<CourtPair>();
             for (int i = 0; i + 1 < _courts.Count; i += 2)
             {
@@ -3464,15 +3467,22 @@
                     Court1Id = _courts[i].CourtId,
                     Court2Id = _courts[i + 1].CourtId,
                     Name = $"{_courts[i].Name} & {_courts[i + 1].Name}",
-                    Court1 = _courts[i],
-                    Court2 = _courts[i + 1],
                 });
             }
             if (autoCreated.Count > 0)
             {
                 db.CourtPairs.AddRange(autoCreated);
                 await db.SaveChangesAsync();
-                _courtPairs = autoCreated;
+
+                // Re-read with Court navs populated so the rest of the page keeps
+                // working after ScheduleFixtures completes.
+                _courtPairs = await db.CourtPairs
+                    .AsNoTracking()
+                    .Where(cp => cp.CompetitionId == Id)
+                    .Include(cp => cp.Court1)
+                    .Include(cp => cp.Court2)
+                    .OrderBy(cp => cp.Name)
+                    .ToListAsync();
             }
         }
 

@@ -50,7 +50,7 @@ public static class RubberTemplateRegistry
 
     private static readonly Dictionary<string, (string Label, IReadOnlyList<RubberDef> Template)> Presets = new()
     {
-        [MttKey]           = ("Mixed Team Tennis (8 rubbers)", MttTemplate),
+        [MttKey]           = ("Mixed Team Tennis (4 rubbers)", MttTemplate),
         [CountyDoublesKey] = ("County Doubles (4 rubbers)",    CountyDoublesTemplate),
     };
 
