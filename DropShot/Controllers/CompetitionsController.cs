@@ -15,7 +15,8 @@ namespace DropShot.Controllers;
 public class CompetitionsController(
     IDbContextFactory<MyDbContext> dbFactory,
     ClubAuthorizationService authzService,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+    UserManager<ApplicationUser> userManager,
+    ICompetitionRubberTemplateProvider rubberTemplateProvider) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<CompetitionDto>>> GetAll(
@@ -82,7 +83,7 @@ public class CompetitionsController(
                 (DropShot.Shared.ParticipantStatus)p.Status,
                 p.RegisteredAt, p.TeamId, p.Team?.Name,
                 p.Player?.MobileNumber,
-                (DropShot.Shared.PlayerGrade?)p.Grade,
+                p.Role,
                 (DropShot.Shared.PlayerSex?)p.Player?.Sex)).ToList(),
             c.IsArchived,
             c.IsStarted,
@@ -188,10 +189,10 @@ public class CompetitionsController(
             return BadRequest("Competition must be archived before it can be deleted.");
 
         // Remove child entities that use Restrict/NoAction FK to avoid FK violations
-        var teamMatchSets = await db.TeamMatchSets
-            .Where(s => s.Fixture.CompetitionId == id)
+        var rubbers = await db.Rubbers
+            .Where(r => r.Fixture.CompetitionId == id)
             .ToListAsync();
-        db.TeamMatchSets.RemoveRange(teamMatchSets);
+        db.Rubbers.RemoveRange(rubbers);
 
         var fixtures = await db.CompetitionFixtures
             .Where(f => f.CompetitionId == id)
@@ -588,7 +589,7 @@ public class CompetitionsController(
         {
             var scheduled = await db.CompetitionFixtures
                 .Include(f => f.Stage)
-                .Include(f => f.TeamMatchSets)
+                .Include(f => f.Rubbers)
                 .Where(f => f.CompetitionId == id
                     && f.CompetitionFixtureId != fixtureId
                     && f.Status == FixtureStatus.Scheduled
@@ -599,9 +600,9 @@ public class CompetitionsController(
             {
                 if (nf.HomeTeamId == oldWinnerTeamId) nf.HomeTeamId = null;
                 if (nf.AwayTeamId == oldWinnerTeamId) nf.AwayTeamId = null;
-                // Remove auto-generated TeamMatchSets for the cleared fixture
-                if (nf.TeamMatchSets.Any())
-                    db.TeamMatchSets.RemoveRange(nf.TeamMatchSets);
+                // Remove any resolved Rubbers for the cleared fixture; they'll be recreated on next open
+                if (nf.Rubbers.Any())
+                    db.Rubbers.RemoveRange(nf.Rubbers);
             }
         }
 
@@ -689,7 +690,7 @@ public class CompetitionsController(
             };
         }
 
-        var isTeamFormat = comp.CompetitionFormat is DropShot.Models.CompetitionFormat.MixedTeam
+        var isTeamFormat = comp.CompetitionFormat is DropShot.Models.CompetitionFormat.TeamMatch
             or DropShot.Models.CompetitionFormat.Team
             or DropShot.Models.CompetitionFormat.Doubles
             or DropShot.Models.CompetitionFormat.MixedDoubles;
@@ -714,7 +715,7 @@ public class CompetitionsController(
                         int total = teamIds.Count;
                         int rounds = total - 1;
 
-                        // Load all team members for MixedTeam set creation
+                        // Load all team members for Doubles/MixedDoubles player assignment
                         var allMembers = comp.Participants
                             .Where(p => p.TeamId != null && p.Player != null
                                 && (p.Status == DropShot.Models.ParticipantStatus.Registered
@@ -762,24 +763,7 @@ public class CompetitionsController(
                                 }
 
                                 db.CompetitionFixtures.Add(fixture);
-
-                                // For MixedTeam, create 8 TeamMatchSet rows
-                                if (comp.CompetitionFormat == DropShot.Models.CompetitionFormat.MixedTeam)
-                                {
-                                    await db.SaveChangesAsync(); // Need ID for TeamMatchSets
-
-                                    var homeMembers = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
-                                    var awayMembers = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
-
-                                    if (homeMembers.Count == 4 && awayMembers.Count == 4
-                                        && homeMembers.All(m => m.Grade != null && m.Player?.Sex != null)
-                                        && awayMembers.All(m => m.Grade != null && m.Player?.Sex != null))
-                                    {
-                                        var sets = TeamMatchService.CreateSetsForFixture(
-                                            fixture.CompetitionFixtureId, homeMembers, awayMembers);
-                                        db.TeamMatchSets.AddRange(sets);
-                                    }
-                                }
+                                // Rubbers are created lazily when the fixture is first opened for scoring.
                             }
                         }
                     }
@@ -1055,11 +1039,11 @@ public class CompetitionsController(
         f.AwayTeamId, f.AwayTeam?.Name,
         f.WinnerTeamId, f.CourtPairId, f.CourtPair?.Name);
 
-    // ── Mixed Team Tennis Endpoints ──────────────────────────────────────────
+    // ── Team Match Endpoints ─────────────────────────────────────────────────
 
-    [HttpPut("{id:int}/participants/{playerId:int}/grade")]
-    public async Task<IActionResult> SetParticipantGrade(
-        int id, int playerId, [FromBody] SetParticipantGradeRequest req)
+    [HttpPut("{id:int}/participants/{playerId:int}/role")]
+    public async Task<IActionResult> SetParticipantRole(
+        int id, int playerId, [FromBody] SetParticipantRoleRequest req)
     {
         await using var db = dbFactory.CreateDbContext();
         var comp = await db.Competition.FindAsync(id);
@@ -1068,7 +1052,7 @@ public class CompetitionsController(
 
         var cp = await db.CompetitionParticipants.FindAsync(id, playerId);
         if (cp is null) return NotFound();
-        cp.Grade = (DropShot.Models.PlayerGrade)req.Grade;
+        cp.Role = req.Role;
         await db.SaveChangesAsync();
         return Ok();
     }
@@ -1099,6 +1083,9 @@ public class CompetitionsController(
     public async Task<ActionResult<TeamValidationResultDto>> ValidateTeam(int id, int teamId)
     {
         await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+
         var members = await db.CompetitionParticipants
             .Where(cp => cp.CompetitionId == id && cp.TeamId == teamId
                 && (cp.Status == DropShot.Models.ParticipantStatus.Registered
@@ -1107,29 +1094,140 @@ public class CompetitionsController(
             .ToListAsync();
 
         var errors = new List<string>();
-        if (members.Count != 4)
-            errors.Add($"Team must have exactly 4 active members (has {members.Count}).");
+        var requiredRoles = await rubberTemplateProvider.GetRoleSetAsync(db, id);
 
-        foreach (var m in members)
+        if (requiredRoles.Count == 0)
+            return new TeamValidationResultDto(true, errors);
+
+        foreach (var role in requiredRoles)
         {
-            if (m.Player?.Sex == null) errors.Add($"{m.Player?.DisplayName ?? "Unknown"} has no sex assigned.");
-            if (m.Grade == null) errors.Add($"{m.Player?.DisplayName ?? "Unknown"} has no grade assigned.");
+            var count = members.Count(m => m.Role == role);
+            if (count == 0) errors.Add($"Missing role '{role}'.");
+            else if (count > 1) errors.Add($"Duplicate role '{role}' ({count} players).");
         }
 
-        if (errors.Count == 0)
-        {
-            var maleA = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Male && m.Grade == DropShot.Models.PlayerGrade.A);
-            var femaleA = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Female && m.Grade == DropShot.Models.PlayerGrade.A);
-            var maleB = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Male && m.Grade == DropShot.Models.PlayerGrade.B);
-            var femaleB = members.Count(m => m.Player?.Sex == DropShot.Models.PlayerSex.Female && m.Grade == DropShot.Models.PlayerGrade.B);
-
-            if (maleA != 1) errors.Add($"Need exactly 1 Male A player (has {maleA}).");
-            if (femaleA != 1) errors.Add($"Need exactly 1 Female A player (has {femaleA}).");
-            if (maleB != 1) errors.Add($"Need exactly 1 Male B player (has {maleB}).");
-            if (femaleB != 1) errors.Add($"Need exactly 1 Female B player (has {femaleB}).");
-        }
+        var unassigned = members.Where(m => string.IsNullOrEmpty(m.Role)).ToList();
+        foreach (var m in unassigned)
+            errors.Add($"{m.Player?.DisplayName ?? "Unknown"} has no role assigned.");
 
         return new TeamValidationResultDto(errors.Count == 0, errors);
+    }
+
+    // ── Rubber Template ─────────────────────────────────────────────────────
+
+    [HttpGet("rubber-presets")]
+    public ActionResult<List<RubberPresetDto>> GetRubberPresets() =>
+        RubberTemplateRegistry.AvailablePresets()
+            .Select(p => new RubberPresetDto(p.Key, p.Label))
+            .ToList();
+
+    [HttpGet("{id:int}/rubber-template")]
+    public async Task<ActionResult<RubberTemplateDto>> GetRubberTemplate(int id)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition
+            .AsNoTracking()
+            .Include(c => c.RubberTemplate)
+                .ThenInclude(t => t!.Rubbers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == id);
+        if (comp is null) return NotFound();
+
+        var template = await rubberTemplateProvider.GetAsync(db, id);
+        var roles = RubberTemplateRegistry.GetRoleSet(template);
+
+        string source;
+        if (comp.RubberTemplate is { Rubbers.Count: > 0 }) source = "custom";
+        else if (!string.IsNullOrEmpty(comp.RubberTemplateKey)) source = $"preset:{comp.RubberTemplateKey}";
+        else source = "default";
+
+        var defs = (template ?? [])
+            .Select(d => new RubberTemplateDefDto(d.Order, d.Name, d.CourtNumber, d.HomeRoles, d.AwayRoles))
+            .ToList();
+
+        return new RubberTemplateDto(source, comp.RubberTemplateKey, roles, defs);
+    }
+
+    [HttpPut("{id:int}/rubber-template/preset")]
+    public async Task<IActionResult> SetRubberTemplateKey(
+        int id, [FromBody] SetCompetitionRubberTemplateKeyRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var key = string.IsNullOrWhiteSpace(req.TemplateKey) ? null : req.TemplateKey!.Trim();
+        if (key != null && !RubberTemplateRegistry.AvailablePresets().Any(p => p.Key == key))
+            return BadRequest(new { message = $"Unknown preset '{key}'." });
+
+        comp.RubberTemplateKey = key;
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpPut("{id:int}/rubber-template")]
+    public async Task<IActionResult> SaveCustomRubberTemplate(
+        int id, [FromBody] SaveRubberTemplateRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition
+            .Include(c => c.RubberTemplate)
+                .ThenInclude(t => t!.Rubbers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        if (req.Rubbers.Count == 0)
+            return BadRequest(new { message = "A custom template must contain at least one rubber." });
+        if (req.Rubbers.Any(r => string.IsNullOrWhiteSpace(r.Name)))
+            return BadRequest(new { message = "Every rubber must have a name." });
+        if (req.Rubbers.Any(r => r.HomeRoles.Count == 0 || r.AwayRoles.Count == 0))
+            return BadRequest(new { message = "Every rubber must have at least one home and one away role." });
+
+        if (comp.RubberTemplate == null)
+        {
+            comp.RubberTemplate = new CompetitionRubberTemplate { CompetitionId = id };
+            db.CompetitionRubberTemplates.Add(comp.RubberTemplate);
+        }
+        else
+        {
+            db.RubberTemplateRubbers.RemoveRange(comp.RubberTemplate.Rubbers);
+            comp.RubberTemplate.Rubbers.Clear();
+        }
+
+        int order = 1;
+        foreach (var def in req.Rubbers.OrderBy(r => r.Order))
+        {
+            comp.RubberTemplate.Rubbers.Add(new RubberTemplateRubber
+            {
+                Order = order++,
+                Name = def.Name.Trim(),
+                CourtNumber = def.CourtNumber < 1 ? 1 : def.CourtNumber,
+                HomeRoles = def.HomeRoles.Select(r => r.Trim()).Where(r => r.Length > 0).ToList(),
+                AwayRoles = def.AwayRoles.Select(r => r.Trim()).Where(r => r.Length > 0).ToList(),
+            });
+        }
+
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpDelete("{id:int}/rubber-template")]
+    public async Task<IActionResult> DeleteCustomRubberTemplate(int id)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var template = await db.CompetitionRubberTemplates
+            .FirstOrDefaultAsync(t => t.CompetitionId == id);
+        if (template != null)
+        {
+            db.CompetitionRubberTemplates.Remove(template);
+            await db.SaveChangesAsync();
+        }
+        return NoContent();
     }
 
     // ── Court Pairs ──────────────────────────────────────────────────────────
@@ -1207,32 +1305,30 @@ public class CompetitionsController(
         return NoContent();
     }
 
-    // ── Team Match Sets ──────────────────────────────────────────────────────
+    // ── Rubbers ──────────────────────────────────────────────────────────────
 
-    [HttpGet("{id:int}/fixtures/{fixtureId:int}/sets")]
-    public async Task<ActionResult<List<TeamMatchSetDto>>> GetTeamMatchSets(int id, int fixtureId)
+    [HttpGet("{id:int}/fixtures/{fixtureId:int}/rubbers")]
+    public async Task<ActionResult<List<RubberDto>>> GetRubbers(int id, int fixtureId)
     {
         await using var db = dbFactory.CreateDbContext();
-        var sets = await db.TeamMatchSets
-            .Where(s => s.CompetitionFixtureId == fixtureId && s.Fixture.CompetitionId == id)
-            .Include(s => s.HomePlayer1)
-            .Include(s => s.HomePlayer2)
-            .Include(s => s.AwayPlayer1)
-            .Include(s => s.AwayPlayer2)
-            .OrderBy(s => s.SetNumber)
+        var rubbers = await db.Rubbers
+            .Where(r => r.CompetitionFixtureId == fixtureId && r.Fixture.CompetitionId == id)
+            .Include(r => r.HomePlayer1)
+            .Include(r => r.HomePlayer2)
+            .Include(r => r.AwayPlayer1)
+            .Include(r => r.AwayPlayer2)
+            .OrderBy(r => r.Order)
             .ToListAsync();
 
-        return sets.Select(s => new TeamMatchSetDto(
-            s.TeamMatchSetId, s.CompetitionFixtureId, s.SetNumber,
-            (DropShot.Shared.TeamMatchPhase)s.Phase,
-            (DropShot.Shared.TeamMatchSetType)s.SetType,
-            s.CourtNumber,
-            s.HomePlayer1Id, s.HomePlayer1?.DisplayName,
-            s.HomePlayer2Id, s.HomePlayer2?.DisplayName,
-            s.AwayPlayer1Id, s.AwayPlayer1?.DisplayName,
-            s.AwayPlayer2Id, s.AwayPlayer2?.DisplayName,
-            s.HomeGames, s.AwayGames, s.WinnerTeamId,
-            s.IsComplete, s.SavedMatchId)).ToList();
+        return rubbers.Select(r => new RubberDto(
+            r.RubberId, r.CompetitionFixtureId, r.Order, r.Name, r.CourtNumber,
+            r.HomeRoles, r.AwayRoles,
+            r.HomePlayer1Id, r.HomePlayer1?.DisplayName,
+            r.HomePlayer2Id, r.HomePlayer2?.DisplayName,
+            r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
+            r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
+            r.HomeGames, r.AwayGames, r.WinnerTeamId,
+            r.IsComplete, r.SavedMatchId)).ToList();
     }
 
     // ── Team League Table ────────────────────────────────────────────────────
@@ -1255,7 +1351,7 @@ public class CompetitionsController(
                 && rrStageIds.Contains(f.CompetitionStageId!.Value)
                 && f.Status == DropShot.Models.FixtureStatus.Completed
                 && f.HomeTeamId != null && f.AwayTeamId != null)
-            .Include(f => f.TeamMatchSets)
+            .Include(f => f.Rubbers)
             .ToListAsync();
 
         var teams = await db.CompetitionTeams
@@ -1263,20 +1359,12 @@ public class CompetitionsController(
             .Include(t => t.Captain)
             .ToListAsync();
 
-        var stats = teams.ToDictionary(t => t.CompetitionTeamId, t => new
-        {
-            t.Name,
-            CaptainName = t.Captain?.DisplayName,
-            Played = 0, Won = 0, Drawn = 0, Lost = 0, SetsWon = 0, SetsAgainst = 0
-        });
-
-        // Use mutable counters
         var played = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
         var won = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
         var drawn = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
         var lost = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
-        var setsWon = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
-        var setsAgainst = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var rubbersWon = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var rubbersAgainst = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
 
         foreach (var f in fixtures)
         {
@@ -1284,19 +1372,19 @@ public class CompetitionsController(
             int awayId = f.AwayTeamId!.Value;
             if (!played.ContainsKey(homeId) || !played.ContainsKey(awayId)) continue;
 
-            var completedSets = f.TeamMatchSets.Where(s => s.IsComplete).ToList();
-            int homeSetsWon = completedSets.Count(s => s.WinnerTeamId == homeId);
-            int awaySetsWon = completedSets.Count(s => s.WinnerTeamId == awayId);
+            var completed = f.Rubbers.Where(r => r.IsComplete).ToList();
+            int homeWon = completed.Count(r => r.WinnerTeamId == homeId);
+            int awayWon = completed.Count(r => r.WinnerTeamId == awayId);
 
             played[homeId]++;
             played[awayId]++;
-            setsWon[homeId] += homeSetsWon;
-            setsAgainst[homeId] += awaySetsWon;
-            setsWon[awayId] += awaySetsWon;
-            setsAgainst[awayId] += homeSetsWon;
+            rubbersWon[homeId] += homeWon;
+            rubbersAgainst[homeId] += awayWon;
+            rubbersWon[awayId] += awayWon;
+            rubbersAgainst[awayId] += homeWon;
 
-            if (homeSetsWon > awaySetsWon) { won[homeId]++; lost[awayId]++; }
-            else if (awaySetsWon > homeSetsWon) { won[awayId]++; lost[homeId]++; }
+            if (homeWon > awayWon) { won[homeId]++; lost[awayId]++; }
+            else if (awayWon > homeWon) { won[awayId]++; lost[homeId]++; }
             else { drawn[homeId]++; drawn[awayId]++; }
         }
 
@@ -1305,11 +1393,11 @@ public class CompetitionsController(
                 t.CompetitionTeamId, t.Name, t.Captain?.DisplayName,
                 played[t.CompetitionTeamId], won[t.CompetitionTeamId],
                 drawn[t.CompetitionTeamId], lost[t.CompetitionTeamId],
-                setsWon[t.CompetitionTeamId], setsAgainst[t.CompetitionTeamId],
-                setsWon[t.CompetitionTeamId]))
+                rubbersWon[t.CompetitionTeamId], rubbersAgainst[t.CompetitionTeamId],
+                rubbersWon[t.CompetitionTeamId]))
             .OrderByDescending(e => e.Points)
-            .ThenByDescending(e => e.SetsWon - e.SetsAgainst)
-            .ThenBy(e => e.SetsAgainst)
+            .ThenByDescending(e => e.RubbersWon - e.RubbersAgainst)
+            .ThenBy(e => e.RubbersAgainst)
             .ToList();
 
         return entries;

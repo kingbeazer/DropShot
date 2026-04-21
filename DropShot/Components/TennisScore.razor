@@ -749,12 +749,12 @@
     [Parameter] public int MatchId { get; set; }
     [SupplyParameterFromQuery] public int? FixtureId { get; set; }
     [SupplyParameterFromQuery] public bool? AutoStart { get; set; }
-    [SupplyParameterFromQuery] public int? TeamMatchSetId { get; set; }
+    [SupplyParameterFromQuery] public int? RubberId { get; set; }
     [SupplyParameterFromQuery] public int? BestOfOverride { get; set; }
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
     private int _savedMatchId;
     private CompetitionFixture? _competitionFixture;
-    private TeamMatchSet? _teamMatchSet;
+    private Rubber? _rubber;
     private List<CompetitionFixture> _upcomingFixtures = [];
 
     private List<string> _states = [];
@@ -942,29 +942,29 @@
             }
         }
 
-        // Load TeamMatchSet from query param (starting a set from a team match page)
-        if (TeamMatchSetId > 0 && _teamMatchSet == null)
+        // Load Rubber from query param (starting a rubber from a team match page)
+        if (RubberId > 0 && _rubber == null)
         {
-            _teamMatchSet = await DbContext.TeamMatchSets
-                .Include(s => s.Fixture).ThenInclude(f => f.Competition)
-                .Include(s => s.HomePlayer1)
-                .Include(s => s.HomePlayer2)
-                .Include(s => s.AwayPlayer1)
-                .Include(s => s.AwayPlayer2)
-                .FirstOrDefaultAsync(s => s.TeamMatchSetId == TeamMatchSetId);
+            _rubber = await DbContext.Rubbers
+                .Include(r => r.Fixture).ThenInclude(f => f.Competition)
+                .Include(r => r.HomePlayer1)
+                .Include(r => r.HomePlayer2)
+                .Include(r => r.AwayPlayer1)
+                .Include(r => r.AwayPlayer2)
+                .FirstOrDefaultAsync(r => r.RubberId == RubberId);
 
-            if (_teamMatchSet != null)
+            if (_rubber != null)
             {
-                _value  = _teamMatchSet.HomePlayer1?.DisplayName ?? "";
-                _value2 = _teamMatchSet.AwayPlayer1?.DisplayName ?? "";
-                _value3 = _teamMatchSet.HomePlayer2?.DisplayName ?? "";
-                _value4 = _teamMatchSet.AwayPlayer2?.DisplayName ?? "";
+                _value  = _rubber.HomePlayer1?.DisplayName ?? "";
+                _value2 = _rubber.AwayPlayer1?.DisplayName ?? "";
+                _value3 = _rubber.HomePlayer2?.DisplayName ?? "";
+                _value4 = _rubber.AwayPlayer2?.DisplayName ?? "";
                 Label_Switch1 = true; // always doubles
             }
         }
 
         // Auto-start: skip wizard and show server selection screen
-        if (AutoStart == true && (_competitionFixture != null || _teamMatchSet != null)
+        if (AutoStart == true && (_competitionFixture != null || _rubber != null)
             && !string.IsNullOrEmpty(_value) && !string.IsNullOrEmpty(_value2))
         {
             _state.BestOf = BestOfOverride ?? _competitionFixture?.Competition?.BestOf ?? 3;
@@ -1141,40 +1141,40 @@
             }
         }
 
-        // When a team match set ends, record the result and check if all 8 sets are done
-        if (_state.IsMatchEnded && _teamMatchSet != null)
+        // When a rubber ends, record the result and check if all rubbers are done
+        if (_state.IsMatchEnded && _rubber != null)
         {
             using var dbc4 = DbFactory.CreateDbContext();
-            var tms = await dbc4.TeamMatchSets
-                .Include(s => s.Fixture)
-                .FirstOrDefaultAsync(s => s.TeamMatchSetId == _teamMatchSet.TeamMatchSetId);
-            if (tms != null && !tms.IsComplete)
+            var rub = await dbc4.Rubbers
+                .Include(r => r.Fixture)
+                .FirstOrDefaultAsync(r => r.RubberId == _rubber.RubberId);
+            if (rub != null && !rub.IsComplete)
             {
-                tms.IsComplete = true;
-                tms.SavedMatchId = _savedMatchId;
+                rub.IsComplete = true;
+                rub.SavedMatchId = _savedMatchId;
 
                 // Get the final set score
                 var lastSet = _state.SetScores.LastOrDefault();
                 if (lastSet != null)
                 {
-                    tms.HomeGames = lastSet.UserGames;
-                    tms.AwayGames = lastSet.OpponentGames;
+                    rub.HomeGames = lastSet.UserGames;
+                    rub.AwayGames = lastSet.OpponentGames;
                 }
 
                 bool homeSideWon = (_state.UserSets > _state.OppSets);
-                tms.WinnerTeamId = homeSideWon ? tms.Fixture.HomeTeamId : tms.Fixture.AwayTeamId;
+                rub.WinnerTeamId = homeSideWon ? rub.Fixture.HomeTeamId : rub.Fixture.AwayTeamId;
                 await dbc4.SaveChangesAsync();
 
-                // Check if all 8 sets for the parent fixture are now complete
-                var allSets = await dbc4.TeamMatchSets
-                    .Where(s => s.CompetitionFixtureId == tms.CompetitionFixtureId)
+                // Check if all rubbers for the parent fixture are now complete
+                var allRubbers = await dbc4.Rubbers
+                    .Where(r => r.CompetitionFixtureId == rub.CompetitionFixtureId)
                     .ToListAsync();
 
-                if (TeamMatchService.AllSetsComplete(allSets) && tms.Fixture.HomeTeamId.HasValue && tms.Fixture.AwayTeamId.HasValue)
+                if (RubberResolutionService.AllComplete(allRubbers) && rub.Fixture.HomeTeamId.HasValue && rub.Fixture.AwayTeamId.HasValue)
                 {
-                    var (homeScore, awayScore) = TeamMatchService.ComputeScore(
-                        allSets, tms.Fixture.HomeTeamId.Value, tms.Fixture.AwayTeamId.Value);
-                    var fx = await dbc4.CompetitionFixtures.FindAsync(tms.CompetitionFixtureId);
+                    var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
+                        allRubbers, rub.Fixture.HomeTeamId.Value, rub.Fixture.AwayTeamId.Value);
+                    var fx = await dbc4.CompetitionFixtures.FindAsync(rub.CompetitionFixtureId);
                     if (fx != null)
                     {
                         fx.Status = FixtureStatus.Completed;
@@ -1182,7 +1182,7 @@
                         fx.ResultSummary = $"{homeScore}-{awayScore}";
                         fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
                                         : awayScore > homeScore ? fx.AwayTeamId
-                                        : null; // 4-4 draw
+                                        : null; // draw
                         await dbc4.SaveChangesAsync();
                         await CompetitionProgressionService.TryAdvanceAsync(dbc4, fx.CompetitionId, fx.CompetitionFixtureId);
                     }
@@ -1322,17 +1322,17 @@
                     }
                 }
 
-                // Reset any linked team match set
-                if (_teamMatchSet != null)
+                // Reset any linked rubber
+                if (_rubber != null)
                 {
-                    var tms = await dbc.TeamMatchSets.FindAsync(_teamMatchSet.TeamMatchSetId);
-                    if (tms != null)
+                    var rub = await dbc.Rubbers.FindAsync(_rubber.RubberId);
+                    if (rub != null)
                     {
-                        tms.IsComplete = false;
-                        tms.SavedMatchId = null;
-                        tms.HomeGames = null;
-                        tms.AwayGames = null;
-                        tms.WinnerTeamId = null;
+                        rub.IsComplete = false;
+                        rub.SavedMatchId = null;
+                        rub.HomeGames = null;
+                        rub.AwayGames = null;
+                        rub.WinnerTeamId = null;
                     }
                 }
 

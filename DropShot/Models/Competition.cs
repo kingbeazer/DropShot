@@ -19,7 +19,7 @@
         Doubles = 2,
         Team = 3,
         MixedDoubles = 4,
-        MixedTeam = 5
+        TeamMatch = 5
     }
 
     public class Competition
@@ -57,9 +57,15 @@
         public bool IsRestricted { get; set; } = false;
 
         /// <summary>
-        /// Number of players per team (or pair). Defaults: 2 for Doubles/MixedDoubles, 4 for MixedTeam.
+        /// Number of players per team (or pair). Defaults: 2 for Doubles/MixedDoubles, driven by template for TeamMatch.
         /// </summary>
         public int? TeamSize { get; set; }
+
+        /// <summary>
+        /// Optional preset key (see <c>RubberTemplateRegistry</c>) overriding the default template for this format.
+        /// When null, the format's default preset is used. Overridden by any <c>RubberTemplate</c> attached to this competition.
+        /// </summary>
+        public string? RubberTemplateKey { get; set; }
 
         public MatchFormatType MatchFormat { get; set; } = MatchFormatType.BestOf;
         public int NumberOfSets { get; set; } = 3;
@@ -78,5 +84,6 @@
         public ICollection<CompetitionAdmin> Admins { get; set; } = [];
         public ICollection<CourtPair> CourtPairs { get; set; } = [];
         public ICollection<CompetitionAllowedPlayer> AllowedPlayers { get; set; } = [];
+        public CompetitionRubberTemplate? RubberTemplate { get; set; }
     }
 }

@@ -21,7 +21,7 @@ public class CompetitionFormModel
     public CompetitionFormat? CompetitionFormat => (Category, Format) switch
     {
         (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Doubles) => Shared.CompetitionFormat.MixedDoubles,
-        (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team)    => Shared.CompetitionFormat.MixedTeam,
+        (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team)    => Shared.CompetitionFormat.TeamMatch,
         (_, CompetitionFormatUi.Singles) => Shared.CompetitionFormat.Singles,
         (_, CompetitionFormatUi.Doubles) => Shared.CompetitionFormat.Doubles,
         (_, CompetitionFormatUi.Team)    => Shared.CompetitionFormat.Team,
@@ -60,7 +60,7 @@ public class CompetitionFormModel
         CompetitionFormat persisted, PlayerSex? eligibleSex) => persisted switch
     {
         Shared.CompetitionFormat.MixedDoubles => (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Doubles),
-        Shared.CompetitionFormat.MixedTeam    => (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team),
+        Shared.CompetitionFormat.TeamMatch    => (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team),
         _ => (
             eligibleSex switch
             {

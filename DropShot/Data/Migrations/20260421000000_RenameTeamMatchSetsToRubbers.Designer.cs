@@ -4,16 +4,19 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace DropShot.Migrations
+namespace DropShot.Data.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260421000000_RenameTeamMatchSetsToRubbers")]
+    partial class RenameTeamMatchSetsToRubbers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -454,10 +457,6 @@ namespace DropShot.Migrations
                     b.Property<bool>("RequireVerification")
                         .HasColumnType("bit");
 
-                    b.Property<string>("RubberTemplateKey")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
                     b.Property<int?>("RulesSetId")
                         .HasColumnType("int");
 
@@ -688,64 +687,6 @@ namespace DropShot.Migrations
                     b.HasIndex("TeamId");
 
                     b.ToTable("CompetitionParticipants");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionRubberTemplate", b =>
-                {
-                    b.Property<int>("CompetitionRubberTemplateId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CompetitionRubberTemplateId"));
-
-                    b.Property<int>("CompetitionId")
-                        .HasColumnType("int");
-
-                    b.HasKey("CompetitionRubberTemplateId");
-
-                    b.HasIndex("CompetitionId")
-                        .IsUnique();
-
-                    b.ToTable("CompetitionRubberTemplates");
-                });
-
-            modelBuilder.Entity("DropShot.Models.RubberTemplateRubber", b =>
-                {
-                    b.Property<int>("RubberTemplateRubberId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RubberTemplateRubberId"));
-
-                    b.Property<string>("AwayRolesJson")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<int>("CompetitionRubberTemplateId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CourtNumber")
-                        .HasColumnType("int");
-
-                    b.Property<string>("HomeRolesJson")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("int");
-
-                    b.HasKey("RubberTemplateRubberId");
-
-                    b.HasIndex("CompetitionRubberTemplateId");
-
-                    b.ToTable("RubberTemplateRubbers");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionStage", b =>
@@ -1909,28 +1850,6 @@ namespace DropShot.Migrations
                     b.Navigation("Team");
                 });
 
-            modelBuilder.Entity("DropShot.Models.CompetitionRubberTemplate", b =>
-                {
-                    b.HasOne("DropShot.Models.Competition", "Competition")
-                        .WithOne("RubberTemplate")
-                        .HasForeignKey("DropShot.Models.CompetitionRubberTemplate", "CompetitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Competition");
-                });
-
-            modelBuilder.Entity("DropShot.Models.RubberTemplateRubber", b =>
-                {
-                    b.HasOne("DropShot.Models.CompetitionRubberTemplate", "Template")
-                        .WithMany("Rubbers")
-                        .HasForeignKey("CompetitionRubberTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Template");
-                });
-
             modelBuilder.Entity("DropShot.Models.CompetitionStage", b =>
                 {
                     b.HasOne("DropShot.Models.Competition", "Competition")
@@ -2347,19 +2266,12 @@ namespace DropShot.Migrations
 
                     b.Navigation("Participants");
 
-                    b.Navigation("RubberTemplate");
-
                     b.Navigation("Stages");
 
                     b.Navigation("Teams");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionFixture", b =>
-                {
-                    b.Navigation("Rubbers");
-                });
-
-            modelBuilder.Entity("DropShot.Models.CompetitionRubberTemplate", b =>
                 {
                     b.Navigation("Rubbers");
                 });

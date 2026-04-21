@@ -20,6 +20,7 @@
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
 @inject Microsoft.AspNetCore.Identity.UserManager<DropShot.Data.ApplicationUser> UserManager
+@inject ICompetitionRubberTemplateProvider RubberTemplateProvider
 
 <MudProviders />
 
@@ -500,14 +501,14 @@
                         <MudTh>Player</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh>Registered</MudTh>
-                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
                         {
                             <MudTh>@(EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pair" : "Team")</MudTh>
                         }
-                        @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
+                        @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
                         {
                             <MudTh>Sex</MudTh>
-                            <MudTh>Grade</MudTh>
+                            <MudTh>Role</MudTh>
                         }
                         <MudTh></MudTh>
                     </HeaderContent>
@@ -524,7 +525,7 @@
                             </MudSelect>
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
-                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
                         {
                             <MudTd>
                                 <MudSelect T="int?" Value="context.TeamId" Dense="true" Variant="Variant.Text"
@@ -537,18 +538,15 @@
                                 </MudSelect>
                             </MudTd>
                         }
-                        @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
+                        @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
                         {
                             <MudTd>@(context.Player?.Sex?.ToString() ?? "—")</MudTd>
                             <MudTd>
-                                <MudSelect T="PlayerGrade?" Value="context.Grade" Dense="true" Variant="Variant.Text"
-                                           Clearable="true"
-                                           ValueChanged="@((PlayerGrade? g) => AssignGrade(context, g))">
-                                    @foreach (PlayerGrade g in Enum.GetValues<PlayerGrade>())
-                                    {
-                                        <MudSelectItem T="PlayerGrade?" Value="@((PlayerGrade?)g)">@g</MudSelectItem>
-                                    }
-                                </MudSelect>
+                                <MudAutocomplete T="string" Value="context.Role" Dense="true" Variant="Variant.Text"
+                                                 Clearable="true" CoerceValue="true"
+                                                 SearchFunc="SearchRoles"
+                                                 ValueChanged="@((string? r) => AssignRole(context, r))"
+                                                 ShowProgressIndicator="false" DebounceInterval="0" />
                             </MudTd>
                         }
                         <MudTd>
@@ -586,7 +584,7 @@
             }
 
             @* ── Teams / Pairings ──────────────────────────────── *@
-            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
             {
                 var isDoubles = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
                 var sectionLabel = isDoubles ? "Pairings" : "Teams";
@@ -613,7 +611,7 @@
                     <MudTable Items="@_teams" Dense="true" Hover="true">
                         <HeaderContent>
                             <MudTh>Team Name</MudTh>
-                            @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
+                            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
                             {
                                 <MudTh>Captain</MudTh>
                             }
@@ -622,7 +620,7 @@
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd>@context.Name</MudTd>
-                            @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
+                            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
                             {
                                 <MudTd>
                                     <MudSelect T="int?" Value="context.CaptainPlayerId" Dense="true" Variant="Variant.Text"
@@ -636,11 +634,11 @@
                                 </MudTd>
                             }
                             <MudTd>
-                                @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
+                                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
                                 {
                                     @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
                                     {
-                                        var label = $"{p.Player?.DisplayName} ({p.Player?.Sex?.ToString()?[0]}{p.Grade})";
+                                        var label = $"{p.Player?.DisplayName} ({p.Role ?? "—"})";
                                         <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@label</MudChip>
                                     }
                                 }
@@ -652,7 +650,7 @@
                                 }
                             </MudTd>
                             <MudTd>
-                                @if (EffectivePersistedFormat() == CompetitionFormat.MixedTeam)
+                                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
                                 {
                                     <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small"
                                                    Color="Color.Info" aria-label="Validate"
@@ -667,6 +665,118 @@
                         <NoRecordsContent><MudText Typo="Typo.caption">No teams yet.</MudText></NoRecordsContent>
                     </MudTable>
                 </MudPaper>
+            }
+
+            @* ── Rubber Template ─────────────────────────────── *@
+            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+            {
+                var isCustom = _rubberTemplateSource == "custom";
+                var statusLabel = isCustom ? "Custom"
+                                : _rubberTemplateSource == "preset" ? "Preset"
+                                : "Default";
+                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                        <MudText Typo="Typo.h6" Style="flex:1">Rubber Template</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@(isCustom ? Color.Warning : Color.Default)">
+                            @statusLabel
+                        </MudChip>
+                    </MudStack>
+
+                    <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.End">
+                        <MudSelect T="string" Label="Load preset" Value="_selectedRubberPresetKey"
+                                   Clearable="true" Variant="Variant.Outlined" Dense="true"
+                                   Style="max-width: 320px"
+                                   ValueChanged="ApplyRubberPreset">
+                            @foreach (var p in _rubberPresets)
+                            {
+                                <MudSelectItem T="string" Value="@p.Key">@p.Label</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        @if (isCustom)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                                       StartIcon="@Icons.Material.Filled.Refresh"
+                                       OnClick="RevertToDefaultTemplate">
+                                Revert to default
+                            </MudButton>
+                        }
+                        else if (_rubberTemplateDefs.Count > 0)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Edit"
+                                       OnClick="ConvertToCustomTemplate">
+                                Customize this template
+                            </MudButton>
+                        }
+                    </MudStack>
+
+                    <MudTable Items="@_rubberTemplateDefs" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>#</MudTh>
+                            <MudTh>Name</MudTh>
+                            <MudTh>Court</MudTh>
+                            <MudTh>Home roles</MudTh>
+                            <MudTh>Away roles</MudTh>
+                            @if (isCustom) { <MudTh></MudTh> }
+                        </HeaderContent>
+                        <RowTemplate>
+                            @{
+                                var homeCsv = string.Join(", ", context.HomeRoles);
+                                var awayCsv = string.Join(", ", context.AwayRoles);
+                            }
+                            <MudTd>@context.Order</MudTd>
+                            <MudTd>@context.Name</MudTd>
+                            <MudTd>@context.CourtNumber</MudTd>
+                            <MudTd>@homeCsv</MudTd>
+                            <MudTd>@awayCsv</MudTd>
+                            @if (isCustom)
+                            {
+                                <MudTd>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                   OnClick="@(() => OpenRubberRowEditor(context))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                                   OnClick="@(() => DeleteCustomRubberRow(context.Order))" />
+                                </MudTd>
+                            }
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudText Typo="Typo.caption">No rubbers defined yet.</MudText>
+                        </NoRecordsContent>
+                    </MudTable>
+
+                    @if (isCustom)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="mt-2"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="AddCustomRubberRow">
+                            Add rubber
+                        </MudButton>
+                    }
+
+                    <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.7">
+                        Active roles: @(string.Join(", ", _availableRoles))
+                    </MudText>
+                </MudPaper>
+
+                @if (_showRubberRowDialog && _editingRubberRow != null)
+                {
+                    <MudDialog @bind-Visible="_showRubberRowDialog" Options="@(new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small })">
+                        <TitleContent>Edit rubber</TitleContent>
+                        <DialogContent>
+                            <MudTextField T="string" Label="Name" @bind-Value="_editingRubberName" Class="mb-2" />
+                            <MudNumericField T="int" Label="Court" @bind-Value="_editingRubberCourt" Min="1" Max="20" Class="mb-2" />
+                            <MudTextField T="string" Label="Home roles (comma-separated)" @bind-Value="_editingRubberHomeCsv" Class="mb-2" />
+                            <MudTextField T="string" Label="Away roles (comma-separated)" @bind-Value="_editingRubberAwayCsv" />
+                        </DialogContent>
+                        <DialogActions>
+                            <MudButton OnClick="@(() => _showRubberRowDialog = false)">Cancel</MudButton>
+                            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                                       OnClick="SaveRubberRowDialog">Save</MudButton>
+                        </DialogActions>
+                    </MudDialog>
+                }
             }
 
             @* ── Fixtures ────────────────────────────────────── *@
@@ -974,7 +1084,7 @@
                     </MudAlert>
                 </MudItem>
             }
-            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.MixedTeam
+            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch
                  or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles
                  && _teams.Count > 0)
             {
@@ -1087,7 +1197,7 @@
                              Variant="Variant.Outlined" Min="2" Max="20"
                              Style="max-width: 200px;" />
 
-            @if (EffectivePersistedFormat() is CompetitionFormat.MixedTeam or CompetitionFormat.MixedDoubles)
+            @if (EffectivePersistedFormat() is CompetitionFormat.TeamMatch or CompetitionFormat.MixedDoubles)
             {
                 <MudSwitch @bind-Value="_generateGenderBalance" Color="Color.Primary"
                            Label="Require equal male/female players per team" />
@@ -1266,6 +1376,19 @@
     private List<CompetitionTeam> _teams = [];
     private List<Court> _courts = [];
 
+    // Rubber template editor
+    private List<string> _availableRoles = [];
+    private List<(string Key, string Label)> _rubberPresets = [];
+    private string _rubberTemplateSource = "default";
+    private List<RubberDef> _rubberTemplateDefs = [];
+    private string? _selectedRubberPresetKey;
+    private bool _showRubberRowDialog;
+    private RubberDef? _editingRubberRow;
+    private string _editingRubberName = "";
+    private int _editingRubberCourt = 1;
+    private string _editingRubberHomeCsv = "";
+    private string _editingRubberAwayCsv = "";
+
     // QR code dialog
     private bool _showQrDialog;
     private CompetitionFixture? _qrFixture;
@@ -1393,7 +1516,7 @@
         (Model.Category, Model.Format) switch
         {
             (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Doubles) => CompetitionFormat.MixedDoubles,
-            (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team)    => CompetitionFormat.MixedTeam,
+            (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team)    => CompetitionFormat.TeamMatch,
             (_, CompetitionFormatUi.Singles) => CompetitionFormat.Singles,
             (_, CompetitionFormatUi.Doubles) => CompetitionFormat.Doubles,
             (_, CompetitionFormatUi.Team)    => CompetitionFormat.Team,
@@ -1592,6 +1715,8 @@
             }
 
             await LoadCompetitionAdmins(db);
+            if (comp.CompetitionFormat == CompetitionFormat.TeamMatch)
+                await LoadRubberTemplateStateAsync(db, comp.CompetitionID, comp.RubberTemplateKey);
         }
         else
         {
@@ -1832,7 +1957,7 @@
         CompetitionFormat persisted, PlayerSex? eligibleSex) => persisted switch
     {
         CompetitionFormat.MixedDoubles => (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Doubles),
-        CompetitionFormat.MixedTeam    => (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team),
+        CompetitionFormat.TeamMatch    => (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team),
         _ => (
             eligibleSex switch
             {
@@ -2207,15 +2332,15 @@
         if (row != null) { row.TeamId = teamId; await db.SaveChangesAsync(); cp.TeamId = teamId; }
     }
 
-    private async Task AssignGrade(CompetitionParticipant cp, PlayerGrade? grade)
+    private async Task AssignRole(CompetitionParticipant cp, string? role)
     {
         await using var db = DbFactory.CreateDbContext();
         var row = await db.CompetitionParticipants.FindAsync(cp.CompetitionId, cp.PlayerId);
         if (row != null)
         {
-            row.Grade = grade.HasValue ? (DropShot.Models.PlayerGrade)grade.Value : null;
+            row.Role = string.IsNullOrWhiteSpace(role) ? null : role;
             await db.SaveChangesAsync();
-            cp.Grade = grade;
+            cp.Role = row.Role;
         }
     }
 
@@ -2226,37 +2351,34 @@
         if (row != null) { row.CaptainPlayerId = captainPlayerId; await db.SaveChangesAsync(); team.CaptainPlayerId = captainPlayerId; }
     }
 
-    private async Task ValidateTeam(CompetitionTeam team)
+    private Task ValidateTeam(CompetitionTeam team)
     {
-        await using var db = DbFactory.CreateDbContext();
         var members = _participants
             .Where(p => p.TeamId == team.CompetitionTeamId
                 && (p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed))
             .ToList();
 
         var errors = new List<string>();
-        if (members.Count != 4) errors.Add($"Need exactly 4 members (has {members.Count})");
-        foreach (var m in members)
+        var requiredRoles = _availableRoles;
+
+        if (requiredRoles.Count > 0)
         {
-            if (m.Player?.Sex == null) errors.Add($"{m.Player?.DisplayName}: no sex");
-            if (m.Grade == null) errors.Add($"{m.Player?.DisplayName}: no grade");
-        }
-        if (errors.Count == 0 && members.Count == 4)
-        {
-            int mA = members.Count(m => m.Player?.Sex == PlayerSex.Male && m.Grade == PlayerGrade.A);
-            int fA = members.Count(m => m.Player?.Sex == PlayerSex.Female && m.Grade == PlayerGrade.A);
-            int mB = members.Count(m => m.Player?.Sex == PlayerSex.Male && m.Grade == PlayerGrade.B);
-            int fB = members.Count(m => m.Player?.Sex == PlayerSex.Female && m.Grade == PlayerGrade.B);
-            if (mA != 1) errors.Add($"Need 1 Male A (has {mA})");
-            if (fA != 1) errors.Add($"Need 1 Female A (has {fA})");
-            if (mB != 1) errors.Add($"Need 1 Male B (has {mB})");
-            if (fB != 1) errors.Add($"Need 1 Female B (has {fB})");
+            foreach (var role in requiredRoles)
+            {
+                int count = members.Count(m => m.Role == role);
+                if (count == 0) errors.Add($"Missing role {role}");
+                else if (count > 1) errors.Add($"Duplicate role {role}");
+            }
+            foreach (var m in members.Where(m => string.IsNullOrEmpty(m.Role)))
+                errors.Add($"{m.Player?.DisplayName}: no role");
         }
 
         if (errors.Count == 0)
             Snackbar.Add($"{team.Name}: Valid", Severity.Success);
         else
             Snackbar.Add($"{team.Name}: {string.Join("; ", errors)}", Severity.Warning);
+
+        return Task.CompletedTask;
     }
 
     // ── Teams ────────────────────────────────────────────────────────────────
@@ -2320,7 +2442,7 @@
         var format = EffectivePersistedFormat();
         var isDoubles = format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
         _generateTeamSize = isDoubles ? 2 : (Model.TeamSize ?? 4);
-        _generateGenderBalance = format is CompetitionFormat.MixedTeam or CompetitionFormat.MixedDoubles;
+        _generateGenderBalance = format is CompetitionFormat.TeamMatch or CompetitionFormat.MixedDoubles;
         _generateWarnings = [];
         _generatedPreview = [];
         _generating = false;
@@ -2348,7 +2470,7 @@
         var itemLabel = isDoubles ? "Pair" : "Team";
         var teamSize = _generateTeamSize;
 
-        if (_generateGenderBalance && format is CompetitionFormat.MixedTeam or CompetitionFormat.MixedDoubles)
+        if (_generateGenderBalance && format is CompetitionFormat.TeamMatch or CompetitionFormat.MixedDoubles)
         {
             // Gender-balanced generation
             var males = active.Where(p => p.Player?.Sex == PlayerSex.Male).OrderBy(_ => rng.Next()).ToList();
@@ -2701,7 +2823,7 @@
             {
                 var nextFixtures = await db.CompetitionFixtures
                     .Include(f => f.Stage)
-                    .Include(f => f.TeamMatchSets)
+                    .Include(f => f.Rubbers)
                     .Where(f => f.CompetitionId == fx.CompetitionId
                         && f.CompetitionFixtureId != fx.CompetitionFixtureId
                         && f.Status == FixtureStatus.Scheduled
@@ -2712,8 +2834,8 @@
                     if (!IsDownstream(nf)) continue;
                     if (nf.HomeTeamId == oldWinnerTeamId) nf.HomeTeamId = null;
                     if (nf.AwayTeamId == oldWinnerTeamId) nf.AwayTeamId = null;
-                    if (nf.TeamMatchSets.Any())
-                        db.TeamMatchSets.RemoveRange(nf.TeamMatchSets);
+                    if (nf.Rubbers.Any())
+                        db.Rubbers.RemoveRange(nf.Rubbers);
                 }
             }
 
@@ -2769,10 +2891,10 @@
 
         await using var db = DbFactory.CreateDbContext();
 
-        // Delete any TeamMatchSets first
+        // Delete any Rubbers first
         var fixtureIds = _fixtures.Select(f => f.CompetitionFixtureId).ToList();
-        var teamSets = await db.TeamMatchSets.Where(s => fixtureIds.Contains(s.CompetitionFixtureId)).ToListAsync();
-        if (teamSets.Count > 0) db.TeamMatchSets.RemoveRange(teamSets);
+        var rubbers = await db.Rubbers.Where(r => fixtureIds.Contains(r.CompetitionFixtureId)).ToListAsync();
+        if (rubbers.Count > 0) db.Rubbers.RemoveRange(rubbers);
 
         var all = await db.CompetitionFixtures.Where(f => f.CompetitionId == Id).ToListAsync();
         db.CompetitionFixtures.RemoveRange(all);
@@ -2881,6 +3003,191 @@
         {
             Snackbar.Add($"Template '{t.Name}' applied.", Severity.Success);
         }
+    }
+
+    // ── Rubber Template ──────────────────────────────────────────────────────
+
+    private async Task LoadRubberTemplateStateAsync(MyDbContext db, int competitionId, string? persistedKey)
+    {
+        _rubberPresets = RubberTemplateRegistry.AvailablePresets().ToList();
+
+        var comp = await db.Competition
+            .AsNoTracking()
+            .Include(c => c.RubberTemplate)
+                .ThenInclude(t => t!.Rubbers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == competitionId);
+
+        if (comp?.RubberTemplate is { Rubbers.Count: > 0 })
+        {
+            _rubberTemplateSource = "custom";
+            _selectedRubberPresetKey = null;
+        }
+        else if (!string.IsNullOrEmpty(persistedKey))
+        {
+            _rubberTemplateSource = "preset";
+            _selectedRubberPresetKey = persistedKey;
+        }
+        else
+        {
+            _rubberTemplateSource = "default";
+            _selectedRubberPresetKey = null;
+        }
+
+        var template = await RubberTemplateProvider.GetAsync(db, competitionId);
+        _rubberTemplateDefs = template?.ToList() ?? [];
+        _availableRoles = RubberTemplateRegistry.GetRoleSet(template).ToList();
+    }
+
+    private async Task ReloadRubberTemplateAsync()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var comp = await db.Competition.AsNoTracking().FirstOrDefaultAsync(c => c.CompetitionID == Id);
+        await LoadRubberTemplateStateAsync(db, Id, comp?.RubberTemplateKey);
+    }
+
+    private async Task ApplyRubberPreset(string? key)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(Id);
+        if (comp == null) return;
+        comp.RubberTemplateKey = string.IsNullOrWhiteSpace(key) ? null : key;
+        // Removing a custom template ensures preset takes effect
+        var custom = await db.CompetitionRubberTemplates.FirstOrDefaultAsync(t => t.CompetitionId == Id);
+        if (custom != null) db.CompetitionRubberTemplates.Remove(custom);
+        await db.SaveChangesAsync();
+        await ReloadRubberTemplateAsync();
+        Snackbar.Add("Rubber preset applied.", Severity.Success);
+    }
+
+    private async Task ConvertToCustomTemplate()
+    {
+        // Snapshot the currently-resolved template into a custom one so the user can edit.
+        if (_rubberTemplateDefs.Count == 0) return;
+        await using var db = DbFactory.CreateDbContext();
+        var comp = await db.Competition
+            .Include(c => c.RubberTemplate).ThenInclude(t => t!.Rubbers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == Id);
+        if (comp == null) return;
+
+        if (comp.RubberTemplate == null)
+        {
+            comp.RubberTemplate = new CompetitionRubberTemplate { CompetitionId = Id };
+            db.CompetitionRubberTemplates.Add(comp.RubberTemplate);
+        }
+        else
+        {
+            db.RubberTemplateRubbers.RemoveRange(comp.RubberTemplate.Rubbers);
+            comp.RubberTemplate.Rubbers.Clear();
+        }
+
+        int order = 1;
+        foreach (var def in _rubberTemplateDefs)
+        {
+            comp.RubberTemplate.Rubbers.Add(new RubberTemplateRubber
+            {
+                Order = order++,
+                Name = def.Name,
+                CourtNumber = def.CourtNumber,
+                HomeRoles = def.HomeRoles.ToList(),
+                AwayRoles = def.AwayRoles.ToList(),
+            });
+        }
+        await db.SaveChangesAsync();
+        await ReloadRubberTemplateAsync();
+        Snackbar.Add("Template snapshot saved. You can now edit it.", Severity.Success);
+    }
+
+    private async Task AddCustomRubberRow()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var template = await db.CompetitionRubberTemplates
+            .Include(t => t.Rubbers)
+            .FirstOrDefaultAsync(t => t.CompetitionId == Id);
+        if (template == null) return;
+
+        int nextOrder = template.Rubbers.Count == 0 ? 1 : template.Rubbers.Max(r => r.Order) + 1;
+        template.Rubbers.Add(new RubberTemplateRubber
+        {
+            Order = nextOrder,
+            Name = "Rubber " + nextOrder,
+            CourtNumber = 1,
+            HomeRoles = ["A"],
+            AwayRoles = ["A"],
+        });
+        await db.SaveChangesAsync();
+        await ReloadRubberTemplateAsync();
+    }
+
+    private void OpenRubberRowEditor(RubberDef row)
+    {
+        _editingRubberRow = row;
+        _editingRubberName = row.Name;
+        _editingRubberCourt = row.CourtNumber;
+        _editingRubberHomeCsv = string.Join(", ", row.HomeRoles);
+        _editingRubberAwayCsv = string.Join(", ", row.AwayRoles);
+        _showRubberRowDialog = true;
+    }
+
+    private async Task SaveRubberRowDialog()
+    {
+        if (_editingRubberRow == null) { _showRubberRowDialog = false; return; }
+
+        await using var db = DbFactory.CreateDbContext();
+        var row = await db.RubberTemplateRubbers
+            .Include(r => r.Template)
+            .FirstOrDefaultAsync(r => r.Template.CompetitionId == Id && r.Order == _editingRubberRow.Order);
+        if (row != null)
+        {
+            row.Name = string.IsNullOrWhiteSpace(_editingRubberName) ? row.Name : _editingRubberName.Trim();
+            row.CourtNumber = _editingRubberCourt < 1 ? 1 : _editingRubberCourt;
+            row.HomeRoles = ParseRoles(_editingRubberHomeCsv);
+            row.AwayRoles = ParseRoles(_editingRubberAwayCsv);
+            await db.SaveChangesAsync();
+        }
+
+        _showRubberRowDialog = false;
+        _editingRubberRow = null;
+        await ReloadRubberTemplateAsync();
+    }
+
+    private async Task DeleteCustomRubberRow(int order)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var row = await db.RubberTemplateRubbers
+            .Include(r => r.Template)
+            .FirstOrDefaultAsync(r => r.Template.CompetitionId == Id && r.Order == order);
+        if (row == null) return;
+        db.RubberTemplateRubbers.Remove(row);
+        await db.SaveChangesAsync();
+        await ReloadRubberTemplateAsync();
+    }
+
+    private async Task RevertToDefaultTemplate()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(Id);
+        if (comp == null) return;
+        comp.RubberTemplateKey = null;
+        var custom = await db.CompetitionRubberTemplates.FirstOrDefaultAsync(t => t.CompetitionId == Id);
+        if (custom != null) db.CompetitionRubberTemplates.Remove(custom);
+        await db.SaveChangesAsync();
+        await ReloadRubberTemplateAsync();
+        Snackbar.Add("Reverted to default rubber template.", Severity.Info);
+    }
+
+    private static List<string> ParseRoles(string csv) =>
+        (csv ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+    private Task<IEnumerable<string>> SearchRoles(string value, CancellationToken _)
+    {
+        if (_availableRoles.Count == 0)
+            return Task.FromResult<IEnumerable<string>>([]);
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult<IEnumerable<string>>(_availableRoles);
+        return Task.FromResult<IEnumerable<string>>(
+            _availableRoles.Where(r => r.Contains(value, StringComparison.OrdinalIgnoreCase)));
     }
 
     // ── Competition Admins ───────────────────────────────────────────────────
@@ -3009,7 +3316,7 @@
         bool hasExplicitFinal = _stages.Any(s => s.StageType == StageType.Final);
         bool hasKnockout      = _stages.Any(s => s.StageType == StageType.Knockout);
         var efmt = EffectivePersistedFormat();
-        var isTeamComp = efmt is CompetitionFormat.Team or CompetitionFormat.MixedTeam
+        var isTeamComp = efmt is CompetitionFormat.Team or CompetitionFormat.TeamMatch
             or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
         int  n                = (isTeamComp && _teams.Count >= 2) ? _teams.Count : activePlayers.Count;
 
@@ -3143,7 +3450,7 @@
                 case StageType.RoundRobin:
                 {
                     var format = EffectivePersistedFormat();
-                    var isTeamFmt = format is CompetitionFormat.Team or CompetitionFormat.MixedTeam
+                    var isTeamFmt = format is CompetitionFormat.Team or CompetitionFormat.TeamMatch
                         or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
 
                     if (isTeamFmt && _teams.Count >= 2)

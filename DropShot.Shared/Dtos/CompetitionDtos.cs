@@ -59,7 +59,7 @@ public record CompetitionParticipantDto(
     int? TeamId,
     string? TeamName,
     string? MobileNumber,
-    PlayerGrade? Grade = null,
+    string? Role = null,
     PlayerSex? Sex = null);
 
 public record CompetitionFixtureDto(
@@ -184,7 +184,7 @@ public record EventCompetitionTemplate(
     int? MaxAge,
     int? MinAge);
 
-// ── Mixed Team Tennis DTOs ──────────────────────────────────────────────────
+// ── Team Match DTOs ──────────────────────────────────────────────────────────
 
 public record CourtPairDto(
     int CourtPairId,
@@ -195,13 +195,14 @@ public record CourtPairDto(
     string Court2Name,
     string Name);
 
-public record TeamMatchSetDto(
-    int TeamMatchSetId,
+public record RubberDto(
+    int RubberId,
     int CompetitionFixtureId,
-    int SetNumber,
-    TeamMatchPhase Phase,
-    TeamMatchSetType SetType,
+    int Order,
+    string Name,
     int CourtNumber,
+    IReadOnlyList<string> HomeRoles,
+    IReadOnlyList<string> AwayRoles,
     int? HomePlayer1Id,
     string? HomePlayer1Name,
     int? HomePlayer2Id,
@@ -224,13 +225,33 @@ public record TeamLeagueTableEntryDto(
     int Won,
     int Drawn,
     int Lost,
-    int SetsWon,
-    int SetsAgainst,
+    int RubbersWon,
+    int RubbersAgainst,
     int Points);
 
 public record SaveCourtPairRequest(int Court1Id, int Court2Id, string Name);
 
-public record SetParticipantGradeRequest(PlayerGrade Grade);
+public record SetParticipantRoleRequest(string? Role);
+
+public record RubberTemplateDefDto(
+    int Order,
+    string Name,
+    int CourtNumber,
+    IReadOnlyList<string> HomeRoles,
+    IReadOnlyList<string> AwayRoles);
+
+public record RubberTemplateDto(
+    string Source,                                // "custom" | "preset:<key>" | "default"
+    string? PresetKey,
+    IReadOnlyList<string> AvailableRoles,
+    IReadOnlyList<RubberTemplateDefDto> Rubbers);
+
+public record RubberPresetDto(string Key, string Label);
+
+public record SaveRubberTemplateRequest(
+    IReadOnlyList<RubberTemplateDefDto> Rubbers);
+
+public record SetCompetitionRubberTemplateKeyRequest(string? TemplateKey);
 
 public record SetTeamCaptainRequest(int CaptainPlayerId);
 

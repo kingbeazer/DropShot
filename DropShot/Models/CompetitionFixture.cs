@@ -56,5 +56,5 @@ public class CompetitionFixture
     public CompetitionTeam? AwayTeam { get; set; }
     public CompetitionTeam? WinnerTeam { get; set; }
     public CourtPair? CourtPair { get; set; }
-    public ICollection<TeamMatchSet> TeamMatchSets { get; set; } = [];
+    public ICollection<Rubber> Rubbers { get; set; } = [];
 }

@@ -6,7 +6,7 @@ public static class EnumExtensions
 {
     /// <summary>
     /// Converts a PascalCase enum value to a spaced display name.
-    /// e.g. MixedDoubles → "Mixed Doubles", MixedTeam → "Mixed Team"
+    /// e.g. MixedDoubles → "Mixed Doubles", TeamMatch → "Team Match"
     /// </summary>
     public static string ToDisplayName<T>(this T value) where T : struct, Enum
     {
