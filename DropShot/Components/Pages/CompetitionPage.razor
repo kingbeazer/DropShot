@@ -193,7 +193,11 @@
                         </MudItem>
                     </MudGrid>
 
-                    <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Match Format</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Match / Rubber Format</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                        For singles or doubles, controls the whole match. For TeamMatch,
+                        controls the format of each individual rubber.
+                    </MudText>
                     <MudRadioGroup @bind-Value="Model.MatchFormat">
                         <MudStack Row="true" Spacing="2">
                             <MudRadio Value="MatchFormatType.BestOf" Color="Color.Primary">Best of</MudRadio>
