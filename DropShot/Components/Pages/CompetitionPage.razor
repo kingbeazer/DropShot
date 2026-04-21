@@ -2978,6 +2978,42 @@
                 fx.SavedMatchId = null;
             }
 
+            // For team fixtures, reset each rubber so the scoring page starts fresh.
+            // Keep the rubber rows themselves — their role / player snapshot is still
+            // the one the admin wants — but wipe every score / winner field and drop
+            // the per-rubber SavedMatch histories.
+            if (isTeamFixture)
+            {
+                var rubbers = await db.Rubbers
+                    .Where(r => r.CompetitionFixtureId == fx.CompetitionFixtureId)
+                    .ToListAsync();
+
+                var rubberSavedMatchIds = rubbers
+                    .Where(r => r.SavedMatchId.HasValue)
+                    .Select(r => r.SavedMatchId!.Value)
+                    .ToList();
+                if (rubberSavedMatchIds.Count > 0)
+                {
+                    var perRubberSavedMatches = await db.SavedMatch
+                        .Where(m => rubberSavedMatchIds.Contains(m.SavedMatchId))
+                        .ToListAsync();
+                    db.SavedMatch.RemoveRange(perRubberSavedMatches);
+                }
+
+                foreach (var r in rubbers)
+                {
+                    r.IsComplete = false;
+                    r.WinnerTeamId = null;
+                    r.HomeSetsWon = null;
+                    r.AwaySetsWon = null;
+                    r.HomeGames = null;
+                    r.AwayGames = null;
+                    r.HomeGamesTotal = null;
+                    r.AwayGamesTotal = null;
+                    r.SavedMatchId = null;
+                }
+            }
+
             // Reset fixture
             fx.Status = FixtureStatus.Scheduled;
             fx.CompletedAt = null;

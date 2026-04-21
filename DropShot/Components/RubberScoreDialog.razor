@@ -1,0 +1,219 @@
+@using DropShot.Data
+@using DropShot.Models
+@using DropShot.Services
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>Enter rubber score</TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.body1">
+                <strong>@_homeLabel</strong> vs <strong>@_awayLabel</strong>
+            </MudText>
+            @if (Rubber != null)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @Rubber.Name
+                    @if (_competition != null)
+                    {
+                        <span>&nbsp;·&nbsp;</span>
+                        @(_competition.MatchFormat == MatchFormatType.FixedSets ? $"{_bestOf} sets" : $"Best of {_bestOf}")
+                        <span>&nbsp;·&nbsp;</span>
+                        @($"{_gamesPerSet} games/set")
+                        <span>&nbsp;·&nbsp;</span>
+                        @(_setWinMode == SetWinMode.WinBy2 ? "Win by 2" : "First to")
+                    }
+                </MudText>
+            }
+
+            <MudDivider />
+
+            <MudText Typo="Typo.subtitle2">Set scores</MudText>
+            <MudSimpleTable Dense="true" Style="max-width:320px">
+                <thead>
+                    <tr>
+                        <th style="width:50px"></th>
+                        <th style="text-align:center">@_homeLabel</th>
+                        <th style="width:20px"></th>
+                        <th style="text-align:center">@_awayLabel</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < _bestOf; i++)
+                    {
+                        int idx = i;
+                        <tr>
+                            <td style="color:#888">Set @(idx + 1)</td>
+                            <td>
+                                <MudNumericField T="int?" Value="_home[idx]"
+                                                 ValueChanged="@(v => _home[idx] = v)"
+                                                 Variant="Variant.Outlined" Min="0" Max="20"
+                                                 Style="width:80px" />
+                            </td>
+                            <td style="text-align:center; font-weight:bold">–</td>
+                            <td>
+                                <MudNumericField T="int?" Value="_away[idx]"
+                                                 ValueChanged="@(v => _away[idx] = v)"
+                                                 Variant="Variant.Outlined" Min="0" Max="20"
+                                                 Style="width:80px" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="SubmitAsync" Disabled="_saving">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Rubber Rubber { get; set; } = default!;
+
+    private Competition? _competition;
+    private int _bestOf = 3;
+    private int _gamesPerSet = 6;
+    private SetWinMode _setWinMode = SetWinMode.WinBy2;
+    private int?[] _home = new int?[3];
+    private int?[] _away = new int?[3];
+    private string _homeLabel = "Home";
+    private string _awayLabel = "Away";
+    private bool _saving;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Rubber == null) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == Rubber.CompetitionFixtureId);
+        _competition = fx?.Competition;
+        _homeLabel = fx?.HomeTeam?.Name ?? "Home";
+        _awayLabel = fx?.AwayTeam?.Name ?? "Away";
+
+        int newBestOf = _competition?.MatchFormat == MatchFormatType.FixedSets
+            ? Math.Max(1, _competition.NumberOfSets)
+            : Math.Max(1, _competition?.BestOf ?? 3);
+        _gamesPerSet = _competition?.GamesPerSet ?? 6;
+        _setWinMode  = _competition?.SetWinMode ?? SetWinMode.WinBy2;
+
+        _bestOf = newBestOf;
+        _home = new int?[_bestOf];
+        _away = new int?[_bestOf];
+        _error = null;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+
+        var entered = Enumerable.Range(0, _bestOf)
+            .Where(i => _home[i].HasValue || _away[i].HasValue)
+            .ToList();
+        if (entered.Count == 0)
+        {
+            _error = "Enter at least one set score.";
+            return;
+        }
+
+        int homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
+        int? lastHome = null, lastAway = null;
+        for (int i = 0; i < _bestOf; i++)
+        {
+            if (!_home[i].HasValue || !_away[i].HasValue) continue;
+            int h = _home[i]!.Value, a = _away[i]!.Value;
+            if (h == a) { _error = $"Set {i + 1}: scores are tied."; return; }
+            homeGames += h; awayGames += a;
+            if (h > a) homeSets++; else awaySets++;
+            lastHome = h; lastAway = a;
+        }
+
+        if (homeSets == awaySets)
+        {
+            _error = "Sets are tied — enter more sets or correct the scores.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var rub = await db.Rubbers
+                .Include(r => r.Fixture)
+                .FirstOrDefaultAsync(r => r.RubberId == Rubber.RubberId);
+            if (rub == null)
+            {
+                _error = "Rubber no longer exists.";
+                return;
+            }
+
+            rub.IsComplete = true;
+            rub.HomeSetsWon = homeSets;
+            rub.AwaySetsWon = awaySets;
+            rub.HomeGamesTotal = homeGames;
+            rub.AwayGamesTotal = awayGames;
+            rub.HomeGames = lastHome;
+            rub.AwayGames = lastAway;
+            rub.WinnerTeamId = homeSets > awaySets ? rub.Fixture.HomeTeamId : rub.Fixture.AwayTeamId;
+            // No SavedMatch for direct-entry rubbers — there's no point-by-point
+            // history to preserve.
+            rub.SavedMatchId = null;
+
+            await db.SaveChangesAsync();
+
+            // If every rubber in this fixture is now complete, finalize the fixture
+            // result — same pathway as the live-scoring match-end handler.
+            var allRubbers = await db.Rubbers
+                .Where(r => r.CompetitionFixtureId == rub.CompetitionFixtureId)
+                .ToListAsync();
+
+            if (RubberResolutionService.AllComplete(allRubbers)
+                && rub.Fixture.HomeTeamId.HasValue && rub.Fixture.AwayTeamId.HasValue)
+            {
+                var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
+                    allRubbers, rub.Fixture.HomeTeamId.Value, rub.Fixture.AwayTeamId.Value);
+                var fx = await db.CompetitionFixtures.FindAsync(rub.CompetitionFixtureId);
+                if (fx != null)
+                {
+                    fx.Status = FixtureStatus.Completed;
+                    fx.CompletedAt = DateTime.UtcNow;
+                    fx.ResultSummary = $"{homeScore}-{awayScore}";
+                    fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
+                                    : awayScore > homeScore ? fx.AwayTeamId
+                                    : null;
+                    await db.SaveChangesAsync();
+                    await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+                }
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception)
+        {
+            _error = "Failed to save the score. Please try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
