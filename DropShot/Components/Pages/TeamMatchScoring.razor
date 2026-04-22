@@ -190,16 +190,23 @@ else
 
     private RenderFragment RenderRubber(Rubber rubber) => __builder =>
     {
+        var homeTeam = _fixture?.HomeTeam?.Name ?? "Home";
+        var awayTeam = _fixture?.AwayTeam?.Name ?? "Away";
+        var homePair = $"{rubber.HomePlayer1?.DisplayName} & {rubber.HomePlayer2?.DisplayName}";
+        var awayPair = $"{rubber.AwayPlayer1?.DisplayName} & {rubber.AwayPlayer2?.DisplayName}";
         <MudCard Class="mb-2" Outlined="true">
             <MudCardContent>
-                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                    <MudStack Spacing="0">
-                        <MudText Typo="Typo.subtitle2">@rubber.Name (set @rubber.Order)</MudText>
-                        <MudText Typo="Typo.body2">
-                            @(rubber.HomePlayer1?.DisplayName) & @(rubber.HomePlayer2?.DisplayName)
-                            vs
-                            @(rubber.AwayPlayer1?.DisplayName) & @(rubber.AwayPlayer2?.DisplayName)
-                        </MudText>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="3">
+                    <MudStack Spacing="1" Style="flex:1; min-width:0">
+                        <MudText Typo="Typo.subtitle2">@rubber.Name (rubber @rubber.Order)</MudText>
+                        <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
+                            <MudText Typo="Typo.body2" Style="font-weight:600; min-width:90px">@homeTeam</MudText>
+                            <MudText Typo="Typo.body2" Style="opacity:0.9">@homePair</MudText>
+                        </MudStack>
+                        <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
+                            <MudText Typo="Typo.body2" Style="font-weight:600; min-width:90px">@awayTeam</MudText>
+                            <MudText Typo="Typo.body2" Style="opacity:0.9">@awayPair</MudText>
+                        </MudStack>
                     </MudStack>
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                         @if (rubber.IsComplete)

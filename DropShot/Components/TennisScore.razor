@@ -164,9 +164,24 @@
                         @_headerCourt.Club.Name — @_headerCourt.Name
                     </div>
                 }
-                <div class="match-header-players">
-                    @GetUserDisplayName() <span class="match-header-vs">vs</span> @GetOpponentDisplayName()
-                </div>
+                @if (_rubber?.Fixture != null)
+                {
+                    @* Rubber scoring: show team names in bold above the player pair *@
+                    <div class="match-header-teams">
+                        @(_rubber.Fixture.HomeTeam?.Name ?? "Home")
+                        <span class="match-header-vs">vs</span>
+                        @(_rubber.Fixture.AwayTeam?.Name ?? "Away")
+                    </div>
+                    <div class="match-header-players match-header-players--rubber">
+                        @GetUserDisplayName() <span class="match-header-vs">vs</span> @GetOpponentDisplayName()
+                    </div>
+                }
+                else
+                {
+                    <div class="match-header-players">
+                        @GetUserDisplayName() <span class="match-header-vs">vs</span> @GetOpponentDisplayName()
+                    </div>
+                }
                 @* #7 — Match elapsed timer *@
                 <div class="match-timer">@_elapsedDisplay</div>
             </div>
@@ -957,6 +972,8 @@
         {
             _rubber = await DbContext.Rubbers
                 .Include(r => r.Fixture).ThenInclude(f => f.Competition)
+                .Include(r => r.Fixture).ThenInclude(f => f.HomeTeam)
+                .Include(r => r.Fixture).ThenInclude(f => f.AwayTeam)
                 .Include(r => r.HomePlayer1)
                 .Include(r => r.HomePlayer2)
                 .Include(r => r.AwayPlayer1)
