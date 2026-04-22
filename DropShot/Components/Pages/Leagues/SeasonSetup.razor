@@ -1,0 +1,312 @@
+@page "/leagues/{LeagueId:int}/seasons/{SeasonId:int}/setup"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using DropShot.Data
+@using DropShot.Models
+@using DropShot.Services
+@using Microsoft.EntityFrameworkCore
+
+@inject NavigationManager Nav
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject ICompetitionRubberTemplateProvider TemplateProvider
+
+<MudProviders />
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_season == null || _league == null)
+    {
+        <MudAlert Severity="Severity.Error">Season not found.</MudAlert>
+    }
+    else
+    {
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small"
+                           Href="@($"/leagues/{LeagueId}")" />
+            <MudText Typo="Typo.h4" Style="flex:1">@_league.Name — @_season.Name — setup</MudText>
+            <MudChip T="string" Size="Size.Small" Color="Color.Default">@_season.Status</MudChip>
+        </MudStack>
+
+        @if (_season.Status != LeagueSeasonStatus.Planning)
+        {
+            <MudAlert Severity="Severity.Info">Season already materialised — use the dashboard to manage divisions.</MudAlert>
+            <MudButton Class="mt-3" Variant="Variant.Outlined" Color="Color.Primary"
+                       Href="@($"/leagues/{LeagueId}/seasons/{SeasonId}/dashboard")">
+                Open dashboard
+            </MudButton>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="mb-3" Style="opacity:0.75">
+                @_activeMembers.Count active members. Suggested @_buckets.Count division(s) at @(_league.TeamsPerDivisionTarget * _league.TeamSize) players each. Drag players between divisions by changing their division dropdown, then confirm team assignments and materialise.
+            </MudText>
+
+            <MudTable Items="@_activeMembers" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Player</MudTh>
+                    <MudTh>Last rank</MudTh>
+                    <MudTh>Division (this season)</MudTh>
+                    <MudTh>Team</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.DisplayName</MudTd>
+                    <MudTd>@(context.LastRank?.ToString() ?? "—")</MudTd>
+                    <MudTd>
+                        <MudSelect T="byte" Value="context.DivisionRank" Dense="true"
+                                   ValueChanged="@((byte r) => SetDivision(context, r))">
+                            @foreach (var b in _buckets)
+                            {
+                                <MudSelectItem T="byte" Value="@b.Rank">@b.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd>
+                        <MudTextField T="string" Value="context.TeamName" Dense="true"
+                                      ValueChanged="@((string n) => context.TeamName = n)"
+                                      Placeholder="Team name" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudStack Row="true" Spacing="2" Class="mt-4">
+                <MudButton Variant="Variant.Outlined" OnClick="AddDivisionBucket">Add division</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="RemoveDivisionBucket"
+                           Disabled="@(_buckets.Count <= 1)">Remove last</MudButton>
+                <MudSpacer />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="Materialise" Disabled="_saving">
+                    @(_saving ? "Creating..." : "Materialise divisions")
+                </MudButton>
+            </MudStack>
+
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+            }
+        }
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public int LeagueId { get; set; }
+    [Parameter] public int SeasonId { get; set; }
+
+    private bool _loading = true;
+    private bool _saving;
+    private League? _league;
+    private LeagueSeason? _season;
+    private List<MemberRow> _activeMembers = [];
+    private List<DivisionBucket> _buckets = [];
+    private string? _error;
+
+    private class MemberRow
+    {
+        public int PlayerId;
+        public string DisplayName = "";
+        public byte? LastRank;
+        public byte DivisionRank = 1;
+        public string TeamName = "";
+    }
+
+    private class DivisionBucket
+    {
+        public byte Rank;
+        public string Name = "";
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        await using var db = DbFactory.CreateDbContext();
+        _league = await db.Leagues.FindAsync(LeagueId);
+        _season = await db.LeagueSeasons.FindAsync(SeasonId);
+        if (_league == null || _season == null) { _loading = false; return; }
+
+        var members = await db.LeagueMemberships
+            .Include(m => m.Player)
+            .Where(m => m.LeagueId == LeagueId && m.IsActive)
+            .OrderBy(m => m.CurrentDivisionRank ?? byte.MaxValue)
+            .ThenBy(m => m.Player.DisplayName)
+            .ToListAsync();
+
+        int playersPerDivision = Math.Max(1, _league.TeamsPerDivisionTarget * _league.TeamSize);
+        int divisionCount = Math.Max(1, (int)Math.Ceiling(members.Count / (double)playersPerDivision));
+
+        _buckets = Enumerable.Range(1, divisionCount)
+            .Select(i => new DivisionBucket { Rank = (byte)i, Name = $"Division {i}" })
+            .ToList();
+
+        // Allocate: if ranks exist use them, otherwise split evenly by index.
+        bool hasRanks = members.Any(m => m.CurrentDivisionRank.HasValue);
+        _activeMembers = [];
+        for (int i = 0; i < members.Count; i++)
+        {
+            var m = members[i];
+            byte rank;
+            if (hasRanks)
+            {
+                rank = m.CurrentDivisionRank ?? (byte)divisionCount;
+                if (rank < 1) rank = 1;
+                if (rank > divisionCount) rank = (byte)divisionCount;
+            }
+            else
+            {
+                rank = (byte)Math.Min(divisionCount, (i / playersPerDivision) + 1);
+            }
+            _activeMembers.Add(new MemberRow
+            {
+                PlayerId = m.PlayerId,
+                DisplayName = m.Player.DisplayName,
+                LastRank = m.CurrentDivisionRank,
+                DivisionRank = rank,
+                TeamName = "",
+            });
+        }
+
+        _loading = false;
+    }
+
+    private void SetDivision(MemberRow row, byte rank)
+    {
+        row.DivisionRank = rank;
+    }
+
+    private void AddDivisionBucket()
+    {
+        var next = (byte)(_buckets.Count + 1);
+        _buckets.Add(new DivisionBucket { Rank = next, Name = $"Division {next}" });
+    }
+
+    private void RemoveDivisionBucket()
+    {
+        if (_buckets.Count <= 1) return;
+        var top = _buckets[^1].Rank;
+        _buckets.RemoveAt(_buckets.Count - 1);
+        foreach (var m in _activeMembers.Where(m => m.DivisionRank == top))
+            m.DivisionRank = (byte)_buckets.Count;
+    }
+
+    private async Task Materialise()
+    {
+        _error = null;
+        if (_league == null || _season == null) return;
+
+        // Group players by division, then by team name.
+        var divisionGroups = _activeMembers
+            .GroupBy(m => m.DivisionRank)
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        foreach (var div in divisionGroups)
+        {
+            var noTeam = div.Where(m => string.IsNullOrWhiteSpace(m.TeamName)).ToList();
+            if (noTeam.Any())
+            {
+                _error = $"Every player must be assigned to a team (division {div.Key} has {noTeam.Count} without a team).";
+                return;
+            }
+        }
+
+        _saving = true;
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var season = await db.LeagueSeasons
+                .Include(s => s.Divisions)
+                .Include(s => s.League)
+                .FirstOrDefaultAsync(s => s.LeagueSeasonId == SeasonId);
+            if (season == null) { _error = "Season gone."; return; }
+            if (season.Status != LeagueSeasonStatus.Planning || season.Divisions.Any())
+            {
+                _error = "Season already materialised.";
+                return;
+            }
+
+            var league = season.League;
+            foreach (var divGroup in divisionGroups)
+            {
+                var bucket = _buckets.FirstOrDefault(b => b.Rank == divGroup.Key);
+                var divisionName = bucket?.Name ?? $"Division {divGroup.Key}";
+                var comp = new Competition
+                {
+                    CompetitionName = $"{league.Name} — {season.Name} — {divisionName}",
+                    CompetitionFormat = league.CompetitionFormat,
+                    TeamSize = league.TeamSize,
+                    LeagueScoring = league.LeagueScoring,
+                    RubberTemplateKey = league.RubberTemplateKey,
+                    MatchFormat = league.MatchFormat,
+                    NumberOfSets = league.NumberOfSets,
+                    GamesPerSet = league.GamesPerSet,
+                    SetWinMode = league.SetWinMode,
+                    HostClubId = league.HostClubId,
+                    StartDate = season.StartDate,
+                    EndDate = season.EndDate,
+                };
+                db.Competition.Add(comp);
+                await db.SaveChangesAsync();
+
+                // Group into teams by TeamName within this division
+                var teamGroups = divGroup.GroupBy(m => m.TeamName.Trim()).ToList();
+                foreach (var tg in teamGroups)
+                {
+                    var team = new CompetitionTeam { CompetitionId = comp.CompetitionID, Name = tg.Key };
+                    db.CompetitionTeams.Add(team);
+                    await db.SaveChangesAsync();
+
+                    foreach (var m in tg)
+                    {
+                        db.CompetitionParticipants.Add(new CompetitionParticipant
+                        {
+                            CompetitionId = comp.CompetitionID,
+                            PlayerId = m.PlayerId,
+                            TeamId = team.CompetitionTeamId,
+                            Status = Models.ParticipantStatus.Confirmed,
+                        });
+                    }
+                }
+                await db.SaveChangesAsync();
+
+                var division = new LeagueDivision
+                {
+                    LeagueSeasonId = season.LeagueSeasonId,
+                    Rank = divGroup.Key,
+                    Name = divisionName,
+                    CompetitionId = comp.CompetitionID,
+                };
+                db.LeagueDivisions.Add(division);
+                await db.SaveChangesAsync();
+
+                comp.LeagueDivisionId = division.LeagueDivisionId;
+                await db.SaveChangesAsync();
+            }
+
+            season.Status = LeagueSeasonStatus.Active;
+            foreach (var d in season.Divisions) { /* navigation won't be loaded in this ctx — skip */ }
+            await db.SaveChangesAsync();
+
+            Snackbar.Add($"{divisionGroups.Count} division(s) created.", Severity.Success);
+            Nav.NavigateTo($"/leagues/{LeagueId}/seasons/{SeasonId}/dashboard");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to materialise divisions: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

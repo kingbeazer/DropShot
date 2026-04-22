@@ -28,6 +28,23 @@
     <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
     <div style="position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 1rem 0.5rem 2rem;">
 
+@if (_divisionBreadcrumb is not null)
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2" Spacing="1">
+        <MudIcon Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Style="opacity:0.6" />
+        <MudLink Href="@($"/leagues/{_divisionBreadcrumb.LeagueId}")" Underline="Underline.Hover">
+            @_divisionBreadcrumb.LeagueName
+        </MudLink>
+        <MudText Typo="Typo.caption" Style="opacity:0.5">/</MudText>
+        <MudLink Href="@($"/leagues/{_divisionBreadcrumb.LeagueId}/seasons/{_divisionBreadcrumb.SeasonId}/dashboard")"
+                 Underline="Underline.Hover">
+            @_divisionBreadcrumb.SeasonName
+        </MudLink>
+        <MudText Typo="Typo.caption" Style="opacity:0.5">/</MudText>
+        <MudText Typo="Typo.caption" Style="font-weight:500">@_divisionBreadcrumb.DivisionName</MudText>
+    </MudStack>
+}
+
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
     @if (_nameOverride)
     {
@@ -1434,6 +1451,9 @@
     private List<Court> _courts = [];
     private List<CourtPair> _courtPairs = [];
 
+    private record DivisionBreadcrumb(int LeagueId, string LeagueName, int SeasonId, string SeasonName, string DivisionName);
+    private DivisionBreadcrumb? _divisionBreadcrumb;
+
     // Rubber template editor
     private List<string> _availableRoles = [];
     private List<(string Key, string Label)> _rubberPresets = [];
@@ -1783,6 +1803,20 @@
             }
 
             await LoadCompetitionAdmins(db);
+
+            if (comp.LeagueDivisionId.HasValue)
+            {
+                var div = await db.LeagueDivisions
+                    .AsNoTracking()
+                    .Include(d => d.Season).ThenInclude(s => s.League)
+                    .FirstOrDefaultAsync(d => d.LeagueDivisionId == comp.LeagueDivisionId.Value);
+                if (div is not null)
+                    _divisionBreadcrumb = new DivisionBreadcrumb(
+                        div.Season.LeagueId, div.Season.League.Name,
+                        div.LeagueSeasonId, div.Season.Name,
+                        div.Name);
+            }
+
             if (comp.CompetitionFormat == CompetitionFormat.TeamMatch)
                 await LoadRubberTemplateStateAsync(db, comp.CompetitionID, comp.RubberTemplateKey);
         }

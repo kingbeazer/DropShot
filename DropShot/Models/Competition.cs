@@ -73,9 +73,16 @@
         public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
 
+        /// <summary>
+        /// When this competition is one division of a league season, points at the
+        /// owning <see cref="LeagueDivision"/> row. Null for standalone competitions.
+        /// </summary>
+        public int? LeagueDivisionId { get; set; }
+
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
         public Event? Event { get; set; }
+        public LeagueDivision? LeagueDivision { get; set; }
         public ICollection<CompetitionParticipant> Participants { get; set; } = [];
         public ICollection<CompetitionFixture> Fixtures { get; set; } = [];
         public ICollection<CompetitionStage> Stages { get; set; } = [];
