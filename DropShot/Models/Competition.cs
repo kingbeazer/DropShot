@@ -74,15 +74,24 @@
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
 
         /// <summary>
-        /// When this competition is one division of a league season, points at the
-        /// owning <see cref="LeagueDivision"/> row. Null for standalone competitions.
+        /// When true, this competition is split into ranked divisions via
+        /// <see cref="Divisions"/>. Teams only play other teams in the same
+        /// division, and league tables render per-division.
         /// </summary>
-        public int? LeagueDivisionId { get; set; }
+        public bool HasDivisions { get; set; }
+
+        /// <summary>
+        /// Optional pointer at a previous season's competition. Used at competition
+        /// creation time to seed division assignments from the previous season's
+        /// final standings.
+        /// </summary>
+        public int? SeededFromCompetitionId { get; set; }
 
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
         public Event? Event { get; set; }
-        public LeagueDivision? LeagueDivision { get; set; }
+        public Competition? SeededFromCompetition { get; set; }
+        public ICollection<CompetitionDivision> Divisions { get; set; } = [];
         public ICollection<CompetitionParticipant> Participants { get; set; } = [];
         public ICollection<CompetitionFixture> Fixtures { get; set; } = [];
         public ICollection<CompetitionStage> Stages { get; set; } = [];
