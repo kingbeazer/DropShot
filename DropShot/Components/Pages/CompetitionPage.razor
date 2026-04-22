@@ -72,7 +72,7 @@
 <MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
 
     @* ── Details form ───────────────────────────────────────── *@
-    <MudPaper Class="pa-4 mb-4" Elevation="0"
+    <MudPaper id="section-details" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
         <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
 
@@ -297,10 +297,40 @@
             </MudForm>
         </MudPaper>
 
+        @* ── Floating section navigation (sticks to top after scrolling past Details) ─ *@
+        @{
+            var _navShowAdmins = IsEdit && _canEdit;
+            var _navShowMatchWindows = IsEdit && !Model.HasDivisions;
+            var _navShowRubber = IsEdit && EffectivePersistedFormat() == CompetitionFormat.TeamMatch;
+            var _navShowTemplates = IsEdit && _competitionTemplates.Count > 0;
+            var _navShowDivisions = IsEdit && Model.HasDivisions;
+            var _navShowTeams = IsEdit && !Model.HasDivisions
+                && EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+            var _navTeamsLabel = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pairings" : "Teams";
+            var _navShowFixtures = IsEdit && !Model.HasDivisions;
+        }
+        <nav class="setup-nav" aria-label="Competition setup sections">
+            <div class="setup-nav-inner">
+                <a href="#section-details">Details</a>
+                @if (_navShowAdmins) { <a href="#section-admins">Admins</a> }
+                @if (IsEdit)
+                {
+                    <a href="#section-stages">Stages</a>
+                    @if (_navShowMatchWindows) { <a href="#section-match-windows">Match Windows</a> }
+                    @if (_navShowRubber) { <a href="#section-rubber-template">Rubber</a> }
+                    <a href="#section-participants">Participants</a>
+                    @if (_navShowTemplates) { <a href="#section-templates">Template</a> }
+                    @if (_navShowDivisions) { <a href="#section-divisions">Divisions</a> }
+                    @if (_navShowTeams) { <a href="#section-teams">@_navTeamsLabel</a> }
+                    @if (_navShowFixtures) { <a href="#section-fixtures">Fixtures</a> }
+                }
+            </div>
+        </nav>
+
         @* ── Competition Admins ───────────────────────────── *@
         @if (IsEdit && _canEdit)
         {
-            <MudPaper Class="pa-4 mb-4" Elevation="0"
+            <MudPaper id="section-admins" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudText Typo="Typo.h6" Class="mb-3">Competition Admins</MudText>
                 <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-3">
@@ -340,7 +370,7 @@
         @* ── Stages ─────────────────────────────────────────── *@
         @if (IsEdit)
         {
-            <MudPaper Class="pa-4 mb-4" Elevation="0"
+            <MudPaper id="section-stages" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Stages</MudText>
@@ -369,7 +399,7 @@
             @* ── Match Windows (hidden when HasDivisions — per-division UI lives in the Divisions section below) *@
             @if (!Model.HasDivisions)
             {
-            <MudPaper Class="pa-4 mb-4" Elevation="0"
+            <MudPaper id="section-match-windows" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudText Typo="Typo.h6" Class="mb-1">Match Windows</MudText>
 
@@ -477,7 +507,7 @@
                 var statusLabel = isCustom ? "Custom"
                                 : _rubberTemplateSource == "preset" ? "Preset"
                                 : "Default";
-                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                <MudPaper id="section-rubber-template" Class="pa-4 mb-4 setup-section" Elevation="0"
                      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                         <MudText Typo="Typo.h6" Style="flex:1">Rubber Template</MudText>
@@ -587,7 +617,7 @@
             }
 
             @* ── Participants ────────────────────────────────── *@
-            <MudPaper Class="pa-4 mb-4" Elevation="0"
+            <MudPaper id="section-participants" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Participants</MudText>
@@ -807,7 +837,7 @@
             @* ── Apply Competition Template ───────────────────── *@
             @if (_competitionTemplates.Count > 0)
             {
-                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                <MudPaper id="section-templates" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudText Typo="Typo.h6" Class="mb-3">Apply Competition Template</MudText>
                     <MudSelect T="int?" Label="Choose a template to apply" Variant="Variant.Outlined"
@@ -827,7 +857,7 @@
             @* -- Divisions -- *@
             @if (Model.HasDivisions)
             {
-                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                <MudPaper id="section-divisions" Class="pa-4 mb-4 setup-section" Elevation="0"
                          Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2" Wrap="Wrap.Wrap">
                         <MudText Typo="Typo.h6" Style="flex:1">Divisions</MudText>
@@ -1198,7 +1228,7 @@
                 var itemLabel = isDoubles ? "Pair" : "Team";
                 var isTeamMatch = EffectivePersistedFormat() == CompetitionFormat.TeamMatch;
 
-                <MudPaper Class="pa-4 mb-4" Elevation="0"
+                <MudPaper id="section-teams" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
                         <MudText Typo="Typo.h6" Style="flex:1">@sectionLabel</MudText>
@@ -1331,7 +1361,7 @@
             @* ── Fixtures (hidden when HasDivisions — per-division UI in the Divisions section below) *@
             @if (!Model.HasDivisions)
             {
-            <MudPaper Class="pa-4" Elevation="0"
+            <MudPaper id="section-fixtures" Class="pa-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
                     <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
