@@ -4732,9 +4732,11 @@
         var result = await Scheduler.ScheduleAsync(Id, new ScheduleFixturesRequest(mode));
 
         // Reload fixtures with nav props + the current CourtPair list in case the
-        // service auto-created pairs for a TeamMatch competition.
+        // service auto-created pairs for a TeamMatch competition. Split into
+        // separate SELECTs so the 11-Include graph doesn't cartesian-explode
+        // when the competition has hundreds of fixtures.
         await using var db = DbFactory.CreateDbContext();
-        _fixtures = await db.CompetitionFixtures
+        _fixtures = await db.CompetitionFixtures.AsNoTracking()
             .Where(f => f.CompetitionId == Id)
             .Include(f => f.Stage)
             .Include(f => f.Court)
@@ -4747,6 +4749,7 @@
             .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
             .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
             .Include(f => f.Rubbers)
+            .AsSplitQuery()
             .OrderBy(f => f.RoundNumber)
             .ThenBy(f => f.ScheduledAt)
             .ToListAsync();

@@ -37,6 +37,11 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
     {
         await using var db = dbFactory.CreateDbContext();
 
+        // Split into separate SELECTs (and skip change-tracking) so the 6-way
+        // Include graph doesn't cartesian-explode for a 128-participant,
+        // 32-team, 4-division competition. The scheduler only CREATES new
+        // fixtures — it never mutates the loaded comp / participant / team
+        // rows, so no tracking is needed.
         var comp = await db.Competition
             .Include(c => c.Stages.OrderBy(s => s.StageOrder))
             .Include(c => c.Participants).ThenInclude(p => p.Player)
@@ -44,6 +49,8 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
             .Include(c => c.CourtPairs)
             .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
             .Include(c => c.Divisions)
+            .AsSplitQuery()
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId);
         if (comp is null) return new ScheduleFixturesResult(0, 0);
 
@@ -75,10 +82,12 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
 
         // ── Reload anything the generator needs ──────────────────────────────
         var courts = comp.HostClubId.HasValue
-            ? await db.Courts.Where(c => c.ClubId == comp.HostClubId.Value).OrderBy(c => c.Name).ToListAsync()
+            ? await db.Courts.AsNoTracking()
+                .Where(c => c.ClubId == comp.HostClubId.Value)
+                .OrderBy(c => c.Name).ToListAsync()
             : new List<Court>();
 
-        var existing = await db.CompetitionFixtures
+        var existing = await db.CompetitionFixtures.AsNoTracking()
             .Where(f => f.CompetitionId == competitionId)
             .ToListAsync();
 
