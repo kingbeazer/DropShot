@@ -211,7 +211,7 @@
                                     <MudStack Row="true" Spacing="2">
                                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                                    StartIcon="@Icons.Material.Filled.PlayArrow"
-                                                   OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true"))">
+                                                   OnClick="@(() => Navigation.NavigateTo(FixturePlayUrl(context)))">
                                             Play
                                         </MudButton>
                                         <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
@@ -313,6 +313,7 @@
     private List<CompetitionFixture> _pendingReviews = [];
     private List<CompetitionFixture> _recentResults = [];
     private List<RecentMatchItem> _recentItems = [];
+    private List<int> _myTeamIds = [];
 
     private sealed record RecentMatchItem(DateTime Date, CompetitionFixture? Fixture, SavedMatch? CasualMatch);
     private bool _showUpgradeBanner;
@@ -360,6 +361,16 @@
         if (player == null) return;
 
         var pid = player.PlayerId;
+
+        // TeamMatch fixtures don't populate Player1–4 — the player's match
+        // is inferred from the Home/Away team. Collect every team this player
+        // is on so we can match those too.
+        _myTeamIds = await db.CompetitionParticipants
+            .Where(cp => cp.PlayerId == pid && cp.TeamId != null)
+            .Select(cp => cp.TeamId!.Value)
+            .ToListAsync();
+        var myTeamIdList = _myTeamIds;
+
         _upcomingFixtures = await db.CompetitionFixtures
             .Include(f => f.Competition)
             .Include(f => f.Stage)
@@ -367,8 +378,13 @@
             .Include(f => f.Player2)
             .Include(f => f.Player3)
             .Include(f => f.Player4)
-            .Where(f => (f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid)
-                     && (f.Status == FixtureStatus.Scheduled || f.Status == FixtureStatus.InProgress))
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .Where(f => (
+                    f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid
+                    || (f.HomeTeamId.HasValue && myTeamIdList.Contains(f.HomeTeamId.Value))
+                    || (f.AwayTeamId.HasValue && myTeamIdList.Contains(f.AwayTeamId.Value)))
+                 && (f.Status == FixtureStatus.Scheduled || f.Status == FixtureStatus.InProgress))
             .OrderBy(f => f.ScheduledAt)
             .ToListAsync();
 
@@ -378,9 +394,14 @@
             .Include(f => f.Player2)
             .Include(f => f.Player3)
             .Include(f => f.Player4)
-            .Where(f => (f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid)
-                     && f.Status == FixtureStatus.Completed
-                     && f.ResultSummary != null)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .Where(f => (
+                    f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid
+                    || (f.HomeTeamId.HasValue && myTeamIdList.Contains(f.HomeTeamId.Value))
+                    || (f.AwayTeamId.HasValue && myTeamIdList.Contains(f.AwayTeamId.Value)))
+                 && f.Status == FixtureStatus.Completed
+                 && f.ResultSummary != null)
             .OrderByDescending(f => f.CompletedAt ?? f.ScheduledAt)
             .Take(6)
             .ToListAsync();
@@ -417,13 +438,29 @@
 
     private string FixtureOpponents(CompetitionFixture f)
     {
-        // Show the other side — from perspective of the logged-in player
+        // TeamMatch fixtures carry only Home/Away teams. Show the opposing
+        // team from the logged-in player's perspective where possible.
+        if (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+        {
+            var home = f.HomeTeam?.Name ?? "TBD";
+            var away = f.AwayTeam?.Name ?? "TBD";
+            if (f.HomeTeamId.HasValue && _myTeamIds.Contains(f.HomeTeamId.Value)) return $"vs {away}";
+            if (f.AwayTeamId.HasValue && _myTeamIds.Contains(f.AwayTeamId.Value)) return $"vs {home}";
+            return $"{home} vs {away}";
+        }
+
+        // Player-based (singles / doubles) — show both sides.
         var side1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
             .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
         var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
             .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
         return $"{side1} vs {side2}";
     }
+
+    private string FixturePlayUrl(CompetitionFixture f) =>
+        (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+            ? $"/team-match/{f.CompetitionFixtureId}"
+            : $"/match/0?fixtureId={f.CompetitionFixtureId}&autoStart=true";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
