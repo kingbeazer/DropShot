@@ -115,6 +115,22 @@
     font-weight: bold;
 }
 
+/* When scoring a rubber, the team names sit above the player pair line.
+   De-emphasise the player names so the team-name row reads as the heading. */
+.match-header-players--rubber {
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 2px;
+}
+
+.match-header-teams {
+    font-size: 1.4rem;
+    color: white;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
 .match-header-vs {
     color: #aaa;
 }
@@ -303,9 +319,11 @@
     flex-shrink: 0;
 }
 
-/* Short player name next to score */
+/* Short player name next to score — sized to fit doubles pair names like
+   "A. Smith & B. Jones" without truncation at typical desktop widths. */
 .score-player-name {
-    flex: 0 0 90px;
+    flex: 0 1 220px;
+    min-width: 120px;
     text-align: left;
     font-size: 18px;
     font-weight: 500;
@@ -313,7 +331,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin-right: 6px;
+    margin-right: 10px;
 }
 
 /* Completed set scores */
@@ -593,6 +611,20 @@
 
     .match-header-players {
         font-size: 0.85rem;
+    }
+
+    .match-header-teams {
+        font-size: 0.95rem;
+    }
+
+    .match-header-players--rubber {
+        font-size: 0.75rem;
+    }
+
+    .score-player-name {
+        flex: 0 1 140px;
+        min-width: 80px;
+        font-size: 15px;
     }
 
     .player-row {
