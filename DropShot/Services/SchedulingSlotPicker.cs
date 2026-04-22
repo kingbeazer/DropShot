@@ -19,8 +19,11 @@ public static class SchedulingSlotPicker
         DateTime windowStart,
         DateTime windowEnd,
         Random rng,
-        int[]? fallbackTimeSlots = null)
+        int[]? fallbackTimeSlots = null,
+        int? divisionId = null)
     {
+        windows = FilterForDivision(windows, divisionId);
+
         if (windows.Count > 0)
         {
             var candidates = new List<(DateTime date, TimeSpan time)>();
@@ -56,8 +59,11 @@ public static class SchedulingSlotPicker
         HashSet<(DateTime, int?)> occupied,
         DateTime windowStart,
         DateTime windowEnd,
-        Random rng)
+        Random rng,
+        int? divisionId = null)
     {
+        windows = FilterForDivision(windows, divisionId);
+
         if (courts.Count == 0)
             return (PickSlot(windows, windowStart, windowEnd, rng), null);
 
@@ -112,6 +118,28 @@ public static class SchedulingSlotPicker
 
         // All court slots exhausted — fall back to time-only
         return (PickSlot(windows, windowStart, windowEnd, rng), null);
+    }
+
+    /// <summary>
+    /// Narrows a window list to those applicable to the given division: a
+    /// shared (DivisionId == null) window applies to every division, and a
+    /// division-tagged window only applies to its own division.
+    /// </summary>
+    private static IReadOnlyList<CompetitionMatchWindow> FilterForDivision(
+        IReadOnlyList<CompetitionMatchWindow> windows, int? divisionId)
+    {
+        if (windows.Count == 0) return windows;
+        if (divisionId is null)
+        {
+            // No division context → only shared windows are eligible. Callers
+            // that pass a division ID of null because the competition is
+            // non-divisional still get all their (null-divisioned) windows.
+            if (windows.All(w => w.CompetitionDivisionId == null)) return windows;
+            return windows.Where(w => w.CompetitionDivisionId == null).ToList();
+        }
+        return windows
+            .Where(w => w.CompetitionDivisionId == null || w.CompetitionDivisionId == divisionId)
+            .ToList();
     }
 
     private static DateTime FallbackSlot(DateTime start, DateTime end, Random rng, int[] timeSlots)
