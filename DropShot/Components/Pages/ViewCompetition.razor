@@ -144,6 +144,21 @@ else
     @* ── League Table (round-robin stages only) ──────────────── *@
     @if (_teamLeagueTable.Any())
     {
+        var forHeader = _scoringUnitLabel switch
+        {
+            "sets"  => "SW",
+            "games" => "GW",
+            _       => "RW",
+        };
+        var againstHeader = _scoringUnitLabel switch
+        {
+            "sets"  => "SA",
+            "games" => "GA",
+            _       => "RA",
+        };
+        var forTooltip = $"{_scoringUnitLabel} won";
+        var againstTooltip = $"{_scoringUnitLabel} against";
+
         <MudDivider Class="my-4" />
         <MudText Typo="Typo.h5" Class="mb-3">Team League Table</MudText>
         <MudTable Items="@_teamLeagueTable" Dense="true" Hover="true" Class="mb-4">
@@ -155,8 +170,8 @@ else
                 <MudTh>W</MudTh>
                 <MudTh>D</MudTh>
                 <MudTh>L</MudTh>
-                <MudTh>RW</MudTh>
-                <MudTh>RA</MudTh>
+                <MudTh><MudTooltip Text="@forTooltip">@forHeader</MudTooltip></MudTh>
+                <MudTh><MudTooltip Text="@againstTooltip">@againstHeader</MudTooltip></MudTh>
                 <MudTh>Pts</MudTh>
             </HeaderContent>
             <RowTemplate>
@@ -167,8 +182,8 @@ else
                 <MudTd>@context.Won</MudTd>
                 <MudTd>@context.Drawn</MudTd>
                 <MudTd>@context.Lost</MudTd>
-                <MudTd>@context.RubbersWon</MudTd>
-                <MudTd>@context.RubbersAgainst</MudTd>
+                <MudTd>@context.ScoringFor</MudTd>
+                <MudTd>@context.ScoringAgainst</MudTd>
                 <MudTd Style="font-weight:bold">@context.Points</MudTd>
             </RowTemplate>
         </MudTable>
@@ -286,8 +301,9 @@ else
     private record LeagueRow(int PlayerId, string PlayerName, int Played, int Won, int Lost, int Points);
     private List<LeagueRow> _leagueTable = [];
 
-    private record TeamLeagueRow(int TeamId, string TeamName, string? CaptainName, int Played, int Won, int Drawn, int Lost, int RubbersWon, int RubbersAgainst, int Points);
+    private record TeamLeagueRow(int TeamId, string TeamName, string? CaptainName, int Played, int Won, int Drawn, int Lost, int ScoringFor, int ScoringAgainst, int Points);
     private List<TeamLeagueRow> _teamLeagueTable = [];
+    private string _scoringUnitLabel = "rubbers";
 
 #pragma warning disable CS8714 // Null keys are intentionally used for unstaged fixtures
     private Dictionary<string?, List<CompetitionFixture>> _fixturesByStage = [];
@@ -418,12 +434,19 @@ else
             if (_competition.CompetitionFormat == CompetitionFormat.TeamMatch && rrStageIds.Any())
             {
                 var scoringMode = _competition.LeagueScoring;
+                _scoringUnitLabel = scoringMode switch
+                {
+                    LeagueScoringMode.SetsWon  => "sets",
+                    LeagueScoringMode.GamesWon => "games",
+                    _                           => "rubbers",
+                };
+
                 var tPlayed = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tDrawn = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tLost = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
-                var tRubbersWon = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
-                var tRubbersAgainst = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tFor = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+                var tAgainst = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
                 var tPoints = _teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
 
                 foreach (var f in _fixtures.Where(f =>
@@ -446,10 +469,17 @@ else
 
                     tPlayed[hid]++;
                     tPlayed[aid]++;
-                    tRubbersWon[hid] += homeRubbers;
-                    tRubbersAgainst[hid] += awayRubbers;
-                    tRubbersWon[aid] += awayRubbers;
-                    tRubbersAgainst[aid] += homeRubbers;
+
+                    (int homeFor, int awayFor) = scoringMode switch
+                    {
+                        LeagueScoringMode.SetsWon  => (homeSets, awaySets),
+                        LeagueScoringMode.GamesWon => (homeGames, awayGames),
+                        _                           => (homeRubbers, awayRubbers),
+                    };
+                    tFor[hid] += homeFor;
+                    tAgainst[hid] += awayFor;
+                    tFor[aid] += awayFor;
+                    tAgainst[aid] += homeFor;
 
                     bool homeWin = homeRubbers > awayRubbers;
                     bool awayWin = awayRubbers > homeRubbers;
@@ -473,11 +503,11 @@ else
                         t.CompetitionTeamId, t.Name, t.Captain?.DisplayName,
                         tPlayed[t.CompetitionTeamId], tWon[t.CompetitionTeamId],
                         tDrawn[t.CompetitionTeamId], tLost[t.CompetitionTeamId],
-                        tRubbersWon[t.CompetitionTeamId], tRubbersAgainst[t.CompetitionTeamId],
+                        tFor[t.CompetitionTeamId], tAgainst[t.CompetitionTeamId],
                         tPoints[t.CompetitionTeamId]))
                     .OrderByDescending(r => r.Points)
-                    .ThenByDescending(r => r.RubbersWon - r.RubbersAgainst)
-                    .ThenBy(r => r.RubbersAgainst)
+                    .ThenByDescending(r => r.ScoringFor - r.ScoringAgainst)
+                    .ThenBy(r => r.ScoringAgainst)
                     .ToList();
             }
         }

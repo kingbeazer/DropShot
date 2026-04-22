@@ -857,9 +857,12 @@
                         <MudTd>@FixturePlayers(context)</MudTd>
                         <MudTd>@FixtureCourtLabel(context)</MudTd>
                         <MudTd>
-                            @if (!string.IsNullOrEmpty(context.ResultSummary))
+                            @{
+                                var fixtureResult = FixtureResultDisplay(context);
+                            }
+                            @if (!string.IsNullOrEmpty(fixtureResult))
                             {
-                                <MudText Typo="Typo.body2">@context.ResultSummary</MudText>
+                                <MudText Typo="Typo.body2">@fixtureResult</MudText>
                                 @if (context.ResultModifiedByAdmin)
                                 {
                                     <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
@@ -1695,6 +1698,7 @@
                 .Include(c => c.Fixtures).ThenInclude(f => f.AwayTeam)
                 .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
                 .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
+                .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers)
                 .Include(c => c.Teams).ThenInclude(t => t.Captain)
                 .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
                 .AsSplitQuery()
@@ -3939,6 +3943,7 @@
             .Include(f => f.AwayTeam)
             .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
             .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
+            .Include(f => f.Rubbers)
             .OrderBy(f => f.RoundNumber)
             .ThenBy(f => f.ScheduledAt)
             .ToListAsync();
@@ -4047,6 +4052,7 @@
             .Include(f => f.AwayTeam)
             .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
             .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
+            .Include(f => f.Rubbers)
             .OrderBy(f => f.RoundNumber)
             .ThenBy(f => f.ScheduledAt)
             .ToListAsync();
@@ -4117,6 +4123,25 @@
         }
         return f.Court?.Name ?? "—";
     }
+
+    private string FixtureResultDisplay(CompetitionFixture f)
+    {
+        // For team fixtures: derive a mode-aware "X — Y unit" string from the
+        // loaded rubbers so the Result column reflects the competition's league
+        // scoring setting (rubbers / sets / games) rather than a bare rubber tally.
+        if (f.HomeTeamId.HasValue && f.AwayTeamId.HasValue && f.Rubbers.Any(r => r.IsComplete))
+        {
+            var mode = EffectivePersistedLeagueScoring() ?? LeagueScoringMode.WinPoints;
+            var (home, away, unit) = RubberResolutionService.ComputeLeagueScore(
+                f.Rubbers, f.HomeTeamId.Value, f.AwayTeamId.Value, mode);
+            return $"{home} — {away} {unit}";
+        }
+
+        // Singles / doubles: fall back to the set-by-set ResultSummary string.
+        return f.ResultSummary ?? "";
+    }
+
+    private LeagueScoringMode? EffectivePersistedLeagueScoring() => Model?.LeagueScoring;
 
     private static Color StatusColor(FixtureStatus s) => s switch
     {

@@ -227,7 +227,10 @@ public record TeamLeagueTableEntryDto(
     int Lost,
     int RubbersWon,
     int RubbersAgainst,
-    int Points);
+    int Points,
+    int ScoringFor = 0,
+    int ScoringAgainst = 0,
+    string ScoringUnitLabel = "rubbers");
 
 public record SaveCourtPairRequest(int Court1Id, int Court2Id, string Name);
 

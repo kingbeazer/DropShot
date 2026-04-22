@@ -76,6 +76,34 @@ public class RubberResolutionService(ICompetitionRubberTemplateProvider template
         return (home, away);
     }
 
+    /// <summary>
+    /// Returns the for/against metric that matches the competition's LeagueScoring
+    /// mode — rubbers (default / WinPoints), sets, or total games. The label is
+    /// suitable for UI use ("rubbers" / "sets" / "games").
+    /// </summary>
+    public static (int homeFor, int awayFor, string unitLabel) ComputeLeagueScore(
+        IEnumerable<Rubber> rubbers, int homeTeamId, int awayTeamId, LeagueScoringMode mode)
+    {
+        int homeRubbers = 0, awayRubbers = 0;
+        int homeSets = 0, awaySets = 0;
+        int homeGames = 0, awayGames = 0;
+        foreach (var r in rubbers.Where(r => r.IsComplete))
+        {
+            if (r.WinnerTeamId == homeTeamId) homeRubbers++;
+            else if (r.WinnerTeamId == awayTeamId) awayRubbers++;
+            homeSets += r.HomeSetsWon ?? 0;
+            awaySets += r.AwaySetsWon ?? 0;
+            homeGames += r.HomeGamesTotal ?? 0;
+            awayGames += r.AwayGamesTotal ?? 0;
+        }
+        return mode switch
+        {
+            LeagueScoringMode.SetsWon  => (homeSets, awaySets, "sets"),
+            LeagueScoringMode.GamesWon => (homeGames, awayGames, "games"),
+            _                          => (homeRubbers, awayRubbers, "rubbers"),
+        };
+    }
+
     public static bool AllComplete(IEnumerable<Rubber> rubbers)
         => rubbers.All(r => r.IsComplete);
 
