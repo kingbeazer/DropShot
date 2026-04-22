@@ -66,9 +66,9 @@ namespace DropShot.Data.Migrations
                 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Competition_Competition_SeededFromCompetitionId')
                     ALTER TABLE [Competition] ADD CONSTRAINT [FK_Competition_Competition_SeededFromCompetitionId] FOREIGN KEY ([SeededFromCompetitionId]) REFERENCES [Competition] ([CompetitionID]) ON DELETE NO ACTION;
                 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_CompetitionParticipants_CompetitionDivisions_CompetitionDivisionId')
-                    ALTER TABLE [CompetitionParticipants] ADD CONSTRAINT [FK_CompetitionParticipants_CompetitionDivisions_CompetitionDivisionId] FOREIGN KEY ([CompetitionDivisionId]) REFERENCES [CompetitionDivisions] ([CompetitionDivisionId]) ON DELETE SET NULL;
+                    ALTER TABLE [CompetitionParticipants] ADD CONSTRAINT [FK_CompetitionParticipants_CompetitionDivisions_CompetitionDivisionId] FOREIGN KEY ([CompetitionDivisionId]) REFERENCES [CompetitionDivisions] ([CompetitionDivisionId]) ON DELETE NO ACTION;
                 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_CompetitionTeams_CompetitionDivisions_CompetitionDivisionId')
-                    ALTER TABLE [CompetitionTeams] ADD CONSTRAINT [FK_CompetitionTeams_CompetitionDivisions_CompetitionDivisionId] FOREIGN KEY ([CompetitionDivisionId]) REFERENCES [CompetitionDivisions] ([CompetitionDivisionId]) ON DELETE SET NULL;
+                    ALTER TABLE [CompetitionTeams] ADD CONSTRAINT [FK_CompetitionTeams_CompetitionDivisions_CompetitionDivisionId] FOREIGN KEY ([CompetitionDivisionId]) REFERENCES [CompetitionDivisions] ([CompetitionDivisionId]) ON DELETE NO ACTION;
             ");
         }
 

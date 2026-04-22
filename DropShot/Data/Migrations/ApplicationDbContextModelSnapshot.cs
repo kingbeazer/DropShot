@@ -1961,8 +1961,7 @@ namespace DropShot.Migrations
                 {
                     b.HasOne("DropShot.Models.CompetitionDivision", "Division")
                         .WithMany("Participants")
-                        .HasForeignKey("CompetitionDivisionId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("CompetitionDivisionId");
 
                     b.HasOne("DropShot.Models.Competition", "Competition")
                         .WithMany("Participants")
@@ -2021,8 +2020,7 @@ namespace DropShot.Migrations
 
                     b.HasOne("DropShot.Models.CompetitionDivision", "Division")
                         .WithMany("Teams")
-                        .HasForeignKey("CompetitionDivisionId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("CompetitionDivisionId");
 
                     b.HasOne("DropShot.Models.Competition", "Competition")
                         .WithMany("Teams")

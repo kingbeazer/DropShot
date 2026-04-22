@@ -293,7 +293,7 @@ namespace DropShot.Data
                 entity.HasOne(t => t.Division)
                       .WithMany(d => d.Teams)
                       .HasForeignKey(t => t.CompetitionDivisionId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction);
             });
 
             // ── CompetitionParticipant ───────────────────────────────────────────
@@ -321,7 +321,7 @@ namespace DropShot.Data
                 entity.HasOne(cp => cp.Division)
                       .WithMany(d => d.Participants)
                       .HasForeignKey(cp => cp.CompetitionDivisionId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction);
             });
 
             // ── CompetitionStage ─────────────────────────────────────────────────
