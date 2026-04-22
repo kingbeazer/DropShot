@@ -33,6 +33,9 @@
 {
     <ServerSelectScreen UserLabel="@GetUserDisplayName()"
                         OpponentLabel="@GetOpponentDisplayName()"
+                        UserTeamName="@(_rubber?.Fixture?.HomeTeam?.Name)"
+                        OpponentTeamName="@(_rubber?.Fixture?.AwayTeam?.Name)"
+                        BackLabel="@(_rubber != null ? "Back to team match" : "Back to setup")"
                         OnServerSelected="HandleServerSelected"
                         OnBack="HandleServerSelectBack" />
 }
@@ -561,6 +564,14 @@
 
     private void HandleServerSelectBack()
     {
+        // Auto-started flows (rubber scoring, fixture Play buttons) never showed
+        // a setup wizard, so hiding the server-select screen would leave an empty
+        // state. Instead send the user back to whatever page invoked us.
+        if (!string.IsNullOrEmpty(ReturnUrl))
+        {
+            Navigation.NavigateTo(ReturnUrl);
+            return;
+        }
         _showServerSelect = false;
     }
 

@@ -10,19 +10,54 @@
         </MudText>
 
         <div class="server-select-options">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       Size="Size.Large" Class="server-select-btn"
-                       StartIcon="@Icons.Material.Filled.Person"
-                       OnClick="@(() => OnSelected("player2"))">
-                @OpponentLabel
-            </MudButton>
+            @if (IsTeamContext)
+            {
+                @* Team match: home (user) on top, away (opponent) on bottom, vs between *@
+                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                           Size="Size.Large" Class="server-select-btn"
+                           StartIcon="@Icons.Material.Filled.Person"
+                           OnClick="@(() => OnSelected("player1"))">
+                    <div class="server-option-stack">
+                        @if (!string.IsNullOrEmpty(UserTeamName))
+                        {
+                            <span class="server-option-team">@UserTeamName</span>
+                        }
+                        <span class="server-option-name">@UserLabel</span>
+                    </div>
+                </MudButton>
 
-            <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       Size="Size.Large" Class="server-select-btn"
-                       StartIcon="@Icons.Material.Filled.Person"
-                       OnClick="@(() => OnSelected("player1"))">
-                @UserLabel
-            </MudButton>
+                <div class="server-select-vs">vs</div>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Size="Size.Large" Class="server-select-btn"
+                           StartIcon="@Icons.Material.Filled.Person"
+                           OnClick="@(() => OnSelected("player2"))">
+                    <div class="server-option-stack">
+                        @if (!string.IsNullOrEmpty(OpponentTeamName))
+                        {
+                            <span class="server-option-team">@OpponentTeamName</span>
+                        }
+                        <span class="server-option-name">@OpponentLabel</span>
+                    </div>
+                </MudButton>
+            }
+            else
+            {
+                @* Non-team match: preserve existing layout *@
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Size="Size.Large" Class="server-select-btn"
+                           StartIcon="@Icons.Material.Filled.Person"
+                           OnClick="@(() => OnSelected("player2"))">
+                    @OpponentLabel
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                           Size="Size.Large" Class="server-select-btn"
+                           StartIcon="@Icons.Material.Filled.Person"
+                           OnClick="@(() => OnSelected("player1"))">
+                    @UserLabel
+                </MudButton>
+            }
 
             <MudButton Variant="Variant.Outlined" Color="Color.Warning"
                        Size="Size.Large" Class="server-select-btn"
@@ -36,7 +71,7 @@
                    StartIcon="@Icons.Material.Filled.ArrowBack"
                    Style="color: rgba(255,255,255,0.6);"
                    OnClick="@(() => OnBack.InvokeAsync())">
-            Back to setup
+            @BackLabel
         </MudButton>
     </div>
 </div>
@@ -44,8 +79,14 @@
 @code {
     [Parameter] public string UserLabel { get; set; } = "You";
     [Parameter] public string OpponentLabel { get; set; } = "Opponent";
+    [Parameter] public string? UserTeamName { get; set; }
+    [Parameter] public string? OpponentTeamName { get; set; }
+    [Parameter] public string BackLabel { get; set; } = "Back to setup";
     [Parameter] public EventCallback<string> OnServerSelected { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
+
+    private bool IsTeamContext =>
+        !string.IsNullOrEmpty(UserTeamName) || !string.IsNullOrEmpty(OpponentTeamName);
 
     private async Task OnSelected(string choice)
     {
