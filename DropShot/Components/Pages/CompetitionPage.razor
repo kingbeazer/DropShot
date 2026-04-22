@@ -816,7 +816,28 @@
                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.AutoFixHigh"
                                    OnClick="OpenGenerateDialog">Generate @sectionLabel</MudButton>
+                        @if (_teams.Count > 0)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                                       OnClick="@(() => _showDeleteAllTeamsConfirm = true)">Delete All</MudButton>
+                        }
                     </MudStack>
+
+                    @if (_showDeleteAllTeamsConfirm)
+                    {
+                        <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                                  CloseIconClicked="@(() => _showDeleteAllTeamsConfirm = false)">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudText Typo="Typo.body2">
+                                    Delete all @_teams.Count @(_teams.Count == 1 ? itemLabel.ToLower() : (itemLabel.ToLower() + "s"))?
+                                    Participants will be unassigned and any fixture team references will be cleared. This cannot be undone.
+                                </MudText>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                           OnClick="DeleteAllTeams">Confirm Delete</MudButton>
+                            </MudStack>
+                        </MudAlert>
+                    }
 
                     @if (!isDoubles)
                     {
@@ -1755,6 +1776,7 @@
     private bool _showTeamDialog;
     private CompetitionTeam? _editingTeam;
     private string _teamName = "";
+    private bool _showDeleteAllTeamsConfirm;
 
     // Auto-generate teams/pairings dialog
     private bool _showGenerateDialog;
@@ -3014,6 +3036,49 @@
         if (t != null) { db.CompetitionTeams.Remove(t); await db.SaveChangesAsync(); }
         _teams.Remove(team);
         Snackbar.Add("Team removed.", Severity.Warning);
+    }
+
+    private async Task DeleteAllTeams()
+    {
+        _showDeleteAllTeamsConfirm = false;
+        if (_teams.Count == 0) return;
+
+        await using var db = DbFactory.CreateDbContext();
+
+        // Clear all team references first — all team FKs are NoAction.
+        var participants = await db.CompetitionParticipants
+            .Where(cp => cp.CompetitionId == Id && cp.TeamId != null).ToListAsync();
+        foreach (var cp in participants) cp.TeamId = null;
+
+        var fixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == Id
+                     && (f.HomeTeamId != null || f.AwayTeamId != null || f.WinnerTeamId != null))
+            .ToListAsync();
+        var fixtureIds = fixtures.Select(f => f.CompetitionFixtureId).ToList();
+        foreach (var f in fixtures)
+        {
+            f.HomeTeamId = null;
+            f.AwayTeamId = null;
+            f.WinnerTeamId = null;
+        }
+
+        if (fixtureIds.Count > 0)
+        {
+            var rubbers = await db.Rubbers
+                .Where(r => fixtureIds.Contains(r.CompetitionFixtureId) && r.WinnerTeamId != null)
+                .ToListAsync();
+            foreach (var r in rubbers) r.WinnerTeamId = null;
+        }
+
+        var teams = await db.CompetitionTeams.Where(t => t.CompetitionId == Id).ToListAsync();
+        db.CompetitionTeams.RemoveRange(teams);
+
+        await db.SaveChangesAsync();
+
+        foreach (var cp in _participants) cp.TeamId = null;
+        var removed = _teams.Count;
+        _teams.Clear();
+        Snackbar.Add($"Deleted {removed} team(s).", Severity.Warning);
     }
 
     private bool IsDoublesFormat() =>
