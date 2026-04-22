@@ -309,20 +309,20 @@
             var _navTeamsLabel = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pairings" : "Teams";
             var _navShowFixtures = IsEdit && !Model.HasDivisions;
         }
-        <nav class="setup-nav" aria-label="Competition setup sections">
+        <nav id="setup-nav" class="setup-nav" aria-label="Competition setup sections">
             <div class="setup-nav-inner">
-                <a href="#section-details">Details</a>
-                @if (_navShowAdmins) { <a href="#section-admins">Admins</a> }
+                <button type="button" onclick="scrollToSectionId('section-details')">Details</button>
+                @if (_navShowAdmins) { <button type="button" onclick="scrollToSectionId('section-admins')">Admins</button> }
                 @if (IsEdit)
                 {
-                    <a href="#section-stages">Stages</a>
-                    @if (_navShowMatchWindows) { <a href="#section-match-windows">Match Windows</a> }
-                    @if (_navShowRubber) { <a href="#section-rubber-template">Rubber</a> }
-                    <a href="#section-participants">Participants</a>
-                    @if (_navShowTemplates) { <a href="#section-templates">Template</a> }
-                    @if (_navShowDivisions) { <a href="#section-divisions">Divisions</a> }
-                    @if (_navShowTeams) { <a href="#section-teams">@_navTeamsLabel</a> }
-                    @if (_navShowFixtures) { <a href="#section-fixtures">Fixtures</a> }
+                    <button type="button" onclick="scrollToSectionId('section-stages')">Stages</button>
+                    @if (_navShowMatchWindows) { <button type="button" onclick="scrollToSectionId('section-match-windows')">Match Windows</button> }
+                    @if (_navShowRubber) { <button type="button" onclick="scrollToSectionId('section-rubber-template')">Rubber</button> }
+                    <button type="button" onclick="scrollToSectionId('section-participants')">Participants</button>
+                    @if (_navShowTemplates) { <button type="button" onclick="scrollToSectionId('section-templates')">Template</button> }
+                    @if (_navShowDivisions) { <button type="button" onclick="scrollToSectionId('section-divisions')">Divisions</button> }
+                    @if (_navShowTeams) { <button type="button" onclick="scrollToSectionId('section-teams')">@_navTeamsLabel</button> }
+                    @if (_navShowFixtures) { <button type="button" onclick="scrollToSectionId('section-fixtures')">Fixtures</button> }
                 }
             </div>
         </nav>
@@ -2333,6 +2333,17 @@
         public DateTime? ScheduledAt => DatePart.HasValue
             ? DatePart.Value.Date + (TimePart ?? TimeSpan.Zero)
             : null;
+    }
+
+    private bool _setupNavInitialised;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_setupNavInitialised)
+        {
+            _setupNavInitialised = true;
+            await JS.InvokeVoidAsync("initSetupNav", "setup-nav", "section-details");
+        }
     }
 
     protected override async Task OnParametersSetAsync()

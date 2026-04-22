@@ -168,22 +168,37 @@ body.scoring-immersive .top-navbar {
 }
 
 /* ── Competition setup — floating section nav ──────────────────────────────
-   Sticky below the top navbar. Placed after the first (Details) section, so
-   it scrolls into view and then sticks — naturally hidden on initial page
-   load and on other tabs. */
+   Fixed below the top navbar. Hidden by default; JavaScript (see
+   competition-nav.js) toggles .setup-nav--visible once the Details section
+   scrolls above the viewport. */
 .setup-nav {
-    position: sticky;
+    position: fixed;
     top: 3.5rem;
+    left: 0;
+    right: 0;
     z-index: 11;
-    margin: 0 -0.5rem 1rem;
-    padding: 0.5rem 0.5rem;
-    background: rgba(18, 18, 18, 0.85);
+    padding: 0.5rem 1rem;
+    background: rgba(18, 18, 18, 0.92);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-0.5rem);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+}
+
+.setup-nav--visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
 }
 
 .setup-nav-inner {
+    max-width: 1200px;
+    margin: 0 auto;
     display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -200,7 +215,7 @@ body.scoring-immersive .top-navbar {
     border-radius: 2px;
 }
 
-.setup-nav a {
+.setup-nav button {
     flex: 0 0 auto;
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
@@ -208,13 +223,14 @@ body.scoring-immersive .top-navbar {
     background: rgba(255, 255, 255, 0.06);
     color: rgba(255, 255, 255, 0.85);
     font-size: 0.8rem;
-    text-decoration: none;
+    font-family: inherit;
     white-space: nowrap;
+    cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.setup-nav a:hover,
-.setup-nav a:focus-visible {
+.setup-nav button:hover,
+.setup-nav button:focus-visible {
     background: rgba(255, 255, 255, 0.14);
     border-color: rgba(255, 255, 255, 0.35);
     color: white;
@@ -223,10 +239,6 @@ body.scoring-immersive .top-navbar {
 
 .setup-section {
     scroll-margin-top: 7rem;
-}
-
-html:has(.setup-nav) {
-    scroll-behavior: smooth;
 }
 
 /* Legacy — keep for external scoreboard page if still used */
