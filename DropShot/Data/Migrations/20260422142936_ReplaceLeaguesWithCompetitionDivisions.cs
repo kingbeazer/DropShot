@@ -11,25 +11,22 @@ namespace DropShot.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Drop the FK from Competition to LeagueDivisions before tearing the
-            // league tables down. The FK was created by AddLeagueStructures.
-            migrationBuilder.DropForeignKey(
-                name: "FK_Competition_LeagueDivisions_LeagueDivisionId",
-                table: "Competition");
-
-            migrationBuilder.DropIndex(
-                name: "IX_Competition_LeagueDivisionId",
-                table: "Competition");
-
-            migrationBuilder.DropColumn(
-                name: "LeagueDivisionId",
-                table: "Competition");
-
-            // Now safe to drop the league tables (children first).
-            migrationBuilder.DropTable(name: "LeagueDivisions");
-            migrationBuilder.DropTable(name: "LeagueMemberships");
-            migrationBuilder.DropTable(name: "LeagueSeasons");
-            migrationBuilder.DropTable(name: "Leagues");
+            // Tear down the league structures from AddLeagueStructures. Use
+            // defensive IF EXISTS guards so this works against databases where
+            // the prior migration was partially applied or never ran (e.g.
+            // staging DBs whose history table was reconciled by hand).
+            migrationBuilder.Sql(@"
+                IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Competition_LeagueDivisions_LeagueDivisionId')
+                    ALTER TABLE [Competition] DROP CONSTRAINT [FK_Competition_LeagueDivisions_LeagueDivisionId];
+                IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Competition_LeagueDivisionId' AND object_id = OBJECT_ID(N'[Competition]'))
+                    DROP INDEX [IX_Competition_LeagueDivisionId] ON [Competition];
+                IF COL_LENGTH(N'[Competition]', N'LeagueDivisionId') IS NOT NULL
+                    ALTER TABLE [Competition] DROP COLUMN [LeagueDivisionId];
+                IF OBJECT_ID(N'[LeagueDivisions]', N'U') IS NOT NULL DROP TABLE [LeagueDivisions];
+                IF OBJECT_ID(N'[LeagueMemberships]', N'U') IS NOT NULL DROP TABLE [LeagueMemberships];
+                IF OBJECT_ID(N'[LeagueSeasons]', N'U') IS NOT NULL DROP TABLE [LeagueSeasons];
+                IF OBJECT_ID(N'[Leagues]', N'U') IS NOT NULL DROP TABLE [Leagues];
+            ");
 
             // ── New: divisions live inside a Competition ──
             migrationBuilder.AddColumn<bool>(
