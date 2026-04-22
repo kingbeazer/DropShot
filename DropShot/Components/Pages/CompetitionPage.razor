@@ -630,23 +630,88 @@
                     </DialogActions>
                 </MudDialog>
 
-                <MudTable Items="@_participants" Dense="true" Hover="true">
-                    <HeaderContent>
-                        <MudTh>Player</MudTh>
-                        <MudTh>Status</MudTh>
-                        <MudTh>Registered</MudTh>
-                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+                @{
+                    var pFormat = EffectivePersistedFormat();
+                    var hasTeamCol = pFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+                    var isTeamMatchFmt = pFormat == CompetitionFormat.TeamMatch;
+                    var teamColLabel = pFormat is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pair" : "Team";
+                }
+
+                <MudStack Row="true" Spacing="2" Class="mb-2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                    <MudTextField T="string" @bind-Value="_participantSearch" DebounceInterval="150"
+                                  Placeholder="Search player / team / role / division"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Style="min-width:280px" />
+                    <MudSelect T="ParticipantStatus?" @bind-Value="_filterStatus" Label="Status"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                               Style="min-width:140px">
+                        @foreach (ParticipantStatus s in Enum.GetValues<ParticipantStatus>())
                         {
-                            <MudTh>@(EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pair" : "Team")</MudTh>
+                            <MudSelectItem T="ParticipantStatus?" Value="@((ParticipantStatus?)s)">@s</MudSelectItem>
                         }
-                        @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+                    </MudSelect>
+                    @if (hasTeamCol)
+                    {
+                        <MudSelect T="int?" @bind-Value="_filterTeamId" Label="@teamColLabel"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   Style="min-width:160px">
+                            @foreach (var t in _teams)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                    @if (isTeamMatchFmt)
+                    {
+                        <MudSelect T="PlayerSex?" @bind-Value="_filterSex" Label="Sex"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   Style="min-width:120px">
+                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Male)">Male</MudSelectItem>
+                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Female)">Female</MudSelectItem>
+                        </MudSelect>
+                        <MudSelect T="string" @bind-Value="_filterRole" Label="Role"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   Style="min-width:130px">
+                            @foreach (var r in _availableRoles)
+                            {
+                                <MudSelectItem T="string" Value="@r">@r</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                    @if (Model.HasDivisions)
+                    {
+                        <MudSelect T="int?" @bind-Value="_filterDivisionId" Label="Division"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   Style="min-width:160px">
+                            @foreach (var d in _divisions)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                    <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FilterAltOff"
+                               OnClick="ClearParticipantFilters">Clear</MudButton>
+                </MudStack>
+
+                <MudTable T="CompetitionParticipant" Items="@_participants" Dense="true" Hover="true"
+                          Filter="new Func<CompetitionParticipant, bool>(FilterParticipant)">
+                    <HeaderContent>
+                        <MudTh><MudTableSortLabel T="CompetitionParticipant" SortBy="@(x => x.Player?.DisplayName ?? "")">Player</MudTableSortLabel></MudTh>
+                        <MudTh><MudTableSortLabel T="CompetitionParticipant" SortBy="@(x => x.Status)">Status</MudTableSortLabel></MudTh>
+                        <MudTh><MudTableSortLabel T="CompetitionParticipant" SortBy="@(x => x.RegisteredAt)">Registered</MudTableSortLabel></MudTh>
+                        @if (hasTeamCol)
                         {
-                            <MudTh>Sex</MudTh>
-                            <MudTh>Role</MudTh>
+                            <MudTh><MudTableSortLabel T="CompetitionParticipant" SortBy="@(x => _teams.FirstOrDefault(t => t.CompetitionTeamId == x.TeamId)?.Name ?? "")">@teamColLabel</MudTableSortLabel></MudTh>
+                        }
+                        @if (isTeamMatchFmt)
+                        {
+                            <MudTh><MudTableSortLabel T="CompetitionParticipant" SortBy="@(x => x.Player?.Sex?.ToString() ?? "")">Sex</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel T="CompetitionParticipant" SortBy="@(x => x.Role ?? "")">Role</MudTableSortLabel></MudTh>
                         }
                         @if (Model.HasDivisions)
                         {
-                            <MudTh>Division</MudTh>
+                            <MudTh><MudTableSortLabel T="CompetitionParticipant" SortBy="@(x => _divisions.FirstOrDefault(d => d.CompetitionDivisionId == x.CompetitionDivisionId)?.Rank ?? byte.MaxValue)">Division</MudTableSortLabel></MudTh>
                         }
                         <MudTh></MudTh>
                     </HeaderContent>
@@ -663,7 +728,7 @@
                             </MudSelect>
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
-                        @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+                        @if (hasTeamCol)
                         {
                             <MudTd>
                                 <MudSelect T="int?" Value="context.TeamId" Dense="true" Variant="Variant.Text"
@@ -676,7 +741,7 @@
                                 </MudSelect>
                             </MudTd>
                         }
-                        @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+                        @if (isTeamMatchFmt)
                         {
                             <MudTd>@(context.Player?.Sex?.ToString() ?? "—")</MudTd>
                             <MudTd>
@@ -1590,6 +1655,49 @@
     private List<Court> _courts = [];
     private List<CourtPair> _courtPairs = [];
     private List<CompetitionDivision> _divisions = [];
+
+    // Participants grid — sort/filter state
+    private string? _participantSearch;
+    private ParticipantStatus? _filterStatus;
+    private int? _filterTeamId;
+    private PlayerSex? _filterSex;
+    private string? _filterRole;
+    private int? _filterDivisionId;
+
+    private bool FilterParticipant(CompetitionParticipant cp)
+    {
+        if (_filterStatus.HasValue && cp.Status != _filterStatus.Value) return false;
+        if (_filterTeamId.HasValue && cp.TeamId != _filterTeamId.Value) return false;
+        if (_filterSex.HasValue && cp.Player?.Sex != _filterSex.Value) return false;
+        if (!string.IsNullOrEmpty(_filterRole) && !string.Equals(cp.Role, _filterRole, StringComparison.OrdinalIgnoreCase)) return false;
+        if (_filterDivisionId.HasValue && cp.CompetitionDivisionId != _filterDivisionId.Value) return false;
+
+        if (!string.IsNullOrWhiteSpace(_participantSearch))
+        {
+            var q = _participantSearch.Trim();
+            var name = cp.Player?.DisplayName ?? "";
+            var teamName = _teams.FirstOrDefault(t => t.CompetitionTeamId == cp.TeamId)?.Name ?? "";
+            var divName = _divisions.FirstOrDefault(d => d.CompetitionDivisionId == cp.CompetitionDivisionId)?.Name ?? "";
+            var role = cp.Role ?? "";
+            if (name.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0
+                && teamName.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0
+                && divName.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0
+                && role.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    private void ClearParticipantFilters()
+    {
+        _participantSearch = null;
+        _filterStatus = null;
+        _filterTeamId = null;
+        _filterSex = null;
+        _filterRole = null;
+        _filterDivisionId = null;
+    }
 
     // Division dialog state
     private bool _showDivisionDialog;
