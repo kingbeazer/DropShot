@@ -403,8 +403,17 @@
                                        Margin="Margin.Dense" AmPm="false" />
                     </MudItem>
                     <MudItem xs="2" Class="d-flex align-center">
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="AddMatchWindow">Add</MudButton>
+                        <MudStack Row="true" Spacing="1">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="AddMatchWindow">
+                                @(_editingMatchWindowId.HasValue ? "Update" : "Add")
+                            </MudButton>
+                            @if (_editingMatchWindowId.HasValue)
+                            {
+                                <MudButton Variant="Variant.Text" Size="Size.Small"
+                                           OnClick="CancelEditMatchWindow">Cancel</MudButton>
+                            }
+                        </MudStack>
                     </MudItem>
                 </MudGrid>
 
@@ -420,12 +429,21 @@
                         <tbody>
                             @foreach (var w in sharedWindows)
                             {
-                                <tr>
+                                var isEditing = _editingMatchWindowId == w.CompetitionMatchWindowId;
+                                <tr style="@(isEditing ? "background-color: rgba(255,193,7,0.15);" : "")">
                                     <td>@w.DayOfWeek</td>
                                     <td>@(w.Court?.Name ?? "All courts")</td>
                                     <td>@w.StartTime.ToString(@"hh\:mm")</td>
                                     <td>@w.EndTime.ToString(@"hh\:mm")</td>
                                     <td>
+                                        <MudTooltip Text="Copy values into the form">
+                                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                                           OnClick="@(() => CopyMatchWindowToForm(w))" />
+                                        </MudTooltip>
+                                        <MudTooltip Text="Edit this window">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                           OnClick="@(() => EditMatchWindow(w))" />
+                                        </MudTooltip>
                                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                                        Color="Color.Error" OnClick="@(() => DeleteMatchWindow(w))" />
                                     </td>
@@ -1162,8 +1180,17 @@
                                                Margin="Margin.Dense" AmPm="false" />
                             </MudItem>
                             <MudItem xs="2" Class="d-flex align-center">
-                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => AddDivisionMatchWindow(divId))">Add</MudButton>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                               OnClick="@(() => AddDivisionMatchWindow(divId))">
+                                        @(form.EditingId.HasValue ? "Update" : "Add")
+                                    </MudButton>
+                                    @if (form.EditingId.HasValue)
+                                    {
+                                        <MudButton Variant="Variant.Text" Size="Size.Small"
+                                                   OnClick="@(() => CancelEditDivisionMatchWindow(divId))">Cancel</MudButton>
+                                    }
+                                </MudStack>
                             </MudItem>
                         </MudGrid>
 
@@ -1176,12 +1203,21 @@
                                 <tbody>
                                     @foreach (var w in divWindows)
                                     {
-                                        <tr>
+                                        var isEditing = form.EditingId == w.CompetitionMatchWindowId;
+                                        <tr style="@(isEditing ? "background-color: rgba(255,193,7,0.15);" : "")">
                                             <td>@w.DayOfWeek</td>
                                             <td>@(w.Court?.Name ?? "All courts")</td>
                                             <td>@w.StartTime.ToString(@"hh\:mm")</td>
                                             <td>@w.EndTime.ToString(@"hh\:mm")</td>
                                             <td>
+                                                <MudTooltip Text="Copy values into the form">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                                                   OnClick="@(() => CopyDivisionMatchWindowToForm(w))" />
+                                                </MudTooltip>
+                                                <MudTooltip Text="Edit this window">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                                   OnClick="@(() => EditDivisionMatchWindow(w))" />
+                                                </MudTooltip>
                                                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                                                Color="Color.Error" OnClick="@(() => DeleteMatchWindow(w))" />
                                             </td>
@@ -1901,6 +1937,7 @@
     private int? _newMatchWindowCourtId;
     private TimeSpan? _newMatchWindowStart;
     private TimeSpan? _newMatchWindowEnd;
+    private int? _editingMatchWindowId;
     private List<ClubSchedulingTemplate> _clubTemplates = [];
     private int? _selectedTemplateId;
 
@@ -3825,7 +3862,40 @@
     private async Task AddMatchWindow()
     {
         if (_newMatchWindowStart == null || _newMatchWindowEnd == null || _newMatchWindowEnd <= _newMatchWindowStart) return;
+
         await using var db = DbFactory.CreateDbContext();
+
+        if (_editingMatchWindowId.HasValue)
+        {
+            var existing = await db.CompetitionMatchWindows.FindAsync(_editingMatchWindowId.Value);
+            if (existing == null || existing.CompetitionId != Id)
+            {
+                _editingMatchWindowId = null;
+                Snackbar.Add("That window no longer exists.", Severity.Warning);
+                return;
+            }
+            existing.DayOfWeek = _newMatchWindowDay;
+            existing.CourtId   = _newMatchWindowCourtId;
+            existing.StartTime = _newMatchWindowStart.Value;
+            existing.EndTime   = _newMatchWindowEnd.Value;
+            await db.SaveChangesAsync();
+
+            var local = _matchWindows.FirstOrDefault(x => x.CompetitionMatchWindowId == _editingMatchWindowId.Value);
+            if (local != null)
+            {
+                local.DayOfWeek = existing.DayOfWeek;
+                local.CourtId   = existing.CourtId;
+                local.StartTime = existing.StartTime;
+                local.EndTime   = existing.EndTime;
+                local.Court     = _courts.FirstOrDefault(c => c.CourtId == existing.CourtId);
+            }
+            _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
+            _editingMatchWindowId = null;
+            // Keep form values in place — see note below.
+            Snackbar.Add("Window updated.", Severity.Success);
+            return;
+        }
+
         var w = new CompetitionMatchWindow
         {
             CompetitionId = Id,
@@ -3839,10 +3909,32 @@
         w.Court = _courts.FirstOrDefault(c => c.CourtId == _newMatchWindowCourtId);
         _matchWindows.Add(w);
         _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
-        _newMatchWindowCourtId = null;
-        _newMatchWindowStart = null;
-        _newMatchWindowEnd = null;
+        // Intentionally do NOT clear the form — admins often add multiple similar
+        // windows differing in only one field (different day, different court).
         Snackbar.Add("Window added.", Severity.Success);
+    }
+
+    private void CopyMatchWindowToForm(CompetitionMatchWindow w)
+    {
+        _newMatchWindowDay     = w.DayOfWeek;
+        _newMatchWindowCourtId = w.CourtId;
+        _newMatchWindowStart   = w.StartTime;
+        _newMatchWindowEnd     = w.EndTime;
+        _editingMatchWindowId  = null;  // copy creates a NEW window on next Add
+    }
+
+    private void EditMatchWindow(CompetitionMatchWindow w)
+    {
+        _newMatchWindowDay     = w.DayOfWeek;
+        _newMatchWindowCourtId = w.CourtId;
+        _newMatchWindowStart   = w.StartTime;
+        _newMatchWindowEnd     = w.EndTime;
+        _editingMatchWindowId  = w.CompetitionMatchWindowId;
+    }
+
+    private void CancelEditMatchWindow()
+    {
+        _editingMatchWindowId = null;
     }
 
     private async Task DeleteMatchWindow(CompetitionMatchWindow window)
@@ -3851,6 +3943,13 @@
         var w = await db.CompetitionMatchWindows.FindAsync(window.CompetitionMatchWindowId);
         if (w != null) { db.CompetitionMatchWindows.Remove(w); await db.SaveChangesAsync(); }
         _matchWindows.Remove(window);
+        if (_editingMatchWindowId == window.CompetitionMatchWindowId) _editingMatchWindowId = null;
+        if (window.CompetitionDivisionId is int divId
+            && _divisionWindowForms.TryGetValue(divId, out var form)
+            && form.EditingId == window.CompetitionMatchWindowId)
+        {
+            form.EditingId = null;
+        }
         Snackbar.Add("Window removed.", Severity.Warning);
     }
 
@@ -3861,6 +3960,7 @@
         public int? CourtId { get; set; }
         public TimeSpan? Start { get; set; }
         public TimeSpan? End { get; set; }
+        public int? EditingId { get; set; }
     }
     private readonly Dictionary<int, DivisionWindowForm> _divisionWindowForms = [];
 
@@ -3880,6 +3980,39 @@
         if (form.Start == null || form.End == null || form.End <= form.Start) return;
 
         await using var db = DbFactory.CreateDbContext();
+
+        if (form.EditingId.HasValue)
+        {
+            var existing = await db.CompetitionMatchWindows.FindAsync(form.EditingId.Value);
+            if (existing == null || existing.CompetitionId != Id)
+            {
+                form.EditingId = null;
+                Snackbar.Add("That window no longer exists.", Severity.Warning);
+                return;
+            }
+            existing.DayOfWeek             = form.Day;
+            existing.CourtId               = form.CourtId;
+            existing.StartTime             = form.Start.Value;
+            existing.EndTime               = form.End.Value;
+            existing.CompetitionDivisionId = divisionId;
+            await db.SaveChangesAsync();
+
+            var local = _matchWindows.FirstOrDefault(x => x.CompetitionMatchWindowId == form.EditingId.Value);
+            if (local != null)
+            {
+                local.DayOfWeek             = existing.DayOfWeek;
+                local.CourtId               = existing.CourtId;
+                local.StartTime             = existing.StartTime;
+                local.EndTime               = existing.EndTime;
+                local.CompetitionDivisionId = existing.CompetitionDivisionId;
+                local.Court                 = _courts.FirstOrDefault(c => c.CourtId == existing.CourtId);
+            }
+            _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
+            form.EditingId = null;
+            Snackbar.Add("Window updated.", Severity.Success);
+            return;
+        }
+
         var w = new CompetitionMatchWindow
         {
             CompetitionId          = Id,
@@ -3894,11 +4027,37 @@
         w.Court = _courts.FirstOrDefault(c => c.CourtId == form.CourtId);
         _matchWindows.Add(w);
         _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
-
-        form.CourtId = null;
-        form.Start = null;
-        form.End = null;
+        // Keep form populated — admins often add multiple similar windows differing
+        // in just one field (different day, different court).
         Snackbar.Add("Division window added.", Severity.Success);
+    }
+
+    private void CopyDivisionMatchWindowToForm(CompetitionMatchWindow w)
+    {
+        if (!w.CompetitionDivisionId.HasValue) return;
+        var form = GetDivisionWindowForm(w.CompetitionDivisionId.Value);
+        form.Day       = w.DayOfWeek;
+        form.CourtId   = w.CourtId;
+        form.Start     = w.StartTime;
+        form.End       = w.EndTime;
+        form.EditingId = null;
+    }
+
+    private void EditDivisionMatchWindow(CompetitionMatchWindow w)
+    {
+        if (!w.CompetitionDivisionId.HasValue) return;
+        var form = GetDivisionWindowForm(w.CompetitionDivisionId.Value);
+        form.Day       = w.DayOfWeek;
+        form.CourtId   = w.CourtId;
+        form.Start     = w.StartTime;
+        form.End       = w.EndTime;
+        form.EditingId = w.CompetitionMatchWindowId;
+    }
+
+    private void CancelEditDivisionMatchWindow(int divisionId)
+    {
+        var form = GetDivisionWindowForm(divisionId);
+        form.EditingId = null;
     }
 
     private async Task ImportFromTemplate(int? templateId)
