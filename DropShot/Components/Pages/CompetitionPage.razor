@@ -1514,10 +1514,15 @@
 
             @if (_generatedPreview.Count > 0)
             {
+                var showDivColumn = Model.HasDivisions && _generatedPreview.Any(t => t.DivisionId.HasValue);
                 <MudText Typo="Typo.subtitle2" Class="mt-2">Preview</MudText>
                 <MudSimpleTable Dense="true" Hover="true" Elevation="0">
                     <thead>
                         <tr>
+                            @if (showDivColumn)
+                            {
+                                <th>Division</th>
+                            }
                             <th>@(IsDoublesFormat() ? "Pair" : "Team")</th>
                             <th>Members</th>
                         </tr>
@@ -1526,6 +1531,10 @@
                         @foreach (var team in _generatedPreview)
                         {
                             <tr>
+                                @if (showDivColumn)
+                                {
+                                    <td>@(team.DivisionName ?? "—")</td>
+                                }
                                 <td><strong>@team.Name</strong></td>
                                 <td>
                                     @foreach (var m in team.Members)
@@ -1786,7 +1795,12 @@
     private List<GeneratedTeamPreview> _generatedPreview = [];
     private bool _generating;
 
-    private record GeneratedTeamPreview(string Name, List<CompetitionParticipant> Members, Dictionary<int, string> Roles);
+    private record GeneratedTeamPreview(
+        string Name,
+        List<CompetitionParticipant> Members,
+        Dictionary<int, string> Roles,
+        int? DivisionId = null,
+        string? DivisionName = null);
 
     // Match windows
     private List<CompetitionMatchWindow> _matchWindows = [];
@@ -3150,31 +3164,83 @@
         var useMttSplit = isTeamMatch && _selectedRubberPresetKey == RubberTemplateRegistry.MttKey
             || (_rubberTemplateSource == "default" && format == CompetitionFormat.TeamMatch);
 
+        // One bucket per division when divisions are enabled; otherwise a single
+        // bucket containing every active participant.
+        List<(int? DivisionId, string? DivisionName, List<CompetitionParticipant> Members)> buckets;
+        if (Model.HasDivisions && _divisions.Count > 0)
+        {
+            var assigned = active.Where(p => p.CompetitionDivisionId.HasValue).ToList();
+            var unassigned = active.Count - assigned.Count;
+            if (unassigned > 0)
+                _generateWarnings.Add($"{unassigned} participant(s) have no division set and will be skipped. Assign them a division first if they should be in a team.");
+
+            buckets = _divisions
+                .OrderBy(d => d.Rank)
+                .Select(d => ((int?)d.CompetitionDivisionId,
+                              (string?)d.Name,
+                              assigned.Where(p => p.CompetitionDivisionId == d.CompetitionDivisionId).ToList()))
+                .Where(t => t.Item3.Count > 0)
+                .ToList();
+
+            if (buckets.Count == 0)
+            {
+                _generateWarnings.Add("No participants are assigned to any division — nothing to generate.");
+                return;
+            }
+        }
+        else
+        {
+            buckets = [(null, null, active)];
+        }
+
+        foreach (var (divId, divName, bucketMembers) in buckets)
+        {
+            GenerateTeamsForBucket(bucketMembers, divId, divName,
+                format, useMttSplit, teamSize, itemLabel, assigner, rng);
+        }
+
+        if (isTeamMatch && assigner == null && _rubberTemplateSource == "custom")
+            _generateWarnings.Add("Custom template: roles will not be auto-assigned. Set each player's role after teams are created.");
+    }
+
+    private void GenerateTeamsForBucket(
+        List<CompetitionParticipant> bucketMembers,
+        int? divisionId, string? divisionName,
+        CompetitionFormat? format, bool useMttSplit,
+        int teamSize, string itemLabel,
+        RubberTemplateRegistry.RoleAssigner? assigner, Random rng)
+    {
+        string TeamName(int idx) =>
+            divisionName is null
+                ? $"{itemLabel} {(char)('A' + idx)}"
+                : $"{divisionName} — {itemLabel} {(char)('A' + idx)}";
+
+        string BucketPrefix() => divisionName is null ? "" : $"[{divisionName}] ";
+
         if (useMttSplit || (_generateGenderBalance && format == CompetitionFormat.MixedDoubles))
         {
-            // Gender-balanced generation (MTT or MixedDoubles)
-            var males = active.Where(p => p.Player?.Sex == PlayerSex.Male).OrderBy(_ => rng.Next()).ToList();
-            var females = active.Where(p => p.Player?.Sex == PlayerSex.Female).OrderBy(_ => rng.Next()).ToList();
-            var noSex = active.Where(p => p.Player?.Sex == null || p.Player.Sex == PlayerSex.Other).ToList();
+            var males = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Male).OrderBy(_ => rng.Next()).ToList();
+            var females = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Female).OrderBy(_ => rng.Next()).ToList();
+            var noSex = bucketMembers.Where(p => p.Player?.Sex == null || p.Player.Sex == PlayerSex.Other).ToList();
 
             if (noSex.Count > 0)
-                _generateWarnings.Add($"{noSex.Count} player(s) have no gender set and will be skipped.");
+                _generateWarnings.Add($"{BucketPrefix()}{noSex.Count} player(s) have no gender set and will be skipped.");
 
             var perGender = teamSize / 2;
             if (teamSize % 2 != 0)
-                _generateWarnings.Add($"Team size {teamSize} is odd — cannot split equally by gender. Using {perGender} of each.");
+                _generateWarnings.Add($"{BucketPrefix()}Team size {teamSize} is odd — cannot split equally by gender. Using {perGender} of each.");
 
             var teamCount = Math.Min(males.Count / perGender, females.Count / perGender);
             if (teamCount == 0)
             {
-                _generateWarnings.Add($"Not enough players: {males.Count} male(s), {females.Count} female(s) for teams of {teamSize}.");
+                _generateWarnings.Add($"{BucketPrefix()}Not enough players: {males.Count} male(s), {females.Count} female(s) for teams of {teamSize}.");
                 return;
             }
 
             var leftoverMales = males.Count - (teamCount * perGender);
             var leftoverFemales = females.Count - (teamCount * perGender);
             if (leftoverMales > 0 || leftoverFemales > 0)
-                _generateWarnings.Add($"{leftoverMales + leftoverFemales} player(s) will be unassigned ({leftoverMales} male, {leftoverFemales} female).");
+                _generateWarnings.Add($"{BucketPrefix()}{leftoverMales + leftoverFemales} player(s) will be unassigned ({leftoverMales} male, {leftoverFemales} female).");
 
             for (int i = 0; i < teamCount; i++)
             {
@@ -3182,35 +3248,31 @@
                 members.AddRange(males.Skip(i * perGender).Take(perGender));
                 members.AddRange(females.Skip(i * perGender).Take(perGender));
                 var roles = AssignRoles(assigner, members);
-                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {(char)('A' + i)}", members, roles));
+                _generatedPreview.Add(new GeneratedTeamPreview(TeamName(i), members, roles, divisionId, divisionName));
             }
         }
         else
         {
-            // Non-gendered generation
-            var shuffled = active.OrderBy(_ => rng.Next()).ToList();
+            var shuffled = bucketMembers.OrderBy(_ => rng.Next()).ToList();
             var teamCount = shuffled.Count / teamSize;
             var leftover = shuffled.Count % teamSize;
 
             if (teamCount == 0)
             {
-                _generateWarnings.Add($"Not enough players ({shuffled.Count}) for teams of {teamSize}.");
+                _generateWarnings.Add($"{BucketPrefix()}Not enough players ({shuffled.Count}) for teams of {teamSize}.");
                 return;
             }
 
             if (leftover > 0)
-                _generateWarnings.Add($"{leftover} player(s) will be unassigned.");
+                _generateWarnings.Add($"{BucketPrefix()}{leftover} player(s) will be unassigned.");
 
             for (int i = 0; i < teamCount; i++)
             {
                 var members = shuffled.Skip(i * teamSize).Take(teamSize).ToList();
                 var roles = AssignRoles(assigner, members);
-                _generatedPreview.Add(new GeneratedTeamPreview($"{itemLabel} {(char)('A' + i)}", members, roles));
+                _generatedPreview.Add(new GeneratedTeamPreview(TeamName(i), members, roles, divisionId, divisionName));
             }
         }
-
-        if (isTeamMatch && assigner == null && _rubberTemplateSource == "custom")
-            _generateWarnings.Add("Custom template: roles will not be auto-assigned. Set each player's role after teams are created.");
     }
 
     private static Dictionary<int, string> AssignRoles(
@@ -3246,10 +3308,16 @@
             }
 
             // Create new teams and assign participants (+ roles, where the preset's
-            // assigner provided them)
+            // assigner provided them). When divisions are in play, each new team
+            // inherits the division of the bucket it was generated from.
             foreach (var preview in _generatedPreview)
             {
-                var team = new CompetitionTeam { CompetitionId = Id, Name = preview.Name };
+                var team = new CompetitionTeam
+                {
+                    CompetitionId = Id,
+                    Name = preview.Name,
+                    CompetitionDivisionId = preview.DivisionId
+                };
                 db.CompetitionTeams.Add(team);
                 await db.SaveChangesAsync(); // get the ID
 
