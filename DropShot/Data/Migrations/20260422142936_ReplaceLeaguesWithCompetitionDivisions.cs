@@ -29,96 +29,47 @@ namespace DropShot.Data.Migrations
             ");
 
             // ── New: divisions live inside a Competition ──
-            migrationBuilder.AddColumn<bool>(
-                name: "HasDivisions",
-                table: "Competition",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
+            // Each step is guarded so a retry after a partial run converges.
+            // Self-referencing FK uses NO ACTION (SQL Server forbids SET NULL
+            // / CASCADE on self-references because of cycle / multi-path rules).
+            migrationBuilder.Sql(@"
+                IF COL_LENGTH(N'[Competition]', N'HasDivisions') IS NULL
+                    ALTER TABLE [Competition] ADD [HasDivisions] bit NOT NULL CONSTRAINT DF_Competition_HasDivisions DEFAULT CAST(0 AS bit);
+                IF COL_LENGTH(N'[Competition]', N'SeededFromCompetitionId') IS NULL
+                    ALTER TABLE [Competition] ADD [SeededFromCompetitionId] int NULL;
+                IF COL_LENGTH(N'[CompetitionParticipants]', N'CompetitionDivisionId') IS NULL
+                    ALTER TABLE [CompetitionParticipants] ADD [CompetitionDivisionId] int NULL;
+                IF COL_LENGTH(N'[CompetitionTeams]', N'CompetitionDivisionId') IS NULL
+                    ALTER TABLE [CompetitionTeams] ADD [CompetitionDivisionId] int NULL;
 
-            migrationBuilder.AddColumn<int>(
-                name: "SeededFromCompetitionId",
-                table: "Competition",
-                type: "int",
-                nullable: true);
+                IF OBJECT_ID(N'[CompetitionDivisions]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [CompetitionDivisions] (
+                        [CompetitionDivisionId] int NOT NULL IDENTITY,
+                        [CompetitionId] int NOT NULL,
+                        [Rank] tinyint NOT NULL,
+                        [Name] nvarchar(80) NOT NULL,
+                        CONSTRAINT [PK_CompetitionDivisions] PRIMARY KEY ([CompetitionDivisionId]),
+                        CONSTRAINT [FK_CompetitionDivisions_Competition_CompetitionId] FOREIGN KEY ([CompetitionId]) REFERENCES [Competition] ([CompetitionID]) ON DELETE CASCADE
+                    );
+                END;
 
-            migrationBuilder.AddColumn<int>(
-                name: "CompetitionDivisionId",
-                table: "CompetitionParticipants",
-                type: "int",
-                nullable: true);
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Competition_SeededFromCompetitionId' AND object_id = OBJECT_ID(N'[Competition]'))
+                    CREATE INDEX [IX_Competition_SeededFromCompetitionId] ON [Competition] ([SeededFromCompetitionId]);
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CompetitionDivisions_CompetitionId_Rank' AND object_id = OBJECT_ID(N'[CompetitionDivisions]'))
+                    CREATE UNIQUE INDEX [IX_CompetitionDivisions_CompetitionId_Rank] ON [CompetitionDivisions] ([CompetitionId], [Rank]);
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CompetitionParticipants_CompetitionDivisionId' AND object_id = OBJECT_ID(N'[CompetitionParticipants]'))
+                    CREATE INDEX [IX_CompetitionParticipants_CompetitionDivisionId] ON [CompetitionParticipants] ([CompetitionDivisionId]);
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CompetitionTeams_CompetitionDivisionId' AND object_id = OBJECT_ID(N'[CompetitionTeams]'))
+                    CREATE INDEX [IX_CompetitionTeams_CompetitionDivisionId] ON [CompetitionTeams] ([CompetitionDivisionId]);
 
-            migrationBuilder.AddColumn<int>(
-                name: "CompetitionDivisionId",
-                table: "CompetitionTeams",
-                type: "int",
-                nullable: true);
-
-            migrationBuilder.CreateTable(
-                name: "CompetitionDivisions",
-                columns: table => new
-                {
-                    CompetitionDivisionId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    CompetitionId = table.Column<int>(type: "int", nullable: false),
-                    Rank = table.Column<byte>(type: "tinyint", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CompetitionDivisions", x => x.CompetitionDivisionId);
-                    table.ForeignKey(
-                        name: "FK_CompetitionDivisions_Competition_CompetitionId",
-                        column: x => x.CompetitionId,
-                        principalTable: "Competition",
-                        principalColumn: "CompetitionID",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Competition_SeededFromCompetitionId",
-                table: "Competition",
-                column: "SeededFromCompetitionId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CompetitionDivisions_CompetitionId_Rank",
-                table: "CompetitionDivisions",
-                columns: new[] { "CompetitionId", "Rank" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CompetitionParticipants_CompetitionDivisionId",
-                table: "CompetitionParticipants",
-                column: "CompetitionDivisionId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CompetitionTeams_CompetitionDivisionId",
-                table: "CompetitionTeams",
-                column: "CompetitionDivisionId");
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_Competition_Competition_SeededFromCompetitionId",
-                table: "Competition",
-                column: "SeededFromCompetitionId",
-                principalTable: "Competition",
-                principalColumn: "CompetitionID",
-                onDelete: ReferentialAction.SetNull);
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_CompetitionParticipants_CompetitionDivisions_CompetitionDivisionId",
-                table: "CompetitionParticipants",
-                column: "CompetitionDivisionId",
-                principalTable: "CompetitionDivisions",
-                principalColumn: "CompetitionDivisionId",
-                onDelete: ReferentialAction.SetNull);
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_CompetitionTeams_CompetitionDivisions_CompetitionDivisionId",
-                table: "CompetitionTeams",
-                column: "CompetitionDivisionId",
-                principalTable: "CompetitionDivisions",
-                principalColumn: "CompetitionDivisionId",
-                onDelete: ReferentialAction.SetNull);
+                IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Competition_Competition_SeededFromCompetitionId')
+                    ALTER TABLE [Competition] ADD CONSTRAINT [FK_Competition_Competition_SeededFromCompetitionId] FOREIGN KEY ([SeededFromCompetitionId]) REFERENCES [Competition] ([CompetitionID]) ON DELETE NO ACTION;
+                IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_CompetitionParticipants_CompetitionDivisions_CompetitionDivisionId')
+                    ALTER TABLE [CompetitionParticipants] ADD CONSTRAINT [FK_CompetitionParticipants_CompetitionDivisions_CompetitionDivisionId] FOREIGN KEY ([CompetitionDivisionId]) REFERENCES [CompetitionDivisions] ([CompetitionDivisionId]) ON DELETE SET NULL;
+                IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_CompetitionTeams_CompetitionDivisions_CompetitionDivisionId')
+                    ALTER TABLE [CompetitionTeams] ADD CONSTRAINT [FK_CompetitionTeams_CompetitionDivisions_CompetitionDivisionId] FOREIGN KEY ([CompetitionDivisionId]) REFERENCES [CompetitionDivisions] ([CompetitionDivisionId]) ON DELETE SET NULL;
+            ");
         }
 
         /// <inheritdoc />

@@ -134,7 +134,7 @@ namespace DropShot.Data
                 entity.HasOne(c => c.SeededFromCompetition)
                       .WithMany()
                       .HasForeignKey(c => c.SeededFromCompetitionId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction);
             });
 
             // ── CompetitionAllowedPlayer ─────────────────────────────────────────

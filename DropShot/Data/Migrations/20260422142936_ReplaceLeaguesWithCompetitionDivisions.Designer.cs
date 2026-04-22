@@ -1792,8 +1792,7 @@ namespace DropShot.Data.Migrations
 
                     b.HasOne("DropShot.Models.Competition", "SeededFromCompetition")
                         .WithMany()
-                        .HasForeignKey("SeededFromCompetitionId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("SeededFromCompetitionId");
 
                     b.Navigation("CreatorUser");
 
