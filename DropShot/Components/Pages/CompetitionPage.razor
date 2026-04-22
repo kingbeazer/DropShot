@@ -887,7 +887,7 @@
                         }
                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
                                    StartIcon="@Icons.Material.Filled.AutoAwesome"
-                                   OnClick="@(() => _showScheduleConfirm = true)">
+                                   OnClick="OpenScheduleConfirm">
                             Auto Schedule
                         </MudButton>
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
@@ -899,6 +899,22 @@
                                        OnClick="@(() => _showDeleteAllFixturesConfirm = true)">Delete All Fixtures</MudButton>
                         }
                     </MudStack>
+
+                    @if (_showScheduleConfirm)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="mb-3" ShowCloseIcon="true"
+                                  CloseIconClicked="@(() => _showScheduleConfirm = false)">
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.body2">
+                                    Auto-scheduling creates missing fixtures based on the current stages, participants and divisions. Fixtures that already have a scheduled date will be preserved.
+                                </MudText>
+                                <MudCheckBox @bind-Value="_scheduleDeleteExisting" Dense="true"
+                                             Label="Also delete existing unscheduled fixtures" />
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                                           OnClick="ScheduleFixtures">Schedule</MudButton>
+                            </MudStack>
+                        </MudAlert>
+                    }
 
                     @if (_showDeleteAllFixturesConfirm)
                     {
@@ -1376,7 +1392,7 @@
                     }
                     <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
                                StartIcon="@Icons.Material.Filled.AutoAwesome"
-                               OnClick="@(() => _showScheduleConfirm = true)">
+                               OnClick="OpenScheduleConfirm">
                         Auto Schedule
                     </MudButton>
                     <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
@@ -1388,6 +1404,22 @@
                                    OnClick="@(() => _showDeleteAllFixturesConfirm = true)">Delete All</MudButton>
                     }
                 </MudStack>
+
+                @if (_showScheduleConfirm)
+                {
+                    <MudAlert Severity="Severity.Info" Class="mb-3" ShowCloseIcon="true"
+                              CloseIconClicked="@(() => _showScheduleConfirm = false)">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.body2">
+                                Auto-scheduling creates missing fixtures based on the current stages and participants. Fixtures that already have a scheduled date will be preserved.
+                            </MudText>
+                            <MudCheckBox @bind-Value="_scheduleDeleteExisting" Dense="true"
+                                         Label="Also delete existing unscheduled fixtures" />
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                                       OnClick="ScheduleFixtures">Schedule</MudButton>
+                        </MudStack>
+                    </MudAlert>
+                }
 
                 @if (_showDeleteAllFixturesConfirm)
                 {
@@ -1618,18 +1650,8 @@
     </DialogActions>
 </MudDialog>
 
-@* ── Auto Schedule Confirmation Dialog ────────────────────── *@
-<MudDialog @bind-Visible="_showScheduleConfirm">
-    <TitleContent>Auto Schedule Matches</TitleContent>
-    <DialogContent>
-        <MudText Class="mb-3">Auto-scheduling will create missing fixtures based on the current stages and participants. Fixtures that already have a scheduled date will be preserved.</MudText>
-        <MudCheckBox @bind-Value="_scheduleDeleteExisting" Label="Also delete existing unscheduled fixtures" />
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => _showScheduleConfirm = false)">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ScheduleFixtures">Schedule</MudButton>
-    </DialogActions>
-</MudDialog>
+@* Auto Schedule confirmation is rendered inline in both the Fixtures section
+   and the Divisions section — see AutoScheduleConfirmAlert below. *@
 
 @* ── Add / Edit Fixture Dialog ─────────────────────────────── *@
 <MudDialog @bind-Visible="_showFixtureDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
@@ -4691,6 +4713,12 @@
         await AdminEmailSvc.SendCompetitionEmailAsync(
             participants, Model.CompetitionName, _compEmailSubject, _compEmailBody, Id);
         Snackbar.Add($"Emails sent to {participants.Count} participant(s).", Severity.Success);
+    }
+
+    private void OpenScheduleConfirm()
+    {
+        _scheduleDeleteExisting = false;
+        _showScheduleConfirm = true;
     }
 
     private async Task ScheduleFixtures()
