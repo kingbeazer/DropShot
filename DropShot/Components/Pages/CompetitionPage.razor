@@ -844,6 +844,12 @@
                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.AutoFixHigh"
                                    OnClick="OpenGenerateDialog">Generate @sectionLabel</MudButton>
+                        @if (isTeamMatch && _teams.Any(t => !t.CaptainPlayerId.HasValue))
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
+                                       StartIcon="@Icons.Material.Filled.Casino"
+                                       OnClick="AutoAssignCaptains">Auto-assign captains</MudButton>
+                        }
                         @if (_teams.Count > 0)
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
@@ -2882,6 +2888,40 @@
         await using var db = DbFactory.CreateDbContext();
         var row = await db.CompetitionTeams.FindAsync(team.CompetitionTeamId);
         if (row != null) { row.CaptainPlayerId = captainPlayerId; await db.SaveChangesAsync(); team.CaptainPlayerId = captainPlayerId; }
+    }
+
+    private async Task AutoAssignCaptains()
+    {
+        var teamsNeedingCaptain = _teams.Where(t => !t.CaptainPlayerId.HasValue).ToList();
+        if (teamsNeedingCaptain.Count == 0) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var rng = new Random();
+        int assigned = 0;
+        int skipped = 0;
+
+        foreach (var team in teamsNeedingCaptain)
+        {
+            var candidates = _participants
+                .Where(p => p.TeamId == team.CompetitionTeamId
+                         && (p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed))
+                .ToList();
+            if (candidates.Count == 0) { skipped++; continue; }
+
+            var pick = candidates[rng.Next(candidates.Count)];
+            var row = await db.CompetitionTeams.FindAsync(team.CompetitionTeamId);
+            if (row == null) { skipped++; continue; }
+            row.CaptainPlayerId = pick.PlayerId;
+            team.CaptainPlayerId = pick.PlayerId;
+            assigned++;
+        }
+
+        if (assigned > 0) await db.SaveChangesAsync();
+
+        if (skipped > 0)
+            Snackbar.Add($"Assigned {assigned} captain(s). {skipped} team(s) skipped — no eligible members.", Severity.Warning);
+        else
+            Snackbar.Add($"Assigned {assigned} captain(s).", Severity.Success);
     }
 
     private async Task AssignParticipantDivision(CompetitionParticipant cp, int? divisionId)
