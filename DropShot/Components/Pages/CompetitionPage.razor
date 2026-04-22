@@ -829,7 +829,7 @@
             {
                 <MudPaper Class="pa-4 mb-4" Elevation="0"
                          Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2" Wrap="Wrap.Wrap">
                         <MudText Typo="Typo.h6" Style="flex:1">Divisions</MudText>
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
                                    OnClick="StartAddDivision">Add Division</MudButton>
@@ -841,9 +841,46 @@
                         }
                     </MudStack>
 
-                    <MudText Typo="Typo.caption" Class="mb-3" Style="opacity:0.8">
-                        Rank 1 is the top division. Teams, match windows and fixtures for each division are configured within the panels below.
-                    </MudText>
+                    @* Competition-wide fixture actions — Schedule / Add / Delete All apply to every division in one shot. *@
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
+                        <MudText Typo="Typo.caption" Style="flex:1; opacity:0.8">
+                            Rank 1 is the top division. Teams, match windows and fixtures for each division are configured within the panels below.
+                        </MudText>
+                        @if (_stages.Any(s => s.StageType == StageType.RoundRobin) &&
+                             _stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                       StartIcon="@Icons.Material.Filled.Leaderboard"
+                                       OnClick="@(() => _showSeedConfirm = true)">
+                                Seed from Standings
+                            </MudButton>
+                        }
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.AutoAwesome"
+                                   OnClick="@(() => _showScheduleConfirm = true)">
+                            Auto Schedule
+                        </MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenAddFixtureDialog">Add Fixture</MudButton>
+                        @if (_fixtures.Count > 0)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                                       OnClick="@(() => _showDeleteAllFixturesConfirm = true)">Delete All Fixtures</MudButton>
+                        }
+                    </MudStack>
+
+                    @if (_showDeleteAllFixturesConfirm)
+                    {
+                        <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                                  CloseIconClicked="@(() => _showDeleteAllFixturesConfirm = false)">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudText Typo="Typo.body2">Delete all @_fixtures.Count fixture(s)? This cannot be undone.</MudText>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                           OnClick="DeleteAllFixtures">Confirm Delete</MudButton>
+                            </MudStack>
+                        </MudAlert>
+                    }
 
                     @if (_addingDivision)
                     {
