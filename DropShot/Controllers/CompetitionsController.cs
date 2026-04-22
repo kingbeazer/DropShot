@@ -1368,7 +1368,16 @@ public class CompetitionsController(
         var lost = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
         var rubbersWon = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
         var rubbersAgainst = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var scoringFor = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var scoringAgainst = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
         var points = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+
+        string unitLabel = scoringMode switch
+        {
+            DropShot.Models.LeagueScoringMode.SetsWon  => "sets",
+            DropShot.Models.LeagueScoringMode.GamesWon => "games",
+            _                                          => "rubbers",
+        };
 
         foreach (var f in fixtures)
         {
@@ -1391,6 +1400,17 @@ public class CompetitionsController(
             rubbersWon[awayId] += awayRubbers;
             rubbersAgainst[awayId] += homeRubbers;
 
+            (int homeFor, int awayFor) = scoringMode switch
+            {
+                DropShot.Models.LeagueScoringMode.SetsWon  => (homeSets, awaySets),
+                DropShot.Models.LeagueScoringMode.GamesWon => (homeGames, awayGames),
+                _                                          => (homeRubbers, awayRubbers),
+            };
+            scoringFor[homeId] += homeFor;
+            scoringAgainst[homeId] += awayFor;
+            scoringFor[awayId] += awayFor;
+            scoringAgainst[awayId] += homeFor;
+
             bool homeWin = homeRubbers > awayRubbers;
             bool awayWin = awayRubbers > homeRubbers;
             if (homeWin) { won[homeId]++; lost[awayId]++; }
@@ -1399,10 +1419,8 @@ public class CompetitionsController(
 
             (int homePts, int awayPts) = scoringMode switch
             {
-                DropShot.Models.LeagueScoringMode.SetsWon =>
-                    (homeSets, awaySets),
-                DropShot.Models.LeagueScoringMode.GamesWon =>
-                    (homeGames, awayGames),
+                DropShot.Models.LeagueScoringMode.SetsWon  => (homeSets, awaySets),
+                DropShot.Models.LeagueScoringMode.GamesWon => (homeGames, awayGames),
                 _ => (homeWin ? 3 : (!awayWin ? 1 : 0),
                       awayWin ? 3 : (!homeWin ? 1 : 0)),
             };
@@ -1416,10 +1434,12 @@ public class CompetitionsController(
                 played[t.CompetitionTeamId], won[t.CompetitionTeamId],
                 drawn[t.CompetitionTeamId], lost[t.CompetitionTeamId],
                 rubbersWon[t.CompetitionTeamId], rubbersAgainst[t.CompetitionTeamId],
-                points[t.CompetitionTeamId]))
+                points[t.CompetitionTeamId],
+                scoringFor[t.CompetitionTeamId], scoringAgainst[t.CompetitionTeamId],
+                unitLabel))
             .OrderByDescending(e => e.Points)
-            .ThenByDescending(e => e.RubbersWon - e.RubbersAgainst)
-            .ThenBy(e => e.RubbersAgainst)
+            .ThenByDescending(e => e.ScoringFor - e.ScoringAgainst)
+            .ThenBy(e => e.ScoringAgainst)
             .ToList();
 
         return entries;

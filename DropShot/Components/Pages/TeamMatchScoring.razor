@@ -48,7 +48,7 @@ else
                     </MudText>
                 </MudStack>
                 <MudChip T="string" Size="Size.Large" Color="@(_allComplete ? Color.Success : Color.Primary)">
-                    @_homeScore — @_awayScore
+                    @_homeScore — @_awayScore @_scoreUnit
                 </MudChip>
             </MudStack>
         </MudPaper>
@@ -69,7 +69,7 @@ else
         @if (_allComplete)
         {
             <MudAlert Severity="Severity.Success" Class="mt-4">
-                Match complete: @(_fixture.HomeTeam?.Name) @_homeScore — @_awayScore @(_fixture.AwayTeam?.Name)
+                Match complete: @(_fixture.HomeTeam?.Name) @_homeScore — @_awayScore @_scoreUnit @(_fixture.AwayTeam?.Name)
                 @if (_homeScore == _awayScore)
                 {
                     <span> (Draw)</span>
@@ -92,6 +92,7 @@ else
     private bool _loading = true;
     private int _homeScore;
     private int _awayScore;
+    private string _scoreUnit = "rubbers";
     private bool _allComplete;
     private string? _resolutionError;
 
@@ -139,8 +140,9 @@ else
     {
         if (_fixture?.HomeTeamId != null && _fixture?.AwayTeamId != null)
         {
-            (_homeScore, _awayScore) = RubberResolutionService.ComputeScore(
-                _rubbers, _fixture.HomeTeamId.Value, _fixture.AwayTeamId.Value);
+            var mode = _fixture.Competition?.LeagueScoring ?? LeagueScoringMode.WinPoints;
+            (_homeScore, _awayScore, _scoreUnit) = RubberResolutionService.ComputeLeagueScore(
+                _rubbers, _fixture.HomeTeamId.Value, _fixture.AwayTeamId.Value, mode);
         }
         _allComplete = _rubbers.Count > 0 && RubberResolutionService.AllComplete(_rubbers);
     }
