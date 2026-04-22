@@ -678,16 +678,16 @@ public class CompetitionsController(
             : new List<DropShot.Models.Court>();
         var occupied = new HashSet<(DateTime, int?)>();
 
-        (DateTime, int?) RandomCourtSlot()
+        (DateTime, int?) RandomCourtSlot(int? divisionId)
         {
-            var result = SchedulingSlotPicker.PickCourtSlot(matchWindows, courts, occupied, startDate, endDate, rng);
+            var result = SchedulingSlotPicker.PickCourtSlot(matchWindows, courts, occupied, startDate, endDate, rng, divisionId);
             occupied.Add(result);
             return result;
         }
 
-        CompetitionFixture NewFixture(int compId, int stageId)
+        CompetitionFixture NewFixture(int compId, int stageId, int? divisionId = null)
         {
-            var (slot, courtId) = RandomCourtSlot();
+            var (slot, courtId) = RandomCourtSlot(divisionId);
             return new CompetitionFixture
             {
                 CompetitionId = compId,
@@ -731,6 +731,7 @@ public class CompetitionsController(
 
                         foreach (var group in teamGroups)
                         {
+                            var groupDivisionId = group.Key;
                             var teamIds = group.Select(t => t.CompetitionTeamId).ToList();
                             if (teamIds.Count < 2) continue;
 
@@ -753,7 +754,7 @@ public class CompetitionsController(
 
                                     if (homeTeamId == -1 || awayTeamId == -1) continue; // BYE
 
-                                    var fixture = NewFixture(id, stage.CompetitionStageId);
+                                    var fixture = NewFixture(id, stage.CompetitionStageId, groupDivisionId);
                                     fixture.HomeTeamId = homeTeamId;
                                     fixture.AwayTeamId = awayTeamId;
 

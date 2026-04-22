@@ -5,12 +5,21 @@ public class CompetitionMatchWindow
     public int CompetitionMatchWindowId { get; set; }
     public int CompetitionId { get; set; }
     public int? CourtId { get; set; }
+
+    /// <summary>
+    /// When set, this window only applies to the named division. When null,
+    /// the window is "shared" and applies to every division (plus any
+    /// non-divisioned fixtures).
+    /// </summary>
+    public int? CompetitionDivisionId { get; set; }
+
     public DayOfWeek DayOfWeek { get; set; }
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
 
     public Competition Competition { get; set; } = null!;
     public Court? Court { get; set; }
+    public CompetitionDivision? Division { get; set; }
 }
 
 public class ClubSchedulingTemplate

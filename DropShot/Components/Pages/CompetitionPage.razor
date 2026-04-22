@@ -368,7 +368,13 @@
             @* ── Match Windows ───────────────────────────────── *@
             <MudPaper Class="pa-4 mb-4" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                <MudText Typo="Typo.h6" Class="mb-3">Match Windows</MudText>
+                <MudText Typo="Typo.h6" Class="mb-1">@(Model.HasDivisions ? "Shared Match Windows" : "Match Windows")</MudText>
+                @if (Model.HasDivisions)
+                {
+                    <MudText Typo="Typo.caption" Class="mb-3" Style="opacity:0.75">
+                        These windows apply to <b>every</b> division. Use the <b>Divisions</b> tab to add windows that only apply to a single division.
+                    </MudText>
+                }
 
                 <MudGrid Spacing="1" Class="mb-2">
                     <MudItem xs="3">
@@ -402,14 +408,17 @@
                     </MudItem>
                 </MudGrid>
 
-                @if (_matchWindows.Count > 0)
+                @{
+                    var sharedWindows = _matchWindows.Where(w => w.CompetitionDivisionId == null).ToList();
+                }
+                @if (sharedWindows.Count > 0)
                 {
                     <MudSimpleTable Dense="true" Class="mb-2">
                         <thead>
                             <tr><th>Day</th><th>Court</th><th>From</th><th>To</th><th></th></tr>
                         </thead>
                         <tbody>
-                            @foreach (var w in _matchWindows)
+                            @foreach (var w in sharedWindows)
                             {
                                 <tr>
                                     <td>@w.DayOfWeek</td>
@@ -428,7 +437,7 @@
                 else
                 {
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
-                        No windows defined — auto-schedule will use default time slots.
+                        No shared windows defined — auto-schedule will use default time slots.
                     </MudText>
                 }
 
@@ -1108,6 +1117,90 @@
             <NoRecordsContent><MudText Typo="Typo.caption">No divisions defined yet.</MudText></NoRecordsContent>
         </MudTable>
     </MudPaper>
+
+    @if (_divisions.Count > 0)
+    {
+        <MudPaper Class="pa-4 mb-4" Elevation="0"
+                     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+            <MudText Typo="Typo.h6" Class="mb-1">Match Windows by Division</MudText>
+            <MudText Typo="Typo.caption" Class="mb-3" Style="opacity:0.75">
+                Add windows that only apply when auto-scheduling fixtures in this division.
+                Shared windows (configured on the Setup tab) apply to every division in addition to these.
+            </MudText>
+
+            <MudExpansionPanels MultiExpansion="true">
+                @foreach (var d in _divisions)
+                {
+                    var divId = d.CompetitionDivisionId;
+                    var divWindows = _matchWindows.Where(w => w.CompetitionDivisionId == divId).ToList();
+                    var form = GetDivisionWindowForm(divId);
+                    <MudExpansionPanel Text="@($"{d.Name} ({divWindows.Count} window{(divWindows.Count == 1 ? "" : "s")})")">
+                        <MudGrid Spacing="1" Class="mb-2">
+                            <MudItem xs="3">
+                                <MudSelect @bind-Value="form.Day" Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    @foreach (DayOfWeek dow in Enum.GetValues<DayOfWeek>())
+                                    {
+                                        <MudSelectItem Value="@dow">@dow</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="3">
+                                <MudSelect @bind-Value="form.CourtId" Label="Court" Variant="Variant.Outlined"
+                                           Margin="Margin.Dense" Clearable="true">
+                                    @foreach (var c in _courts)
+                                    {
+                                        <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="2">
+                                <MudTimePicker @bind-Time="form.Start" Label="From" Variant="Variant.Outlined"
+                                               Margin="Margin.Dense" AmPm="false" />
+                            </MudItem>
+                            <MudItem xs="2">
+                                <MudTimePicker @bind-Time="form.End" Label="To" Variant="Variant.Outlined"
+                                               Margin="Margin.Dense" AmPm="false" />
+                            </MudItem>
+                            <MudItem xs="2" Class="d-flex align-center">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => AddDivisionMatchWindow(divId))">Add</MudButton>
+                            </MudItem>
+                        </MudGrid>
+
+                        @if (divWindows.Count > 0)
+                        {
+                            <MudSimpleTable Dense="true" Class="mb-2">
+                                <thead>
+                                    <tr><th>Day</th><th>Court</th><th>From</th><th>To</th><th></th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var w in divWindows)
+                                    {
+                                        <tr>
+                                            <td>@w.DayOfWeek</td>
+                                            <td>@(w.Court?.Name ?? "All courts")</td>
+                                            <td>@w.StartTime.ToString(@"hh\:mm")</td>
+                                            <td>@w.EndTime.ToString(@"hh\:mm")</td>
+                                            <td>
+                                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                               Color="Color.Error" OnClick="@(() => DeleteMatchWindow(w))" />
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                                No division-specific windows — this division falls back to the shared windows only.
+                            </MudText>
+                        }
+                    </MudExpansionPanel>
+                }
+            </MudExpansionPanels>
+        </MudPaper>
+    }
 
     @if (_showDivisionDialog)
     {
@@ -2850,12 +2943,17 @@
         var teams = await db.CompetitionTeams
             .Where(t => t.CompetitionDivisionId == d.CompetitionDivisionId).ToListAsync();
         foreach (var t in teams) t.CompetitionDivisionId = null;
+        var divWindows = await db.CompetitionMatchWindows
+            .Where(w => w.CompetitionDivisionId == d.CompetitionDivisionId).ToListAsync();
+        if (divWindows.Count > 0) db.CompetitionMatchWindows.RemoveRange(divWindows);
         var row = await db.CompetitionDivisions.FindAsync(d.CompetitionDivisionId);
         if (row != null) db.CompetitionDivisions.Remove(row);
         await db.SaveChangesAsync();
 
         foreach (var p in _participants.Where(p => p.CompetitionDivisionId == d.CompetitionDivisionId)) p.CompetitionDivisionId = null;
         foreach (var t in _teams.Where(t => t.CompetitionDivisionId == d.CompetitionDivisionId)) t.CompetitionDivisionId = null;
+        _matchWindows.RemoveAll(w => w.CompetitionDivisionId == d.CompetitionDivisionId);
+        _divisionWindowForms.Remove(d.CompetitionDivisionId);
         _divisions.Remove(d);
     }
 
@@ -3754,6 +3852,53 @@
         if (w != null) { db.CompetitionMatchWindows.Remove(w); await db.SaveChangesAsync(); }
         _matchWindows.Remove(window);
         Snackbar.Add("Window removed.", Severity.Warning);
+    }
+
+    // ── Per-division match windows ──────────────────────────────────────────
+    private class DivisionWindowForm
+    {
+        public DayOfWeek Day { get; set; } = DayOfWeek.Monday;
+        public int? CourtId { get; set; }
+        public TimeSpan? Start { get; set; }
+        public TimeSpan? End { get; set; }
+    }
+    private readonly Dictionary<int, DivisionWindowForm> _divisionWindowForms = [];
+
+    private DivisionWindowForm GetDivisionWindowForm(int divisionId)
+    {
+        if (!_divisionWindowForms.TryGetValue(divisionId, out var form))
+        {
+            form = new DivisionWindowForm();
+            _divisionWindowForms[divisionId] = form;
+        }
+        return form;
+    }
+
+    private async Task AddDivisionMatchWindow(int divisionId)
+    {
+        var form = GetDivisionWindowForm(divisionId);
+        if (form.Start == null || form.End == null || form.End <= form.Start) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var w = new CompetitionMatchWindow
+        {
+            CompetitionId          = Id,
+            CompetitionDivisionId  = divisionId,
+            CourtId                = form.CourtId,
+            DayOfWeek              = form.Day,
+            StartTime              = form.Start.Value,
+            EndTime                = form.End.Value
+        };
+        db.CompetitionMatchWindows.Add(w);
+        await db.SaveChangesAsync();
+        w.Court = _courts.FirstOrDefault(c => c.CourtId == form.CourtId);
+        _matchWindows.Add(w);
+        _matchWindows = [.. _matchWindows.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime)];
+
+        form.CourtId = null;
+        form.Start = null;
+        form.End = null;
+        Snackbar.Add("Division window added.", Severity.Success);
     }
 
     private async Task ImportFromTemplate(int? templateId)
