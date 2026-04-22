@@ -4491,16 +4491,20 @@
         // For TeamMatch, each slot books a CourtPair (stored in courtId) and we
         // additionally mark both underlying courts as busy at that time.
         // For other formats, each slot books a single Court.
-        var allSlots = new List<(DateTime time, int? courtId)>();
+        // Each slot carries the window's divisionId (null = shared / applies to
+        // every division). PickSlot filters by the requested division so that a
+        // fixture for Division A never lands in a slot derived from Division B's
+        // windows.
+        var allSlots = new List<(DateTime time, int? courtId, int? divisionId)>();
         var courtIdToPair = _courtPairs.ToDictionary(
             cp => cp.CourtPairId,
             cp => (cp.Court1Id, cp.Court2Id));
 
-        void AddTeamMatchSlotsForTime(DateTime time, int? windowCourtId)
+        void AddTeamMatchSlotsForTime(DateTime time, int? windowCourtId, int? divisionId)
         {
             if (_courtPairs.Count == 0)
             {
-                allSlots.Add((time, null));
+                allSlots.Add((time, null, divisionId));
                 return;
             }
             // Window-specific court: include pairs containing that court.
@@ -4509,7 +4513,7 @@
                 ? _courtPairs.Where(cp => cp.Court1Id == windowCourtId || cp.Court2Id == windowCourtId)
                 : _courtPairs;
             foreach (var cp in candidates)
-                allSlots.Add((time, cp.CourtPairId));
+                allSlots.Add((time, cp.CourtPairId, divisionId));
         }
 
         if (_matchWindows.Count > 0)
@@ -4520,22 +4524,23 @@
                 foreach (var w in _matchWindows.Where(w => w.DayOfWeek == d.DayOfWeek))
                 {
                     var time = d + w.StartTime;
+                    var divId = w.CompetitionDivisionId;
                     if (isTeamMatchScheduling)
                     {
-                        AddTeamMatchSlotsForTime(time, w.CourtId);
+                        AddTeamMatchSlotsForTime(time, w.CourtId, divId);
                     }
                     else if (w.CourtId.HasValue)
                     {
-                        allSlots.Add((time, w.CourtId));
+                        allSlots.Add((time, w.CourtId, divId));
                     }
                     else if (_courts.Count > 0)
                     {
                         foreach (var court in _courts)
-                            allSlots.Add((time, court.CourtId));
+                            allSlots.Add((time, court.CourtId, divId));
                     }
                     else
                     {
-                        allSlots.Add((time, null));
+                        allSlots.Add((time, null, divId));
                     }
                 }
             }
@@ -4551,16 +4556,16 @@
                     var time = d.AddMinutes(mins);
                     if (isTeamMatchScheduling)
                     {
-                        AddTeamMatchSlotsForTime(time, null);
+                        AddTeamMatchSlotsForTime(time, null, null);
                     }
                     else if (_courts.Count > 0)
                     {
                         foreach (var court in _courts)
-                            allSlots.Add((time, court.CourtId));
+                            allSlots.Add((time, court.CourtId, null));
                     }
                     else
                     {
-                        allSlots.Add((time, null));
+                        allSlots.Add((time, null, null));
                     }
                 }
             }
@@ -4580,13 +4585,17 @@
         // are always scheduled after earlier ones (players may be in both)
         DateTime? earliestAllowedTime = null;
 
-        (DateTime time, int? courtId)? PickSlot(List<int> playerIds, List<int> teamIds)
+        (DateTime time, int? courtId)? PickSlot(List<int> playerIds, List<int> teamIds, int? requestedDivisionId = null)
         {
             // Scan all slots from the beginning for the earliest valid one
             for (int i = 0; i < allSlots.Count; i++)
             {
                 var slot = allSlots[i];
-                if (usedSlots.Contains(slot)) continue;
+                if (usedSlots.Contains((slot.time, slot.courtId))) continue;
+
+                // Division filter: a slot tagged with a division only fits that
+                // division. Untagged (shared) slots fit any division.
+                if (slot.divisionId.HasValue && slot.divisionId != requestedDivisionId) continue;
 
                 // Must be after all prior stages
                 if (earliestAllowedTime.HasValue && slot.time <= earliestAllowedTime.Value) continue;
@@ -4611,7 +4620,7 @@
                 if (conflict) continue;
 
                 // Found a valid slot
-                usedSlots.Add(slot);
+                usedSlots.Add((slot.time, slot.courtId));
                 if (playerIds.Count > 0)
                 {
                     if (!playerBusyAt.TryGetValue(slot.time, out var pSet))
@@ -4632,14 +4641,14 @@
                     cSet.Add(pc.Court1Id);
                     cSet.Add(pc.Court2Id);
                 }
-                return slot;
+                return (slot.time, slot.courtId);
             }
             return null; // No valid slot found
         }
 
-        CompetitionFixture? NewScheduledFixture(List<int>? playerIds = null, List<int>? teamIds = null)
+        CompetitionFixture? NewScheduledFixture(List<int>? playerIds = null, List<int>? teamIds = null, int? divisionId = null)
         {
-            var slot = PickSlot(playerIds ?? [], teamIds ?? []);
+            var slot = PickSlot(playerIds ?? [], teamIds ?? [], divisionId);
             if (slot == null) return null;
             var fixture = new CompetitionFixture
             {
@@ -4656,6 +4665,57 @@
 
         var newFixtures = new List<CompetitionFixture>();
         int unscheduledCount = 0;
+
+        // ── Knockout bucket enumeration + label helpers ────────────────────
+        IEnumerable<(string? DivPrefix, int? DivisionId, int N)> EnumerateScheduleBuckets()
+        {
+            if ((Model?.HasDivisions ?? false) && _divisions.Count > 0)
+            {
+                foreach (var d in _divisions.OrderBy(x => x.Rank))
+                {
+                    int bucketN = isTeamComp
+                        ? _teams.Count(t => t.CompetitionDivisionId == d.CompetitionDivisionId)
+                        : _participants.Count(p =>
+                            p.CompetitionDivisionId == d.CompetitionDivisionId &&
+                            (p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed));
+                    yield return (d.Name, d.CompetitionDivisionId, bucketN);
+                }
+            }
+            else
+            {
+                yield return (null, null, n);
+            }
+        }
+
+        void AddKnockoutFixtures(string fullLabel, string shortLabel, int count, int roundNumber,
+                                 string? divPrefix, int? divisionId, int stageId)
+        {
+            for (int m = 0; m < count; m++)
+            {
+                var label = divPrefix is null
+                    ? $"{fullLabel} {m + 1}"
+                    : $"{divPrefix} {shortLabel} {m + 1}";
+                if (existingLabels.Contains(((int?)stageId, label))) continue;
+                var f = NewScheduledFixture(divisionId: divisionId);
+                if (f == null) { unscheduledCount++; continue; }
+                f.CompetitionStageId = stageId;
+                f.FixtureLabel = label;
+                f.RoundNumber = roundNumber;
+                newFixtures.Add(f);
+            }
+        }
+
+        void AddKnockoutFinal(int roundNumber, string? divPrefix, int? divisionId, int stageId)
+        {
+            var label = divPrefix is null ? "Final" : $"{divPrefix} Final";
+            if (existingLabels.Contains(((int?)stageId, label))) return;
+            var f = NewScheduledFixture(divisionId: divisionId);
+            if (f == null) { unscheduledCount++; return; }
+            f.CompetitionStageId = stageId;
+            f.FixtureLabel = label;
+            f.RoundNumber = roundNumber;
+            newFixtures.Add(f);
+        }
 
         foreach (var stage in _stages)
         {
@@ -4695,6 +4755,7 @@
 
                         foreach (var group in teamGroups)
                         {
+                            var groupDivisionId = group.Key;
                             var teamIds = group.Select(t => t.CompetitionTeamId).ToList();
                             if (teamIds.Count < 2) continue;
                             if (teamIds.Count % 2 != 0) teamIds.Add(-1); // BYE sentinel
@@ -4718,7 +4779,7 @@
                                                    (int?)stage.CompetitionStageId);
                                     if (existingTeamPairs.Contains(teamKey)) continue;
 
-                                    var fixture = NewScheduledFixture(teamIds: [homeTeamId, awayTeamId]);
+                                    var fixture = NewScheduledFixture(teamIds: [homeTeamId, awayTeamId], divisionId: groupDivisionId);
                                     if (fixture == null) { unscheduledCount++; continue; }
                                     fixture.CompetitionStageId = stage.CompetitionStageId;
                                     fixture.HomeTeamId = homeTeamId;
@@ -4780,103 +4841,44 @@
                 {
                     // Only generates the sub-rounds not already covered by explicit
                     // stage entries, preventing duplicate QF / SF / Final fixtures.
-                    if (n < 2) break;
-
-                    bool koGeneratesQF    = n >= 8 && !hasExplicitQF;
-                    bool koGeneratesSF    = !hasExplicitSF;
-                    bool koGeneratesFinal = !hasExplicitFinal;
-
-                    if (koGeneratesQF)
+                    // When HasDivisions is on, emits a full ladder per division.
+                    foreach (var (divPrefix, divisionId, bucketN) in EnumerateScheduleBuckets())
                     {
-                        for (int m = 0; m < 4; m++)
-                        {
-                            var label = $"Quarter-Final {m + 1}";
-                            if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                            var qfF = NewScheduledFixture();
-                            if (qfF == null) { unscheduledCount++; continue; }
-                            qfF.CompetitionStageId = stage.CompetitionStageId;
-                            qfF.FixtureLabel = label;
-                            qfF.RoundNumber = 1;
-                            newFixtures.Add(qfF);
-                        }
-                    }
+                        if (bucketN < 2) continue;
+                        bool genQF    = bucketN >= 8 && !hasExplicitQF;
+                        bool genSF    = !hasExplicitSF;
+                        bool genFinal = !hasExplicitFinal;
 
-                    if (koGeneratesSF)
-                    {
-                        for (int m = 0; m < 2; m++)
-                        {
-                            var label = $"Semi-Final {m + 1}";
-                            if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                            var sfF = NewScheduledFixture();
-                            if (sfF == null) { unscheduledCount++; continue; }
-                            sfF.CompetitionStageId = stage.CompetitionStageId;
-                            sfF.FixtureLabel = label;
-                            sfF.RoundNumber = koGeneratesQF ? 2 : 1;
-                            newFixtures.Add(sfF);
-                        }
-                    }
-
-                    if (koGeneratesFinal && !existingLabels.Contains(((int?)stage.CompetitionStageId, "Final")))
-                    {
-                        var finalF = NewScheduledFixture();
-                        if (finalF != null)
-                        {
-                            finalF.CompetitionStageId = stage.CompetitionStageId;
-                            finalF.FixtureLabel = "Final";
-                            finalF.RoundNumber = koGeneratesQF ? 3 : koGeneratesSF ? 2 : 1;
-                            newFixtures.Add(finalF);
-                        }
-                        else unscheduledCount++;
+                        if (genQF)
+                            AddKnockoutFixtures("Quarter-Final", "QF", 4, 1, divPrefix, divisionId, stage.CompetitionStageId);
+                        if (genSF)
+                            AddKnockoutFixtures("Semi-Final", "SF", 2, genQF ? 2 : 1, divPrefix, divisionId, stage.CompetitionStageId);
+                        if (genFinal)
+                            AddKnockoutFinal(genQF ? 3 : genSF ? 2 : 1, divPrefix, divisionId, stage.CompetitionStageId);
                     }
                     break;
                 }
 
                 case StageType.QuarterFinal:
                 {
-                    for (int m = 0; m < 4; m++)
-                    {
-                        var label = $"Quarter-Final {m + 1}";
-                        if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                        var qf = NewScheduledFixture();
-                        if (qf == null) { unscheduledCount++; continue; }
-                        qf.CompetitionStageId = stage.CompetitionStageId;
-                        qf.FixtureLabel = label;
-                        qf.RoundNumber = 1;
-                        newFixtures.Add(qf);
-                    }
+                    foreach (var (divPrefix, divisionId, _) in EnumerateScheduleBuckets())
+                        AddKnockoutFixtures("Quarter-Final", "QF", 4, 1, divPrefix, divisionId, stage.CompetitionStageId);
                     break;
                 }
 
                 case StageType.SemiFinal:
                 {
-                    for (int m = 0; m < 2; m++)
-                    {
-                        var label = $"Semi-Final {m + 1}";
-                        if (existingLabels.Contains(((int?)stage.CompetitionStageId, label))) continue;
-                        var sf = NewScheduledFixture();
-                        if (sf == null) { unscheduledCount++; continue; }
-                        sf.CompetitionStageId = stage.CompetitionStageId;
-                        sf.FixtureLabel = label;
-                        sf.RoundNumber = 1;
-                        newFixtures.Add(sf);
-                    }
+                    foreach (var (divPrefix, divisionId, _) in EnumerateScheduleBuckets())
+                        AddKnockoutFixtures("Semi-Final", "SF", 2, 1, divPrefix, divisionId, stage.CompetitionStageId);
                     break;
                 }
 
                 case StageType.Final:
-                    if (!existingLabels.Contains(((int?)stage.CompetitionStageId, "Final")))
-                    {
-                        var fin = NewScheduledFixture();
-                        if (fin != null)
-                        {
-                            fin.CompetitionStageId = stage.CompetitionStageId;
-                            fin.FixtureLabel = "Final";
-                            fin.RoundNumber = 1;
-                            newFixtures.Add(fin);
-                        }
-                        else unscheduledCount++;
-                    }
+                {
+                    foreach (var (divPrefix, divisionId, _) in EnumerateScheduleBuckets())
+                        AddKnockoutFinal(1, divPrefix, divisionId, stage.CompetitionStageId);
                     break;
+                }
             }
 
             // After each stage: update the earliest allowed time for the next stage
