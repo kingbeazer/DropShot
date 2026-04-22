@@ -1,0 +1,164 @@
+@page "/leagues"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using DropShot.Data
+@using DropShot.Models
+@using DropShot.Services
+@using Microsoft.EntityFrameworkCore
+
+@inject NavigationManager Nav
+@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ClubAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<MudProviders />
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.h4" Style="flex:1">Leagues</MudText>
+        @if (_canCreate)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenCreateDialog">
+                New league
+            </MudButton>
+        }
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (!_leagues.Any())
+    {
+        <MudAlert Severity="Severity.Info">No leagues yet. Create one to get started.</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="@_leagues" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Club</MudTh>
+                <MudTh>Seasons</MudTh>
+                <MudTh>Members</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@(context.HostClub?.Name ?? "—")</MudTd>
+                <MudTd>@context.Seasons.Count</MudTd>
+                <MudTd>@context.Memberships.Count(m => m.IsActive)</MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                               OnClick="@(() => Nav.NavigateTo($"/leagues/{context.LeagueId}"))">
+                        Open
+                    </MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+
+    @if (_showCreateDialog)
+    {
+        <MudDialog @bind-Visible="_showCreateDialog" Options="@(new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small })">
+            <TitleContent>Create league</TitleContent>
+            <DialogContent>
+                <MudStack Spacing="2">
+                    <MudTextField T="string" Label="Name" @bind-Value="_newLeagueName" Required="true" />
+                    <MudSelect T="int?" Label="Host club" @bind-Value="_newLeagueHostClubId" Required="true">
+                        @foreach (var c in _clubs)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudNumericField T="int" Label="Teams per division (target)" @bind-Value="_newTeamsPerDivision" Min="2" Max="16" />
+                    <MudNumericField T="int" Label="Team size" @bind-Value="_newTeamSize" Min="2" Max="12" />
+                </MudStack>
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="@(() => _showCreateDialog = false)">Cancel</MudButton>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                           OnClick="CreateLeague" Disabled="_creating">Create</MudButton>
+            </DialogActions>
+        </MudDialog>
+    }
+</MudContainer>
+
+@code {
+    private bool _loading = true;
+    private bool _canCreate;
+    private List<League> _leagues = [];
+    private List<Club> _clubs = [];
+
+    private bool _showCreateDialog;
+    private bool _creating;
+    private string _newLeagueName = "";
+    private int? _newLeagueHostClubId;
+    private int _newTeamsPerDivision = 8;
+    private int _newTeamSize = 4;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        _leagues = await db.Leagues.AsNoTracking()
+            .Include(l => l.HostClub)
+            .Include(l => l.Seasons)
+            .Include(l => l.Memberships)
+            .Where(l => !l.IsArchived)
+            .OrderBy(l => l.Name)
+            .ToListAsync();
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var adminClubIds = await AuthzService.GetAdminClubIdsAsync(authState.User);
+        bool isAdmin = await AuthzService.IsAdminAsync(authState.User);
+        _canCreate = isAdmin || adminClubIds.Count > 0;
+
+        if (_canCreate)
+        {
+            _clubs = await db.Clubs
+                .Where(c => isAdmin || adminClubIds.Contains(c.ClubId))
+                .OrderBy(c => c.Name)
+                .ToListAsync();
+            _newLeagueHostClubId = _clubs.FirstOrDefault()?.ClubId;
+        }
+        _loading = false;
+    }
+
+    private void OpenCreateDialog()
+    {
+        _newLeagueName = "";
+        _newTeamsPerDivision = 8;
+        _newTeamSize = 4;
+        _showCreateDialog = true;
+    }
+
+    private async Task CreateLeague()
+    {
+        if (string.IsNullOrWhiteSpace(_newLeagueName) || !_newLeagueHostClubId.HasValue) return;
+        _creating = true;
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var league = new League
+            {
+                Name = _newLeagueName.Trim(),
+                HostClubId = _newLeagueHostClubId.Value,
+                TeamsPerDivisionTarget = _newTeamsPerDivision,
+                TeamSize = _newTeamSize,
+            };
+            db.Leagues.Add(league);
+            await db.SaveChangesAsync();
+            _showCreateDialog = false;
+            Snackbar.Add($"League '{league.Name}' created.", Severity.Success);
+            Nav.NavigateTo($"/leagues/{league.LeagueId}");
+        }
+        finally
+        {
+            _creating = false;
+        }
+    }
+}

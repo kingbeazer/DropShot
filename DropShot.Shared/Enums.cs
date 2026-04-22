@@ -56,3 +56,22 @@ public enum FixtureStatus : byte
     Cancelled = 4,
     Walkover = 5
 }
+
+public enum MatchFormatType : byte
+{
+    BestOf = 1,
+    FixedSets = 2
+}
+
+public enum LeagueScoringMode : byte
+{
+    WinPoints = 1,
+    SetsWon = 2,
+    GamesWon = 3
+}
+
+public enum SetWinMode : byte
+{
+    WinBy2 = 0,
+    FirstTo = 1
+}
