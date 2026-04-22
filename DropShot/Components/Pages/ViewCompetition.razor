@@ -110,8 +110,47 @@ else
                         <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
                     </MudTd>
                     <MudTd DataLabel="Result">
-                        @if ((context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification)
-                             && !string.IsNullOrEmpty(context.ResultSummary))
+                        @{
+                            bool isTeamFixtureRow = context.HomeTeamId.HasValue && context.AwayTeamId.HasValue;
+                            bool hasResult = context.Status == FixtureStatus.Completed
+                                || context.Status == FixtureStatus.AwaitingVerification;
+                            var teamResult = (isTeamFixtureRow && context.Rubbers.Any(r => r.IsComplete))
+                                ? RubberResolutionService.ComputeLeagueScore(
+                                    context.Rubbers,
+                                    context.HomeTeamId!.Value,
+                                    context.AwayTeamId!.Value,
+                                    _competition?.LeagueScoring ?? LeagueScoringMode.WinPoints)
+                                : (homeFor: 0, awayFor: 0, unitLabel: "");
+                            bool homeWon = context.WinnerTeamId == context.HomeTeamId;
+                            bool awayWon = context.WinnerTeamId == context.AwayTeamId;
+                        }
+                        @if (hasResult && isTeamFixtureRow && context.Rubbers.Any(r => r.IsComplete))
+                        {
+                            <MudStack Spacing="0" Style="min-width:160px">
+                                <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                    <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                        @(context.HomeTeam?.Name ?? "Home")
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                        @teamResult.homeFor
+                                    </MudText>
+                                </MudStack>
+                                <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                    <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                        @(context.AwayTeam?.Name ?? "Away")
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                        @teamResult.awayFor
+                                    </MudText>
+                                </MudStack>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@teamResult.unitLabel</MudText>
+                            </MudStack>
+                            @if (context.Status == FixtureStatus.AwaitingVerification)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
+                            }
+                        }
+                        else if (hasResult && !isTeamFixtureRow && !string.IsNullOrEmpty(context.ResultSummary))
                         {
                             <ResultCard Fixture="context" Compact="true" />
                             @if (context.ResultModifiedByAdmin)
@@ -125,7 +164,7 @@ else
                                 <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
                             }
                         }
-                        else if (context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification)
+                        else if (hasResult)
                         {
                             <MudText Typo="Typo.body2" Style="font-weight:500">
                                 @(WinnerName(context))
