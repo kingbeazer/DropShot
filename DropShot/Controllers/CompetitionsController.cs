@@ -648,6 +648,7 @@ public class CompetitionsController(
             .Include(c => c.Teams)
             .Include(c => c.CourtPairs)
             .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
+            .Include(c => c.Divisions)
             .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
@@ -802,88 +803,111 @@ public class CompetitionsController(
 
                 case DropShot.Models.StageType.Knockout:
                 {
-                    int n = (isTeamFormat && comp.Teams.Count >= 2)
-                        ? comp.Teams.Count
-                        : activePlayers.Count;
-                    if (n < 2) break;
-
-                    if (n >= 8)
+                    foreach (var (divPrefix, divisionId, n) in EnumerateKnockoutBuckets(comp, isTeamFormat, activePlayers))
                     {
-                        // ── Quarter-Finals (players assigned automatically when RR completes) ──
-                        for (int m = 0; m < 4; m++)
+                        if (n < 2) continue;
+                        if (n >= 8)
                         {
-                            var qf = NewFixture(id, stage.CompetitionStageId);
-                            qf.FixtureLabel = $"Quarter-Final {m + 1}";
-                            qf.RoundNumber = 1;
-                            db.CompetitionFixtures.Add(qf);
+                            AddQuarterFinals(divPrefix, divisionId, stage.CompetitionStageId, roundNumber: 1);
+                            AddSemiFinals(divPrefix, divisionId, stage.CompetitionStageId, roundNumber: 2);
                         }
-
-                        // ── Semi-Finals (players assigned automatically when QF completes) ───
-                        for (int m = 0; m < 2; m++)
+                        else
                         {
-                            var sf = NewFixture(id, stage.CompetitionStageId);
-                            sf.FixtureLabel = $"Semi-Final {m + 1}";
-                            sf.RoundNumber = 2;
-                            db.CompetitionFixtures.Add(sf);
+                            AddSemiFinals(divPrefix, divisionId, stage.CompetitionStageId, roundNumber: 1);
                         }
+                        AddFinal(divPrefix, divisionId, stage.CompetitionStageId, roundNumber: n >= 8 ? 3 : 2);
                     }
-                    else
-                    {
-                        // ── Semi-Finals (players assigned automatically when RR completes) ────
-                        for (int m = 0; m < 2; m++)
-                        {
-                            var sf = NewFixture(id, stage.CompetitionStageId);
-                            sf.FixtureLabel = $"Semi-Final {m + 1}";
-                            sf.RoundNumber = 1;
-                            db.CompetitionFixtures.Add(sf);
-                        }
-                    }
-
-                    // ── Final (always a placeholder) ─────────────────────────────
-                    var final1 = NewFixture(id, stage.CompetitionStageId);
-                    final1.FixtureLabel = "Final";
-                    final1.RoundNumber = n >= 8 ? 3 : 2;
-                    db.CompetitionFixtures.Add(final1);
                     break;
                 }
 
                 case DropShot.Models.StageType.Final:
                 {
-                    var final2 = NewFixture(id, stage.CompetitionStageId);
-                    final2.FixtureLabel = "Final";
-                    final2.RoundNumber = 1;
-                    db.CompetitionFixtures.Add(final2);
+                    foreach (var (divPrefix, divisionId, _) in EnumerateKnockoutBuckets(comp, isTeamFormat, activePlayers))
+                        AddFinal(divPrefix, divisionId, stage.CompetitionStageId, roundNumber: 1);
                     break;
                 }
 
                 case DropShot.Models.StageType.QuarterFinal:
                 {
-                    for (int m = 0; m < 4; m++)
-                    {
-                        var qf = NewFixture(id, stage.CompetitionStageId);
-                        qf.FixtureLabel = $"Quarter-Final {m + 1}";
-                        qf.RoundNumber = 1;
-                        db.CompetitionFixtures.Add(qf);
-                    }
+                    foreach (var (divPrefix, divisionId, _) in EnumerateKnockoutBuckets(comp, isTeamFormat, activePlayers))
+                        AddQuarterFinals(divPrefix, divisionId, stage.CompetitionStageId, roundNumber: 1);
                     break;
                 }
 
                 case DropShot.Models.StageType.SemiFinal:
                 {
-                    for (int m = 0; m < 2; m++)
-                    {
-                        var sf = NewFixture(id, stage.CompetitionStageId);
-                        sf.FixtureLabel = $"Semi-Final {m + 1}";
-                        sf.RoundNumber = 1;
-                        db.CompetitionFixtures.Add(sf);
-                    }
+                    foreach (var (divPrefix, divisionId, _) in EnumerateKnockoutBuckets(comp, isTeamFormat, activePlayers))
+                        AddSemiFinals(divPrefix, divisionId, stage.CompetitionStageId, roundNumber: 1);
                     break;
                 }
             }
         }
 
+        // ── Local helpers ────────────────────────────────────────────────────
+        void AddQuarterFinals(string? divPrefix, int? divisionId, int stageId, int roundNumber)
+        {
+            for (int m = 0; m < 4; m++)
+            {
+                var qf = NewFixture(id, stageId, divisionId);
+                qf.FixtureLabel = divPrefix is null ? $"Quarter-Final {m + 1}" : $"{divPrefix} QF {m + 1}";
+                qf.RoundNumber = roundNumber;
+                db.CompetitionFixtures.Add(qf);
+            }
+        }
+
+        void AddSemiFinals(string? divPrefix, int? divisionId, int stageId, int roundNumber)
+        {
+            for (int m = 0; m < 2; m++)
+            {
+                var sf = NewFixture(id, stageId, divisionId);
+                sf.FixtureLabel = divPrefix is null ? $"Semi-Final {m + 1}" : $"{divPrefix} SF {m + 1}";
+                sf.RoundNumber = roundNumber;
+                db.CompetitionFixtures.Add(sf);
+            }
+        }
+
+        void AddFinal(string? divPrefix, int? divisionId, int stageId, int roundNumber)
+        {
+            var f = NewFixture(id, stageId, divisionId);
+            f.FixtureLabel = divPrefix is null ? "Final" : $"{divPrefix} Final";
+            f.RoundNumber = roundNumber;
+            db.CompetitionFixtures.Add(f);
+        }
+
         await db.SaveChangesAsync();
         return Ok();
+    }
+
+    // ── Knockout bucket enumeration ──────────────────────────────────────────
+    // For divisional competitions, knockout stages need one bucket per division.
+    // For a non-divisional competition, there's a single bucket covering every
+    // team or player. Each yielded tuple carries a label prefix (null when no
+    // division), the division id for window filtering during scheduling, and
+    // the contestant count used to decide whether to emit QFs or just SFs.
+    private static IEnumerable<(string? DivisionPrefix, int? DivisionId, int N)>
+        EnumerateKnockoutBuckets(
+            DropShot.Models.Competition comp,
+            bool isTeamFormat,
+            IReadOnlyList<int> activePlayers)
+    {
+        if (comp.HasDivisions && comp.Divisions.Any())
+        {
+            foreach (var d in comp.Divisions.OrderBy(x => x.Rank))
+            {
+                int n = isTeamFormat
+                    ? comp.Teams.Count(t => t.CompetitionDivisionId == d.CompetitionDivisionId)
+                    : comp.Participants.Count(p =>
+                        p.CompetitionDivisionId == d.CompetitionDivisionId &&
+                        (p.Status == DropShot.Models.ParticipantStatus.Registered ||
+                         p.Status == DropShot.Models.ParticipantStatus.Confirmed));
+                yield return (d.Name, d.CompetitionDivisionId, n);
+            }
+        }
+        else
+        {
+            int n = (isTeamFormat && comp.Teams.Count >= 2) ? comp.Teams.Count : activePlayers.Count;
+            yield return (null, null, n);
+        }
     }
 
     // ── League Table ──────────────────────────────────────────────────────────
