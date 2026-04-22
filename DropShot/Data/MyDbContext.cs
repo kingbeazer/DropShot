@@ -40,10 +40,7 @@ namespace DropShot.Data
         public DbSet<Rubber> Rubbers { get; set; }
         public DbSet<CompetitionRubberTemplate> CompetitionRubberTemplates { get; set; }
         public DbSet<RubberTemplateRubber> RubberTemplateRubbers { get; set; }
-        public DbSet<League> Leagues { get; set; }
-        public DbSet<LeagueSeason> LeagueSeasons { get; set; }
-        public DbSet<LeagueDivision> LeagueDivisions { get; set; }
-        public DbSet<LeagueMembership> LeagueMemberships { get; set; }
+        public DbSet<CompetitionDivision> CompetitionDivisions { get; set; }
         public DbSet<PlayerInvitation> PlayerInvitations { get; set; }
         public DbSet<ClubLinkRequest> ClubLinkRequests { get; set; }
         public DbSet<CompetitionAllowedPlayer> CompetitionAllowedPlayers { get; set; }
@@ -133,6 +130,11 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(c => c.CreatorUserId)
                       .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(c => c.SeededFromCompetition)
+                      .WithMany()
+                      .HasForeignKey(c => c.SeededFromCompetitionId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // ── CompetitionAllowedPlayer ─────────────────────────────────────────
@@ -287,6 +289,11 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(t => t.CaptainPlayerId)
                       .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(t => t.Division)
+                      .WithMany(d => d.Teams)
+                      .HasForeignKey(t => t.CompetitionDivisionId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // ── CompetitionParticipant ───────────────────────────────────────────
@@ -310,6 +317,11 @@ namespace DropShot.Data
                       .WithMany(t => t.Participants)
                       .HasForeignKey(cp => cp.TeamId)
                       .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(cp => cp.Division)
+                      .WithMany(d => d.Participants)
+                      .HasForeignKey(cp => cp.CompetitionDivisionId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // ── CompetitionStage ─────────────────────────────────────────────────
@@ -603,58 +615,14 @@ namespace DropShot.Data
                       .OnDelete(DeleteBehavior.SetNull);
             });
 
-            // ── League / LeagueSeason / LeagueDivision / LeagueMembership ─────
-            builder.Entity<League>(entity =>
-            {
-                entity.Property(l => l.Name).HasMaxLength(120).IsRequired();
-                entity.Property(l => l.RubberTemplateKey).HasMaxLength(32);
-                entity.Property(l => l.CompetitionFormat).HasConversion<int>();
-                entity.Property(l => l.LeagueScoring).HasConversion<byte>();
-                entity.Property(l => l.MatchFormat).HasConversion<byte>();
-                entity.Property(l => l.SetWinMode).HasConversion<byte>();
-                entity.HasIndex(l => l.HostClubId);
-                entity.HasOne(l => l.HostClub)
-                      .WithMany()
-                      .HasForeignKey(l => l.HostClubId)
-                      .OnDelete(DeleteBehavior.Restrict);
-            });
-
-            builder.Entity<LeagueSeason>(entity =>
-            {
-                entity.Property(s => s.Name).HasMaxLength(80).IsRequired();
-                entity.Property(s => s.Status).HasConversion<byte>();
-                entity.HasIndex(s => new { s.LeagueId, s.Name }).IsUnique();
-                entity.HasOne(s => s.League)
-                      .WithMany(l => l.Seasons)
-                      .HasForeignKey(s => s.LeagueId)
-                      .OnDelete(DeleteBehavior.Cascade);
-            });
-
-            builder.Entity<LeagueDivision>(entity =>
+            // ── CompetitionDivision ───────────────────────────────────────────
+            builder.Entity<CompetitionDivision>(entity =>
             {
                 entity.Property(d => d.Name).HasMaxLength(80).IsRequired();
-                entity.HasIndex(d => new { d.LeagueSeasonId, d.Rank }).IsUnique();
-                entity.HasIndex(d => d.CompetitionId).IsUnique();
-                entity.HasOne(d => d.Season)
-                      .WithMany(s => s.Divisions)
-                      .HasForeignKey(d => d.LeagueSeasonId)
-                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(d => new { d.CompetitionId, d.Rank }).IsUnique();
                 entity.HasOne(d => d.Competition)
-                      .WithOne(c => c.LeagueDivision!)
-                      .HasForeignKey<LeagueDivision>(d => d.CompetitionId)
-                      .OnDelete(DeleteBehavior.Restrict);
-            });
-
-            builder.Entity<LeagueMembership>(entity =>
-            {
-                entity.HasKey(m => new { m.LeagueId, m.PlayerId });
-                entity.HasOne(m => m.League)
-                      .WithMany(l => l.Memberships)
-                      .HasForeignKey(m => m.LeagueId)
-                      .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(m => m.Player)
-                      .WithMany()
-                      .HasForeignKey(m => m.PlayerId)
+                      .WithMany(c => c.Divisions)
+                      .HasForeignKey(d => d.CompetitionId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
 

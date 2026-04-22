@@ -28,23 +28,6 @@
     <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
     <div style="position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 1rem 0.5rem 2rem;">
 
-@if (_divisionBreadcrumb is not null)
-{
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2" Spacing="1">
-        <MudIcon Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Style="opacity:0.6" />
-        <MudLink Href="@($"/leagues/{_divisionBreadcrumb.LeagueId}")" Underline="Underline.Hover">
-            @_divisionBreadcrumb.LeagueName
-        </MudLink>
-        <MudText Typo="Typo.caption" Style="opacity:0.5">/</MudText>
-        <MudLink Href="@($"/leagues/{_divisionBreadcrumb.LeagueId}/seasons/{_divisionBreadcrumb.SeasonId}/dashboard")"
-                 Underline="Underline.Hover">
-            @_divisionBreadcrumb.SeasonName
-        </MudLink>
-        <MudText Typo="Typo.caption" Style="opacity:0.5">/</MudText>
-        <MudText Typo="Typo.caption" Style="font-weight:500">@_divisionBreadcrumb.DivisionName</MudText>
-    </MudStack>
-}
-
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
     @if (_nameOverride)
     {
@@ -267,6 +250,17 @@
                     </MudRadioGroup>
 
                     <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" Class="mt-2" />
+
+                    <MudCheckBox @bind-Value="Model.HasDivisions"
+                                 Label="Split this competition into ranked divisions"
+                                 Class="mt-1" />
+                    @if (Model.HasDivisions)
+                    {
+                        <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                            Teams will only play others in their own division and league tables render per-division.
+                            Manage the divisions and assign teams on the <b>Divisions</b> tab.
+                        </MudText>
+                    }
                 </MudStack>
 
                 @if (!string.IsNullOrWhiteSpace(_serverError))
@@ -650,6 +644,10 @@
                             <MudTh>Sex</MudTh>
                             <MudTh>Role</MudTh>
                         }
+                        @if (Model.HasDivisions)
+                        {
+                            <MudTh>Division</MudTh>
+                        }
                         <MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
@@ -687,6 +685,19 @@
                                                  SearchFunc="SearchRoles"
                                                  ValueChanged="@((string? r) => AssignRole(context, r))"
                                                  ShowProgressIndicator="false" DebounceInterval="0" />
+                            </MudTd>
+                        }
+                        @if (Model.HasDivisions)
+                        {
+                            <MudTd>
+                                <MudSelect T="int?" Value="context.CompetitionDivisionId" Dense="true" Variant="Variant.Text"
+                                           Clearable="true"
+                                           ValueChanged="@((int? did) => AssignParticipantDivision(context, did))">
+                                    @foreach (var d in _divisions)
+                                    {
+                                        <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
                             </MudTd>
                         }
                         <MudTd>
@@ -766,6 +777,10 @@
                                 <MudTh>Captain</MudTh>
                             }
                             <MudTh>Members</MudTh>
+                            @if (Model.HasDivisions)
+                            {
+                                <MudTh>Division</MudTh>
+                            }
                             <MudTh></MudTh>
                         </HeaderContent>
                         <RowTemplate>
@@ -799,6 +814,19 @@
                                         .Select(p => p.Player?.DisplayName ?? ""))
                                 }
                             </MudTd>
+                            @if (Model.HasDivisions)
+                            {
+                                <MudTd>
+                                    <MudSelect T="int?" Value="context.CompetitionDivisionId" Dense="true" Variant="Variant.Text"
+                                               Clearable="true"
+                                               ValueChanged="@((int? did) => AssignTeamDivision(context, did))">
+                                        @foreach (var d in _divisions)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudTd>
+                            }
                             <MudTd>
                                 @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
                                 {
@@ -948,6 +976,117 @@
         </MudPaper>
     }
 
+</MudTabPanel>
+
+@* ── Divisions Tab ─────────────────────────────────────────── *@
+<MudTabPanel Text="Divisions" Icon="@Icons.Material.Filled.AccountTree"
+             Disabled="@(!IsEdit || !_canEdit || !Model.HasDivisions)">
+    <MudPaper Class="pa-4 mb-4" Elevation="0"
+                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+            <MudText Typo="Typo.h6" Style="flex:1">Divisions</MudText>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenAddDivisionDialog">Add Division</MudButton>
+            @if (_seedSourceCandidates.Count > 0 && _divisions.Count == 0)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           OnClick="OpenSeedDivisionsDialog">Seed from previous</MudButton>
+            }
+        </MudStack>
+
+        <MudText Typo="Typo.caption" Class="mb-3" Style="opacity:0.8">
+            Rank 1 is the top division. Teams and players assigned to a division only compete within it.
+        </MudText>
+
+        <MudTable Items="@_divisions" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Rank</MudTh>
+                <MudTh>Name</MudTh>
+                <MudTh>Teams</MudTh>
+                <MudTh>Participants</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Rank</MudTd>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@_teams.Count(t => t.CompetitionDivisionId == context.CompetitionDivisionId)</MudTd>
+                <MudTd>@_participants.Count(p => p.CompetitionDivisionId == context.CompetitionDivisionId)</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OpenEditDivisionDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                   Color="Color.Error" OnClick="@(() => DeleteDivision(context))" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Typo="Typo.caption">No divisions defined yet.</MudText></NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+
+    @if (_showDivisionDialog)
+    {
+        <MudDialog @bind-Visible="_showDivisionDialog" Options="@(new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small })">
+            <TitleContent>@(_editingDivision == null ? "Add Division" : "Edit Division")</TitleContent>
+            <DialogContent>
+                <MudTextField T="string" Label="Name" @bind-Value="_divisionName" Class="mb-2" />
+                <MudNumericField T="byte" Label="Rank (1 = top)" @bind-Value="_divisionRank" Min="1" Max="20" />
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="@(() => _showDivisionDialog = false)">Cancel</MudButton>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                           Disabled="@string.IsNullOrWhiteSpace(_divisionName)"
+                           OnClick="SaveDivisionDialog">Save</MudButton>
+            </DialogActions>
+        </MudDialog>
+    }
+
+    @if (_showSeedDivisionsDialog)
+    {
+        <MudDialog @bind-Visible="_showSeedDivisionsDialog" Options="@(new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small })">
+            <TitleContent>Seed divisions from previous competition</TitleContent>
+            <DialogContent>
+                <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.8">
+                    Copies the division structure from a previous competition, and assigns each returning
+                    participant to the same division they finished in. Optionally apply promotion /
+                    demotion based on their final per-player ranking.
+                </MudText>
+                <MudSelect T="int?" Label="Previous competition" Variant="Variant.Outlined"
+                           @bind-Value="_seedSourceCompetitionId" Class="mb-2">
+                    @foreach (var c in _seedSourceCandidates)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)c.CompetitionID)">
+                            @c.CompetitionName@(c.StartDate.HasValue ? $" ({c.StartDate:dd MMM yyyy})" : "")
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+                <MudCheckBox @bind-Value="_seedApplyPromotion"
+                             Label="Apply promotion / demotion from previous standings" Class="mb-1" />
+                @if (_seedApplyPromotion)
+                {
+                    <MudGrid Spacing="2">
+                        <MudItem xs="6">
+                            <MudNumericField T="int" Label="Promote top N" @bind-Value="_seedPromoteCount" Min="0" Max="20" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudNumericField T="int" Label="Demote bottom N" @bind-Value="_seedDemoteCount" Min="0" Max="20" />
+                        </MudItem>
+                    </MudGrid>
+                }
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="@(() => _showSeedDivisionsDialog = false)">Cancel</MudButton>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                           Disabled="@(_seedingDivisions || !_seedSourceCompetitionId.HasValue)"
+                           OnClick="RunSeedDivisions">
+                    @if (_seedingDivisions)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                    }
+                    Seed
+                </MudButton>
+            </DialogActions>
+        </MudDialog>
+    }
 </MudTabPanel>
 
 @* ── Email Tab ─────────────────────────────────────────────── *@
@@ -1450,9 +1589,22 @@
     private List<CompetitionTeam> _teams = [];
     private List<Court> _courts = [];
     private List<CourtPair> _courtPairs = [];
+    private List<CompetitionDivision> _divisions = [];
 
-    private record DivisionBreadcrumb(int LeagueId, string LeagueName, int SeasonId, string SeasonName, string DivisionName);
-    private DivisionBreadcrumb? _divisionBreadcrumb;
+    // Division dialog state
+    private bool _showDivisionDialog;
+    private CompetitionDivision? _editingDivision;
+    private string _divisionName = "";
+    private byte _divisionRank = 1;
+
+    // Seed-from-previous dialog state
+    private bool _showSeedDivisionsDialog;
+    private List<Competition> _seedSourceCandidates = [];
+    private int? _seedSourceCompetitionId;
+    private bool _seedApplyPromotion;
+    private int _seedPromoteCount;
+    private int _seedDemoteCount;
+    private bool _seedingDivisions;
 
     // Rubber template editor
     private List<string> _availableRoles = [];
@@ -1577,6 +1729,8 @@
         public int GamesPerSet { get; set; } = 6;
         public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
+        public bool HasDivisions { get; set; }
+        public int? SeededFromCompetitionId { get; set; }
     }
 
     // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the
@@ -1721,6 +1875,7 @@
                 .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers)
                 .Include(c => c.Teams).ThenInclude(t => t.Captain)
                 .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
+                .Include(c => c.Divisions)
                 .AsSplitQuery()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.CompetitionID == Id);
@@ -1758,7 +1913,9 @@
                 NumberOfSets = comp.NumberOfSets,
                 GamesPerSet = comp.GamesPerSet,
                 SetWinMode = comp.SetWinMode,
-                LeagueScoring = comp.LeagueScoring
+                LeagueScoring = comp.LeagueScoring,
+                HasDivisions = comp.HasDivisions,
+                SeededFromCompetitionId = comp.SeededFromCompetitionId
             };
             _stages = comp.Stages.ToList();
             _participants = comp.Participants.ToList();
@@ -1767,9 +1924,19 @@
                 .ThenBy(f => f.ScheduledAt)
                 .ToList();
             _teams = comp.Teams.OrderBy(t => t.Name).ToList();
+            _divisions = comp.Divisions.OrderBy(d => d.Rank).ToList();
             _matchWindows = comp.MatchWindows
                 .OrderBy(w => w.DayOfWeek).ThenBy(w => w.StartTime)
                 .ToList();
+
+            _seedSourceCandidates = await db.Competition.AsNoTracking()
+                .Where(c => c.CompetitionID != Id
+                            && c.CompetitionFormat == comp.CompetitionFormat
+                            && c.HostClubId == comp.HostClubId
+                            && c.Divisions.Any())
+                .OrderByDescending(c => c.StartDate)
+                .ThenBy(c => c.CompetitionName)
+                .ToListAsync();
 
             _courtPairs = await db.CourtPairs
                 .Where(cp => cp.CompetitionId == Id)
@@ -1803,19 +1970,6 @@
             }
 
             await LoadCompetitionAdmins(db);
-
-            if (comp.LeagueDivisionId.HasValue)
-            {
-                var div = await db.LeagueDivisions
-                    .AsNoTracking()
-                    .Include(d => d.Season).ThenInclude(s => s.League)
-                    .FirstOrDefaultAsync(d => d.LeagueDivisionId == comp.LeagueDivisionId.Value);
-                if (div is not null)
-                    _divisionBreadcrumb = new DivisionBreadcrumb(
-                        div.Season.LeagueId, div.Season.League.Name,
-                        div.LeagueSeasonId, div.Season.Name,
-                        div.Name);
-            }
 
             if (comp.CompetitionFormat == CompetitionFormat.TeamMatch)
                 await LoadRubberTemplateStateAsync(db, comp.CompetitionID, comp.RubberTemplateKey);
@@ -2098,6 +2252,8 @@
         comp.GamesPerSet = Model.GamesPerSet;
         comp.SetWinMode = Model.SetWinMode;
         comp.LeagueScoring = Model.LeagueScoring;
+        comp.HasDivisions = Model.HasDivisions;
+        comp.SeededFromCompetitionId = Model.SeededFromCompetitionId;
     }
 
     // ── Stages ──────────────────────────────────────────────────────────────
@@ -2451,6 +2607,224 @@
         await using var db = DbFactory.CreateDbContext();
         var row = await db.CompetitionTeams.FindAsync(team.CompetitionTeamId);
         if (row != null) { row.CaptainPlayerId = captainPlayerId; await db.SaveChangesAsync(); team.CaptainPlayerId = captainPlayerId; }
+    }
+
+    private async Task AssignParticipantDivision(CompetitionParticipant cp, int? divisionId)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var row = await db.CompetitionParticipants.FindAsync(cp.CompetitionId, cp.PlayerId);
+        if (row != null)
+        {
+            row.CompetitionDivisionId = divisionId;
+            await db.SaveChangesAsync();
+            cp.CompetitionDivisionId = divisionId;
+        }
+    }
+
+    private async Task AssignTeamDivision(CompetitionTeam team, int? divisionId)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var row = await db.CompetitionTeams.FindAsync(team.CompetitionTeamId);
+        if (row != null)
+        {
+            row.CompetitionDivisionId = divisionId;
+            await db.SaveChangesAsync();
+            team.CompetitionDivisionId = divisionId;
+        }
+    }
+
+    // ── Divisions ──────────────────────────────────────────────────────────
+    private void OpenAddDivisionDialog()
+    {
+        _editingDivision = null;
+        _divisionName = "";
+        _divisionRank = (byte)((_divisions.Count == 0 ? 1 : _divisions.Max(d => d.Rank) + 1));
+        _showDivisionDialog = true;
+    }
+
+    private void OpenEditDivisionDialog(CompetitionDivision d)
+    {
+        _editingDivision = d;
+        _divisionName = d.Name;
+        _divisionRank = d.Rank;
+        _showDivisionDialog = true;
+    }
+
+    private async Task SaveDivisionDialog()
+    {
+        if (string.IsNullOrWhiteSpace(_divisionName)) return;
+        await using var db = DbFactory.CreateDbContext();
+
+        if (_editingDivision == null)
+        {
+            if (await db.CompetitionDivisions.AnyAsync(d => d.CompetitionId == Id && d.Rank == _divisionRank))
+            {
+                Snackbar.Add($"Division rank {_divisionRank} already exists.", Severity.Error);
+                return;
+            }
+            var d = new CompetitionDivision
+            {
+                CompetitionId = Id,
+                Name = _divisionName.Trim(),
+                Rank = _divisionRank
+            };
+            db.CompetitionDivisions.Add(d);
+
+            var comp = await db.Competition.FirstOrDefaultAsync(c => c.CompetitionID == Id);
+            if (comp != null && !comp.HasDivisions) comp.HasDivisions = true;
+
+            await db.SaveChangesAsync();
+            _divisions.Add(d);
+        }
+        else
+        {
+            var row = await db.CompetitionDivisions.FindAsync(_editingDivision.CompetitionDivisionId);
+            if (row == null) { _showDivisionDialog = false; return; }
+            if (row.Rank != _divisionRank &&
+                await db.CompetitionDivisions.AnyAsync(x => x.CompetitionId == Id && x.Rank == _divisionRank && x.CompetitionDivisionId != row.CompetitionDivisionId))
+            {
+                Snackbar.Add($"Division rank {_divisionRank} already exists.", Severity.Error);
+                return;
+            }
+            row.Name = _divisionName.Trim();
+            row.Rank = _divisionRank;
+            await db.SaveChangesAsync();
+            _editingDivision.Name = row.Name;
+            _editingDivision.Rank = row.Rank;
+        }
+
+        _divisions = _divisions.OrderBy(d => d.Rank).ToList();
+        _showDivisionDialog = false;
+    }
+
+    private async Task DeleteDivision(CompetitionDivision d)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var participants = await db.CompetitionParticipants
+            .Where(p => p.CompetitionDivisionId == d.CompetitionDivisionId).ToListAsync();
+        foreach (var p in participants) p.CompetitionDivisionId = null;
+        var teams = await db.CompetitionTeams
+            .Where(t => t.CompetitionDivisionId == d.CompetitionDivisionId).ToListAsync();
+        foreach (var t in teams) t.CompetitionDivisionId = null;
+        var row = await db.CompetitionDivisions.FindAsync(d.CompetitionDivisionId);
+        if (row != null) db.CompetitionDivisions.Remove(row);
+        await db.SaveChangesAsync();
+
+        foreach (var p in _participants.Where(p => p.CompetitionDivisionId == d.CompetitionDivisionId)) p.CompetitionDivisionId = null;
+        foreach (var t in _teams.Where(t => t.CompetitionDivisionId == d.CompetitionDivisionId)) t.CompetitionDivisionId = null;
+        _divisions.Remove(d);
+    }
+
+    private void OpenSeedDivisionsDialog()
+    {
+        _seedSourceCompetitionId = _seedSourceCandidates.FirstOrDefault()?.CompetitionID;
+        _seedApplyPromotion = false;
+        _seedPromoteCount = 0;
+        _seedDemoteCount = 0;
+        _showSeedDivisionsDialog = true;
+    }
+
+    private async Task RunSeedDivisions()
+    {
+        if (!_seedSourceCompetitionId.HasValue) return;
+        _seedingDivisions = true;
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var previous = await db.Competition
+                .Include(c => c.Divisions)
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.CompetitionID == _seedSourceCompetitionId.Value);
+            if (previous == null)
+            {
+                Snackbar.Add("Previous competition not found.", Severity.Error);
+                return;
+            }
+            var comp = await db.Competition
+                .Include(c => c.Divisions)
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.CompetitionID == Id);
+            if (comp == null) return;
+
+            if (comp.Divisions.Any())
+            {
+                Snackbar.Add("This competition already has divisions — clear them first.", Severity.Error);
+                return;
+            }
+
+            var byRank = new Dictionary<byte, CompetitionDivision>();
+            foreach (var prev in previous.Divisions.OrderBy(d => d.Rank))
+            {
+                var nd = new CompetitionDivision
+                {
+                    CompetitionId = Id,
+                    Rank = prev.Rank,
+                    Name = prev.Name
+                };
+                db.CompetitionDivisions.Add(nd);
+                byRank[prev.Rank] = nd;
+            }
+            comp.HasDivisions = true;
+            comp.SeededFromCompetitionId = previous.CompetitionID;
+            await db.SaveChangesAsync();
+
+            var previousRankByPlayer = previous.Participants
+                .Where(p => p.CompetitionDivisionId.HasValue)
+                .ToDictionary(
+                    p => p.PlayerId,
+                    p => previous.Divisions.First(d => d.CompetitionDivisionId == p.CompetitionDivisionId).Rank);
+
+            if (_seedApplyPromotion && (_seedPromoteCount > 0 || _seedDemoteCount > 0))
+            {
+                byte minRank = previous.Divisions.Min(d => d.Rank);
+                byte maxRank = previous.Divisions.Max(d => d.Rank);
+                var stats = await PlayerStatsService.ComputeAsync(db, new[] { previous.CompetitionID }, previous.LeagueScoring);
+                foreach (var div in previous.Divisions)
+                {
+                    var ranked = previous.Participants
+                        .Where(p => p.CompetitionDivisionId == div.CompetitionDivisionId)
+                        .Select(p => new { p.PlayerId, Points = stats.TryGetValue(p.PlayerId, out var s) ? s.LeaguePoints : 0 })
+                        .OrderByDescending(x => x.Points)
+                        .ToList();
+                    if (div.Rank > minRank)
+                    {
+                        foreach (var promo in ranked.Take(_seedPromoteCount))
+                            previousRankByPlayer[promo.PlayerId] = (byte)(div.Rank - 1);
+                    }
+                    if (div.Rank < maxRank)
+                    {
+                        foreach (var demo in ranked.AsEnumerable().Reverse().Take(_seedDemoteCount))
+                            previousRankByPlayer[demo.PlayerId] = (byte)(div.Rank + 1);
+                    }
+                }
+            }
+
+            int assigned = 0;
+            foreach (var cp in comp.Participants)
+            {
+                if (!previousRankByPlayer.TryGetValue(cp.PlayerId, out var nextRank)) continue;
+                if (!byRank.TryGetValue(nextRank, out var div)) continue;
+                cp.CompetitionDivisionId = div.CompetitionDivisionId;
+                assigned++;
+            }
+            await db.SaveChangesAsync();
+
+            _divisions = byRank.Values.OrderBy(d => d.Rank).ToList();
+            foreach (var cp in comp.Participants)
+            {
+                var local = _participants.FirstOrDefault(p => p.PlayerId == cp.PlayerId);
+                if (local != null) local.CompetitionDivisionId = cp.CompetitionDivisionId;
+            }
+            Model.HasDivisions = true;
+            Model.SeededFromCompetitionId = previous.CompetitionID;
+
+            Snackbar.Add($"Seeded {byRank.Count} division(s); assigned {assigned} participant(s).", Severity.Success);
+            _showSeedDivisionsDialog = false;
+        }
+        finally
+        {
+            _seedingDivisions = false;
+        }
     }
 
     private Task ValidateTeam(CompetitionTeam team)
@@ -3752,14 +4126,8 @@
 
                     if (isTeamFmt && _teams.Count >= 2)
                     {
-                        // Team/pair round-robin using circle method
-                        var teamIds = _teams.Select(t => t.CompetitionTeamId).ToList();
-                        int tn = teamIds.Count;
-                        if (tn % 2 != 0) teamIds.Add(-1); // BYE sentinel
-                        int total = teamIds.Count;
-                        int rounds = total - 1;
-
-                        // Deduplication set for team pairs
+                        // Deduplication set for team pairs (across the whole stage,
+                        // shared across divisions — pairings can never repeat)
                         var existingTeamPairs = existing
                             .Where(f => f.HomeTeamId.HasValue && f.AwayTeamId.HasValue)
                             .Select(f => (Math.Min(f.HomeTeamId!.Value, f.AwayTeamId!.Value),
@@ -3772,41 +4140,57 @@
                             .Where(p => p.TeamId != null && (p.Status is ParticipantStatus.Registered or ParticipantStatus.Confirmed))
                             .ToList();
 
-                        for (int round = 0; round < rounds; round++)
+                        // When divisions are configured, generate one round-robin per
+                        // division so teams only play within their tier. Teams without
+                        // a division fall into a single "unassigned" group.
+                        bool useDivisions = (Model?.HasDivisions ?? false);
+                        IEnumerable<IGrouping<int?, CompetitionTeam>> teamGroups = useDivisions
+                            ? _teams.GroupBy(t => (int?)t.CompetitionDivisionId)
+                            : new[] { _teams.GroupBy(t => (int?)null).First() };
+
+                        foreach (var group in teamGroups)
                         {
-                            for (int match = 0; match < total / 2; match++)
+                            var teamIds = group.Select(t => t.CompetitionTeamId).ToList();
+                            if (teamIds.Count < 2) continue;
+                            if (teamIds.Count % 2 != 0) teamIds.Add(-1); // BYE sentinel
+                            int total = teamIds.Count;
+                            int rounds = total - 1;
+
+                            for (int round = 0; round < rounds; round++)
                             {
-                                int home = match == 0 ? 0 : ((round + match - 1) % (total - 1)) + 1;
-                                int away = ((round + total - 1 - match) % (total - 1)) + 1;
-                                if (match == 0) { home = 0; away = ((round) % (total - 1)) + 1; }
-
-                                int homeTeamId = teamIds[home];
-                                int awayTeamId = teamIds[away];
-                                if (homeTeamId == -1 || awayTeamId == -1) continue;
-
-                                var teamKey = (Math.Min(homeTeamId, awayTeamId),
-                                               Math.Max(homeTeamId, awayTeamId),
-                                               (int?)stage.CompetitionStageId);
-                                if (existingTeamPairs.Contains(teamKey)) continue;
-
-                                var fixture = NewScheduledFixture(teamIds: [homeTeamId, awayTeamId]);
-                                if (fixture == null) { unscheduledCount++; continue; }
-                                fixture.CompetitionStageId = stage.CompetitionStageId;
-                                fixture.HomeTeamId = homeTeamId;
-                                fixture.AwayTeamId = awayTeamId;
-
-                                // For doubles, also populate Player1-4
-                                if (format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+                                for (int match = 0; match < total / 2; match++)
                                 {
-                                    var homePair = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
-                                    var awayPair = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
-                                    if (homePair.Count >= 1) fixture.Player1Id = homePair[0].PlayerId;
-                                    if (homePair.Count >= 2) fixture.Player3Id = homePair[1].PlayerId;
-                                    if (awayPair.Count >= 1) fixture.Player2Id = awayPair[0].PlayerId;
-                                    if (awayPair.Count >= 2) fixture.Player4Id = awayPair[1].PlayerId;
-                                }
+                                    int home = match == 0 ? 0 : ((round + match - 1) % (total - 1)) + 1;
+                                    int away = ((round + total - 1 - match) % (total - 1)) + 1;
+                                    if (match == 0) { home = 0; away = ((round) % (total - 1)) + 1; }
 
-                                newFixtures.Add(fixture);
+                                    int homeTeamId = teamIds[home];
+                                    int awayTeamId = teamIds[away];
+                                    if (homeTeamId == -1 || awayTeamId == -1) continue;
+
+                                    var teamKey = (Math.Min(homeTeamId, awayTeamId),
+                                                   Math.Max(homeTeamId, awayTeamId),
+                                                   (int?)stage.CompetitionStageId);
+                                    if (existingTeamPairs.Contains(teamKey)) continue;
+
+                                    var fixture = NewScheduledFixture(teamIds: [homeTeamId, awayTeamId]);
+                                    if (fixture == null) { unscheduledCount++; continue; }
+                                    fixture.CompetitionStageId = stage.CompetitionStageId;
+                                    fixture.HomeTeamId = homeTeamId;
+                                    fixture.AwayTeamId = awayTeamId;
+
+                                    if (format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+                                    {
+                                        var homePair = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
+                                        var awayPair = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
+                                        if (homePair.Count >= 1) fixture.Player1Id = homePair[0].PlayerId;
+                                        if (homePair.Count >= 2) fixture.Player3Id = homePair[1].PlayerId;
+                                        if (awayPair.Count >= 1) fixture.Player2Id = awayPair[0].PlayerId;
+                                        if (awayPair.Count >= 2) fixture.Player4Id = awayPair[1].PlayerId;
+                                    }
+
+                                    newFixtures.Add(fixture);
+                                }
                             }
                         }
                     }

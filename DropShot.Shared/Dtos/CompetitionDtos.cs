@@ -43,7 +43,9 @@ public record CompetitionDetailDto(
     bool IsStarted = false,
     string? CreatorUserId = null,
     bool IsRestricted = false,
-    List<int>? AllowedPlayerIds = null);
+    List<int>? AllowedPlayerIds = null,
+    bool HasDivisions = false,
+    List<CompetitionDivisionDto>? Divisions = null);
 
 public record CompetitionStageDto(
     int CompetitionStageId,
@@ -60,7 +62,9 @@ public record CompetitionParticipantDto(
     string? TeamName,
     string? MobileNumber,
     string? Role = null,
-    PlayerSex? Sex = null);
+    PlayerSex? Sex = null,
+    int? CompetitionDivisionId = null,
+    string? DivisionName = null);
 
 public record CompetitionFixtureDto(
     int CompetitionFixtureId,
@@ -119,7 +123,9 @@ public record SaveCompetitionRequest(
     int? RulesSetId,
     int? EventId,
     bool IsRestricted = false,
-    List<int>? AllowedPlayerIds = null);
+    List<int>? AllowedPlayerIds = null,
+    bool HasDivisions = false,
+    int? SeededFromCompetitionId = null);
 
 public record AddStageRequest(StageType StageType, string? Name = null, int? StageOrder = null);
 
@@ -235,6 +241,28 @@ public record TeamLeagueTableEntryDto(
 public record SaveCourtPairRequest(int Court1Id, int Court2Id, string Name);
 
 public record SetParticipantRoleRequest(string? Role);
+
+// ── Divisions (multi-tier within a competition) ──────────────────────────────
+
+public record CompetitionDivisionDto(
+    int CompetitionDivisionId,
+    int CompetitionId,
+    byte Rank,
+    string Name);
+
+public record SaveDivisionRequest(string Name, byte Rank);
+
+public record SetParticipantDivisionRequest(int? CompetitionDivisionId);
+
+public record SeedDivisionsFromPreviousRequest(
+    int PreviousCompetitionId,
+    bool ApplyPromotion = false,
+    int PromoteCount = 0,
+    int DemoteCount = 0);
+
+public record SeedDivisionsResultDto(
+    int DivisionsCreated,
+    int ParticipantsAssigned);
 
 public record RubberTemplateDefDto(
     int Order,

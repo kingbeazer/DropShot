@@ -59,6 +59,8 @@ public class CompetitionsController(
             .Include(x => x.Stages.OrderBy(s => s.StageOrder))
             .Include(x => x.Participants).ThenInclude(p => p.Player)
             .Include(x => x.Participants).ThenInclude(p => p.Team)
+            .Include(x => x.Participants).ThenInclude(p => p.Division)
+            .Include(x => x.Divisions)
             .Include(x => x.AllowedPlayers)
             .FirstOrDefaultAsync(x => x.CompetitionID == id);
 
@@ -84,12 +86,18 @@ public class CompetitionsController(
                 p.RegisteredAt, p.TeamId, p.Team?.Name,
                 p.Player?.MobileNumber,
                 p.Role,
-                (DropShot.Shared.PlayerSex?)p.Player?.Sex)).ToList(),
+                (DropShot.Shared.PlayerSex?)p.Player?.Sex,
+                p.CompetitionDivisionId,
+                p.Division?.Name)).ToList(),
             c.IsArchived,
             c.IsStarted,
             c.CreatorUserId,
             c.IsRestricted,
-            c.AllowedPlayers.Select(ap => ap.PlayerId).ToList());
+            c.AllowedPlayers.Select(ap => ap.PlayerId).ToList(),
+            c.HasDivisions,
+            c.Divisions.OrderBy(d => d.Rank)
+                .Select(d => new CompetitionDivisionDto(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name))
+                .ToList());
     }
 
     [HttpPost]
@@ -703,17 +711,8 @@ public class CompetitionsController(
                 {
                     if (isTeamFormat && comp.Teams.Count >= 2)
                     {
-                        // Team/pair round-robin using circle method
-                        var teamIds = comp.Teams.Select(t => t.CompetitionTeamId).ToList();
                         var courtPairIds = comp.CourtPairs.Select(cp => cp.CourtPairId).ToList();
                         int cpIdx = 0;
-
-                        // Circle method: fix team[0], rotate rest
-                        int n = teamIds.Count;
-                        bool hasOdd = n % 2 != 0;
-                        if (hasOdd) teamIds.Add(-1); // BYE sentinel
-                        int total = teamIds.Count;
-                        int rounds = total - 1;
 
                         // Load all team members for Doubles/MixedDoubles player assignment
                         var allMembers = comp.Participants
@@ -722,48 +721,63 @@ public class CompetitionsController(
                                     || p.Status == DropShot.Models.ParticipantStatus.Confirmed))
                             .ToList();
 
-                        for (int round = 0; round < rounds; round++)
+                        // When divisions are configured, generate one round-robin per
+                        // division so teams only play other teams in their tier. Teams
+                        // with no division assignment fall into an "unassigned" group
+                        // (and play each other) — useful before divisions are set up.
+                        IEnumerable<IGrouping<int?, CompetitionTeam>> teamGroups = comp.HasDivisions
+                            ? comp.Teams.GroupBy(t => (int?)t.CompetitionDivisionId)
+                            : new[] { comp.Teams.GroupBy(t => (int?)null).First() };
+
+                        foreach (var group in teamGroups)
                         {
-                            for (int match = 0; match < total / 2; match++)
+                            var teamIds = group.Select(t => t.CompetitionTeamId).ToList();
+                            if (teamIds.Count < 2) continue;
+
+                            // Circle method: fix team[0], rotate rest
+                            bool hasOdd = teamIds.Count % 2 != 0;
+                            if (hasOdd) teamIds.Add(-1); // BYE sentinel
+                            int total = teamIds.Count;
+                            int rounds = total - 1;
+
+                            for (int round = 0; round < rounds; round++)
                             {
-                                int home = (match == 0) ? 0 : (round + match) % (total - 1) + 1;
-                                int away = (total - 1) - match;
-                                if (match == 0) away = (round % (total - 1)) + 1;
-
-                                // Correct circle method indices
-                                home = match == 0 ? 0 : ((round + match - 1) % (total - 1)) + 1;
-                                away = ((round + total - 1 - match) % (total - 1)) + 1;
-                                if (match == 0) { home = 0; away = ((round) % (total - 1)) + 1; }
-
-                                int homeTeamId = teamIds[home];
-                                int awayTeamId = teamIds[away];
-
-                                if (homeTeamId == -1 || awayTeamId == -1) continue; // BYE
-
-                                var fixture = NewFixture(id, stage.CompetitionStageId);
-                                fixture.HomeTeamId = homeTeamId;
-                                fixture.AwayTeamId = awayTeamId;
-
-                                if (courtPairIds.Count > 0)
+                                for (int match = 0; match < total / 2; match++)
                                 {
-                                    fixture.CourtPairId = courtPairIds[cpIdx % courtPairIds.Count];
-                                    cpIdx++;
-                                }
+                                    int home = match == 0 ? 0 : ((round + match - 1) % (total - 1)) + 1;
+                                    int away = ((round + total - 1 - match) % (total - 1)) + 1;
+                                    if (match == 0) { home = 0; away = ((round) % (total - 1)) + 1; }
 
-                                // For non-team doubles formats, also set Player1-4 from team members
-                                if (comp.CompetitionFormat is DropShot.Models.CompetitionFormat.Doubles
-                                    or DropShot.Models.CompetitionFormat.MixedDoubles)
-                                {
-                                    var homePair = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
-                                    var awayPair = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
-                                    if (homePair.Count >= 1) fixture.Player1Id = homePair[0].PlayerId;
-                                    if (homePair.Count >= 2) fixture.Player3Id = homePair[1].PlayerId;
-                                    if (awayPair.Count >= 1) fixture.Player2Id = awayPair[0].PlayerId;
-                                    if (awayPair.Count >= 2) fixture.Player4Id = awayPair[1].PlayerId;
-                                }
+                                    int homeTeamId = teamIds[home];
+                                    int awayTeamId = teamIds[away];
 
-                                db.CompetitionFixtures.Add(fixture);
-                                // Rubbers are created lazily when the fixture is first opened for scoring.
+                                    if (homeTeamId == -1 || awayTeamId == -1) continue; // BYE
+
+                                    var fixture = NewFixture(id, stage.CompetitionStageId);
+                                    fixture.HomeTeamId = homeTeamId;
+                                    fixture.AwayTeamId = awayTeamId;
+
+                                    if (courtPairIds.Count > 0)
+                                    {
+                                        fixture.CourtPairId = courtPairIds[cpIdx % courtPairIds.Count];
+                                        cpIdx++;
+                                    }
+
+                                    // For non-team doubles formats, also set Player1-4 from team members
+                                    if (comp.CompetitionFormat is DropShot.Models.CompetitionFormat.Doubles
+                                        or DropShot.Models.CompetitionFormat.MixedDoubles)
+                                    {
+                                        var homePair = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
+                                        var awayPair = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
+                                        if (homePair.Count >= 1) fixture.Player1Id = homePair[0].PlayerId;
+                                        if (homePair.Count >= 2) fixture.Player3Id = homePair[1].PlayerId;
+                                        if (awayPair.Count >= 1) fixture.Player2Id = awayPair[0].PlayerId;
+                                        if (awayPair.Count >= 2) fixture.Player4Id = awayPair[1].PlayerId;
+                                    }
+
+                                    db.CompetitionFixtures.Add(fixture);
+                                    // Rubbers are created lazily when the fixture is first opened for scoring.
+                                }
                             }
                         }
                     }
@@ -969,6 +983,8 @@ public class CompetitionsController(
         // HostClubId/CreatorUserId are set explicitly at Create time and are immutable thereafter.
         c.RulesSetId = r.RulesSetId;
         c.EventId = r.EventId;
+        c.HasDivisions = r.HasDivisions;
+        c.SeededFromCompetitionId = r.SeededFromCompetitionId;
     }
 
     // Populates the restriction + allow-list on a fresh Competition (Create path).
@@ -1334,7 +1350,8 @@ public class CompetitionsController(
     // ── Team League Table ────────────────────────────────────────────────────
 
     [HttpGet("{id:int}/teamleaguetable")]
-    public async Task<ActionResult<List<TeamLeagueTableEntryDto>>> GetTeamLeagueTable(int id)
+    public async Task<ActionResult<List<TeamLeagueTableEntryDto>>> GetTeamLeagueTable(
+        int id, [FromQuery] int? divisionId = null)
     {
         await using var db = dbFactory.CreateDbContext();
 
@@ -1348,18 +1365,21 @@ public class CompetitionsController(
 
         if (rrStageIds.Count == 0) return Ok(new List<TeamLeagueTableEntryDto>());
 
+        var teamsQuery = db.CompetitionTeams.Where(t => t.CompetitionId == id);
+        if (divisionId.HasValue)
+            teamsQuery = teamsQuery.Where(t => t.CompetitionDivisionId == divisionId.Value);
+        var teams = await teamsQuery.Include(t => t.Captain).ToListAsync();
+        var teamIds = teams.Select(t => t.CompetitionTeamId).ToHashSet();
+
         var fixtures = await db.CompetitionFixtures
             .Where(f => f.CompetitionId == id
                 && f.CompetitionStageId != null
                 && rrStageIds.Contains(f.CompetitionStageId!.Value)
                 && f.Status == DropShot.Models.FixtureStatus.Completed
-                && f.HomeTeamId != null && f.AwayTeamId != null)
+                && f.HomeTeamId != null && f.AwayTeamId != null
+                && teamIds.Contains(f.HomeTeamId.Value)
+                && teamIds.Contains(f.AwayTeamId.Value))
             .Include(f => f.Rubbers)
-            .ToListAsync();
-
-        var teams = await db.CompetitionTeams
-            .Where(t => t.CompetitionId == id)
-            .Include(t => t.Captain)
             .ToListAsync();
 
         var played = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
@@ -1443,6 +1463,274 @@ public class CompetitionsController(
             .ToList();
 
         return entries;
+    }
+
+    // ── Divisions (ranked tiers within a competition) ───────────────────────
+
+    [HttpGet("{id:int}/divisions")]
+    public async Task<ActionResult<List<CompetitionDivisionDto>>> GetDivisions(int id)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        return await db.CompetitionDivisions.AsNoTracking()
+            .Where(d => d.CompetitionId == id)
+            .OrderBy(d => d.Rank)
+            .Select(d => new CompetitionDivisionDto(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name))
+            .ToListAsync();
+    }
+
+    [HttpPost("{id:int}/divisions")]
+    public async Task<ActionResult<CompetitionDivisionDto>> AddDivision(int id, [FromBody] SaveDivisionRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        if (string.IsNullOrWhiteSpace(req.Name))
+            return BadRequest(new { message = "Division name is required." });
+
+        // Auto-rank: append to the end if rank is 0 / unspecified.
+        byte rank = req.Rank;
+        if (rank == 0)
+        {
+            var existing = await db.CompetitionDivisions
+                .Where(d => d.CompetitionId == id)
+                .Select(d => (int)d.Rank)
+                .ToListAsync();
+            rank = (byte)(existing.Count == 0 ? 1 : existing.Max() + 1);
+        }
+        else if (await db.CompetitionDivisions.AnyAsync(d => d.CompetitionId == id && d.Rank == rank))
+        {
+            return BadRequest(new { message = $"Division rank {rank} already exists." });
+        }
+
+        var division = new CompetitionDivision
+        {
+            CompetitionId = id,
+            Rank = rank,
+            Name = req.Name.Trim(),
+        };
+        db.CompetitionDivisions.Add(division);
+        if (!comp.HasDivisions) comp.HasDivisions = true;
+        await db.SaveChangesAsync();
+        return new CompetitionDivisionDto(division.CompetitionDivisionId, id, division.Rank, division.Name);
+    }
+
+    [HttpPut("{id:int}/divisions/{divisionId:int}")]
+    public async Task<IActionResult> UpdateDivision(int id, int divisionId, [FromBody] SaveDivisionRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var d = await db.CompetitionDivisions.FindAsync(divisionId);
+        if (d is null || d.CompetitionId != id) return NotFound();
+        if (!string.IsNullOrWhiteSpace(req.Name)) d.Name = req.Name.Trim();
+        if (req.Rank > 0 && req.Rank != d.Rank)
+        {
+            if (await db.CompetitionDivisions.AnyAsync(x => x.CompetitionId == id && x.Rank == req.Rank && x.CompetitionDivisionId != divisionId))
+                return BadRequest(new { message = $"Division rank {req.Rank} already exists." });
+            d.Rank = req.Rank;
+        }
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpDelete("{id:int}/divisions/{divisionId:int}")]
+    public async Task<IActionResult> DeleteDivision(int id, int divisionId)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var d = await db.CompetitionDivisions.FindAsync(divisionId);
+        if (d is null || d.CompetitionId != id) return NotFound();
+        // Null out anyone assigned to this division so they fall back to "unassigned".
+        var participants = await db.CompetitionParticipants.Where(p => p.CompetitionDivisionId == divisionId).ToListAsync();
+        foreach (var p in participants) p.CompetitionDivisionId = null;
+        var teams = await db.CompetitionTeams.Where(t => t.CompetitionDivisionId == divisionId).ToListAsync();
+        foreach (var t in teams) t.CompetitionDivisionId = null;
+        db.CompetitionDivisions.Remove(d);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("{id:int}/participants/{playerId:int}/division")]
+    public async Task<IActionResult> SetParticipantDivision(int id, int playerId, [FromBody] SetParticipantDivisionRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var cp = await db.CompetitionParticipants.FindAsync(id, playerId);
+        if (cp is null) return NotFound();
+
+        if (req.CompetitionDivisionId.HasValue)
+        {
+            var d = await db.CompetitionDivisions.FindAsync(req.CompetitionDivisionId.Value);
+            if (d is null || d.CompetitionId != id)
+                return BadRequest(new { message = "Division belongs to another competition." });
+        }
+
+        cp.CompetitionDivisionId = req.CompetitionDivisionId;
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpPut("{id:int}/teams/{teamId:int}/division")]
+    public async Task<IActionResult> SetTeamDivision(int id, int teamId, [FromBody] SetParticipantDivisionRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var team = await db.CompetitionTeams.FindAsync(teamId);
+        if (team is null || team.CompetitionId != id) return NotFound();
+        if (req.CompetitionDivisionId.HasValue)
+        {
+            var d = await db.CompetitionDivisions.FindAsync(req.CompetitionDivisionId.Value);
+            if (d is null || d.CompetitionId != id)
+                return BadRequest(new { message = "Division belongs to another competition." });
+        }
+        team.CompetitionDivisionId = req.CompetitionDivisionId;
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    /// <summary>
+    /// Copy the previous competition's division structure (names + ranks) to this
+    /// competition, and (when overlapping participants exist) place each returning
+    /// player into the same-ranked division. Optionally apply promotion / demotion
+    /// counts based on each previous division's final standings.
+    /// </summary>
+    [HttpPost("{id:int}/seed-divisions-from-previous")]
+    public async Task<ActionResult<SeedDivisionsResultDto>> SeedDivisionsFromPrevious(int id, [FromBody] SeedDivisionsFromPreviousRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition
+            .Include(c => c.Divisions)
+            .Include(c => c.Participants)
+            .FirstOrDefaultAsync(c => c.CompetitionID == id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var previous = await db.Competition
+            .Include(c => c.Divisions)
+            .Include(c => c.Participants).ThenInclude(p => p.Division)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == req.PreviousCompetitionId);
+        if (previous is null) return BadRequest(new { message = "Previous competition not found." });
+
+        if (comp.Divisions.Any())
+            return BadRequest(new { message = "This competition already has divisions — clear them first." });
+
+        // Recreate division shells in this competition based on the previous
+        // structure (preserving rank + name).
+        var newDivisionsByRank = new Dictionary<byte, CompetitionDivision>();
+        foreach (var prevDiv in previous.Divisions.OrderBy(d => d.Rank))
+        {
+            var d = new CompetitionDivision
+            {
+                CompetitionId = id,
+                Rank = prevDiv.Rank,
+                Name = prevDiv.Name,
+            };
+            db.CompetitionDivisions.Add(d);
+            newDivisionsByRank[prevDiv.Rank] = d;
+        }
+        comp.HasDivisions = true;
+        comp.SeededFromCompetitionId = previous.CompetitionID;
+        await db.SaveChangesAsync();
+
+        // Compute desired next-season rank for each player from the previous standings.
+        var previousRankByPlayer = ComputeNextSeasonRanks(previous, req);
+
+        int assigned = 0;
+        var thisCompPlayerIds = comp.Participants.Select(p => p.PlayerId).ToHashSet();
+        foreach (var (playerId, nextRank) in previousRankByPlayer)
+        {
+            if (!thisCompPlayerIds.Contains(playerId)) continue;
+            if (!newDivisionsByRank.TryGetValue(nextRank, out var division)) continue;
+            var cp = comp.Participants.First(p => p.PlayerId == playerId);
+            cp.CompetitionDivisionId = division.CompetitionDivisionId;
+            assigned++;
+        }
+        await db.SaveChangesAsync();
+        return new SeedDivisionsResultDto(newDivisionsByRank.Count, assigned);
+    }
+
+    /// <summary>
+    /// Returns a map of PlayerId → next-season division rank, derived from the
+    /// previous competition's per-player ranking inside their division. When
+    /// promote/demote counts are non-zero, top-N of each division get promoted
+    /// (rank-1) and bottom-N get demoted (rank+1), within the available rank
+    /// range; everyone else stays in their rank.
+    /// </summary>
+    private static Dictionary<int, byte> ComputeNextSeasonRanks(Competition previous, SeedDivisionsFromPreviousRequest req)
+    {
+        var result = new Dictionary<int, byte>();
+        if (!previous.Divisions.Any()) return result;
+        byte minRank = previous.Divisions.Min(d => d.Rank);
+        byte maxRank = previous.Divisions.Max(d => d.Rank);
+        var scoringMode = previous.LeagueScoring;
+
+        foreach (var division in previous.Divisions)
+        {
+            // Collect rubbers for this division's competition only — that's the
+            // whole previous competition (single-comp seed).
+            var ranking = previous.Participants
+                .Where(p => p.CompetitionDivisionId == division.CompetitionDivisionId)
+                .Select(p =>
+                {
+                    var rubbers = previous.Fixtures
+                        .SelectMany(f => f.Rubbers)
+                        .Where(r => r.IsComplete &&
+                                    (r.HomePlayer1Id == p.PlayerId || r.HomePlayer2Id == p.PlayerId
+                                  || r.AwayPlayer1Id == p.PlayerId || r.AwayPlayer2Id == p.PlayerId))
+                        .ToList();
+                    int played = rubbers.Count;
+                    int won = rubbers.Count(r =>
+                    {
+                        bool isHome = r.HomePlayer1Id == p.PlayerId || r.HomePlayer2Id == p.PlayerId;
+                        return isHome ? r.WinnerTeamId == r.Fixture.HomeTeamId : r.WinnerTeamId == r.Fixture.AwayTeamId;
+                    });
+                    int sets = rubbers.Sum(r =>
+                    {
+                        bool isHome = r.HomePlayer1Id == p.PlayerId || r.HomePlayer2Id == p.PlayerId;
+                        return isHome ? (r.HomeSetsWon ?? 0) : (r.AwaySetsWon ?? 0);
+                    });
+                    int games = rubbers.Sum(r =>
+                    {
+                        bool isHome = r.HomePlayer1Id == p.PlayerId || r.HomePlayer2Id == p.PlayerId;
+                        return isHome ? (r.HomeGamesTotal ?? 0) : (r.AwayGamesTotal ?? 0);
+                    });
+                    int points = scoringMode switch
+                    {
+                        Models.LeagueScoringMode.SetsWon  => sets,
+                        Models.LeagueScoringMode.GamesWon => games,
+                        _ => won * 3, // approx — this is per-player not per-fixture
+                    };
+                    return (PlayerId: p.PlayerId, Played: played, Won: won, Points: points);
+                })
+                .OrderByDescending(r => r.Points)
+                .ThenByDescending(r => r.Won)
+                .ToList();
+
+            int promote = req.ApplyPromotion ? Math.Max(0, req.PromoteCount) : 0;
+            int demote  = req.ApplyPromotion ? Math.Max(0, req.DemoteCount) : 0;
+            for (int i = 0; i < ranking.Count; i++)
+            {
+                byte targetRank = division.Rank;
+                if (i < promote && division.Rank > minRank) targetRank = (byte)(division.Rank - 1);
+                else if (i >= ranking.Count - demote && division.Rank < maxRank) targetRank = (byte)(division.Rank + 1);
+                result[ranking[i].PlayerId] = targetRank;
+            }
+        }
+        return result;
     }
 
     private static string StageDisplayName(Models.StageType type) => type switch
