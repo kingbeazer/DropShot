@@ -10,54 +10,39 @@
         </MudText>
 
         <div class="server-select-options">
-            @if (IsTeamContext)
-            {
-                @* Team match: home (user) on top, away (opponent) on bottom, vs between *@
-                <MudButton Variant="Variant.Filled" Color="Color.Success"
-                           Size="Size.Large" Class="server-select-btn"
-                           StartIcon="@Icons.Material.Filled.Person"
-                           OnClick="@(() => OnSelected("player1"))">
-                    <div class="server-option-stack">
-                        @if (!string.IsNullOrEmpty(UserTeamName))
-                        {
-                            <span class="server-option-team">@UserTeamName</span>
-                        }
-                        <span class="server-option-name">@UserLabel</span>
-                    </div>
-                </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       Size="Size.Large" Class="server-select-btn"
+                       StartIcon="@Icons.Material.Filled.Person"
+                       OnClick="@(() => OnSelected("player1"))">
+                <div class="server-option-stack">
+                    @if (!string.IsNullOrEmpty(UserTeamName))
+                    {
+                        <span class="server-option-team">@UserTeamName</span>
+                    }
+                    @foreach (var line in SplitNameLines(UserLabel))
+                    {
+                        <span class="server-option-name">@line</span>
+                    }
+                </div>
+            </MudButton>
 
-                <div class="server-select-vs">vs</div>
+            <div class="server-select-vs">vs</div>
 
-                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           Size="Size.Large" Class="server-select-btn"
-                           StartIcon="@Icons.Material.Filled.Person"
-                           OnClick="@(() => OnSelected("player2"))">
-                    <div class="server-option-stack">
-                        @if (!string.IsNullOrEmpty(OpponentTeamName))
-                        {
-                            <span class="server-option-team">@OpponentTeamName</span>
-                        }
-                        <span class="server-option-name">@OpponentLabel</span>
-                    </div>
-                </MudButton>
-            }
-            else
-            {
-                @* Non-team match: preserve existing layout *@
-                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           Size="Size.Large" Class="server-select-btn"
-                           StartIcon="@Icons.Material.Filled.Person"
-                           OnClick="@(() => OnSelected("player2"))">
-                    @OpponentLabel
-                </MudButton>
-
-                <MudButton Variant="Variant.Filled" Color="Color.Success"
-                           Size="Size.Large" Class="server-select-btn"
-                           StartIcon="@Icons.Material.Filled.Person"
-                           OnClick="@(() => OnSelected("player1"))">
-                    @UserLabel
-                </MudButton>
-            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       Size="Size.Large" Class="server-select-btn"
+                       StartIcon="@Icons.Material.Filled.Person"
+                       OnClick="@(() => OnSelected("player2"))">
+                <div class="server-option-stack">
+                    @if (!string.IsNullOrEmpty(OpponentTeamName))
+                    {
+                        <span class="server-option-team">@OpponentTeamName</span>
+                    }
+                    @foreach (var line in SplitNameLines(OpponentLabel))
+                    {
+                        <span class="server-option-name">@line</span>
+                    }
+                </div>
+            </MudButton>
 
             <MudButton Variant="Variant.Outlined" Color="Color.Warning"
                        Size="Size.Large" Class="server-select-btn"
@@ -87,6 +72,26 @@
 
     private bool IsTeamContext =>
         !string.IsNullOrEmpty(UserTeamName) || !string.IsNullOrEmpty(OpponentTeamName);
+
+    private IEnumerable<string> SplitNameLines(string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+            yield break;
+
+        if (!IsTeamContext || !label.Contains('&'))
+        {
+            yield return label;
+            yield break;
+        }
+
+        var parts = label.Split('&');
+        for (var i = 0; i < parts.Length; i++)
+        {
+            yield return parts[i].Trim();
+            if (i < parts.Length - 1)
+                yield return "&";
+        }
+    }
 
     private async Task OnSelected(string choice)
     {

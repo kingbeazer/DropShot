@@ -1,0 +1,7 @@
+/* Keep team-member tables consistent across teams so the Mobile and
+   Status columns line up vertically between adjacent team blocks. */
+::deep .team-members-table .mud-table-root {
+    table-layout: fixed;
+    width: 100%;
+    max-width: 700px;
+}

@@ -19,8 +19,6 @@
             <StatusMessage Message="@errorMessage" />
             <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
                 <DataAnnotationsValidator />
-                <h2>Use a local account to log in.</h2>
-                <hr />
                 <ValidationSummary class="text-danger" role="alert" />
                 <div class="form-floating mb-3">
                     <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
@@ -72,7 +70,7 @@
     }
     <div class="col-md-4 d-none d-md-block">
         <section>
-            <h3>Scan QR code to log in</h3>
+            <h1>Scan QR code to log in</h1>
             <hr />
             <QrLoginPanel />
         </section>
