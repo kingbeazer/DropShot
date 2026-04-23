@@ -75,6 +75,7 @@
     justify-items: stretch;
 }
 
+    /* Up to 6 columns, up to 2 rows — capped at 12 tiles total. */
     .scoreboard-grid.count-1 {
         grid-template-columns: 1fr;
     }
@@ -83,27 +84,38 @@
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .scoreboard-grid.count-3,
-    .scoreboard-grid.count-4 {
-        grid-template-columns: repeat(2, 1fr);
+    .scoreboard-grid.count-3 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .scoreboard-grid.count-4,
+    .scoreboard-grid.count-7,
+    .scoreboard-grid.count-8 {
+        grid-template-columns: repeat(4, 1fr);
     }
 
     .scoreboard-grid.count-5,
-    .scoreboard-grid.count-6 {
-        grid-template-columns: repeat(3, 1fr);
+    .scoreboard-grid.count-9,
+    .scoreboard-grid.count-10 {
+        grid-template-columns: repeat(5, 1fr);
     }
 
-    .scoreboard-grid.count-7,
-    .scoreboard-grid.count-8,
-    .scoreboard-grid.count-9 {
-        grid-template-columns: repeat(3, 1fr);
+    .scoreboard-grid.count-6,
+    .scoreboard-grid.count-11,
+    .scoreboard-grid.count-12 {
+        grid-template-columns: repeat(6, 1fr);
     }
 
+@media (max-width: 1200px) {
+    .scoreboard-grid.count-5,
+    .scoreboard-grid.count-6,
+    .scoreboard-grid.count-9,
     .scoreboard-grid.count-10,
     .scoreboard-grid.count-11,
     .scoreboard-grid.count-12 {
         grid-template-columns: repeat(4, 1fr);
     }
+}
 
 @media (max-width: 900px) {
     .scoreboard-grid.count-3,

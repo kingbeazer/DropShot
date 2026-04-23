@@ -24,3 +24,11 @@ export function setFullscreen(enabled) {
         document.body.classList.remove('scoreboard-fullscreen');
     }
 }
+
+export function setScoreboardActive(enabled) {
+    if (enabled) {
+        document.body.classList.add('scoreboard-active');
+    } else {
+        document.body.classList.remove('scoreboard-active');
+    }
+}
