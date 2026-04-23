@@ -12,7 +12,7 @@
                 Asking <strong>@OccupantLabel</strong> if they're still on this court&hellip;
             </MudText>
             <MudText Typo="Typo.caption" Color="Color.Secondary">
-                We'll release the court automatically if they don't reply in @_secondsLeft s.
+                Waiting for a reply — @_secondsLeft s
             </MudText>
         </MudStack>
     </DialogContent>
@@ -57,8 +57,12 @@
         _secondsLeft--;
         if (_secondsLeft <= 0)
         {
-            // Scorer didn't respond — treat as abandoned and free the court.
-            await ResolveAsync(allowClaim: true, autoExpireStale: true);
+            // Scorer didn't respond. Only free the court if the match is
+            // actually stale (no activity for the abandon threshold) —
+            // otherwise the match is presumed still active and we deny
+            // the claim so the challenger picks another court.
+            var stale = await CourtClaim.IsStaleAsync(SavedMatchId);
+            await ResolveAsync(allowClaim: stale, autoExpireStale: stale);
             return;
         }
         await InvokeAsync(StateHasChanged);
