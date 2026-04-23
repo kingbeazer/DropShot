@@ -70,6 +70,7 @@
 
 <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4" @bind-ActivePanelIndex="_activeTabIndex">
 <MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
+<CascadingValue Value="this" IsFixed="true">
 
     @* ── Details form ───────────────────────────────────────── *@
     <MudPaper id="section-details" Class="pa-4 mb-4 setup-section" Elevation="0"
@@ -341,134 +342,35 @@
         @* ── Stages ─────────────────────────────────────────── *@
         @if (IsEdit)
         {
-            <MudPaper id="section-stages" Class="pa-4 mb-4 setup-section" Elevation="0"
-                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
-                    <MudText Typo="Typo.h6" Style="flex:1">Stages</MudText>
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                               OnClick="OpenAddStageDialog">Add Stage</MudButton>
-                </MudStack>
-
-                <MudTable Items="@_stages.OrderBy(s => s.StageOrder)" Dense="true" Hover="true">
-                    <HeaderContent>
-                        <MudTh>#</MudTh>
-                        <MudTh>Stage</MudTh>
-                        <MudTh></MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.StageOrder</MudTd>
-                        <MudTd>@StageDisplayName(context.StageType)</MudTd>
-                        <MudTd>
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                           Color="Color.Error" OnClick="@(() => DeleteStage(context))" />
-                        </MudTd>
-                    </RowTemplate>
-                    <NoRecordsContent><MudText Typo="Typo.caption">No stages defined.</MudText></NoRecordsContent>
-                </MudTable>
-            </MudPaper>
+            <DropShot.Components.Competitions.Setup.StagesSection
+                Stages="_stages"
+                StageDisplayName="StageDisplayName"
+                OnOpenAddDialog="OpenAddStageDialog"
+                OnDeleteStage="DeleteStage" />
 
             @* ── Match Windows (hidden when HasDivisions — per-division UI lives in the Divisions section below) *@
             @if (!Model.HasDivisions)
             {
-            <MudPaper id="section-match-windows" Class="pa-4 mb-4 setup-section" Elevation="0"
-                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                <MudText Typo="Typo.h6" Class="mb-1">Match Windows</MudText>
-
-                <MudGrid Spacing="1" Class="mb-2">
-                    <MudItem xs="3">
-                        <MudSelect @bind-Value="_newMatchWindowDay" Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
-                            @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
-                            {
-                                <MudSelectItem Value="@d">@d</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-                    <MudItem xs="3">
-                        <MudSelect @bind-Value="_newMatchWindowCourtId" Label="Court" Variant="Variant.Outlined"
-                                   Margin="Margin.Dense" Clearable="true">
-                            @foreach (var c in _courts)
-                            {
-                                <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-                    <MudItem xs="2">
-                        <MudTimePicker @bind-Time="_newMatchWindowStart" Label="From" Variant="Variant.Outlined"
-                                       Margin="Margin.Dense" AmPm="false" />
-                    </MudItem>
-                    <MudItem xs="2">
-                        <MudTimePicker @bind-Time="_newMatchWindowEnd" Label="To" Variant="Variant.Outlined"
-                                       Margin="Margin.Dense" AmPm="false" />
-                    </MudItem>
-                    <MudItem xs="2" Class="d-flex align-center">
-                        <MudStack Row="true" Spacing="1">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                                       OnClick="AddMatchWindow">
-                                @(_editingMatchWindowId.HasValue ? "Update" : "Add")
-                            </MudButton>
-                            @if (_editingMatchWindowId.HasValue)
-                            {
-                                <MudButton Variant="Variant.Text" Size="Size.Small"
-                                           OnClick="CancelEditMatchWindow">Cancel</MudButton>
-                            }
-                        </MudStack>
-                    </MudItem>
-                </MudGrid>
-
-                @{
-                    var sharedWindows = _matchWindows.Where(w => w.CompetitionDivisionId == null).ToList();
-                }
-                @if (sharedWindows.Count > 0)
-                {
-                    <MudSimpleTable Dense="true" Class="mb-2">
-                        <thead>
-                            <tr><th>Day</th><th>Court</th><th>From</th><th>To</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var w in sharedWindows)
-                            {
-                                var isEditing = _editingMatchWindowId == w.CompetitionMatchWindowId;
-                                <tr style="@(isEditing ? "background-color: rgba(255,193,7,0.15);" : "")">
-                                    <td>@w.DayOfWeek</td>
-                                    <td>@(w.Court?.Name ?? "All courts")</td>
-                                    <td>@w.StartTime.ToString(@"hh\:mm")</td>
-                                    <td>@w.EndTime.ToString(@"hh\:mm")</td>
-                                    <td>
-                                        <MudTooltip Text="Copy values into the form">
-                                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                                           OnClick="@(() => CopyMatchWindowToForm(w))" />
-                                        </MudTooltip>
-                                        <MudTooltip Text="Edit this window">
-                                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                                           OnClick="@(() => EditMatchWindow(w))" />
-                                        </MudTooltip>
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                                       Color="Color.Error" OnClick="@(() => DeleteMatchWindow(w))" />
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </MudSimpleTable>
-                }
-                else
-                {
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
-                        No shared windows defined — auto-schedule will use default time slots.
-                    </MudText>
-                }
-
-                @if (_clubTemplates.Count > 0)
-                {
-                    <MudSelect T="int?" Label="Import from club template" Variant="Variant.Outlined"
-                               Value="_selectedTemplateId" Clearable="true"
-                               ValueChanged="ImportFromTemplate">
-                        @foreach (var t in _clubTemplates)
-                        {
-                            <MudSelectItem T="int?" Value="@((int?)t.ClubSchedulingTemplateId)">@t.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-                }
-            </MudPaper>
+                <DropShot.Components.Competitions.Setup.MatchWindowsSection
+                    Windows="_matchWindows"
+                    Courts="_courts"
+                    ClubTemplates="_clubTemplates"
+                    SelectedTemplateId="_selectedTemplateId"
+                    NewWindowDay="_newMatchWindowDay"
+                    NewWindowDayChanged="@(v => _newMatchWindowDay = v)"
+                    NewWindowCourtId="_newMatchWindowCourtId"
+                    NewWindowCourtIdChanged="@(v => _newMatchWindowCourtId = v)"
+                    NewWindowStart="_newMatchWindowStart"
+                    NewWindowStartChanged="@(v => _newMatchWindowStart = v)"
+                    NewWindowEnd="_newMatchWindowEnd"
+                    NewWindowEndChanged="@(v => _newMatchWindowEnd = v)"
+                    EditingWindowId="_editingMatchWindowId"
+                    OnAdd="AddMatchWindow"
+                    OnCancelEdit="CancelEditMatchWindow"
+                    OnCopyToForm="CopyMatchWindowToForm"
+                    OnEdit="EditMatchWindow"
+                    OnDelete="DeleteMatchWindow"
+                    OnImportFromTemplate="ImportFromTemplate" />
             }
 
             @* ── Rubber Template ─────────────────────────────── *@
@@ -808,21 +710,10 @@
             @* ── Apply Competition Template ───────────────────── *@
             @if (_competitionTemplates.Count > 0)
             {
-                <MudPaper id="section-templates" Class="pa-4 mb-4 setup-section" Elevation="0"
-                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudText Typo="Typo.h6" Class="mb-3">Apply Competition Template</MudText>
-                    <MudSelect T="int?" Label="Choose a template to apply" Variant="Variant.Outlined"
-                               Value="_selectedCompetitionTemplateId" Clearable="true"
-                               ValueChanged="ApplyCompetitionTemplate">
-                        @foreach (var t in _competitionTemplates)
-                        {
-                            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTemplateId)">@t.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
-                        Applying a template updates format, scoring, age, and match windows in-memory. Save the competition to persist.
-                    </MudText>
-                </MudPaper>
+                <DropShot.Components.Competitions.Setup.TemplatesSection
+                    Templates="_competitionTemplates"
+                    SelectedTemplateId="_selectedCompetitionTemplateId"
+                    OnApplyTemplate="ApplyCompetitionTemplate" />
             }
 
             @* -- Divisions -- *@
@@ -1495,6 +1386,7 @@
         </MudPaper>
     }
 
+</CascadingValue>
 </MudTabPanel>
 
 

@@ -1,0 +1,23 @@
+@using DropShot.Models
+
+<MudPaper id="section-templates" Class="pa-4 mb-4 setup-section" Elevation="0"
+     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+    <MudText Typo="Typo.h6" Class="mb-3">Apply Competition Template</MudText>
+    <MudSelect T="int?" Label="Choose a template to apply" Variant="Variant.Outlined"
+               Value="SelectedTemplateId" Clearable="true"
+               ValueChanged="@(v => OnApplyTemplate.InvokeAsync(v))">
+        @foreach (var t in Templates)
+        {
+            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTemplateId)">@t.Name</MudSelectItem>
+        }
+    </MudSelect>
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+        Applying a template updates format, scoring, age, and match windows in-memory. Save the competition to persist.
+    </MudText>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionTemplate> Templates { get; set; } = [];
+    [Parameter] public int? SelectedTemplateId { get; set; }
+    [Parameter] public EventCallback<int?> OnApplyTemplate { get; set; }
+}
