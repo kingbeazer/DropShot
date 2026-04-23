@@ -233,7 +233,7 @@
             _isSuperAdmin = currentUser is not null && await UserManager.IsInRoleAsync(currentUser, "SuperAdmin");
             await Load();
 
-            const string bootstrapEmail = "alan.beattie@xma.co.uk";
+            const string bootstrapEmail = "beattie.edwin@gmail.com";
             _showBootstrapBanner =
                 !_isSuperAdmin &&
                 currentUser?.Email?.Equals(bootstrapEmail, StringComparison.OrdinalIgnoreCase) == true &&
@@ -344,7 +344,7 @@
     private async Task BootstrapSuperAdminAsync()
     {
         _bootstrapBusy = true;
-        const string bootstrapEmail = "alan.beattie@xma.co.uk";
+        const string bootstrapEmail = "beattie.edwin@gmail.com";
 
         var authState = await AuthenticationState;
         var currentUser = await UserManager.GetUserAsync(authState.User);
