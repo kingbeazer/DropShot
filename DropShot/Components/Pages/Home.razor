@@ -11,6 +11,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDialogService DialogService
 @inject ClubAuthorizationService AuthzService
+@inject CourtClaimService CourtClaim
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
 
@@ -166,7 +167,7 @@
         </MudText>
         <MudButton Variant="Variant.Filled" Color="Color.Dark" Size="Size.Large"
                    StartIcon="@Icons.Material.Filled.PlayArrow"
-                   Href="/match" Class="mt-3"
+                   OnClick="StartCasualMatchAsync" Class="mt-3"
                    Style="font-weight: 600; border-radius: 24px; padding: 10px 32px;">
             Start a Match
         </MudButton>
@@ -211,7 +212,7 @@
                                     <MudStack Row="true" Spacing="2">
                                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                                    StartIcon="@Icons.Material.Filled.PlayArrow"
-                                                   OnClick="@(() => Navigation.NavigateTo(FixturePlayUrl(context)))">
+                                                   OnClick="@(() => StartFixtureMatchAsync(context))">
                                             Play
                                         </MudButton>
                                         <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
@@ -461,6 +462,54 @@
         (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
             ? $"/team-match/{f.CompetitionFixtureId}"
             : $"/match/0?fixtureId={f.CompetitionFixtureId}&autoStart=true";
+
+    private Task StartCasualMatchAsync() => NavigateToMatchWithActiveGuardAsync("/match");
+
+    private Task StartFixtureMatchAsync(CompetitionFixture fixture) =>
+        NavigateToMatchWithActiveGuardAsync(FixturePlayUrl(fixture));
+
+    private async Task NavigateToMatchWithActiveGuardAsync(string targetUrl)
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var active = await CourtClaim.GetUserActiveMatchAsync(userId);
+            if (active is not null)
+            {
+                var choice = await DialogService.ShowMessageBox(new MessageBoxOptions
+                {
+                    Title = "Match already in progress",
+                    Message = $"You're already scoring {OccupantLabel(active)}. What would you like to do?",
+                    YesText = "Resume match",
+                    NoText = "End and start new",
+                    CancelText = "Cancel"
+                });
+                if (choice is null) return;
+                if (choice == true)
+                {
+                    Navigation.NavigateTo($"/match/{active.SavedMatchId}");
+                    return;
+                }
+                await CourtClaim.EndMatchAsync(active.SavedMatchId);
+            }
+        }
+        Navigation.NavigateTo(targetUrl);
+    }
+
+    private static string OccupantLabel(SavedMatch m)
+    {
+        var a = !string.IsNullOrWhiteSpace(m.Player3)
+            ? $"{m.Player1} & {m.Player2}"
+            : m.Player1 ?? "";
+        var b = !string.IsNullOrWhiteSpace(m.Player3)
+            ? $"{m.Player3} & {m.Player4}"
+            : m.Player2 ?? "";
+        if (string.IsNullOrWhiteSpace(a) && string.IsNullOrWhiteSpace(b))
+            return "a match";
+        if (string.IsNullOrWhiteSpace(b)) return $"a match ({a})";
+        return $"{a} vs {b}";
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
