@@ -52,7 +52,7 @@
                                                Variant="Variant.Outlined"
                                                InputMode="InputMode.numeric"
                                                UserAttributes="@_numericAttrs"
-                                               AutoFocus="@(idx == 0)"
+                                               DebounceInterval="300"
                                                Style="width:65px" />
                             </td>
                             <td style="text-align:center; padding:0 4px; font-weight:bold">–</td>
@@ -63,6 +63,7 @@
                                                Variant="Variant.Outlined"
                                                InputMode="InputMode.numeric"
                                                UserAttributes="@_numericAttrs"
+                                               DebounceInterval="300"
                                                Style="width:65px" />
                             </td>
                         </tr>
@@ -113,6 +114,22 @@
     private string? _error;
     private string _side1 = "";
     private string _side2 = "";
+
+    private bool _initialFocusApplied;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // MudTextField's @ref is wired up on the second render pass. Apply
+        // focus here (instead of AutoFocus) so the dialog's interactive-mode
+        // re-render can't steal the caret back from the first cell.
+        if (_initialFocusApplied) return;
+        if (_f1.Length > 0 && _f1[0] is { } first)
+        {
+            _initialFocusApplied = true;
+            await first.FocusAsync();
+            await first.SelectAsync();
+        }
+    }
 
     protected override void OnParametersSet()
     {
@@ -183,8 +200,11 @@
 
         AutoDetectWinner();
 
-        if (v.HasValue && nextIdx < _bestOf && nextFields[nextIdx] != null)
-            await nextFields[nextIdx].FocusAsync();
+        if (v.HasValue && nextIdx < _bestOf && nextFields[nextIdx] is { } next)
+        {
+            await next.FocusAsync();
+            await next.SelectAsync();
+        }
     }
 
     private void AutoDetectWinner()
