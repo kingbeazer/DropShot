@@ -669,382 +669,68 @@
             @* -- Divisions -- *@
             @if (Model.HasDivisions)
             {
-                <MudPaper id="section-divisions" Class="pa-4 mb-4 setup-section" Elevation="0"
-                         Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2" Wrap="Wrap.Wrap">
-                        <MudText Typo="Typo.h6" Style="flex:1">Divisions</MudText>
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                                   OnClick="StartAddDivision">Add Division</MudButton>
-                        @if (_seedSourceCandidates.Count > 0 && _divisions.Count == 0)
-                        {
-                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                       StartIcon="@Icons.Material.Filled.ContentCopy"
-                                       OnClick="OpenSeedDivisionsDialog">Seed from previous</MudButton>
-                        }
-                    </MudStack>
-
-                    @* Competition-wide fixture actions — Schedule / Add / Delete All apply to every division in one shot. *@
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
-                        <MudText Typo="Typo.caption" Style="flex:1; opacity:0.8">
-                            Rank 1 is the top division. Teams, match windows and fixtures for each division are configured within the panels below.
-                        </MudText>
-                        @if (_stages.Any(s => s.StageType == StageType.RoundRobin) &&
-                             _stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
-                        {
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
-                                       StartIcon="@Icons.Material.Filled.Leaderboard"
-                                       OnClick="@(() => _showSeedConfirm = true)">
-                                Seed from Standings
-                            </MudButton>
-                        }
-                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
-                                   StartIcon="@Icons.Material.Filled.AutoAwesome"
-                                   OnClick="OpenScheduleConfirm">
-                            Auto Schedule
-                        </MudButton>
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                                   OnClick="OpenAddFixtureDialog">Add Fixture</MudButton>
-                        @if (_fixtures.Count > 0)
-                        {
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
-                                       StartIcon="@Icons.Material.Filled.DeleteSweep"
-                                       OnClick="@(() => _showDeleteAllFixturesConfirm = true)">Delete All Fixtures</MudButton>
-                        }
-                    </MudStack>
-
-                    @if (_showScheduleConfirm)
-                    {
-                        <MudAlert Severity="Severity.Info" Class="mb-3" ShowCloseIcon="true"
-                                  CloseIconClicked="@(() => _showScheduleConfirm = false)">
-                            <MudStack Spacing="1">
-                                <MudText Typo="Typo.body2">
-                                    Auto-scheduling creates missing fixtures based on the current stages, participants and divisions. Fixtures that already have a scheduled date will be preserved.
-                                </MudText>
-                                <MudCheckBox @bind-Value="_scheduleDeleteExisting" Dense="true"
-                                             Label="Also delete existing unscheduled fixtures" />
-                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
-                                           OnClick="ScheduleFixtures">Schedule</MudButton>
-                            </MudStack>
-                        </MudAlert>
-                    }
-
-                    @if (_showDeleteAllFixturesConfirm)
-                    {
-                        <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
-                                  CloseIconClicked="@(() => _showDeleteAllFixturesConfirm = false)">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                                <MudText Typo="Typo.body2">Delete all @_fixtures.Count fixture(s)? This cannot be undone.</MudText>
-                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                                           OnClick="DeleteAllFixtures">Confirm Delete</MudButton>
-                            </MudStack>
-                        </MudAlert>
-                    }
-
-                    @if (_addingDivision)
-                    {
-                        <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.2); border-radius: 8px;">
-                            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-                                <MudTextField T="string" @bind-Value="_divisionName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1" />
-                                <MudNumericField T="byte" @bind-Value="_divisionRank" Label="Rank (1 = top)" Min="1" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px" />
-                                <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
-                                           Disabled="@string.IsNullOrWhiteSpace(_divisionName)"
-                                           OnClick="SaveDivisionDialog">Save</MudButton>
-                                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="CancelAddDivision">Cancel</MudButton>
-                            </MudStack>
-                        </MudPaper>
-                    }
-
-                    @if (_divisions.Count == 0 && !_addingDivision)
-                    {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            No divisions defined yet. Click <b>Add Division</b> to create one.
-                        </MudText>
-                    }
-                    else
-                    {
-                        var divFormat = EffectivePersistedFormat();
-                        var divIsTeamMatch = divFormat == CompetitionFormat.TeamMatch;
-                        var divIsDoubles = divFormat is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
-
-                        <MudExpansionPanels MultiExpansion="true">
-                            @foreach (var d in _divisions.OrderBy(x => x.Rank))
-                            {
-                                var divId = d.CompetitionDivisionId;
-                                var divTeams = _teams.Where(t => t.CompetitionDivisionId == divId).ToList();
-                                var divParts = _participants.Where(p => p.CompetitionDivisionId == divId).ToList();
-                                var divWindows = _matchWindows.Where(w => w.CompetitionDivisionId == divId).ToList();
-                                var divFixtures = _fixtures.Where(f => FixtureBelongsToDivision(f, divId)).ToList();
-                                var windowForm = GetDivisionWindowForm(divId);
-                                var editingThis = _inlineEditDivisionId == divId;
-
-                                <MudExpansionPanel Text="@($"Division {d.Rank} - {d.Name}  ({divTeams.Count} teams, {divParts.Count} participants, {divFixtures.Count} fixtures)")">
-
-                                    @* Division identity form *@
-                                    <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background: rgba(255,255,255,0.04); border-radius: 8px;">
-                                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-                                            @if (editingThis)
-                                            {
-                                                <MudTextField T="string" @bind-Value="_divisionName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1" />
-                                                <MudNumericField T="byte" @bind-Value="_divisionRank" Label="Rank" Min="1" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px" />
-                                                <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
-                                                           Disabled="@string.IsNullOrWhiteSpace(_divisionName)"
-                                                           OnClick="SaveDivisionDialog">Save</MudButton>
-                                                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="CancelInlineEditDivision">Cancel</MudButton>
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body2" Style="flex:1">
-                                                    <b>Rank @d.Rank</b> - @d.Name
-                                                </MudText>
-                                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                                               OnClick="@(() => StartInlineEditDivision(d))" />
-                                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                                               OnClick="@(() => DeleteDivision(d))" />
-                                            }
-                                        </MudStack>
-                                    </MudPaper>
-
-                                    @* Teams sub-section *@
-                                    @if (divFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
-                                    {
-                                        <MudDivider Class="my-3" />
-                                        <MudText Typo="Typo.subtitle1" Class="mb-2">@(divIsDoubles ? "Pairings" : "Teams")</MudText>
-
-                                        @if (divTeams.Count == 0)
-                                        {
-                                            <MudText Typo="Typo.caption" Color="Color.Secondary">No @(divIsDoubles ? "pairings" : "teams") assigned to this division yet.</MudText>
-                                        }
-                                        else
-                                        {
-                                            <MudTable Items="@divTeams" Dense="true" Hover="true">
-                                                <HeaderContent>
-                                                    <MudTh>Team Name</MudTh>
-                                                    @if (divIsTeamMatch)
-                                                    {
-                                                        <MudTh>Captain</MudTh>
-                                                    }
-                                                    <MudTh>Members</MudTh>
-                                                    <MudTh></MudTh>
-                                                </HeaderContent>
-                                                <RowTemplate>
-                                                    <MudTd>@context.Name</MudTd>
-                                                    @if (divIsTeamMatch)
-                                                    {
-                                                        <MudTd>
-                                                            <MudSelect T="int?" Value="context.CaptainPlayerId" Dense="true" Variant="Variant.Text"
-                                                                       Clearable="true"
-                                                                       ValueChanged="@((int? pid) => AssignCaptain(context, pid))">
-                                                                @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
-                                                                {
-                                                                    <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@(p.Player?.DisplayName ?? "")</MudSelectItem>
-                                                                }
-                                                            </MudSelect>
-                                                        </MudTd>
-                                                    }
-                                                    <MudTd>
-                                                        @if (divIsTeamMatch)
-                                                        {
-                                                            @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
-                                                            {
-                                                                var label = $"{p.Player?.DisplayName} ({p.Role ?? "-"})";
-                                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@label</MudChip>
-                                                            }
-                                                        }
-                                                        else
-                                                        {
-                                                            @string.Join(", ", _participants
-                                                                .Where(p => p.TeamId == context.CompetitionTeamId)
-                                                                .Select(p => p.Player?.DisplayName ?? ""))
-                                                        }
-                                                    </MudTd>
-                                                    <MudTd>
-                                                        @if (divIsTeamMatch)
-                                                        {
-                                                            <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small"
-                                                                           Color="Color.Info" aria-label="Validate"
-                                                                           OnClick="@(() => ValidateTeam(context))" />
-                                                        }
-                                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                                                       OnClick="@(() => OpenEditTeamDialog(context))" />
-                                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                                                       Color="Color.Error" OnClick="@(() => DeleteTeam(context))" />
-                                                    </MudTd>
-                                                </RowTemplate>
-                                            </MudTable>
-                                        }
-                                    }
-
-                                    @* Match windows sub-section *@
-                                    <MudDivider Class="my-3" />
-                                    <MudText Typo="Typo.subtitle1" Class="mb-2">Match Windows</MudText>
-                                    <MudGrid Spacing="1" Class="mb-2">
-                                        <MudItem xs="3">
-                                            <MudSelect @bind-Value="windowForm.Day" Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
-                                                @foreach (DayOfWeek dow in Enum.GetValues<DayOfWeek>())
-                                                {
-                                                    <MudSelectItem Value="@dow">@dow</MudSelectItem>
-                                                }
-                                            </MudSelect>
-                                        </MudItem>
-                                        <MudItem xs="3">
-                                            <MudSelect @bind-Value="windowForm.CourtId" Label="Court" Variant="Variant.Outlined"
-                                                       Margin="Margin.Dense" Clearable="true">
-                                                @foreach (var c in _courts)
-                                                {
-                                                    <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
-                                                }
-                                            </MudSelect>
-                                        </MudItem>
-                                        <MudItem xs="2">
-                                            <MudTimePicker @bind-Time="windowForm.Start" Label="From" Variant="Variant.Outlined"
-                                                           Margin="Margin.Dense" AmPm="false" />
-                                        </MudItem>
-                                        <MudItem xs="2">
-                                            <MudTimePicker @bind-Time="windowForm.End" Label="To" Variant="Variant.Outlined"
-                                                           Margin="Margin.Dense" AmPm="false" />
-                                        </MudItem>
-                                        <MudItem xs="2" Class="d-flex align-center">
-                                            <MudStack Row="true" Spacing="1">
-                                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                                                           OnClick="@(() => AddDivisionMatchWindow(divId))">
-                                                    @(windowForm.EditingId.HasValue ? "Update" : "Add")
-                                                </MudButton>
-                                                @if (windowForm.EditingId.HasValue)
-                                                {
-                                                    <MudButton Variant="Variant.Text" Size="Size.Small"
-                                                               OnClick="@(() => CancelEditDivisionMatchWindow(divId))">Cancel</MudButton>
-                                                }
-                                            </MudStack>
-                                        </MudItem>
-                                    </MudGrid>
-
-                                    @if (divWindows.Count > 0)
-                                    {
-                                        <MudSimpleTable Dense="true" Class="mb-2">
-                                            <thead>
-                                                <tr><th>Day</th><th>Court</th><th>From</th><th>To</th><th></th></tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var w in divWindows)
-                                                {
-                                                    var isEditingWindow = windowForm.EditingId == w.CompetitionMatchWindowId;
-                                                    <tr style="@(isEditingWindow ? "background-color: rgba(255,193,7,0.15);" : "")">
-                                                        <td>@w.DayOfWeek</td>
-                                                        <td>@(w.Court?.Name ?? "All courts")</td>
-                                                        <td>@w.StartTime.ToString(@"hh\:mm")</td>
-                                                        <td>@w.EndTime.ToString(@"hh\:mm")</td>
-                                                        <td>
-                                                            <MudTooltip Text="Copy values into the form">
-                                                                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                                                               OnClick="@(() => CopyDivisionMatchWindowToForm(w))" />
-                                                            </MudTooltip>
-                                                            <MudTooltip Text="Edit this window">
-                                                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                                                               OnClick="@(() => EditDivisionMatchWindow(w))" />
-                                                            </MudTooltip>
-                                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                                                           Color="Color.Error" OnClick="@(() => DeleteMatchWindow(w))" />
-                                                        </td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </MudSimpleTable>
-                                    }
-                                    else
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
-                                            No match windows for this division - auto-schedule will fall back to default time slots.
-                                        </MudText>
-                                    }
-
-                                    @* Fixtures sub-section *@
-                                    <MudDivider Class="my-3" />
-                                    <MudText Typo="Typo.subtitle1" Class="mb-2">Fixtures</MudText>
-                                    @if (divFixtures.Count == 0)
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                            No fixtures scheduled for this division yet. Use the <b>Schedule</b> action at the bottom of the page to auto-generate.
-                                        </MudText>
-                                    }
-                                    else
-                                    {
-                                        <MudSimpleTable Dense="true" Hover="true" Class="mb-2">
-                                            <thead>
-                                                <tr>
-                                                    <th>Match</th>
-                                                    <th>Date / Time</th>
-                                                    <th>Players</th>
-                                                    <th>Court</th>
-                                                    <th>Status</th>
-                                                    <th>Result</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var f in divFixtures)
-                                                {
-                                                    <tr>
-                                                        <td>@(string.IsNullOrEmpty(f.FixtureLabel) ? (f.Stage?.Name ?? "") : f.FixtureLabel)</td>
-                                                        <td>@(f.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "-")</td>
-                                                        <td>@FixturePlayersDisplay(f)</td>
-                                                        <td>@FixtureCourtDisplay(f)</td>
-                                                        <td>@f.Status</td>
-                                                        <td>@(f.ResultSummary ?? "-")</td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </MudSimpleTable>
-                                    }
-                                </MudExpansionPanel>
-                            }
-                        </MudExpansionPanels>
-                    }
-                </MudPaper>
-
-                @if (_showSeedDivisionsDialog)
-                {
-                    <MudDialog @bind-Visible="_showSeedDivisionsDialog" Options="@(new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small })">
-                        <TitleContent>Seed divisions from previous competition</TitleContent>
-                        <DialogContent>
-                            <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.8">
-                                Copies the division structure from a previous competition, and assigns each returning participant to the same division they finished in. Optionally apply promotion / demotion based on their final per-player ranking.
-                            </MudText>
-                            <MudSelect T="int?" Label="Previous competition" Variant="Variant.Outlined"
-                                       @bind-Value="_seedSourceCompetitionId" Class="mb-2">
-                                @foreach (var c in _seedSourceCandidates)
-                                {
-                                    <MudSelectItem T="int?" Value="@((int?)c.CompetitionID)">
-                                        @c.CompetitionName@(c.StartDate.HasValue ? $" ({c.StartDate:dd MMM yyyy})" : "")
-                                    </MudSelectItem>
-                                }
-                            </MudSelect>
-                            <MudCheckBox @bind-Value="_seedApplyPromotion"
-                                         Label="Apply promotion / demotion from previous standings" Class="mb-1" />
-                            @if (_seedApplyPromotion)
-                            {
-                                <MudGrid Spacing="2">
-                                    <MudItem xs="6">
-                                        <MudNumericField T="int" Label="Promote top N" @bind-Value="_seedPromoteCount" Min="0" Max="20" />
-                                    </MudItem>
-                                    <MudItem xs="6">
-                                        <MudNumericField T="int" Label="Demote bottom N" @bind-Value="_seedDemoteCount" Min="0" Max="20" />
-                                    </MudItem>
-                                </MudGrid>
-                            }
-                        </DialogContent>
-                        <DialogActions>
-                            <MudButton OnClick="@(() => _showSeedDivisionsDialog = false)">Cancel</MudButton>
-                            <MudButton Color="Color.Primary" Variant="Variant.Filled"
-                                       Disabled="@(_seedingDivisions || !_seedSourceCompetitionId.HasValue)"
-                                       OnClick="RunSeedDivisions">
-                                @if (_seedingDivisions)
-                                {
-                                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
-                                }
-                                Seed
-                            </MudButton>
-                        </DialogActions>
-                    </MudDialog>
-                }
+                <DropShot.Components.Competitions.Setup.DivisionsSection
+                    Divisions="_divisions"
+                    Teams="_teams"
+                    Participants="_participants"
+                    MatchWindows="_matchWindows"
+                    Fixtures="_fixtures"
+                    Courts="_courts"
+                    Stages="_stages"
+                    SeedSourceCandidates="_seedSourceCandidates"
+                    Format="EffectivePersistedFormat()"
+                    AddingDivision="_addingDivision"
+                    AddingDivisionChanged="@(v => _addingDivision = v)"
+                    InlineEditDivisionId="_inlineEditDivisionId"
+                    InlineEditDivisionIdChanged="@(v => _inlineEditDivisionId = v)"
+                    DivisionName="_divisionName"
+                    DivisionNameChanged="@(v => _divisionName = v)"
+                    DivisionRank="_divisionRank"
+                    DivisionRankChanged="@(v => _divisionRank = v)"
+                    ShowSeedDivisionsDialog="_showSeedDivisionsDialog"
+                    ShowSeedDivisionsDialogChanged="@(v => _showSeedDivisionsDialog = v)"
+                    SeedSourceCompetitionId="_seedSourceCompetitionId"
+                    SeedSourceCompetitionIdChanged="@(v => _seedSourceCompetitionId = v)"
+                    SeedApplyPromotion="_seedApplyPromotion"
+                    SeedApplyPromotionChanged="@(v => _seedApplyPromotion = v)"
+                    SeedPromoteCount="_seedPromoteCount"
+                    SeedPromoteCountChanged="@(v => _seedPromoteCount = v)"
+                    SeedDemoteCount="_seedDemoteCount"
+                    SeedDemoteCountChanged="@(v => _seedDemoteCount = v)"
+                    SeedingDivisions="_seedingDivisions"
+                    ShowScheduleConfirm="_showScheduleConfirm"
+                    ShowScheduleConfirmChanged="@(v => _showScheduleConfirm = v)"
+                    ScheduleDeleteExisting="_scheduleDeleteExisting"
+                    ScheduleDeleteExistingChanged="@(v => _scheduleDeleteExisting = v)"
+                    ShowSeedConfirm="_showSeedConfirm"
+                    ShowSeedConfirmChanged="@(v => _showSeedConfirm = v)"
+                    ShowDeleteAllFixturesConfirm="_showDeleteAllFixturesConfirm"
+                    ShowDeleteAllFixturesConfirmChanged="@(v => _showDeleteAllFixturesConfirm = v)"
+                    GetDivisionWindowForm="GetDivisionWindowForm"
+                    FixtureBelongsToDivision="FixtureBelongsToDivision"
+                    FixturePlayersDisplay="FixturePlayersDisplay"
+                    FixtureCourtDisplay="FixtureCourtDisplay"
+                    OnStartAddDivision="StartAddDivision"
+                    OnCancelAddDivision="CancelAddDivision"
+                    OnSaveDivision="SaveDivisionDialog"
+                    OnStartInlineEditDivision="StartInlineEditDivision"
+                    OnCancelInlineEditDivision="CancelInlineEditDivision"
+                    OnDeleteDivision="DeleteDivision"
+                    OnOpenSeedDivisionsDialog="OpenSeedDivisionsDialog"
+                    OnRunSeedDivisions="RunSeedDivisions"
+                    OnOpenScheduleConfirm="OpenScheduleConfirm"
+                    OnScheduleFixtures="ScheduleFixtures"
+                    OnOpenAddFixtureDialog="OpenAddFixtureDialog"
+                    OnDeleteAllFixtures="DeleteAllFixtures"
+                    OnAddDivisionMatchWindow="AddDivisionMatchWindow"
+                    OnCancelEditDivisionMatchWindow="CancelEditDivisionMatchWindow"
+                    OnCopyDivisionMatchWindowToForm="CopyDivisionMatchWindowToForm"
+                    OnEditDivisionMatchWindow="EditDivisionMatchWindow"
+                    OnDeleteMatchWindow="DeleteMatchWindow"
+                    OnAssignCaptain="@((args) => AssignCaptain(args.Team, args.PlayerId))"
+                    OnValidateTeam="ValidateTeam"
+                    OnOpenEditTeamDialog="OpenEditTeamDialog"
+                    OnDeleteTeam="DeleteTeam" />
             }
 
 
