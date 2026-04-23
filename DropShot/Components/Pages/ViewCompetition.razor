@@ -81,6 +81,8 @@ else
     <MudDivider Class="mb-4" />
 
     @* ── Fixtures by stage ───────────────────────────────────── *@
+    @if (!(_canEdit && _competition.HasDivisions))
+    {
     <MudText Typo="Typo.h5" Class="mb-3">Scheduled Matches</MudText>
 
     @if (!_fixtures.Any())
@@ -187,6 +189,158 @@ else
             </MudTable>
             }
         }
+    }
+    }
+
+    @* ── Admin: per-division expanders (fixtures + teams combined) ─── *@
+    @if (_canEdit && _competition.HasDivisions)
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">Divisions</MudText>
+        <MudExpansionPanels MultiExpansion="true">
+            @foreach (var divGroup in _fixturesByDivision)
+            {
+                var divKey = divGroup.Division?.CompetitionDivisionId;
+                var divTeams = _teamsByDivision
+                    .FirstOrDefault(g => g.Division?.CompetitionDivisionId == divKey).Teams
+                    ?? new List<CompetitionTeam>();
+                var stageGroups = divGroup.StageGroups;
+                var fxCount = stageGroups.Sum(sg => sg.Fixtures.Count);
+                var panelTitle = $"{divGroup.Division?.Name ?? "Unassigned"} — {divTeams.Count} team{(divTeams.Count == 1 ? "" : "s")}, {fxCount} match{(fxCount == 1 ? "" : "es")}";
+
+                <MudExpansionPanel Text="@panelTitle">
+                    <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Scheduled Matches</MudText>
+                    @if (stageGroups.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">No matches scheduled.</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var stageGroup in stageGroups)
+                        {
+                            <MudText Typo="Typo.body1" Class="mt-2 mb-1">@(stageGroup.StageName ?? "Unassigned")</MudText>
+                            <MudTable Items="@stageGroup.Fixtures" Dense="true" Hover="true" Class="mb-3">
+                                <HeaderContent>
+                                    <MudTh>Date / Time</MudTh>
+                                    <MudTh>Match</MudTh>
+                                    <MudTh>Players</MudTh>
+                                    <MudTh>Court</MudTh>
+                                    <MudTh>Status</MudTh>
+                                    <MudTh>Result</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="Date / Time">@(((context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification) ? (context.CompletedAt ?? context.ScheduledAt) : context.ScheduledAt)?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+                                    <MudTd DataLabel="Match">@(context.FixtureLabel ?? "—")</MudTd>
+                                    <MudTd DataLabel="Players">@FixturePlayers(context)</MudTd>
+                                    <MudTd DataLabel="Court">@FixtureCourtLabel(context)</MudTd>
+                                    <MudTd DataLabel="Status">
+                                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+                                    </MudTd>
+                                    <MudTd DataLabel="Result">
+                                        @{
+                                            bool isTeamFixtureRow = context.HomeTeamId.HasValue && context.AwayTeamId.HasValue;
+                                            bool hasResult = context.Status == FixtureStatus.Completed
+                                                || context.Status == FixtureStatus.AwaitingVerification;
+                                            var teamResult = (isTeamFixtureRow && context.Rubbers.Any(r => r.IsComplete))
+                                                ? RubberResolutionService.ComputeLeagueScore(
+                                                    context.Rubbers,
+                                                    context.HomeTeamId!.Value,
+                                                    context.AwayTeamId!.Value,
+                                                    _competition?.LeagueScoring ?? LeagueScoringMode.WinPoints)
+                                                : (homeFor: 0, awayFor: 0, unitLabel: "");
+                                            bool homeWon = context.WinnerTeamId == context.HomeTeamId;
+                                            bool awayWon = context.WinnerTeamId == context.AwayTeamId;
+                                        }
+                                        @if (hasResult && isTeamFixtureRow && context.Rubbers.Any(r => r.IsComplete))
+                                        {
+                                            <MudStack Spacing="0" Style="min-width:160px">
+                                                <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                                    <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                                        @(context.HomeTeam?.Name ?? "Home")
+                                                    </MudText>
+                                                    <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                                        @teamResult.homeFor
+                                                    </MudText>
+                                                </MudStack>
+                                                <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                                    <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                                        @(context.AwayTeam?.Name ?? "Away")
+                                                    </MudText>
+                                                    <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                                        @teamResult.awayFor
+                                                    </MudText>
+                                                </MudStack>
+                                            </MudStack>
+                                            @if (context.Status == FixtureStatus.AwaitingVerification)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
+                                            }
+                                        }
+                                        else if (hasResult && !isTeamFixtureRow && !string.IsNullOrEmpty(context.ResultSummary))
+                                        {
+                                            <ResultCard Fixture="context" Compact="true" />
+                                            @if (context.ResultModifiedByAdmin)
+                                            {
+                                                <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Modified</MudChip>
+                                                </MudTooltip>
+                                            }
+                                            @if (context.Status == FixtureStatus.AwaitingVerification)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
+                                            }
+                                        }
+                                        else if (hasResult)
+                                        {
+                                            <MudText Typo="Typo.body2" Style="font-weight:500">
+                                                @(WinnerName(context))
+                                            </MudText>
+                                        }
+                                        else
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                                        }
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                    }
+
+                    <MudDivider Class="my-3" />
+
+                    <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Teams</MudText>
+                    @if (divTeams.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">No teams assigned.</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var team in divTeams)
+                        {
+                            var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
+                            <MudExpansionPanel Text="@($"{team.Name} ({members.Count} players)")" Class="mb-2">
+                                <MudTable Items="@members" Dense="true" Hover="true">
+                                    <HeaderContent>
+                                        <MudTh>Player</MudTh>
+                                        <MudTh>Mobile</MudTh>
+                                        <MudTh>Status</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@context.Player?.DisplayName</MudTd>
+                                        <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
+                                        <MudTd>
+                                            <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                                                @context.Status
+                                            </MudChip>
+                                        </MudTd>
+                                    </RowTemplate>
+                                    <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
+                                </MudTable>
+                            </MudExpansionPanel>
+                        }
+                    }
+                </MudExpansionPanel>
+            }
+        </MudExpansionPanels>
     }
 
     @* ── League Table (round-robin stages only) ──────────────── *@
@@ -313,6 +467,36 @@ else
     }
 
     @* ── Competitors ─────────────────────────────────────────── *@
+    @* For admin + divisions, teams are rendered inside the Divisions expanders above;
+       this section still renders for non-team formats, non-division competitions,
+       and non-admin users. Unassigned participants (no team) are still shown as a
+       fallback for admin + divisions. *@
+    @if (_canEdit && _competition.HasDivisions)
+    {
+        @if (_participants.Any(p => p.TeamId == null))
+        {
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Unassigned Participants</MudText>
+            <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Player</MudTh>
+                    <MudTh>Mobile</MudTh>
+                    <MudTh>Status</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Player?.DisplayName</MudTd>
+                    <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
+                    <MudTd>
+                        <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    }
+    else
+    {
     <MudDivider Class="my-4" />
     <MudText Typo="Typo.h5" Class="mb-3">Competitors</MudText>
 
@@ -391,6 +575,7 @@ else
             </RowTemplate>
             <NoRecordsContent><MudText Typo="Typo.caption">No competitors registered.</MudText></NoRecordsContent>
         </MudTable>
+    }
     }
 }
 
