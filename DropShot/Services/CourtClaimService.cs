@@ -12,7 +12,7 @@ namespace DropShot.Services;
 /// </summary>
 public sealed class CourtClaimService
 {
-    public static readonly TimeSpan AbandonAfter = TimeSpan.FromMinutes(60);
+    public static readonly TimeSpan AbandonAfter = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan GraceAfterYes = TimeSpan.FromMinutes(15);
 
     private readonly IDbContextFactory<MyDbContext> _dbFactory;
@@ -34,7 +34,13 @@ public sealed class CourtClaimService
             return CourtClaimResult.Free();
 
         var now = DateTime.UtcNow;
-        var lastSeen = active.LastActivityAt ?? active.CreatedAt;
+        // EF Core strips DateTimeKind on round-trip, so columns read back as
+        // Kind=Unspecified. Pin them to UTC so callers can safely do local
+        // conversions ("until HH:mm") without getting a past time.
+        var lastSeen = AsUtc(active.LastActivityAt ?? active.CreatedAt);
+        var graceUntil = active.ClaimGraceUntilUtc.HasValue
+            ? (DateTime?)AsUtc(active.ClaimGraceUntilUtc.Value)
+            : null;
 
         if (now - lastSeen >= AbandonAfter)
         {
@@ -45,13 +51,25 @@ public sealed class CourtClaimService
             return CourtClaimResult.StaleAutoClosed(active.SavedMatchId);
         }
 
-        if (active.ClaimGraceUntilUtc is { } until && until > now)
+        if (graceUntil is { } until && until > now)
             return CourtClaimResult.InGrace(active.SavedMatchId, until,
                 BuildOccupantLabel(active));
 
         return CourtClaimResult.NeedsChallenge(active.SavedMatchId,
             BuildOccupantLabel(active));
     }
+
+    public async Task<bool> IsStaleAsync(int savedMatchId, CancellationToken ct = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var match = await db.SavedMatch.FirstOrDefaultAsync(m => m.SavedMatchId == savedMatchId, ct);
+        if (match is null || match.Complete) return true;
+        var lastSeen = AsUtc(match.LastActivityAt ?? match.CreatedAt);
+        return DateTime.UtcNow - lastSeen >= AbandonAfter;
+    }
+
+    private static DateTime AsUtc(DateTime value) =>
+        value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
     public async Task ExtendGraceAsync(int savedMatchId, CancellationToken ct = default)
     {
