@@ -89,10 +89,19 @@ else
     }
     else
     {
-        @foreach (var stageGroup in _fixturesByStage)
+        @foreach (var divGroup in _fixturesByDivision.Where(g => g.StageGroups.Count > 0))
         {
-            <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(stageGroup.Key ?? "Unassigned")</MudText>
-            <MudTable Items="@stageGroup.Value" Dense="true" Hover="true" Class="mb-4">
+            @if (_competition.HasDivisions)
+            {
+                <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(divGroup.Division?.Name ?? "Unassigned")</MudText>
+            }
+            @foreach (var stageGroup in divGroup.StageGroups)
+            {
+                <MudText Typo="@(_competition.HasDivisions ? Typo.subtitle1 : Typo.h6)"
+                         Class="@(_competition.HasDivisions ? "mt-2 mb-1 ms-3" : "mt-3 mb-2")">
+                    @(stageGroup.StageName ?? "Unassigned")
+                </MudText>
+            <MudTable Items="@stageGroup.Fixtures" Dense="true" Hover="true" Class="mb-4">
                 <HeaderContent>
                     <MudTh>Date / Time</MudTh>
                     <MudTh>Match</MudTh>
@@ -176,6 +185,7 @@ else
                     </MudTd>
                 </RowTemplate>
             </MudTable>
+            }
         }
     }
 
@@ -308,28 +318,35 @@ else
 
     @if (_competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch && _teams.Any())
     {
-        @foreach (var team in _teams)
+        @foreach (var teamsGroup in _teamsByDivision.Where(g => g.Teams.Count > 0))
         {
-            var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
-            <MudExpansionPanel Text="@($"{team.Name} ({members.Count} players)")" Class="mb-2">
-                <MudTable Items="@members" Dense="true" Hover="true">
-                    <HeaderContent>
-                        <MudTh>Player</MudTh>
-                        <MudTh>Mobile</MudTh>
-                        <MudTh>Status</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.Player?.DisplayName</MudTd>
-                        <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
-                        <MudTd>
-                            <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                                @context.Status
-                            </MudChip>
-                        </MudTd>
-                    </RowTemplate>
-                    <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
-                </MudTable>
-            </MudExpansionPanel>
+            @if (_competition.HasDivisions)
+            {
+                <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(teamsGroup.Division?.Name ?? "Unassigned")</MudText>
+            }
+            @foreach (var team in teamsGroup.Teams)
+            {
+                var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
+                <MudExpansionPanel Text="@($"{team.Name} ({members.Count} players)")" Class="mb-2">
+                    <MudTable Items="@members" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>Player</MudTh>
+                            <MudTh>Mobile</MudTh>
+                            <MudTh>Status</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.Player?.DisplayName</MudTd>
+                            <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
+                            <MudTd>
+                                <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                                    @context.Status
+                                </MudChip>
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
+                    </MudTable>
+                </MudExpansionPanel>
+            }
         }
 
         @if (_participants.Any(p => p.TeamId == null))
@@ -398,9 +415,11 @@ else
     private List<CompetitionDivision> _divisions = [];
     private List<(CompetitionDivision? Division, List<TeamLeagueRow> Rows)> _teamLeagueTablesByDivision = [];
 
-#pragma warning disable CS8714 // Null keys are intentionally used for unstaged fixtures
-    private Dictionary<string?, List<CompetitionFixture>> _fixturesByStage = [];
-#pragma warning restore CS8714
+    private record DivisionFixtureGroup(
+        CompetitionDivision? Division,
+        List<(string? StageName, List<CompetitionFixture> Fixtures)> StageGroups);
+    private List<DivisionFixtureGroup> _fixturesByDivision = [];
+    private List<(CompetitionDivision? Division, List<CompetitionTeam> Teams)> _teamsByDivision = [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -506,19 +525,66 @@ else
                 }
             }
 
-            // Group fixtures by stage name (preserve stage order)
-#pragma warning disable CS8714
-            _fixturesByStage = _competition.Stages
-                .OrderBy(s => s.StageOrder)
-                .ToDictionary<CompetitionStage, string?, List<CompetitionFixture>>(
-                    s => s.Name,
-                    s => _fixtures.Where(f => f.CompetitionStageId == s.CompetitionStageId).ToList());
-#pragma warning restore CS8714
+            // Group fixtures (and teams) by division for admin view. When the competition
+            // has no divisions the result is a single null-division group so the markup
+            // can iterate uniformly.
+            var orderedStages = _competition.Stages.OrderBy(s => s.StageOrder).ToList();
 
-            // Add any fixtures with no stage assigned
-            var unstaged = _fixtures.Where(f => f.CompetitionStageId == null).ToList();
-            if (unstaged.Any())
-                _fixturesByStage[null] = unstaged;
+            List<(string? StageName, List<CompetitionFixture> Fixtures)> BuildStageGroups(
+                IEnumerable<CompetitionFixture> source)
+            {
+                var src = source.ToList();
+                var groups = new List<(string? StageName, List<CompetitionFixture> Fixtures)>();
+                foreach (var stage in orderedStages)
+                {
+                    var fx = src.Where(f => f.CompetitionStageId == stage.CompetitionStageId).ToList();
+                    if (fx.Count > 0) groups.Add((stage.Name, fx));
+                }
+                var unstaged = src.Where(f => f.CompetitionStageId == null).ToList();
+                if (unstaged.Count > 0) groups.Add((null, unstaged));
+                return groups;
+            }
+
+            if (_competition.HasDivisions)
+            {
+                var teamDivisionById = _teams.ToDictionary(t => t.CompetitionTeamId, t => t.CompetitionDivisionId);
+                int? DivisionOfFixture(CompetitionFixture f)
+                {
+                    if (f.HomeTeamId.HasValue
+                        && teamDivisionById.TryGetValue(f.HomeTeamId.Value, out var dh)
+                        && dh.HasValue) return dh;
+                    if (f.AwayTeamId.HasValue
+                        && teamDivisionById.TryGetValue(f.AwayTeamId.Value, out var da)
+                        && da.HasValue) return da;
+                    return null;
+                }
+
+                _fixturesByDivision = _divisions
+                    .Select(d => new DivisionFixtureGroup(
+                        d,
+                        BuildStageGroups(_fixtures.Where(f => DivisionOfFixture(f) == d.CompetitionDivisionId))))
+                    .ToList();
+                var unassignedFixtures = _fixtures.Where(f => DivisionOfFixture(f) == null).ToList();
+                if (unassignedFixtures.Count > 0)
+                {
+                    _fixturesByDivision.Add(new DivisionFixtureGroup(null, BuildStageGroups(unassignedFixtures)));
+                }
+
+                _teamsByDivision = _divisions
+                    .Select(d => ((CompetitionDivision?)d,
+                        _teams.Where(t => t.CompetitionDivisionId == d.CompetitionDivisionId).ToList()))
+                    .ToList();
+                var unassignedTeamList = _teams.Where(t => t.CompetitionDivisionId == null).ToList();
+                if (unassignedTeamList.Count > 0)
+                {
+                    _teamsByDivision.Add((null, unassignedTeamList));
+                }
+            }
+            else
+            {
+                _fixturesByDivision = [new DivisionFixtureGroup(null, BuildStageGroups(_fixtures))];
+                _teamsByDivision = [(null, _teams)];
+            }
 
             // League table — round-robin stages only
             var rrStageIds = _competition.Stages
