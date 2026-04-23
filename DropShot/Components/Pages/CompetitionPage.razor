@@ -72,6 +72,10 @@
 <MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
 <CascadingValue Value="this" IsFixed="true">
 
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4"
+             @bind-ActivePanelIndex="_activeSetupSubTabIndex">
+
+    <MudTabPanel Text="Setup">
     @* ── Details form ───────────────────────────────────────── *@
     <MudPaper id="section-details" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -329,36 +333,6 @@
             </MudForm>
         </MudPaper>
 
-        @* ── Floating section navigation (sticks to top after scrolling past Details) ─ *@
-        @{
-            var _navShowAdmins = IsEdit && _canEdit;
-            var _navShowMatchWindows = IsEdit && !Model.HasDivisions;
-            var _navShowRubber = IsEdit && EffectivePersistedFormat() == CompetitionFormat.TeamMatch;
-            var _navShowTemplates = IsEdit && _competitionTemplates.Count > 0;
-            var _navShowDivisions = IsEdit && Model.HasDivisions;
-            var _navShowTeams = IsEdit && !Model.HasDivisions
-                && EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
-            var _navTeamsLabel = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pairings" : "Teams";
-            var _navShowFixtures = IsEdit && !Model.HasDivisions;
-        }
-        <nav id="setup-nav" class="setup-nav" aria-label="Competition setup sections">
-            <div class="setup-nav-inner">
-                <button type="button" onclick="scrollToSectionId('section-details')">Details</button>
-                @if (_navShowAdmins) { <button type="button" onclick="scrollToSectionId('section-admins')">Admins</button> }
-                @if (IsEdit)
-                {
-                    <button type="button" onclick="scrollToSectionId('section-stages')">Stages</button>
-                    @if (_navShowMatchWindows) { <button type="button" onclick="scrollToSectionId('section-match-windows')">Match Windows</button> }
-                    @if (_navShowRubber) { <button type="button" onclick="scrollToSectionId('section-rubber-template')">Rubber</button> }
-                    <button type="button" onclick="scrollToSectionId('section-participants')">Participants</button>
-                    @if (_navShowTemplates) { <button type="button" onclick="scrollToSectionId('section-templates')">Template</button> }
-                    @if (_navShowDivisions) { <button type="button" onclick="scrollToSectionId('section-divisions')">Divisions</button> }
-                    @if (_navShowTeams) { <button type="button" onclick="scrollToSectionId('section-teams')">@_navTeamsLabel</button> }
-                    @if (_navShowFixtures) { <button type="button" onclick="scrollToSectionId('section-fixtures')">Fixtures</button> }
-                }
-            </div>
-        </nav>
-
         @* ── Competition Admins ───────────────────────────── *@
         @if (IsEdit && _canEdit)
         {
@@ -439,6 +413,20 @@
                 }
             }
 
+            @* ── Apply Competition Template ───────────────────── *@
+            @if (_competitionTemplates.Count > 0)
+            {
+                <DropShot.Components.Competitions.Setup.TemplatesSection
+                    Templates="_competitionTemplates"
+                    SelectedTemplateId="_selectedCompetitionTemplateId"
+                    OnApplyTemplate="ApplyCompetitionTemplate" />
+            }
+        }
+    </MudTabPanel>
+
+    @if (IsEdit)
+    {
+        <MudTabPanel Text="Roster">
             @* ── Participants ────────────────────────────────── *@
             <MudPaper id="section-participants" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -657,15 +645,6 @@
                 </MudTable>
             </MudPaper>
 
-            @* ── Apply Competition Template ───────────────────── *@
-            @if (_competitionTemplates.Count > 0)
-            {
-                <DropShot.Components.Competitions.Setup.TemplatesSection
-                    Templates="_competitionTemplates"
-                    SelectedTemplateId="_selectedCompetitionTemplateId"
-                    OnApplyTemplate="ApplyCompetitionTemplate" />
-            }
-
             @* -- Divisions -- *@
             @if (Model.HasDivisions)
             {
@@ -758,8 +737,10 @@
                     OnOpenEditDialog="OpenEditTeamDialog"
                     OnDeleteTeam="DeleteTeam" />
             }
+        </MudTabPanel>
 
-            @* ── Fixtures (hidden when HasDivisions — per-division UI in the Divisions section below) *@
+        <MudTabPanel Text="Fixtures">
+            @* ── Fixtures (hidden when HasDivisions — per-division UI in the Divisions sub-tab) *@
             @if (!Model.HasDivisions)
             {
                 <DropShot.Components.Competitions.Setup.FixturesSection
@@ -788,7 +769,10 @@
                     OnOpenEditDialog="OpenEditFixtureDialog"
                     OnDeleteFixture="DeleteFixture" />
             }
-        }
+        </MudTabPanel>
+    }
+
+    </MudTabs>
 
     @if (_errors.Length > 0)
     {
@@ -1292,6 +1276,7 @@
     private bool _nameOverride;
     private bool _isStarted;
     private int _activeTabIndex;
+    private int _activeSetupSubTabIndex;
 
     private CompetitionFormModel Model { get; set; } = new();
 
@@ -1637,17 +1622,6 @@
         public DateTime? ScheduledAt => DatePart.HasValue
             ? DatePart.Value.Date + (TimePart ?? TimeSpan.Zero)
             : null;
-    }
-
-    private bool _setupNavInitialised;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender && !_setupNavInitialised)
-        {
-            _setupNavInitialised = true;
-            await JS.InvokeVoidAsync("initSetupNav", "setup-nav", "section-details");
-        }
     }
 
     protected override async Task OnParametersSetAsync()
