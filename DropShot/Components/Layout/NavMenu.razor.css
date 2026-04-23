@@ -235,6 +235,24 @@
     display: inline;
 }
 
+/* Label + sublabel wrapper — only splits into two lines on the mobile
+   hamburger menu. On desktop / medium the sublabel is hidden so the
+   group renders inline with the icon like before. */
+.nav-label-group {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.15;
+    min-width: 0;
+}
+
+.nav-sublabel {
+    display: none;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.55);
+    white-space: normal;
+    margin-top: 2px;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    Desktop (>=641px)
    ══════════════════════════════════════════════════════════════════════ */
@@ -317,10 +335,12 @@
 
     .nav-item ::deep .nav-link,
     .nav-item > .nav-link {
-        height: 3rem;
-        padding: 0 1.25rem;
+        min-height: 3rem;
+        height: auto;
+        padding: 0.5rem 1.25rem;
         width: 100%;
         border-radius: 0;
+        align-items: center;
     }
 
     .nav-item ::deep .nav-link:hover,
@@ -354,7 +374,8 @@
     .nav-dropdown-menu a.nav-link,
     .nav-dropdown-item .nav-link {
         padding: 0.5rem 1.25rem 0.5rem 2.75rem;
-        height: 3rem;
+        min-height: 3rem;
+        height: auto;
     }
 
     .nav-expand-icon {
@@ -362,19 +383,34 @@
     }
 
     .nav-dropdown-trigger {
-        height: 3rem;
-        padding: 0 1.25rem;
+        min-height: 3rem;
+        height: auto;
+        padding: 0.5rem 1.25rem;
         width: 100%;
+        align-items: center;
     }
 
     .theme-toggle-label {
-        display: inline;
+        display: inline-flex;
+    }
+
+    /* Show the descriptive second line for each menu item on mobile. */
+    .nav-sublabel {
+        display: block;
+    }
+
+    /* Dropdown-trigger items (Admin, Account) need the label group to
+       take the remaining width so the chevron stays right-aligned. */
+    .nav-dropdown-trigger .nav-label-group {
+        flex: 1;
     }
 
     .theme-toggle-btn {
-        height: 3rem;
-        padding: 0 1.25rem;
+        min-height: 3rem;
+        height: auto;
+        padding: 0.5rem 1.25rem;
         width: 100%;
+        align-items: center;
     }
 
     .theme-toggle-btn:hover {

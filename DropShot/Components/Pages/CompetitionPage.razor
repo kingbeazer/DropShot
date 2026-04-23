@@ -53,6 +53,7 @@
             <MudButton Variant="@(_isStarted ? Variant.Outlined : Variant.Filled)"
                        Color="@(_isStarted ? Color.Warning : Color.Success)"
                        StartIcon="@(_isStarted ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
+                       Class="px-4"
                        OnClick="ToggleStartedAsync">
                 @(_isStarted ? "Stop Competition" : "Start Competition")
             </MudButton>
@@ -62,6 +63,7 @@
             <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
         }
         <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
+                   Class="px-4"
                    OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
             View Competition
         </MudButton>

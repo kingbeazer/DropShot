@@ -21,7 +21,11 @@
             <AuthorizeView Roles="User">
                 <div class="nav-item">
                     <NavLink class="nav-link" href="match">
-                        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="nav-icon" /> <span class="nav-label">Match</span>
+                        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="nav-icon" />
+                        <span class="nav-label-group">
+                            <span class="nav-label">Match</span>
+                            <span class="nav-sublabel">Score or join a match</span>
+                        </span>
                     </NavLink>
                 </div>
             </AuthorizeView>
@@ -30,26 +34,45 @@
                 <div class="nav-item nav-dropdown">
                     <button class="nav-link nav-dropdown-trigger" onclick="event.stopPropagation()">
                         <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Class="nav-icon" />
-                        <span class="nav-label">Admin</span>
+                        <span class="nav-label-group">
+                            <span class="nav-label">Admin</span>
+                            <span class="nav-sublabel">Scoreboards, users &amp; requests</span>
+                        </span>
                         <span class="nav-expand-icon">
                             <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
                         </span>
                     </button>
                     <div class="nav-dropdown-menu">
                         <NavLink class="nav-link" href="score">
-                            <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" /> Scoreboard View
+                            <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" />
+                            <span class="nav-label-group">
+                                <span class="nav-label">Scoreboard View</span>
+                                <span class="nav-sublabel">Display live scores</span>
+                            </span>
                         </NavLink>
                         <NavLink class="nav-link" href="score/display-control">
-                            <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" /> Display Control
+                            <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" />
+                            <span class="nav-label-group">
+                                <span class="nav-label">Display Control</span>
+                                <span class="nav-sublabel">Manage scoreboards</span>
+                            </span>
                         </NavLink>
                         <AuthorizeView Roles="Admin,SuperAdmin" Context="adminCtx">
                             <NavLink class="nav-link" href="admin/users">
-                                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" /> Users
+                                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">Users</span>
+                                    <span class="nav-sublabel">Manage accounts and roles</span>
+                                </span>
                             </NavLink>
                         </AuthorizeView>
                         <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin" Context="linkReqCtx">
                             <NavLink class="nav-link" href="clubadmin/link-requests">
-                                <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Class="nav-icon" /> Link Requests
+                                <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">Link Requests</span>
+                                    <span class="nav-sublabel">Approve player links</span>
+                                </span>
                             </NavLink>
                         </AuthorizeView>
                     </div>
@@ -60,7 +83,11 @@
                 <Authorized Context="mainCtx">
                     <div class="nav-item">
                         <NavLink class="nav-link" href="competitions">
-                            <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Class="nav-icon" /> <span class="nav-label">Competitions</span>
+                            <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Class="nav-icon" />
+                            <span class="nav-label-group">
+                                <span class="nav-label">Competitions</span>
+                                <span class="nav-sublabel">Browse and manage events</span>
+                            </span>
                         </NavLink>
                     </div>
 
@@ -68,13 +95,21 @@
                         @if (_isClubAdminActive)
                         {
                             <NavLink class="nav-link" href="players/club">
-                                <MudIcon Icon="@Icons.Material.Filled.Groups" Class="nav-icon" /> <span class="nav-label">Club Players</span>
+                                <MudIcon Icon="@Icons.Material.Filled.Groups" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">Club Players</span>
+                                    <span class="nav-sublabel">Manage your club roster</span>
+                                </span>
                             </NavLink>
                         }
                         else
                         {
                             <NavLink class="nav-link" href="players/mine">
-                                <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" /> <span class="nav-label">My Players</span>
+                                <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">My Players</span>
+                                    <span class="nav-sublabel">Your linked players</span>
+                                </span>
                             </NavLink>
                         }
                     </div>
@@ -84,7 +119,11 @@
             <AuthorizeView Roles="SuperAdmin">
                 <div class="nav-item">
                     <NavLink class="nav-link" href="players">
-                        <MudIcon Icon="@Icons.Material.Filled.People" Class="nav-icon" /> <span class="nav-label">Players</span>
+                        <MudIcon Icon="@Icons.Material.Filled.People" Class="nav-icon" />
+                        <span class="nav-label-group">
+                            <span class="nav-label">Players</span>
+                            <span class="nav-sublabel">All players in the system</span>
+                        </span>
                     </NavLink>
                 </div>
             </AuthorizeView>
@@ -92,7 +131,11 @@
             <AuthorizeView Roles="Admin,SuperAdmin">
                 <div class="nav-item">
                     <NavLink class="nav-link" href="clubs">
-                        <MudIcon Icon="@Icons.Material.Filled.Business" Class="nav-icon" /> <span class="nav-label">Clubs</span>
+                        <MudIcon Icon="@Icons.Material.Filled.Business" Class="nav-icon" />
+                        <span class="nav-label-group">
+                            <span class="nav-label">Clubs</span>
+                            <span class="nav-sublabel">Manage tennis clubs</span>
+                        </span>
                     </NavLink>
                 </div>
             </AuthorizeView>
@@ -109,7 +152,10 @@
                             <svg class="nav-icon theme-toggle-icon theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                                 <path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
                             </svg>
-                            <span class="theme-toggle-label">Light Mode</span>
+                            <span class="nav-label-group theme-toggle-label">
+                                <span class="nav-label">Light Mode</span>
+                                <span class="nav-sublabel">Switch theme</span>
+                            </span>
                         </button>
                     </div>
                 </Authorized>
@@ -127,24 +173,39 @@
                             {
                                 <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
                             }
-                            <span class="nav-label">@context.User.Identity?.Name</span>
+                            <span class="nav-label-group">
+                                <span class="nav-label">@context.User.Identity?.Name</span>
+                                <span class="nav-sublabel">Account menu</span>
+                            </span>
                             <span class="nav-expand-icon">
                                 <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
                             </span>
                         </button>
                         <div class="nav-dropdown-menu">
                             <NavLink class="nav-link" href="upgrade">
-                                <MudIcon Icon="@Icons.Material.Filled.Star" Class="nav-icon" /> Upgrade
+                                <MudIcon Icon="@Icons.Material.Filled.Star" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">Upgrade</span>
+                                    <span class="nav-sublabel">Unlock more features</span>
+                                </span>
                             </NavLink>
                             <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
-                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" /> Account
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">Account</span>
+                                    <span class="nav-sublabel">Profile &amp; settings</span>
+                                </span>
                             </a>
                             <div class="nav-dropdown-item">
                                 <form action="Account/Logout" method="post">
                                     <AntiforgeryToken />
                                     <input type="hidden" name="ReturnUrl" value="@currentUrl" />
                                     <button type="submit" class="nav-link">
-                                        <MudIcon Icon="@Icons.Material.Filled.Logout" Class="nav-icon" /> Logout
+                                        <MudIcon Icon="@Icons.Material.Filled.Logout" Class="nav-icon" />
+                                        <span class="nav-label-group">
+                                            <span class="nav-label">Logout</span>
+                                            <span class="nav-sublabel">End your session</span>
+                                        </span>
                                     </button>
                                 </form>
                             </div>
@@ -154,12 +215,20 @@
                 <NotAuthorized>
                     <div class="nav-item">
                         <a class="nav-link" href="Account/Register" data-enhance-nav="false">
-                            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="nav-icon" /> <span class="nav-label">Register</span>
+                            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="nav-icon" />
+                            <span class="nav-label-group">
+                                <span class="nav-label">Register</span>
+                                <span class="nav-sublabel">Create an account</span>
+                            </span>
                         </a>
                     </div>
                     <div class="nav-item">
                         <a class="nav-link" href="Account/Login" data-enhance-nav="false">
-                            <MudIcon Icon="@Icons.Material.Filled.Login" Class="nav-icon" /> <span class="nav-label">Login</span>
+                            <MudIcon Icon="@Icons.Material.Filled.Login" Class="nav-icon" />
+                            <span class="nav-label-group">
+                                <span class="nav-label">Login</span>
+                                <span class="nav-sublabel">Sign in</span>
+                            </span>
                         </a>
                     </div>
                 </NotAuthorized>
