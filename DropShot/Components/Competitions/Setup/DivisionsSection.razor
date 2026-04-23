@@ -7,6 +7,14 @@
         <MudText Typo="Typo.h6" Style="flex:1">Divisions</MudText>
         <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
                    OnClick="@(() => OnStartAddDivision.InvokeAsync())">Add Division</MudButton>
+        @if (Divisions.Count > 0 && Format is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                       OnClick="@(() => OnOpenGenerateDialog.InvokeAsync())">
+                Generate @(Format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pairings" : "Teams")
+            </MudButton>
+        }
         @if (SeedSourceCandidates.Count > 0 && Divisions.Count == 0)
         {
             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
@@ -15,64 +23,9 @@
         }
     </MudStack>
 
-    @* Competition-wide fixture actions — Schedule / Add / Delete All apply to every division in one shot. *@
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
-        <MudText Typo="Typo.caption" Style="flex:1; opacity:0.8">
-            Rank 1 is the top division. Teams, match windows and fixtures for each division are configured within the panels below.
-        </MudText>
-        @if (Stages.Any(s => s.StageType == StageType.RoundRobin) &&
-             Stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
-        {
-            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
-                       StartIcon="@Icons.Material.Filled.Leaderboard"
-                       OnClick="@(() => ShowSeedConfirmChanged.InvokeAsync(true))">
-                Seed from Standings
-            </MudButton>
-        }
-        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
-                   StartIcon="@Icons.Material.Filled.AutoAwesome"
-                   OnClick="@(() => OnOpenScheduleConfirm.InvokeAsync())">
-            Auto Schedule
-        </MudButton>
-        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="@(() => OnOpenAddFixtureDialog.InvokeAsync())">Add Fixture</MudButton>
-        @if (Fixtures.Count > 0)
-        {
-            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
-                       StartIcon="@Icons.Material.Filled.DeleteSweep"
-                       OnClick="@(() => ShowDeleteAllFixturesConfirmChanged.InvokeAsync(true))">Delete All Fixtures</MudButton>
-        }
-    </MudStack>
-
-    @if (ShowScheduleConfirm)
-    {
-        <MudAlert Severity="Severity.Info" Class="mb-3" ShowCloseIcon="true"
-                  CloseIconClicked="@(() => ShowScheduleConfirmChanged.InvokeAsync(false))">
-            <MudStack Spacing="1">
-                <MudText Typo="Typo.body2">
-                    Auto-scheduling creates missing fixtures based on the current stages, participants and divisions. Fixtures that already have a scheduled date will be preserved.
-                </MudText>
-                <MudCheckBox Value="ScheduleDeleteExisting"
-                             ValueChanged="@((bool v) => ScheduleDeleteExistingChanged.InvokeAsync(v))"
-                             T="bool" Dense="true"
-                             Label="Also delete existing unscheduled fixtures" />
-                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
-                           OnClick="@(() => OnScheduleFixtures.InvokeAsync())">Schedule</MudButton>
-            </MudStack>
-        </MudAlert>
-    }
-
-    @if (ShowDeleteAllFixturesConfirm)
-    {
-        <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
-                  CloseIconClicked="@(() => ShowDeleteAllFixturesConfirmChanged.InvokeAsync(false))">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                <MudText Typo="Typo.body2">Delete all @Fixtures.Count fixture(s)? This cannot be undone.</MudText>
-                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                           OnClick="@(() => OnDeleteAllFixtures.InvokeAsync())">Confirm Delete</MudButton>
-            </MudStack>
-        </MudAlert>
-    }
+    <MudText Typo="Typo.caption" Class="mb-3" Style="opacity:0.8">
+        Rank 1 is the top division. Teams and match windows for each division are configured within the panels below. Fixtures for each division are managed on the <b>Fixtures</b> tab.
+    </MudText>
 
     @if (AddingDivision)
     {
@@ -112,11 +65,10 @@
                 var divTeams = Teams.Where(t => t.CompetitionDivisionId == divId).ToList();
                 var divParts = Participants.Where(p => p.CompetitionDivisionId == divId).ToList();
                 var divWindows = MatchWindows.Where(w => w.CompetitionDivisionId == divId).ToList();
-                var divFixtures = Fixtures.Where(f => FixtureBelongsToDivision(f, divId)).ToList();
                 var windowForm = GetDivisionWindowForm(divId);
                 var editingThis = InlineEditDivisionId == divId;
 
-                <MudExpansionPanel Text="@($"Division {d.Rank} - {d.Name}  ({divTeams.Count} teams, {divParts.Count} participants, {divFixtures.Count} fixtures)")">
+                <MudExpansionPanel Text="@($"Division {d.Rank} - {d.Name}  ({divTeams.Count} teams, {divParts.Count} participants)")">
 
                     @* Division identity form *@
                     <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background: rgba(255,255,255,0.04); border-radius: 8px;">
@@ -301,43 +253,6 @@
                         </MudText>
                     }
 
-                    @* Fixtures sub-section *@
-                    <MudDivider Class="my-3" />
-                    <MudText Typo="Typo.subtitle1" Class="mb-2">Fixtures</MudText>
-                    @if (divFixtures.Count == 0)
-                    {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            No fixtures scheduled for this division yet. Use the <b>Schedule</b> action at the bottom of the page to auto-generate.
-                        </MudText>
-                    }
-                    else
-                    {
-                        <MudSimpleTable Dense="true" Hover="true" Class="mb-2">
-                            <thead>
-                                <tr>
-                                    <th>Match</th>
-                                    <th>Date / Time</th>
-                                    <th>Players</th>
-                                    <th>Court</th>
-                                    <th>Status</th>
-                                    <th>Result</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var f in divFixtures)
-                                {
-                                    <tr>
-                                        <td>@(string.IsNullOrEmpty(f.FixtureLabel) ? (f.Stage?.Name ?? "") : f.FixtureLabel)</td>
-                                        <td>@(f.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "-")</td>
-                                        <td>@FixturePlayersDisplay(f)</td>
-                                        <td>@FixtureCourtDisplay(f)</td>
-                                        <td>@f.Status</td>
-                                        <td>@(f.ResultSummary ?? "-")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </MudSimpleTable>
-                    }
                 </MudExpansionPanel>
             }
         </MudExpansionPanels>
@@ -404,9 +319,7 @@
     [Parameter, EditorRequired] public IReadOnlyList<CompetitionTeam> Teams { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<CompetitionParticipant> Participants { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<CompetitionMatchWindow> MatchWindows { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionFixture> Fixtures { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<Court> Courts { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionStage> Stages { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<Competition> SeedSourceCandidates { get; set; } = [];
     [Parameter] public CompetitionFormat? Format { get; set; }
 
@@ -439,22 +352,7 @@
 
     [Parameter] public bool SeedingDivisions { get; set; }
 
-    [Parameter] public bool ShowScheduleConfirm { get; set; }
-    [Parameter] public EventCallback<bool> ShowScheduleConfirmChanged { get; set; }
-
-    [Parameter] public bool ScheduleDeleteExisting { get; set; }
-    [Parameter] public EventCallback<bool> ScheduleDeleteExistingChanged { get; set; }
-
-    [Parameter] public bool ShowSeedConfirm { get; set; }
-    [Parameter] public EventCallback<bool> ShowSeedConfirmChanged { get; set; }
-
-    [Parameter] public bool ShowDeleteAllFixturesConfirm { get; set; }
-    [Parameter] public EventCallback<bool> ShowDeleteAllFixturesConfirmChanged { get; set; }
-
     [Parameter, EditorRequired] public Func<int, CompetitionPage.DivisionWindowForm> GetDivisionWindowForm { get; set; } = _ => new();
-    [Parameter, EditorRequired] public Func<CompetitionFixture, int, bool> FixtureBelongsToDivision { get; set; } = (_, _) => false;
-    [Parameter, EditorRequired] public Func<CompetitionFixture, string> FixturePlayersDisplay { get; set; } = _ => "";
-    [Parameter, EditorRequired] public Func<CompetitionFixture, string> FixtureCourtDisplay { get; set; } = _ => "";
 
     [Parameter] public EventCallback OnStartAddDivision { get; set; }
     [Parameter] public EventCallback OnCancelAddDivision { get; set; }
@@ -464,10 +362,7 @@
     [Parameter] public EventCallback<CompetitionDivision> OnDeleteDivision { get; set; }
     [Parameter] public EventCallback OnOpenSeedDivisionsDialog { get; set; }
     [Parameter] public EventCallback OnRunSeedDivisions { get; set; }
-    [Parameter] public EventCallback OnOpenScheduleConfirm { get; set; }
-    [Parameter] public EventCallback OnScheduleFixtures { get; set; }
-    [Parameter] public EventCallback OnOpenAddFixtureDialog { get; set; }
-    [Parameter] public EventCallback OnDeleteAllFixtures { get; set; }
+    [Parameter] public EventCallback OnOpenGenerateDialog { get; set; }
     [Parameter] public EventCallback<int> OnAddDivisionMatchWindow { get; set; }
     [Parameter] public EventCallback<int> OnCancelEditDivisionMatchWindow { get; set; }
     [Parameter] public EventCallback<CompetitionMatchWindow> OnCopyDivisionMatchWindowToForm { get; set; }

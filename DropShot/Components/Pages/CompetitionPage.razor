@@ -68,14 +68,10 @@
     }
 </MudStack>
 
-<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4" @bind-ActivePanelIndex="_activeTabIndex">
-<MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
 <CascadingValue Value="this" IsFixed="true">
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4" @bind-ActivePanelIndex="_activeTabIndex">
 
-    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4"
-             @bind-ActivePanelIndex="_activeSetupSubTabIndex">
-
-    <MudTabPanel Text="Setup">
+    <MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
     @* ── Details form ───────────────────────────────────────── *@
     <MudPaper id="section-details" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -653,9 +649,7 @@
                     Teams="_teams"
                     Participants="_participants"
                     MatchWindows="_matchWindows"
-                    Fixtures="_fixtures"
                     Courts="_courts"
-                    Stages="_stages"
                     SeedSourceCandidates="_seedSourceCandidates"
                     Format="EffectivePersistedFormat()"
                     AddingDivision="_addingDivision"
@@ -677,18 +671,7 @@
                     SeedDemoteCount="_seedDemoteCount"
                     SeedDemoteCountChanged="@(v => _seedDemoteCount = v)"
                     SeedingDivisions="_seedingDivisions"
-                    ShowScheduleConfirm="_showScheduleConfirm"
-                    ShowScheduleConfirmChanged="@(v => _showScheduleConfirm = v)"
-                    ScheduleDeleteExisting="_scheduleDeleteExisting"
-                    ScheduleDeleteExistingChanged="@(v => _scheduleDeleteExisting = v)"
-                    ShowSeedConfirm="_showSeedConfirm"
-                    ShowSeedConfirmChanged="@(v => _showSeedConfirm = v)"
-                    ShowDeleteAllFixturesConfirm="_showDeleteAllFixturesConfirm"
-                    ShowDeleteAllFixturesConfirmChanged="@(v => _showDeleteAllFixturesConfirm = v)"
                     GetDivisionWindowForm="GetDivisionWindowForm"
-                    FixtureBelongsToDivision="FixtureBelongsToDivision"
-                    FixturePlayersDisplay="FixturePlayersDisplay"
-                    FixtureCourtDisplay="FixtureCourtDisplay"
                     OnStartAddDivision="StartAddDivision"
                     OnCancelAddDivision="CancelAddDivision"
                     OnSaveDivision="SaveDivisionDialog"
@@ -697,10 +680,7 @@
                     OnDeleteDivision="DeleteDivision"
                     OnOpenSeedDivisionsDialog="OpenSeedDivisionsDialog"
                     OnRunSeedDivisions="RunSeedDivisions"
-                    OnOpenScheduleConfirm="OpenScheduleConfirm"
-                    OnScheduleFixtures="ScheduleFixtures"
-                    OnOpenAddFixtureDialog="OpenAddFixtureDialog"
-                    OnDeleteAllFixtures="DeleteAllFixtures"
+                    OnOpenGenerateDialog="OpenGenerateDialog"
                     OnAddDivisionMatchWindow="AddDivisionMatchWindow"
                     OnCancelEditDivisionMatchWindow="CancelEditDivisionMatchWindow"
                     OnCopyDivisionMatchWindowToForm="CopyDivisionMatchWindowToForm"
@@ -740,7 +720,6 @@
         </MudTabPanel>
 
         <MudTabPanel Text="Fixtures">
-            @* ── Fixtures (hidden when HasDivisions — per-division UI in the Divisions sub-tab) *@
             @if (!Model.HasDivisions)
             {
                 <DropShot.Components.Competitions.Setup.FixturesSection
@@ -769,30 +748,158 @@
                     OnOpenEditDialog="OpenEditFixtureDialog"
                     OnDeleteFixture="DeleteFixture" />
             }
+            else
+            {
+                @* ── Divisional fixtures: scheduling controls + per-division grouping ─────── *@
+                <MudPaper Class="pa-4 mb-4 setup-section" Elevation="0"
+                     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
+                        <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
+                        @if (_stages.Any(s => s.StageType == StageType.RoundRobin) &&
+                             _stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                       StartIcon="@Icons.Material.Filled.Leaderboard"
+                                       OnClick="@(() => _showSeedConfirm = true)">
+                                Seed from Standings
+                            </MudButton>
+                        }
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.AutoAwesome"
+                                   OnClick="OpenScheduleConfirm">
+                            Auto Schedule
+                        </MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenAddFixtureDialog">Add Fixture</MudButton>
+                        @if (_fixtures.Count > 0)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                                       OnClick="@(() => _showDeleteAllFixturesConfirm = true)">Delete All Fixtures</MudButton>
+                        }
+                    </MudStack>
+
+                    @if (_showScheduleConfirm)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="mb-3" ShowCloseIcon="true"
+                                  CloseIconClicked="@(() => _showScheduleConfirm = false)">
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.body2">
+                                    Auto-scheduling creates missing fixtures based on the current stages, participants and divisions. Fixtures that already have a scheduled date will be preserved.
+                                </MudText>
+                                <MudCheckBox @bind-Value="_scheduleDeleteExisting" Dense="true"
+                                             Label="Also delete existing unscheduled fixtures" />
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                                           OnClick="ScheduleFixtures">Schedule</MudButton>
+                            </MudStack>
+                        </MudAlert>
+                    }
+
+                    @if (_showDeleteAllFixturesConfirm)
+                    {
+                        <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                                  CloseIconClicked="@(() => _showDeleteAllFixturesConfirm = false)">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudText Typo="Typo.body2">Delete all @_fixtures.Count fixture(s)? This cannot be undone.</MudText>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                           OnClick="DeleteAllFixtures">Confirm Delete</MudButton>
+                            </MudStack>
+                        </MudAlert>
+                    }
+
+                    @if (_divisions.Count == 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            No divisions defined yet. Add divisions on the <b>Setup</b> tab first.
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudExpansionPanels MultiExpansion="true">
+                            @foreach (var d in _divisions.OrderBy(x => x.Rank))
+                            {
+                                var divId = d.CompetitionDivisionId;
+                                var divFixtures = _fixtures.Where(f => FixtureBelongsToDivision(f, divId)).ToList();
+                                <MudExpansionPanel Text="@($"Division {d.Rank} - {d.Name}  ({divFixtures.Count} fixtures)")">
+                                    @if (divFixtures.Count == 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            No fixtures scheduled for this division yet. Use <b>Auto Schedule</b> above to generate.
+                                        </MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudSimpleTable Dense="true" Hover="true">
+                                            <thead>
+                                                <tr>
+                                                    <th>Match</th>
+                                                    <th>Date / Time</th>
+                                                    <th>Players</th>
+                                                    <th>Court</th>
+                                                    <th>Result</th>
+                                                    <th>Status</th>
+                                                    <th></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var f in divFixtures)
+                                                {
+                                                    <tr>
+                                                        <td>@(!string.IsNullOrEmpty(f.FixtureLabel) ? f.FixtureLabel : f.Stage?.Name ?? "—")</td>
+                                                        <td>@(f.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</td>
+                                                        <td>@FixturePlayers(f)</td>
+                                                        <td>@FixtureCourtLabel(f)</td>
+                                                        <td>
+                                                            @{
+                                                                var resultText = FixtureResultDisplay(f);
+                                                            }
+                                                            @(!string.IsNullOrEmpty(resultText) ? resultText : "—")
+                                                        </td>
+                                                        <td>
+                                                            <MudChip T="string" Size="Size.Small" Color="@StatusColor(f.Status)">@f.Status</MudChip>
+                                                        </td>
+                                                        <td>
+                                                            @if (f.HomeTeamId.HasValue && f.AwayTeamId.HasValue
+                                                                 && f.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
+                                                            {
+                                                                <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small"
+                                                                               Color="Color.Success" aria-label="Play Team Match"
+                                                                               Href="@($"/team-match/{f.CompetitionFixtureId}")" />
+                                                            }
+                                                            else if (f.Player1Id.HasValue && f.Player2Id.HasValue
+                                                                 && f.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
+                                                            {
+                                                                <MudIconButton Icon="@Icons.Material.Filled.Scoreboard" Size="Size.Small"
+                                                                               Color="Color.Success" aria-label="Submit Score"
+                                                                               OnClick="@(() => OpenSubmitScoreAsync(f))" />
+                                                            }
+                                                            @if (f.Status == FixtureStatus.AwaitingVerification && _canEdit)
+                                                            {
+                                                                <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Small"
+                                                                               Color="Color.Warning" aria-label="Override / Enter Result"
+                                                                               OnClick="@(() => OpenOverrideResultAsync(f))" />
+                                                            }
+                                                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                                           OnClick="@(() => OpenEditFixtureDialog(f))" />
+                                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                                           Color="Color.Error" OnClick="@(() => DeleteFixture(f))" />
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </MudSimpleTable>
+                                    }
+                                </MudExpansionPanel>
+                            }
+                        </MudExpansionPanels>
+                    }
+                </MudPaper>
+            }
         </MudTabPanel>
     }
 
-    </MudTabs>
-
-    @if (_errors.Length > 0)
-    {
-        <MudPaper Class="pa-4 mb-4" Elevation="0"
-                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-            <MudText Typo="Typo.subtitle2">Validation errors</MudText>
-            <MudDivider Class="my-2" />
-            @foreach (var e in _errors)
-            {
-                <MudText Color="Color.Error">@e</MudText>
-            }
-        </MudPaper>
-    }
-
-</CascadingValue>
-</MudTabPanel>
-
-
-@* ── Email Tab ─────────────────────────────────────────────── *@
-<MudTabPanel Text="Email" Icon="@Icons.Material.Filled.Email" Disabled="@(!IsEdit || !_canEdit)">
+    @* ── Email Tab ─────────────────────────────────────────────── *@
+    <MudTabPanel Text="Email" Icon="@Icons.Material.Filled.Email" Disabled="@(!IsEdit || !_canEdit)">
     <MudPaper Class="pa-4 mb-4" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
         <MudText Typo="Typo.h6" Class="mb-3">Match-Specific Email</MudText>
@@ -865,9 +972,24 @@
             </MudItem>
         </MudGrid>
     </MudPaper>
-</MudTabPanel>
+    </MudTabPanel>
 
 </MudTabs>
+
+@if (_errors.Length > 0)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="0"
+             Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+        <MudText Typo="Typo.subtitle2">Validation errors</MudText>
+        <MudDivider Class="my-2" />
+        @foreach (var e in _errors)
+        {
+            <MudText Color="Color.Error">@e</MudText>
+        }
+    </MudPaper>
+}
+
+</CascadingValue>
 
 @* ── Add Stage Dialog ──────────────────────────────────────── *@
 <MudDialog @bind-Visible="_showStageDialog">
@@ -1276,7 +1398,6 @@
     private bool _nameOverride;
     private bool _isStarted;
     private int _activeTabIndex;
-    private int _activeSetupSubTabIndex;
 
     private CompetitionFormModel Model { get; set; } = new();
 
