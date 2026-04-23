@@ -1,6 +1,8 @@
  <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
 @inherits LayoutComponentBase
+@inject DropShot.Services.SiteSettingsService SiteSettings
 <MudThemeProvider IsDarkMode="true" Theme="_theme" />
+<style>:root { --ds-content-max-width: @(_contentMaxWidthPx)px; }</style>
 @* Popover/Dialog/Snackbar providers are intentionally NOT here.
    Each @rendermode InteractiveServer page injects <MudProviders /> directly
    so the providers share the page's circuit DI scope.  Having them here too
@@ -37,4 +39,11 @@
             Secondary = "#26a69a",
         }
     };
+
+    private int _contentMaxWidthPx = SiteSettingsService.ContentMaxWidthPxDefault;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _contentMaxWidthPx = await SiteSettings.GetContentMaxWidthPxAsync();
+    }
 }

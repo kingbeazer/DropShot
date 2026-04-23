@@ -65,6 +65,13 @@
                                     <span class="nav-sublabel">Manage accounts and roles</span>
                                 </span>
                             </NavLink>
+                            <NavLink class="nav-link" href="admin/site-settings">
+                                <MudIcon Icon="@Icons.Material.Filled.Tune" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">Site Settings</span>
+                                    <span class="nav-sublabel">Layout and site-wide options</span>
+                                </span>
+                            </NavLink>
                         </AuthorizeView>
                         <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin" Context="linkReqCtx">
                             <NavLink class="nav-link" href="clubadmin/link-requests">

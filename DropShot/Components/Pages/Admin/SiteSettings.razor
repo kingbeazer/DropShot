@@ -1,0 +1,72 @@
+@page "/admin/site-settings"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using Microsoft.AspNetCore.Authorization
+@using DropShot.Services
+@inject SiteSettingsService Settings
+@inject ISnackbar Snackbar
+
+<MudProviders />
+
+<MudText Typo="Typo.h4" Class="mb-4">Site Settings</MudText>
+
+<MudCard Class="mb-4" MaxWidth="600px">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Layout</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Controls the maximum width (in pixels) that page content occupies on desktop.
+                The top navbar and footer always span the full viewport; only the body is constrained.
+            </MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudNumericField T="int"
+                         @bind-Value="_contentMaxWidthPx"
+                         Label="Content max width (px)"
+                         Min="@SiteSettingsService.ContentMaxWidthPxMin"
+                         Max="@SiteSettingsService.ContentMaxWidthPxMax"
+                         Step="40"
+                         Variant="Variant.Outlined"
+                         HelperText="@($"Allowed range: {SiteSettingsService.ContentMaxWidthPxMin} – {SiteSettingsService.ContentMaxWidthPxMax} px. Default {SiteSettingsService.ContentMaxWidthPxDefault}.")" />
+    </MudCardContent>
+    <MudCardActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   Disabled="@_saving"
+                   OnClick="SaveAsync">
+            Save
+        </MudButton>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ms-3 align-self-center">
+            Refresh other tabs to see the change.
+        </MudText>
+    </MudCardActions>
+</MudCard>
+
+@code {
+    private int _contentMaxWidthPx = SiteSettingsService.ContentMaxWidthPxDefault;
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _contentMaxWidthPx = await Settings.GetContentMaxWidthPxAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            await Settings.SetContentMaxWidthPxAsync(_contentMaxWidthPx);
+            Snackbar.Add($"Content max width set to {_contentMaxWidthPx}px.", Severity.Success);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}
