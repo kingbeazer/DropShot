@@ -4,6 +4,15 @@
      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
         <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
+        @if (IsSuperAdmin && Stages.Any(s => s.StageType == StageType.RoundRobin))
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary"
+                       StartIcon="@Icons.Material.Filled.Casino"
+                       Disabled="@SimulateRunning"
+                       OnClick="@(() => ShowSimulateConfirmChanged.InvokeAsync(true))">
+                Simulate Round-Robin
+            </MudButton>
+        }
         @if (Stages.Any(s => s.StageType == StageType.RoundRobin) &&
              Stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
         {
@@ -54,6 +63,21 @@
                 <MudText Typo="Typo.body2">Delete all @Fixtures.Count fixture(s)? This cannot be undone.</MudText>
                 <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
                            OnClick="@(() => OnDeleteAll.InvokeAsync())">Confirm Delete</MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    @if (ShowSimulateConfirm)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3" ShowCloseIcon="true"
+                  CloseIconClicked="@(() => ShowSimulateConfirmChanged.InvokeAsync(false))">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.body2">
+                    Generate random valid results for every unfinished round-robin fixture (including all rubbers for team matches)?
+                </MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Tertiary"
+                           Disabled="@SimulateRunning"
+                           OnClick="@(() => OnSimulate.InvokeAsync())">Simulate</MudButton>
             </MudStack>
         </MudAlert>
     }
@@ -151,11 +175,16 @@
     [Parameter] public EventCallback<bool> ShowDeleteAllConfirmChanged { get; set; }
     [Parameter] public bool ScheduleDeleteExisting { get; set; }
     [Parameter] public EventCallback<bool> ScheduleDeleteExistingChanged { get; set; }
+    [Parameter] public bool IsSuperAdmin { get; set; }
+    [Parameter] public bool ShowSimulateConfirm { get; set; }
+    [Parameter] public EventCallback<bool> ShowSimulateConfirmChanged { get; set; }
+    [Parameter] public bool SimulateRunning { get; set; }
 
     [Parameter] public EventCallback OnOpenScheduleConfirm { get; set; }
     [Parameter] public EventCallback OnOpenAddDialog { get; set; }
     [Parameter] public EventCallback OnSchedule { get; set; }
     [Parameter] public EventCallback OnDeleteAll { get; set; }
+    [Parameter] public EventCallback OnSimulate { get; set; }
     [Parameter] public EventCallback<CompetitionFixture> OnSubmitScore { get; set; }
     [Parameter] public EventCallback<CompetitionFixture> OnOverrideResult { get; set; }
     [Parameter] public EventCallback<CompetitionFixture> OnShowQr { get; set; }
