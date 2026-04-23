@@ -68,14 +68,10 @@
     }
 </MudStack>
 
-<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4" @bind-ActivePanelIndex="_activeTabIndex">
-<MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
 <CascadingValue Value="this" IsFixed="true">
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4" @bind-ActivePanelIndex="_activeTabIndex">
 
-    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4"
-             @bind-ActivePanelIndex="_activeSetupSubTabIndex">
-
-    <MudTabPanel Text="Setup">
+    <MudTabPanel Text="Setup" Icon="@Icons.Material.Filled.Settings">
     @* ── Details form ───────────────────────────────────────── *@
     <MudPaper id="section-details" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -772,27 +768,8 @@
         </MudTabPanel>
     }
 
-    </MudTabs>
-
-    @if (_errors.Length > 0)
-    {
-        <MudPaper Class="pa-4 mb-4" Elevation="0"
-                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-            <MudText Typo="Typo.subtitle2">Validation errors</MudText>
-            <MudDivider Class="my-2" />
-            @foreach (var e in _errors)
-            {
-                <MudText Color="Color.Error">@e</MudText>
-            }
-        </MudPaper>
-    }
-
-</CascadingValue>
-</MudTabPanel>
-
-
-@* ── Email Tab ─────────────────────────────────────────────── *@
-<MudTabPanel Text="Email" Icon="@Icons.Material.Filled.Email" Disabled="@(!IsEdit || !_canEdit)">
+    @* ── Email Tab ─────────────────────────────────────────────── *@
+    <MudTabPanel Text="Email" Icon="@Icons.Material.Filled.Email" Disabled="@(!IsEdit || !_canEdit)">
     <MudPaper Class="pa-4 mb-4" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
         <MudText Typo="Typo.h6" Class="mb-3">Match-Specific Email</MudText>
@@ -865,9 +842,24 @@
             </MudItem>
         </MudGrid>
     </MudPaper>
-</MudTabPanel>
+    </MudTabPanel>
 
 </MudTabs>
+
+@if (_errors.Length > 0)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="0"
+             Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+        <MudText Typo="Typo.subtitle2">Validation errors</MudText>
+        <MudDivider Class="my-2" />
+        @foreach (var e in _errors)
+        {
+            <MudText Color="Color.Error">@e</MudText>
+        }
+    </MudPaper>
+}
+
+</CascadingValue>
 
 @* ── Add Stage Dialog ──────────────────────────────────────── *@
 <MudDialog @bind-Visible="_showStageDialog">
@@ -1276,7 +1268,6 @@
     private bool _nameOverride;
     private bool _isStarted;
     private int _activeTabIndex;
-    private int _activeSetupSubTabIndex;
 
     private CompetitionFormModel Model { get; set; } = new();
 
