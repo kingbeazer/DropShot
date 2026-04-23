@@ -465,6 +465,47 @@ else
 
             _divisions = _competition.Divisions.OrderBy(d => d.Rank).ToList();
 
+            // Restrict non-editors to their own division in competitions with divisions.
+            // Editors (admins / club admins / competition admins) keep the full grouped view.
+            if (!_canEdit && _canView && _competition.HasDivisions)
+            {
+                var playerUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!string.IsNullOrEmpty(playerUserId))
+                {
+                    var myParticipant = _competition.Participants
+                        .FirstOrDefault(p => p.Player?.UserId == playerUserId);
+                    if (myParticipant != null)
+                    {
+                        int? userDivisionId = myParticipant.CompetitionDivisionId
+                            ?? _teams.FirstOrDefault(t => t.CompetitionTeamId == myParticipant.TeamId)?.CompetitionDivisionId;
+
+                        _teams = _teams
+                            .Where(t => t.CompetitionDivisionId == userDivisionId)
+                            .ToList();
+                        var visibleTeamIds = _teams.Select(t => t.CompetitionTeamId).ToHashSet();
+
+                        _participants = _participants
+                            .Where(p => (p.TeamId.HasValue && visibleTeamIds.Contains(p.TeamId.Value))
+                                || (!p.TeamId.HasValue && p.CompetitionDivisionId == userDivisionId))
+                            .ToList();
+                        var visiblePlayerIds = _participants.Select(p => p.PlayerId).ToHashSet();
+
+                        _fixtures = _fixtures
+                            .Where(f =>
+                                (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+                                    ? (f.HomeTeamId.HasValue && visibleTeamIds.Contains(f.HomeTeamId.Value))
+                                        || (f.AwayTeamId.HasValue && visibleTeamIds.Contains(f.AwayTeamId.Value))
+                                    : new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
+                                        .Any(pid => pid.HasValue && visiblePlayerIds.Contains(pid.Value)))
+                            .ToList();
+
+                        _divisions = _divisions
+                            .Where(d => d.CompetitionDivisionId == userDivisionId)
+                            .ToList();
+                    }
+                }
+            }
+
             // Group fixtures by stage name (preserve stage order)
 #pragma warning disable CS8714
             _fixturesByStage = _competition.Stages
