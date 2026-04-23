@@ -11,8 +11,26 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
+@inject ILogger<UserManagement> Logger
 
 <MudProviders />
+
+@* ── Bootstrap SuperAdmin (temporary — remove once role is set) ──────── *@
+@if (_showBootstrapBanner)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4" Icon="@Icons.Material.Filled.AdminPanelSettings">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+            <MudText Style="flex:1">
+                No SuperAdmin exists. As the bootstrap user you can promote yourself now.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                       Disabled="@_bootstrapBusy"
+                       OnClick="BootstrapSuperAdminAsync">
+                Grant me SuperAdmin
+            </MudButton>
+        </MudStack>
+    </MudAlert>
+}
 
 @if (_error is not null)
 {
@@ -177,6 +195,9 @@
     private bool _isSuperAdmin;
     private string? _currentUserId;
 
+    private bool _showBootstrapBanner;
+    private bool _bootstrapBusy;
+
     private bool _showAddClubDialog;
     private UserRow? _targetRow;
     private int? _selectedClubId;
@@ -211,6 +232,12 @@
             _currentUserId = currentUser?.Id;
             _isSuperAdmin = currentUser is not null && await UserManager.IsInRoleAsync(currentUser, "SuperAdmin");
             await Load();
+
+            const string bootstrapEmail = "alan.beattie@xma.co.uk";
+            _showBootstrapBanner =
+                !_isSuperAdmin &&
+                currentUser?.Email?.Equals(bootstrapEmail, StringComparison.OrdinalIgnoreCase) == true &&
+                _rows.All(r => !r.IsSuperAdmin);
         }
         catch (Exception ex)
         {
@@ -310,6 +337,51 @@
         Snackbar.Add(
             $"{row.User.UserName} premium {(make ? "enabled" : "disabled")}.",
             make ? Severity.Success : Severity.Warning);
+    }
+
+    // ── Bootstrap SuperAdmin (temporary) ────────────────────────────────────
+
+    private async Task BootstrapSuperAdminAsync()
+    {
+        _bootstrapBusy = true;
+        const string bootstrapEmail = "alan.beattie@xma.co.uk";
+
+        var authState = await AuthenticationState;
+        var currentUser = await UserManager.GetUserAsync(authState.User);
+
+        // Server-side guard: email must match
+        if (currentUser?.Email?.Equals(bootstrapEmail, StringComparison.OrdinalIgnoreCase) != true)
+        {
+            Snackbar.Add("Bootstrap not permitted for this account.", Severity.Error);
+            _bootstrapBusy = false;
+            return;
+        }
+
+        // Server-side guard: no SuperAdmin must already exist
+        var superAdmins = await UserManager.GetUsersInRoleAsync("SuperAdmin");
+        if (superAdmins.Count > 0)
+        {
+            Snackbar.Add("A SuperAdmin already exists — bootstrap not permitted.", Severity.Error);
+            _showBootstrapBanner = false;
+            _bootstrapBusy = false;
+            return;
+        }
+
+        var result = await UserManager.AddToRoleAsync(currentUser, "SuperAdmin");
+        if (!result.Succeeded)
+        {
+            Snackbar.Add(string.Join(" ", result.Errors.Select(e => e.Description)), Severity.Error);
+            _bootstrapBusy = false;
+            return;
+        }
+
+        Logger.LogWarning(
+            "BOOTSTRAP: SuperAdmin role granted to user {UserId} ({Email}) — no prior SuperAdmin existed.",
+            currentUser.Id, currentUser.Email);
+
+        Snackbar.Add("SuperAdmin role granted. Reload the page to see full admin controls.", Severity.Success);
+        _showBootstrapBanner = false;
+        _bootstrapBusy = false;
     }
 
     // ── Club admin assignments ───────────────────────────────────────────────
