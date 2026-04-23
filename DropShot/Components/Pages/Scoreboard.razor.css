@@ -7,20 +7,27 @@
 }
 
 /* Always-mounted fullscreen toggle — fixed in the top-right corner in
-   every state so the icon never shifts when the toolbar collapses. */
+   every state so the icon never shifts when the toolbar collapses.
+   A dark translucent pill keeps it visible against the top navbar
+   gradient and any scoreboard background. */
 .scoreboard-fullscreen-toggle {
     position: fixed;
-    top: 8px;
-    right: 8px;
+    top: calc(3.5rem + 8px);
+    right: 12px;
     z-index: 9999;
-    opacity: 0.35;
-    transition: opacity 0.2s ease;
+    opacity: 0.75;
+    background: rgba(0, 0, 0, 0.55) !important;
+    color: #ffffff !important;
+    border-radius: 50% !important;
+    transition: opacity 0.2s ease, background 0.2s ease;
 }
 
     .scoreboard-fullscreen-toggle:hover,
     .scoreboard-fullscreen-toggle:focus-visible {
         opacity: 1;
+        background: rgba(0, 0, 0, 0.8) !important;
     }
+
 
 .scoreboard-toolbar {
     display: flex;
