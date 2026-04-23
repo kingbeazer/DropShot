@@ -739,11 +739,19 @@
                 return;
 
             case CourtClaimOutcome.NeedsChallenge:
+                var occupant = result.OccupantLabel ?? "another match";
+                var proceed = await DialogService.ShowMessageBox(
+                    title: "Court in use",
+                    message: $"{occupant} is currently on this court. Do you want to ask them if they've finished?",
+                    yesText: "Ask them",
+                    noText: "Pick another court");
+                if (proceed != true) return;
+
                 var parameters = new DialogParameters<ClaimCourtDialog>
                 {
                     { x => x.CourtId, _selectedCourtId.Value },
                     { x => x.SavedMatchId, result.SavedMatchId!.Value },
-                    { x => x.OccupantLabel, result.OccupantLabel ?? "another match" }
+                    { x => x.OccupantLabel, occupant }
                 };
                 var dialog = await DialogService.ShowAsync<ClaimCourtDialog>(
                     "Claiming court",
@@ -764,7 +772,7 @@
                 else
                 {
                     Snackbar.Add(
-                        $"{result.OccupantLabel} is still playing — pick another court.",
+                        $"{occupant} is still playing — pick another court.",
                         Severity.Info);
                 }
                 return;
