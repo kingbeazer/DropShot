@@ -21,6 +21,7 @@
 @inject UserState State
 @inject IDialogService DialogService
 @inject TennisScoreService ScoreService
+@inject CourtClaimService CourtClaim
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
@@ -710,6 +711,14 @@
         // Persist the new match immediately so we get a stable SavedMatchId for the URL.
         await SaveInitialMatchAsync();
 
+        // Join the court group so we hear court-challenge requests from
+        // any other user who later tries to claim this court.
+        if (hubConnection is not null && CurrentMatch?.CourtId is > 0
+            && hubConnection.State == HubConnectionState.Connected)
+        {
+            await hubConnection.SendAsync("JoinCourtGroup", CurrentMatch.CourtId.Value);
+        }
+
         // Navigate to /match/{id} so that refreshing the page restores this exact match.
         // Preserve rubber/return-url query params — without them the component would lose
         // its rubber context on re-initialisation, so the rubber-completion block at match
@@ -737,6 +746,48 @@
         }
     }
 
+    private async Task HandleCourtChallengeAsync(int courtId, int savedMatchId, string challengerConnectionId)
+    {
+        // Only answer challenges that target the match we're scoring right now.
+        if (_savedMatchId <= 0 || _savedMatchId != savedMatchId) return;
+
+        try
+        {
+            var stillPlaying = await DialogService.ShowMessageBox(
+                title: "Are you still playing?",
+                message: "Another user is trying to claim this court. Are you still playing the match?",
+                yesText: "Yes, still playing",
+                noText: "No, I'm done");
+
+            var answer = stillPlaying == true;
+
+            if (hubConnection is not null && hubConnection.State == HubConnectionState.Connected)
+            {
+                await hubConnection.SendAsync("RespondToCourtChallenge",
+                    challengerConnectionId, courtId, savedMatchId, answer);
+            }
+
+            if (answer)
+            {
+                await CourtClaim.ExtendGraceAsync(savedMatchId);
+                Snackbar.Add(
+                    $"Court held for {CourtClaimService.GraceAfterYes.TotalMinutes:0} more minutes.",
+                    Severity.Info);
+            }
+            else
+            {
+                await CourtClaim.EndMatchAsync(savedMatchId);
+                Snackbar.Add("Match ended — court released.", Severity.Info);
+                await SetScoringFullscreen(false);
+                Navigation.NavigateTo("/", forceLoad: false);
+            }
+        }
+        catch (Exception)
+        {
+            // Keep scoring view alive even if the dialog/hub round-trip fails.
+        }
+    }
+
     private async Task SaveInitialMatchAsync()
     {
         if (CurrentMatch == null) return;
@@ -761,6 +812,7 @@
             Player4Id = _player4Id,
             CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null,
             CreatedAt = DateTime.UtcNow,
+            LastActivityAt = DateTime.UtcNow,
             UserId = _currentUserId,
             DeviceToken = _currentUserId == null ? _deviceToken : null
         };
@@ -1069,7 +1121,15 @@
                     .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
                     .Build();
 
+                hubConnection.On<int, int, string>("CourtChallenge", HandleCourtChallengeAsync);
+
                 await hubConnection.StartAsync();
+
+                // If the component is already scoring an active match on a
+                // known court when the hub connects (e.g. on page refresh),
+                // join the court group so incoming challenges reach us.
+                if (_savedMatchId > 0 && CurrentMatch?.CourtId is > 0)
+                    await hubConnection.SendAsync("JoinCourtGroup", CurrentMatch.CourtId.Value);
             }
 
             if (_restoreFullscreen)
@@ -1145,6 +1205,7 @@
             matchToSave.CompletedAt = DateTime.UtcNow;
         else if (!matchToSave.Complete)
             matchToSave.CompletedAt = null;
+        matchToSave.LastActivityAt = DateTime.UtcNow;
         matchToSave.Player1 = CurrentMatch.Player1;
         matchToSave.Player2 = CurrentMatch.Player2;
         matchToSave.Player3 = CurrentMatch.Player3;

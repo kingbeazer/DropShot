@@ -112,6 +112,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<UserState>();
 builder.Services.AddScoped<TennisScoreService>();
 builder.Services.AddScoped<ClubAuthorizationService>();
+builder.Services.AddSingleton<CourtClaimService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddSingleton<EmailTemplateService>();

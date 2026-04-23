@@ -9,6 +9,7 @@
 @inject FuzzySearchService FuzzySearch
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject CourtClaimService CourtClaim
 
 <MudStack Spacing="3">
 
@@ -290,7 +291,7 @@
                            OnClick="@(() => GoToStep(0))">Back</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            EndIcon="@Icons.Material.Filled.ArrowForward"
-                           OnClick="@(() => GoToStep(2))">
+                           OnClick="AdvanceFromCourtAsync">
                     @(_selectedCourtId == null ? "Skip" : "Next")
                 </MudButton>
             </div>
@@ -712,6 +713,62 @@
         }
         _showPlayerValidation = false;
         GoToStep(1);
+    }
+
+    private async Task AdvanceFromCourtAsync()
+    {
+        if (_selectedCourtId is not > 0)
+        {
+            GoToStep(2);
+            return;
+        }
+
+        var result = await CourtClaim.EvaluateAsync(_selectedCourtId.Value);
+        switch (result.Outcome)
+        {
+            case CourtClaimOutcome.Free:
+            case CourtClaimOutcome.StaleAutoClosed:
+                GoToStep(2);
+                return;
+
+            case CourtClaimOutcome.InGrace:
+                var until = result.GraceUntilUtc?.ToLocalTime().ToString("HH:mm") ?? "later";
+                Snackbar.Add(
+                    $"Court is in use by {result.OccupantLabel}. Try again after {until}.",
+                    Severity.Warning);
+                return;
+
+            case CourtClaimOutcome.NeedsChallenge:
+                var parameters = new DialogParameters<ClaimCourtDialog>
+                {
+                    { x => x.CourtId, _selectedCourtId.Value },
+                    { x => x.SavedMatchId, result.SavedMatchId!.Value },
+                    { x => x.OccupantLabel, result.OccupantLabel ?? "another match" }
+                };
+                var dialog = await DialogService.ShowAsync<ClaimCourtDialog>(
+                    "Claiming court",
+                    parameters,
+                    new DialogOptions
+                    {
+                        CloseButton = false,
+                        BackdropClick = false,
+                        MaxWidth = MaxWidth.ExtraSmall,
+                        FullWidth = true
+                    });
+                var dlgResult = await dialog.Result;
+                if (dlgResult is null || dlgResult.Canceled) return;
+                if (dlgResult.Data is true)
+                {
+                    GoToStep(2);
+                }
+                else
+                {
+                    Snackbar.Add(
+                        $"{result.OccupantLabel} is still playing — pick another court.",
+                        Severity.Info);
+                }
+                return;
+        }
     }
 
     private void ToggleMatchType()

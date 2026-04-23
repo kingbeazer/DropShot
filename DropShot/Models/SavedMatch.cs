@@ -20,4 +20,12 @@ public class SavedMatch
     public int? CourtId { get; set; }
     public string? UserId { get; set; }
     public string? DeviceToken { get; set; }
+
+    // Updated on every score write. Used to spot abandoned matches so a
+    // new user can claim the court if the previous scorer disappeared.
+    public DateTime? LastActivityAt { get; set; }
+
+    // When the current scorer has confirmed "still playing" in response
+    // to a court challenge, other users are blocked until this timestamp.
+    public DateTime? ClaimGraceUntilUtc { get; set; }
 }
