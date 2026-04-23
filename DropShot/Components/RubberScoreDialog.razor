@@ -145,7 +145,8 @@
             lastHome = h; lastAway = a;
         }
 
-        if (homeSets == awaySets)
+        bool isFixedSets = _competition?.MatchFormat == MatchFormatType.FixedSets;
+        if (homeSets == awaySets && !isFixedSets)
         {
             _error = "Sets are tied — enter more sets or correct the scores.";
             return;
@@ -171,7 +172,11 @@
             rub.AwayGamesTotal = awayGames;
             rub.HomeGames = lastHome;
             rub.AwayGames = lastAway;
-            rub.WinnerTeamId = homeSets > awaySets ? rub.Fixture.HomeTeamId : rub.Fixture.AwayTeamId;
+            rub.WinnerTeamId = homeSets > awaySets
+                ? rub.Fixture.HomeTeamId
+                : awaySets > homeSets
+                    ? rub.Fixture.AwayTeamId
+                    : (int?)null;
             // No SavedMatch for direct-entry rubbers — there's no point-by-point
             // history to preserve.
             rub.SavedMatchId = null;
