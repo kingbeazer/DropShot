@@ -732,51 +732,31 @@
                 return;
 
             case CourtClaimOutcome.InGrace:
-                var until = result.GraceUntilUtc?.ToLocalTime().ToString("HH:mm") ?? "later";
+                var mins = RemainingMinutes(result.GraceUntilUtc);
                 Snackbar.Add(
-                    $"Court is in use by {result.OccupantLabel}. Try again after {until}.",
+                    $"Court is held by {result.OccupantLabel} for another {mins} minute{(mins == 1 ? "" : "s")}.",
                     Severity.Warning);
                 return;
 
             case CourtClaimOutcome.NeedsChallenge:
-                var occupant = result.OccupantLabel ?? "another match";
-                var proceed = await DialogService.ShowMessageBox(
-                    title: "Court in use",
-                    message: $"{occupant} is currently on this court. Do you want to ask them if they've finished?",
-                    yesText: "Ask them",
-                    noText: "Pick another court");
-                if (proceed != true) return;
-
-                var parameters = new DialogParameters<ClaimCourtDialog>
-                {
-                    { x => x.CourtId, _selectedCourtId.Value },
-                    { x => x.SavedMatchId, result.SavedMatchId!.Value },
-                    { x => x.OccupantLabel, occupant }
-                };
-                var dialog = await DialogService.ShowAsync<ClaimCourtDialog>(
-                    "Claiming court",
-                    parameters,
-                    new DialogOptions
-                    {
-                        CloseButton = false,
-                        BackdropClick = false,
-                        MaxWidth = MaxWidth.ExtraSmall,
-                        FullWidth = true
-                    });
-                var dlgResult = await dialog.Result;
-                if (dlgResult is null || dlgResult.Canceled) return;
-                if (dlgResult.Data is true)
-                {
-                    GoToStep(2);
-                }
-                else
-                {
-                    Snackbar.Add(
-                        $"{occupant} is still playing — pick another court.",
-                        Severity.Info);
-                }
+                // The match is still being actively scored (within the
+                // abandon threshold). Rather than interrupt the current
+                // scorer, tell the new user to pick another court.
+                Snackbar.Add(
+                    $"{result.OccupantLabel ?? "Another match"} is currently on this court. Please pick another.",
+                    Severity.Warning);
                 return;
         }
+    }
+
+    private static int RemainingMinutes(DateTime? untilUtc)
+    {
+        if (untilUtc is null) return 1;
+        var utc = untilUtc.Value.Kind == DateTimeKind.Utc
+            ? untilUtc.Value
+            : DateTime.SpecifyKind(untilUtc.Value, DateTimeKind.Utc);
+        var diff = utc - DateTime.UtcNow;
+        return Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes));
     }
 
     private void ToggleMatchType()
