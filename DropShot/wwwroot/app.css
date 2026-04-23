@@ -216,3 +216,51 @@ body.scoreboard-fullscreen main {
     flex-direction: column;
     justify-content: center;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Mobile table polish
+   Two things go wrong on phones by default:
+     1. Tables that don't use MudBlazor's responsive breakpoint can overflow
+        the viewport, which scrolls the whole page sideways.
+     2. When tables *do* stack into single-cell-per-row cards (MudBlazor's
+        built-in mobile mode) every row blurs into the next because there's
+        no separator between them.
+   The rules below keep any table contained to its parent (scrolls locally
+   instead of the page) and add a strong border between stacked rows.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640.98px) {
+    /* Tables shouldn't force the page wider than the viewport. */
+    .mud-table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Opt-in class (`mobile-stack-table`) for grids that use Breakpoint="Sm"
+       and have DataLabel set on every cell: render each row as a labelled
+       card with a clear gap between entries. */
+    .mobile-stack-table .mud-table-root .mud-table-body .mud-table-row {
+        display: block;
+        padding: 0.75rem 0.25rem;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .mobile-stack-table .mud-table-root .mud-table-body .mud-table-row:last-child {
+        border-bottom: none;
+    }
+
+    /* MudBlazor emits `:before` text from DataLabel when stacked – nudge the
+       value so the label and value read as a pair instead of a wall of text. */
+    .mobile-stack-table .mud-table-root .mud-table-body .mud-table-cell {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-bottom: none;
+    }
+
+    .mobile-stack-table .mud-table-root .mud-table-body .mud-table-cell:before {
+        font-weight: 600;
+        opacity: 0.75;
+        flex-shrink: 0;
+    }
+}

@@ -80,11 +80,15 @@ else
 
     <MudDivider Class="mb-4" />
 
+    <MudExpansionPanels MultiExpansion="true" Class="mb-4">
+
     @* ── Fixtures by stage ───────────────────────────────────── *@
     @if (!(_canEdit && _competition.HasDivisions))
     {
-    <MudText Typo="Typo.h5" Class="mb-3">Scheduled Matches</MudText>
+    var visibleDivisionCount = _fixturesByDivision.Count(g => g.StageGroups.Count > 0);
+    var showDivisionHeadings = _competition.HasDivisions && visibleDivisionCount > 1;
 
+    <MudExpansionPanel Text="Scheduled Matches">
     @if (!_fixtures.Any())
     {
         <MudAlert Severity="Severity.Info" Class="mb-4">No matches scheduled yet.</MudAlert>
@@ -93,17 +97,17 @@ else
     {
         @foreach (var divGroup in _fixturesByDivision.Where(g => g.StageGroups.Count > 0))
         {
-            @if (_competition.HasDivisions)
+            @if (showDivisionHeadings)
             {
                 <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(divGroup.Division?.Name ?? "Unassigned")</MudText>
             }
             @foreach (var stageGroup in divGroup.StageGroups)
             {
-                <MudText Typo="@(_competition.HasDivisions ? Typo.subtitle1 : Typo.h6)"
-                         Class="@(_competition.HasDivisions ? "mt-2 mb-1 ms-3" : "mt-3 mb-2")">
+                <MudText Typo="@(showDivisionHeadings ? Typo.subtitle1 : Typo.h6)"
+                         Class="@(showDivisionHeadings ? "mt-2 mb-1 ms-3" : "mt-3 mb-2")">
                     @(stageGroup.StageName ?? "Unassigned")
                 </MudText>
-            <MudTable Items="@stageGroup.Fixtures" Dense="true" Hover="true" Class="mb-4">
+            <MudTable Items="@stageGroup.Fixtures" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table">
                 <HeaderContent>
                     <MudTh>Date / Time</MudTh>
                     <MudTh>Match</MudTh>
@@ -190,15 +194,14 @@ else
             }
         }
     }
+    </MudExpansionPanel>
     }
 
     @* ── Admin: per-division expanders (fixtures + teams combined) ─── *@
     @if (_canEdit && _competition.HasDivisions)
     {
-        <MudText Typo="Typo.h5" Class="mb-3">Divisions</MudText>
-        <MudExpansionPanels MultiExpansion="true">
-            @foreach (var divGroup in _fixturesByDivision)
-            {
+        @foreach (var divGroup in _fixturesByDivision)
+        {
                 var divKey = divGroup.Division?.CompetitionDivisionId;
                 var divTeams = _teamsByDivision
                     .FirstOrDefault(g => g.Division?.CompetitionDivisionId == divKey).Teams
@@ -218,7 +221,7 @@ else
                         @foreach (var stageGroup in stageGroups)
                         {
                             <MudText Typo="Typo.body1" Class="mt-2 mb-1">@(stageGroup.StageName ?? "Unassigned")</MudText>
-                            <MudTable Items="@stageGroup.Fixtures" Dense="true" Hover="true" Class="mb-3">
+                            <MudTable Items="@stageGroup.Fixtures" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-3 mobile-stack-table">
                                 <HeaderContent>
                                     <MudTh>Date / Time</MudTh>
                                     <MudTh>Match</MudTh>
@@ -318,16 +321,16 @@ else
                         {
                             var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
                             <MudExpansionPanel Text="@($"{team.Name} ({members.Count} players)")" Class="mb-2">
-                                <MudTable Items="@members" Dense="true" Hover="true">
+                                <MudTable Items="@members" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table">
                                     <HeaderContent>
                                         <MudTh>Player</MudTh>
                                         <MudTh>Mobile</MudTh>
                                         <MudTh>Status</MudTh>
                                     </HeaderContent>
                                     <RowTemplate>
-                                        <MudTd>@context.Player?.DisplayName</MudTd>
-                                        <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
-                                        <MudTd>
+                                        <MudTd DataLabel="Player">@context.Player?.DisplayName</MudTd>
+                                        <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
+                                        <MudTd DataLabel="Status">
                                             <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
                                                 @context.Status
                                             </MudChip>
@@ -339,8 +342,7 @@ else
                         }
                     }
                 </MudExpansionPanel>
-            }
-        </MudExpansionPanels>
+        }
     }
 
     @* ── League Table (round-robin stages only) ──────────────── *@
@@ -360,41 +362,47 @@ else
         };
         var forTooltip = $"{_scoringUnitLabel} won";
         var againstTooltip = $"{_scoringUnitLabel} against";
+        var visibleLeagueGroups = _teamLeagueTablesByDivision.Where(g => g.Rows.Any()).ToList();
+        var showLeagueHeadings = visibleLeagueGroups.Count > 1;
+        var leagueTitle = showLeagueHeadings ? "Division League Tables" : "League Table";
 
-        <MudDivider Class="my-4" />
-        <MudText Typo="Typo.h5" Class="mb-3">Division League Tables</MudText>
-        @foreach (var group in _teamLeagueTablesByDivision.Where(g => g.Rows.Any()))
-        {
-            var rows = group.Rows;
-            var heading = group.Division?.Name ?? "Unassigned";
-            <MudText Typo="Typo.h6" Class="mt-3 mb-2">@heading</MudText>
-            <MudTable Items="@rows" Dense="true" Hover="true" Class="mb-4">
-                <HeaderContent>
-                    <MudTh>Pos</MudTh>
-                    <MudTh>Team</MudTh>
-                    <MudTh>Captain</MudTh>
-                    <MudTh>P</MudTh>
-                    <MudTh>W</MudTh>
-                    <MudTh>D</MudTh>
-                    <MudTh>L</MudTh>
-                    <MudTh><MudTooltip Text="@forTooltip">@forHeader</MudTooltip></MudTh>
-                    <MudTh><MudTooltip Text="@againstTooltip">@againstHeader</MudTooltip></MudTh>
-                    <MudTh>Pts</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd>@(rows.IndexOf(context) + 1)</MudTd>
-                    <MudTd Style="font-weight:500">@context.TeamName</MudTd>
-                    <MudTd>@(context.CaptainName ?? "—")</MudTd>
-                    <MudTd>@context.Played</MudTd>
-                    <MudTd>@context.Won</MudTd>
-                    <MudTd>@context.Drawn</MudTd>
-                    <MudTd>@context.Lost</MudTd>
-                    <MudTd>@context.ScoringFor</MudTd>
-                    <MudTd>@context.ScoringAgainst</MudTd>
-                    <MudTd Style="font-weight:bold">@context.Points</MudTd>
-                </RowTemplate>
-            </MudTable>
-        }
+        <MudExpansionPanel Text="@leagueTitle">
+            @foreach (var group in visibleLeagueGroups)
+            {
+                var rows = group.Rows;
+                var heading = group.Division?.Name ?? "Unassigned";
+                @if (showLeagueHeadings)
+                {
+                    <MudText Typo="Typo.h6" Class="mt-3 mb-2">@heading</MudText>
+                }
+                <MudTable Items="@rows" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table">
+                    <HeaderContent>
+                        <MudTh>Pos</MudTh>
+                        <MudTh>Team</MudTh>
+                        <MudTh>Captain</MudTh>
+                        <MudTh>P</MudTh>
+                        <MudTh>W</MudTh>
+                        <MudTh>D</MudTh>
+                        <MudTh>L</MudTh>
+                        <MudTh><MudTooltip Text="@forTooltip">@forHeader</MudTooltip></MudTh>
+                        <MudTh><MudTooltip Text="@againstTooltip">@againstHeader</MudTooltip></MudTh>
+                        <MudTh>Pts</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Pos">@(rows.IndexOf(context) + 1)</MudTd>
+                        <MudTd DataLabel="Team" Style="font-weight:500">@context.TeamName</MudTd>
+                        <MudTd DataLabel="Captain">@(context.CaptainName ?? "—")</MudTd>
+                        <MudTd DataLabel="P">@context.Played</MudTd>
+                        <MudTd DataLabel="W">@context.Won</MudTd>
+                        <MudTd DataLabel="D">@context.Drawn</MudTd>
+                        <MudTd DataLabel="L">@context.Lost</MudTd>
+                        <MudTd DataLabel="@forHeader">@context.ScoringFor</MudTd>
+                        <MudTd DataLabel="@againstHeader">@context.ScoringAgainst</MudTd>
+                        <MudTd DataLabel="Pts" Style="font-weight:bold">@context.Points</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudExpansionPanel>
     }
     else if (_teamLeagueTable.Any())
     {
@@ -413,57 +421,57 @@ else
         var forTooltip = $"{_scoringUnitLabel} won";
         var againstTooltip = $"{_scoringUnitLabel} against";
 
-        <MudDivider Class="my-4" />
-        <MudText Typo="Typo.h5" Class="mb-3">Team League Table</MudText>
-        <MudTable Items="@_teamLeagueTable" Dense="true" Hover="true" Class="mb-4">
-            <HeaderContent>
-                <MudTh>Pos</MudTh>
-                <MudTh>Team</MudTh>
-                <MudTh>Captain</MudTh>
-                <MudTh>P</MudTh>
-                <MudTh>W</MudTh>
-                <MudTh>D</MudTh>
-                <MudTh>L</MudTh>
-                <MudTh><MudTooltip Text="@forTooltip">@forHeader</MudTooltip></MudTh>
-                <MudTh><MudTooltip Text="@againstTooltip">@againstHeader</MudTooltip></MudTh>
-                <MudTh>Pts</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@(_teamLeagueTable.IndexOf(context) + 1)</MudTd>
-                <MudTd Style="font-weight:500">@context.TeamName</MudTd>
-                <MudTd>@(context.CaptainName ?? "—")</MudTd>
-                <MudTd>@context.Played</MudTd>
-                <MudTd>@context.Won</MudTd>
-                <MudTd>@context.Drawn</MudTd>
-                <MudTd>@context.Lost</MudTd>
-                <MudTd>@context.ScoringFor</MudTd>
-                <MudTd>@context.ScoringAgainst</MudTd>
-                <MudTd Style="font-weight:bold">@context.Points</MudTd>
-            </RowTemplate>
-        </MudTable>
+        <MudExpansionPanel Text="Team League Table">
+            <MudTable Items="@_teamLeagueTable" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table">
+                <HeaderContent>
+                    <MudTh>Pos</MudTh>
+                    <MudTh>Team</MudTh>
+                    <MudTh>Captain</MudTh>
+                    <MudTh>P</MudTh>
+                    <MudTh>W</MudTh>
+                    <MudTh>D</MudTh>
+                    <MudTh>L</MudTh>
+                    <MudTh><MudTooltip Text="@forTooltip">@forHeader</MudTooltip></MudTh>
+                    <MudTh><MudTooltip Text="@againstTooltip">@againstHeader</MudTooltip></MudTh>
+                    <MudTh>Pts</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Pos">@(_teamLeagueTable.IndexOf(context) + 1)</MudTd>
+                    <MudTd DataLabel="Team" Style="font-weight:500">@context.TeamName</MudTd>
+                    <MudTd DataLabel="Captain">@(context.CaptainName ?? "—")</MudTd>
+                    <MudTd DataLabel="P">@context.Played</MudTd>
+                    <MudTd DataLabel="W">@context.Won</MudTd>
+                    <MudTd DataLabel="D">@context.Drawn</MudTd>
+                    <MudTd DataLabel="L">@context.Lost</MudTd>
+                    <MudTd DataLabel="@forHeader">@context.ScoringFor</MudTd>
+                    <MudTd DataLabel="@againstHeader">@context.ScoringAgainst</MudTd>
+                    <MudTd DataLabel="Pts" Style="font-weight:bold">@context.Points</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudExpansionPanel>
     }
     else if (_leagueTable.Any())
     {
-        <MudDivider Class="my-4" />
-        <MudText Typo="Typo.h5" Class="mb-3">League Table</MudText>
-        <MudTable Items="@_leagueTable" Dense="true" Hover="true" Class="mb-4" Style="max-width:600px">
-            <HeaderContent>
-                <MudTh>Pos</MudTh>
-                <MudTh>Player</MudTh>
-                <MudTh>P</MudTh>
-                <MudTh>W</MudTh>
-                <MudTh>L</MudTh>
-                <MudTh>Pts</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@(_leagueTable.IndexOf(context) + 1)</MudTd>
-                <MudTd Style="font-weight:500">@context.PlayerName</MudTd>
-                <MudTd>@context.Played</MudTd>
-                <MudTd>@context.Won</MudTd>
-                <MudTd>@context.Lost</MudTd>
-                <MudTd Style="font-weight:bold">@context.Points</MudTd>
-            </RowTemplate>
-        </MudTable>
+        <MudExpansionPanel Text="League Table">
+            <MudTable Items="@_leagueTable" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:600px">
+                <HeaderContent>
+                    <MudTh>Pos</MudTh>
+                    <MudTh>Player</MudTh>
+                    <MudTh>P</MudTh>
+                    <MudTh>W</MudTh>
+                    <MudTh>L</MudTh>
+                    <MudTh>Pts</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Pos">@(_leagueTable.IndexOf(context) + 1)</MudTd>
+                    <MudTd DataLabel="Player" Style="font-weight:500">@context.PlayerName</MudTd>
+                    <MudTd DataLabel="P">@context.Played</MudTd>
+                    <MudTd DataLabel="W">@context.Won</MudTd>
+                    <MudTd DataLabel="L">@context.Lost</MudTd>
+                    <MudTd DataLabel="Pts" Style="font-weight:bold">@context.Points</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudExpansionPanel>
     }
 
     @* ── Competitors ─────────────────────────────────────────── *@
@@ -475,36 +483,36 @@ else
     {
         @if (_participants.Any(p => p.TeamId == null))
         {
-            <MudDivider Class="my-4" />
-            <MudText Typo="Typo.subtitle1" Class="mb-2">Unassigned Participants</MudText>
-            <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true">
-                <HeaderContent>
-                    <MudTh>Player</MudTh>
-                    <MudTh>Mobile</MudTh>
-                    <MudTh>Status</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd>@context.Player?.DisplayName</MudTd>
-                    <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
-                    <MudTd>
-                        <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                            @context.Status
-                        </MudChip>
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
+            <MudExpansionPanel Text="Unassigned Participants">
+                <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table">
+                    <HeaderContent>
+                        <MudTh>Player</MudTh>
+                        <MudTh>Mobile</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Player">@context.Player?.DisplayName</MudTd>
+                        <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                                @context.Status
+                            </MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudExpansionPanel>
         }
     }
     else
     {
-    <MudDivider Class="my-4" />
-    <MudText Typo="Typo.h5" Class="mb-3">Competitors</MudText>
-
+    <MudExpansionPanel Text="Competitors">
     @if (_competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch && _teams.Any())
     {
-        @foreach (var teamsGroup in _teamsByDivision.Where(g => g.Teams.Count > 0))
+        var visibleTeamGroups = _teamsByDivision.Where(g => g.Teams.Count > 0).ToList();
+        var showTeamsDivisionHeadings = _competition.HasDivisions && visibleTeamGroups.Count > 1;
+        @foreach (var teamsGroup in visibleTeamGroups)
         {
-            @if (_competition.HasDivisions)
+            @if (showTeamsDivisionHeadings)
             {
                 <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(teamsGroup.Division?.Name ?? "Unassigned")</MudText>
             }
@@ -512,16 +520,16 @@ else
             {
                 var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
                 <MudExpansionPanel Text="@($"{team.Name} ({members.Count} players)")" Class="mb-2">
-                    <MudTable Items="@members" Dense="true" Hover="true">
+                    <MudTable Items="@members" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table">
                         <HeaderContent>
                             <MudTh>Player</MudTh>
                             <MudTh>Mobile</MudTh>
                             <MudTh>Status</MudTh>
                         </HeaderContent>
                         <RowTemplate>
-                            <MudTd>@context.Player?.DisplayName</MudTd>
-                            <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
-                            <MudTd>
+                            <MudTd DataLabel="Player">@context.Player?.DisplayName</MudTd>
+                            <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
+                            <MudTd DataLabel="Status">
                                 <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
                                     @context.Status
                                 </MudChip>
@@ -536,16 +544,16 @@ else
         @if (_participants.Any(p => p.TeamId == null))
         {
             <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Unassigned</MudText>
-            <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true">
+            <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table">
                 <HeaderContent>
                     <MudTh>Player</MudTh>
                     <MudTh>Mobile</MudTh>
                     <MudTh>Status</MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd>@context.Player?.DisplayName</MudTd>
-                    <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
-                    <MudTd>
+                    <MudTd DataLabel="Player">@context.Player?.DisplayName</MudTd>
+                    <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
+                    <MudTd DataLabel="Status">
                         <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
                             @context.Status
                         </MudChip>
@@ -556,7 +564,7 @@ else
     }
     else
     {
-        <MudTable Items="@_participants" Dense="true" Hover="true" Class="mb-4" Style="max-width:700px">
+        <MudTable Items="@_participants" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:700px">
             <HeaderContent>
                 <MudTh>Player</MudTh>
                 <MudTh>Mobile</MudTh>
@@ -564,19 +572,22 @@ else
                 <MudTh>Registered</MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd Style="font-weight:500">@context.Player?.DisplayName</MudTd>
-                <MudTd>@(context.Player?.MobileNumber ?? "—")</MudTd>
-                <MudTd>
+                <MudTd DataLabel="Player" Style="font-weight:500">@context.Player?.DisplayName</MudTd>
+                <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
+                <MudTd DataLabel="Status">
                     <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
                         @context.Status
                     </MudChip>
                 </MudTd>
-                <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
+                <MudTd DataLabel="Registered">@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
             </RowTemplate>
             <NoRecordsContent><MudText Typo="Typo.caption">No competitors registered.</MudText></NoRecordsContent>
         </MudTable>
     }
+    </MudExpansionPanel>
     }
+
+    </MudExpansionPanels>
 }
 
 @code {

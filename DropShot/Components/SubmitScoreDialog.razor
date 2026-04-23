@@ -272,10 +272,27 @@
             }
         }
 
-        if (_winnerPlayerId == null)
+        bool isFixedSets = Fixture.Competition?.MatchFormat == MatchFormatType.FixedSets;
+        int side1Sets = 0, side2Sets = 0;
+        for (int i = 0; i < _bestOf; i++)
+        {
+            if (_score1[i].HasValue && _score2[i].HasValue)
+            {
+                if (_score1[i] > _score2[i]) side1Sets++;
+                else if (_score2[i] > _score1[i]) side2Sets++;
+            }
+        }
+        bool matchIsTied = side1Sets == side2Sets;
+
+        if (_winnerPlayerId == null && !(isFixedSets && matchIsTied))
         {
             _error = "Please select a winner.";
             return;
+        }
+
+        if (isFixedSets && matchIsTied)
+        {
+            _winnerPlayerId = null;
         }
 
         _saving = true;

@@ -1,0 +1,12 @@
+/* Competition edit page – mobile-specific polish */
+
+@media (max-width: 640.98px) {
+    /* Breathing room between the tab strip (Setup / Roster / Fixtures / Email)
+       and the active panel's content. MudBlazor renders the tab headers in
+       `.mud-tabs-toolbar`; push the content panel below it away from that bar. */
+    ::deep .mud-tabs-panels,
+    ::deep .mud-tabs-tabbar + div,
+    ::deep .mud-tab-panel {
+        padding-top: 1rem;
+    }
+}
