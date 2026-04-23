@@ -52,6 +52,11 @@
                 <label for="confirm-password">Confirm Password</label>
                 <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
             </div>
+            <div class="form-floating mb-3">
+                <InputDate @bind-Value="Input.DateOfBirth" class="form-control" aria-required="true" placeholder="Date of Birth" />
+                <label for="date-of-birth">Date of Birth</label>
+                <ValidationMessage For="() => Input.DateOfBirth" class="text-danger" />
+            </div>
             <fieldset class="mb-3">
                 <legend class="form-label mb-1" style="font-size: 1rem;">Competition category</legend>
                 <small class="form-text text-muted d-block mb-2">Determines which events you're eligible to enter</small>
@@ -106,6 +111,21 @@
 
     public async Task RegisterUser(EditContext editContext)
     {
+        if (Input.DateOfBirth is null || AgeInYears(Input.DateOfBirth.Value, DateTime.UtcNow) < 18)
+        {
+            identityErrors = new[]
+            {
+                new IdentityError
+                {
+                    Code = "Underage",
+                    Description = "You can only register if you are over 18 or if you are an adult. " +
+                        "If you are a child please ask a parent to register. Parents can add child accounts " +
+                        "from within their own account."
+                }
+            };
+            return;
+        }
+
         var user = CreateUser();
         user.DisplayName = Input.DisplayName;
 
@@ -146,6 +166,7 @@
                         invited.UserId = userIdStr;
                         invited.Email = Input.Email;
                         invited.Sex = Input.CompetitionCategory;
+                        invited.DateOfBirth = DateOnly.FromDateTime(Input.DateOfBirth!.Value);
                         if (string.IsNullOrWhiteSpace(invited.DisplayName))
                             invited.DisplayName = Input.DisplayName;
                         invite.AcceptedAt = DateTime.UtcNow;
@@ -178,6 +199,7 @@
             {
                 player.UserId = userIdStr;
                 player.Sex = Input.CompetitionCategory;
+                player.DateOfBirth = DateOnly.FromDateTime(Input.DateOfBirth!.Value);
                 await db.SaveChangesAsync();
                 linkedPlayer = true;
                 Logger.LogInformation("Linked new user {Email} to existing player record.", Input.Email);
@@ -195,6 +217,7 @@
                     lightMatch.UserId = userIdStr;
                     lightMatch.Email = Input.Email;
                     lightMatch.Sex = Input.CompetitionCategory;
+                    lightMatch.DateOfBirth = DateOnly.FromDateTime(Input.DateOfBirth!.Value);
                     await db.SaveChangesAsync();
                     linkedPlayer = true;
                     Logger.LogInformation("Claimed light player record for {DisplayName}.", Input.DisplayName);
@@ -209,6 +232,7 @@
                     Email = Input.Email,
                     UserId = userIdStr,
                     Sex = Input.CompetitionCategory,
+                    DateOfBirth = DateOnly.FromDateTime(Input.DateOfBirth!.Value),
                     CreatedAt = DateTime.UtcNow
                 };
                 db.Players.Add(newPlayer);
@@ -260,6 +284,13 @@
         return (IUserEmailStore<ApplicationUser>)UserStore;
     }
 
+    private static int AgeInYears(DateTime dob, DateTime asOf)
+    {
+        var age = asOf.Year - dob.Year;
+        if (asOf < dob.AddYears(age)) age--;
+        return age;
+    }
+
     private sealed class InputModel
     {
         [Required]
@@ -286,5 +317,10 @@
         [Required(ErrorMessage = "Please select a competition category.")]
         [Display(Name = "Competition category")]
         public PlayerSex? CompetitionCategory { get; set; }
+
+        [Required(ErrorMessage = "Please enter your date of birth.")]
+        [DataType(DataType.Date)]
+        [Display(Name = "Date of Birth")]
+        public DateTime? DateOfBirth { get; set; }
     }
 }
