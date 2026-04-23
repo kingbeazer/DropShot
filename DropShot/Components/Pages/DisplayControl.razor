@@ -135,10 +135,8 @@
                 .Build();
 
             // Listen for display commands from other admins or scoreboard viewers
-            _hub.On<string, string>("ReceiveDisplayCommand", async (command, value) =>
+            _hub.On<int, string, string>("ReceiveDisplayCommand", async (courtId, command, value) =>
             {
-                // Determine which court this came from by reloading from DB
-                // (SignalR group delivers to the court, but we need the courtId)
                 await ReloadSettingsFromDbAsync();
                 await InvokeAsync(StateHasChanged);
             });

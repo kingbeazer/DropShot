@@ -22,7 +22,7 @@
 
         public async Task SendDisplayCommand(int courtId, string command, string value)
         {
-            await Clients.OthersInGroup($"court-{courtId}").SendAsync("ReceiveDisplayCommand", command, value);
+            await Clients.OthersInGroup($"court-{courtId}").SendAsync("ReceiveDisplayCommand", courtId, command, value);
         }
     }
 }

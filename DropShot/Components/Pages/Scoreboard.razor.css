@@ -1,28 +1,51 @@
 /* ── Full-viewport scoreboard page ──────────────────────────── */
 .scoreboard-page {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-height: calc(100vh - 3.5rem);
 }
+
+/* Always-mounted fullscreen toggle — fixed in the top-right corner in
+   every state so the icon never shifts when the toolbar collapses. */
+.scoreboard-fullscreen-toggle {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    z-index: 9999;
+    opacity: 0.35;
+    transition: opacity 0.2s ease;
+}
+
+    .scoreboard-fullscreen-toggle:hover,
+    .scoreboard-fullscreen-toggle:focus-visible {
+        opacity: 1;
+    }
 
 .scoreboard-toolbar {
     display: flex;
     gap: 12px;
     align-items: flex-end;
     flex-wrap: wrap;
-    padding: 8px 12px;
+    padding: 8px 56px 8px 12px; /* reserve space for the fixed toggle */
     flex-shrink: 0;
 }
 
-@media (max-width: 600px) {
-    .toolbar-fullscreen {
-        margin-left: auto;
-        order: 2;
-    }
+.toolbar-court-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
 
+.toolbar-layout {
+    margin-left: auto;
+}
+
+@media (max-width: 600px) {
     .toolbar-layout {
+        margin-left: 0;
         flex: 1 1 100%;
-        order: 3;
+        order: 99;
     }
 }
 
@@ -34,6 +57,113 @@
     align-items: center;
     min-height: 0;
     padding: 0 8px;
+}
+
+.scoreboard-empty-hint {
+    padding: 24px;
+    opacity: 0.5;
+    text-align: center;
+}
+
+/* ── Grid layout for multiple courts ─────────────────────────── */
+.scoreboard-grid {
+    display: grid;
+    gap: 12px;
+    padding: 12px 8px;
+    width: 100%;
+    align-items: stretch;
+    justify-items: stretch;
+}
+
+    .scoreboard-grid.count-1 {
+        grid-template-columns: 1fr;
+    }
+
+    .scoreboard-grid.count-2 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .scoreboard-grid.count-3,
+    .scoreboard-grid.count-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .scoreboard-grid.count-5,
+    .scoreboard-grid.count-6 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .scoreboard-grid.count-7,
+    .scoreboard-grid.count-8,
+    .scoreboard-grid.count-9 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .scoreboard-grid.count-10,
+    .scoreboard-grid.count-11,
+    .scoreboard-grid.count-12 {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+@media (max-width: 900px) {
+    .scoreboard-grid.count-3,
+    .scoreboard-grid.count-4,
+    .scoreboard-grid.count-5,
+    .scoreboard-grid.count-6,
+    .scoreboard-grid.count-7,
+    .scoreboard-grid.count-8,
+    .scoreboard-grid.count-9,
+    .scoreboard-grid.count-10,
+    .scoreboard-grid.count-11,
+    .scoreboard-grid.count-12 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .scoreboard-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+.scoreboard-cell {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    min-height: 180px;
+}
+
+/* When more than one scoreboard is shown, rescale the font sizes
+   relative to each cell's width instead of the viewport so the
+   scoreboards stay readable inside grid tiles. */
+.scoreboard-grid:not(.count-1) ::deep .default-scoreboard .score-court-name {
+    font-size: clamp(0.75rem, 5cqi, 1.75rem);
+}
+
+.scoreboard-grid:not(.count-1) ::deep .default-scoreboard .score-competition {
+    font-size: clamp(0.55rem, 2.5cqi, 1rem);
+}
+
+.scoreboard-grid:not(.count-1) ::deep .default-scoreboard .score-player-label {
+    font-size: clamp(0.75rem, 3.5cqi, 1.35rem);
+}
+
+.scoreboard-grid:not(.count-1) ::deep .default-scoreboard .score-point-value {
+    font-size: clamp(1.5rem, 10cqi, 4rem);
+}
+
+.scoreboard-grid:not(.count-1) ::deep .default-scoreboard .score-serve-indicator {
+    font-size: clamp(0.9rem, 3.5cqi, 1.75rem);
+}
+
+.scoreboard-grid:not(.count-1) ::deep .default-scoreboard .score-points-row {
+    gap: clamp(10px, 4cqi, 40px);
 }
 
 /* ── YouTube stream container ────────────────────────────────── */

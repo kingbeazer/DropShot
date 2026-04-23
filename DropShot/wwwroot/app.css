@@ -171,12 +171,14 @@ body.scoring-immersive .top-navbar {
 body.scoreboard-fullscreen .sidebar,
 body.scoreboard-fullscreen .role-banner,
 body.scoreboard-fullscreen .top-row,
-body.scoreboard-fullscreen .navbar-toggler {
+body.scoreboard-fullscreen .navbar-toggler,
+body.scoreboard-fullscreen footer.site-footer {
     display: none !important;
 }
 
 body.scoreboard-fullscreen .content {
     padding: 0 !important;
+    max-width: none !important;
 }
 
 body.scoreboard-fullscreen main {
