@@ -376,99 +376,18 @@
             @* ── Rubber Template ─────────────────────────────── *@
             @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
             {
-                var isCustom = _rubberTemplateSource == "custom";
-                var statusLabel = isCustom ? "Custom"
-                                : _rubberTemplateSource == "preset" ? "Preset"
-                                : "Default";
-                <MudPaper id="section-rubber-template" Class="pa-4 mb-4 setup-section" Elevation="0"
-                     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
-                        <MudText Typo="Typo.h6" Style="flex:1">Rubber Template</MudText>
-                        <MudChip T="string" Size="Size.Small" Color="@(isCustom ? Color.Warning : Color.Default)">
-                            @statusLabel
-                        </MudChip>
-                    </MudStack>
-
-                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.8">
-                        Configure the rubber template first — it determines team size and which roles participants can be assigned to.
-                    </MudText>
-
-                    <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.End">
-                        <MudSelect T="string" Label="Load preset" Value="_selectedRubberPresetKey"
-                                   Clearable="true" Variant="Variant.Outlined" Dense="true"
-                                   Style="max-width: 320px"
-                                   ValueChanged="ApplyRubberPreset">
-                            @foreach (var p in _rubberPresets)
-                            {
-                                <MudSelectItem T="string" Value="@p.Key">@p.Label</MudSelectItem>
-                            }
-                        </MudSelect>
-
-                        @if (isCustom)
-                        {
-                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                                       StartIcon="@Icons.Material.Filled.Refresh"
-                                       OnClick="RevertToDefaultTemplate">
-                                Revert to default
-                            </MudButton>
-                        }
-                        else if (_rubberTemplateDefs.Count > 0)
-                        {
-                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                                       StartIcon="@Icons.Material.Filled.Edit"
-                                       OnClick="ConvertToCustomTemplate">
-                                Customize this template
-                            </MudButton>
-                        }
-                    </MudStack>
-
-                    <MudTable Items="@_rubberTemplateDefs" Dense="true" Hover="true">
-                        <HeaderContent>
-                            <MudTh>#</MudTh>
-                            <MudTh>Name</MudTh>
-                            <MudTh>Court</MudTh>
-                            <MudTh>Home roles</MudTh>
-                            <MudTh>Away roles</MudTh>
-                            @if (isCustom) { <MudTh></MudTh> }
-                        </HeaderContent>
-                        <RowTemplate>
-                            @{
-                                var homeCsv = string.Join(", ", context.HomeRoles);
-                                var awayCsv = string.Join(", ", context.AwayRoles);
-                            }
-                            <MudTd>@context.Order</MudTd>
-                            <MudTd>@context.Name</MudTd>
-                            <MudTd>@context.CourtNumber</MudTd>
-                            <MudTd>@homeCsv</MudTd>
-                            <MudTd>@awayCsv</MudTd>
-                            @if (isCustom)
-                            {
-                                <MudTd>
-                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                                   OnClick="@(() => OpenRubberRowEditor(context))" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                                   OnClick="@(() => DeleteCustomRubberRow(context.Order))" />
-                                </MudTd>
-                            }
-                        </RowTemplate>
-                        <NoRecordsContent>
-                            <MudText Typo="Typo.caption">No rubbers defined yet.</MudText>
-                        </NoRecordsContent>
-                    </MudTable>
-
-                    @if (isCustom)
-                    {
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="mt-2"
-                                   StartIcon="@Icons.Material.Filled.Add"
-                                   OnClick="AddCustomRubberRow">
-                            Add rubber
-                        </MudButton>
-                    }
-
-                    <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.7">
-                        Team size: @_availableRoles.Count • Roles: @(string.Join(", ", _availableRoles))
-                    </MudText>
-                </MudPaper>
+                <DropShot.Components.Competitions.Setup.RubberTemplateSection
+                    Defs="_rubberTemplateDefs"
+                    Presets="_rubberPresets"
+                    AvailableRoles="_availableRoles"
+                    Source="_rubberTemplateSource"
+                    SelectedPresetKey="_selectedRubberPresetKey"
+                    OnApplyPreset="ApplyRubberPreset"
+                    OnRevertToDefault="RevertToDefaultTemplate"
+                    OnConvertToCustom="ConvertToCustomTemplate"
+                    OnAddRow="AddCustomRubberRow"
+                    OnEditRow="OpenRubberRowEditor"
+                    OnDeleteRow="DeleteCustomRubberRow" />
 
                 @if (_showRubberRowDialog && _editingRubberRow != null)
                 {
