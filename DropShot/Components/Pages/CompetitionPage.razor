@@ -25,6 +25,13 @@
 
 <MudProviders />
 
+@if (!_authChecked)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+}
+else
+{
+
 <div style="position: relative; min-height: 100vh; background-image: url('images/background.png'); background-repeat: no-repeat; background-size: cover; background-position: center; margin: -24px; padding: 0;">
     <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
     <div style="position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 1rem 0.5rem 2rem;">
@@ -78,14 +85,6 @@
     <MudPaper id="section-details" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
         <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
-
-            @if (!_canEdit)
-            {
-                <MudAlert Severity="Severity.Warning" Class="mb-3">
-                    You do not have permission to edit this competition.
-                    Only Admins or Club Admins for the host club may make changes.
-                </MudAlert>
-            }
 
             <MudForm @ref="_form" @bind-IsValid="_isValid" @bind-Errors="_errors">
                 <MudStack Spacing="3">
@@ -1376,6 +1375,8 @@
 
 </div></div>
 
+}
+
 @code {
     [Parameter] public int Id { get; set; }
     [SupplyParameterFromQuery] public int? EventId { get; set; }
@@ -1385,6 +1386,7 @@
     private bool _isSaving;
     private bool _canEdit;
     private bool _canCreateUserComp;
+    private bool _authChecked;
 
     // When true, the host-club select is rendered but locked to the caller's
     // active ClubAdmin club — forces a club competition. Set during Create only.
@@ -1781,12 +1783,16 @@
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.CompetitionID == Id);
 
-            if (comp is null) { _serverError = $"Competition {Id} not found."; return; }
+            if (comp is null)
+            {
+                Nav.NavigateTo("/", replace: true);
+                return;
+            }
 
             _canEdit = await AuthzService.CanEditCompetitionAsync(authState.User, comp.HostClubId, Id);
             if (!_canEdit)
             {
-                Nav.NavigateTo($"/competition/{Id}/view", replace: true);
+                Nav.NavigateTo("/", replace: true);
                 return;
             }
             _isStarted = comp.IsStarted;
@@ -1910,6 +1916,8 @@
             _fixtures = [];
             _teams = [];
         }
+
+        _authChecked = true;
     }
 
     private async Task SubmitAsync()
