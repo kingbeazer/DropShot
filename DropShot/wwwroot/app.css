@@ -167,6 +167,14 @@ body.scoring-immersive .top-navbar {
     display: none !important;
 }
 
+/* Scoreboard page opts out of the global 1280px content cap so the
+   grid and individual tiles can fill the full viewport width. */
+body.scoreboard-active .content {
+    max-width: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
 /* Legacy — keep for external scoreboard page if still used */
 body.scoreboard-fullscreen .sidebar,
 body.scoreboard-fullscreen .role-banner,

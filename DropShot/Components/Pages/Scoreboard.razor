@@ -238,6 +238,7 @@
         _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/scoreboard.js");
         _dotNetRef = DotNetObjectReference.Create(this);
         await _jsModule.InvokeVoidAsync("registerEscHandler", _dotNetRef);
+        await _jsModule.InvokeVoidAsync("setScoreboardActive", true);
 
         hubConnection = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
@@ -609,6 +610,7 @@
             {
                 if (_isFullscreen)
                     await _jsModule.InvokeVoidAsync("setFullscreen", false);
+                await _jsModule.InvokeVoidAsync("setScoreboardActive", false);
                 await _jsModule.InvokeVoidAsync("unregisterEscHandler");
                 await _jsModule.DisposeAsync();
             }
