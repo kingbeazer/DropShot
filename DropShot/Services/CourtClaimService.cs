@@ -68,6 +68,21 @@ public sealed class CourtClaimService
         return DateTime.UtcNow - lastSeen >= AbandonAfter;
     }
 
+    /// <summary>
+    /// Finds the most recent incomplete SavedMatch owned by this user so the
+    /// "Play" buttons can offer to resume or end it before starting a new one.
+    /// </summary>
+    public async Task<SavedMatch?> GetUserActiveMatchAsync(
+        string userId, int? excludingSavedMatchId = null, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(userId)) return null;
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var q = db.SavedMatch.Where(m => m.UserId == userId && !m.Complete);
+        if (excludingSavedMatchId.HasValue)
+            q = q.Where(m => m.SavedMatchId != excludingSavedMatchId.Value);
+        return await q.OrderByDescending(m => m.CreatedAt).FirstOrDefaultAsync(ct);
+    }
+
     private static DateTime AsUtc(DateTime value) =>
         value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 

@@ -107,7 +107,7 @@
                             <MudTd>
                                 <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                            StartIcon="@Icons.Material.Filled.PlayArrow"
-                                           OnClick="@(() => Navigation.NavigateTo($"/match/0?fixtureId={context.CompetitionFixtureId}&autoStart=true", forceLoad: true))">
+                                           OnClick="@(() => StartFixtureMatchAsync(context))">
                                     Play
                                 </MudButton>
                             </MudTd>
@@ -1556,4 +1556,44 @@
         FixtureStatus.Walkover => Color.Info,
         _ => Color.Default
     };
+
+    private async Task StartFixtureMatchAsync(CompetitionFixture fixture)
+    {
+        var targetUrl = $"/match/0?fixtureId={fixture.CompetitionFixtureId}&autoStart=true";
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        int? excluding = _savedMatchId > 0 ? _savedMatchId : null;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var active = await CourtClaim.GetUserActiveMatchAsync(userId, excluding);
+            if (active is not null)
+            {
+                var choice = await DialogService.ShowMessageBox(new MessageBoxOptions
+                {
+                    Title = "Match already in progress",
+                    Message = $"You're already scoring {ActiveMatchLabel(active)}. What would you like to do?",
+                    YesText = "Resume match",
+                    NoText = "End and start new",
+                    CancelText = "Cancel"
+                });
+                if (choice is null) return;
+                if (choice == true)
+                {
+                    Navigation.NavigateTo($"/match/{active.SavedMatchId}", forceLoad: true);
+                    return;
+                }
+                await CourtClaim.EndMatchAsync(active.SavedMatchId);
+            }
+        }
+        Navigation.NavigateTo(targetUrl, forceLoad: true);
+    }
+
+    private static string ActiveMatchLabel(SavedMatch m)
+    {
+        var a = !string.IsNullOrWhiteSpace(m.Player3) ? $"{m.Player1} & {m.Player2}" : m.Player1 ?? "";
+        var b = !string.IsNullOrWhiteSpace(m.Player3) ? $"{m.Player3} & {m.Player4}" : m.Player2 ?? "";
+        if (string.IsNullOrWhiteSpace(a) && string.IsNullOrWhiteSpace(b)) return "a match";
+        if (string.IsNullOrWhiteSpace(b)) return $"a match ({a})";
+        return $"{a} vs {b}";
+    }
 }
