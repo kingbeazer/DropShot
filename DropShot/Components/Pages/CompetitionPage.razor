@@ -22,6 +22,7 @@
 @inject Microsoft.AspNetCore.Identity.UserManager<DropShot.Data.ApplicationUser> UserManager
 @inject ICompetitionRubberTemplateProvider RubberTemplateProvider
 @inject CompetitionSchedulerService Scheduler
+@inject FixtureSimulationService FixtureSimulator
 
 <MudProviders />
 
@@ -727,6 +728,7 @@ else
                     Fixtures="_fixtures"
                     Stages="_stages"
                     CanEdit="_canEdit"
+                    IsSuperAdmin="_isSuperAdmin"
                     FixturePlayers="FixturePlayers"
                     FixtureCourtLabel="FixtureCourtLabel"
                     FixtureResultDisplay="FixtureResultDisplay"
@@ -739,10 +741,14 @@ else
                     ShowDeleteAllConfirmChanged="@(v => _showDeleteAllFixturesConfirm = v)"
                     ScheduleDeleteExisting="_scheduleDeleteExisting"
                     ScheduleDeleteExistingChanged="@(v => _scheduleDeleteExisting = v)"
+                    ShowSimulateConfirm="_showSimulateConfirm"
+                    ShowSimulateConfirmChanged="@(v => _showSimulateConfirm = v)"
+                    SimulateRunning="_simulateRunning"
                     OnOpenScheduleConfirm="OpenScheduleConfirm"
                     OnOpenAddDialog="OpenAddFixtureDialog"
                     OnSchedule="ScheduleFixtures"
                     OnDeleteAll="DeleteAllFixtures"
+                    OnSimulate="SimulateRoundRobinAsync"
                     OnSubmitScore="OpenSubmitScoreAsync"
                     OnOverrideResult="OpenOverrideResultAsync"
                     OnShowQr="ShowQrCode"
@@ -756,6 +762,15 @@ else
                      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
                         <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
+                        @if (_isSuperAdmin && _stages.Any(s => s.StageType == StageType.RoundRobin))
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary"
+                                       StartIcon="@Icons.Material.Filled.Casino"
+                                       Disabled="@_simulateRunning"
+                                       OnClick="@(() => _showSimulateConfirm = true)">
+                                Simulate Round-Robin
+                            </MudButton>
+                        }
                         @if (_stages.Any(s => s.StageType == StageType.RoundRobin) &&
                              _stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
                         {
@@ -804,6 +819,21 @@ else
                                 <MudText Typo="Typo.body2">Delete all @_fixtures.Count fixture(s)? This cannot be undone.</MudText>
                                 <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
                                            OnClick="DeleteAllFixtures">Confirm Delete</MudButton>
+                            </MudStack>
+                        </MudAlert>
+                    }
+
+                    @if (_showSimulateConfirm)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="mb-3" ShowCloseIcon="true"
+                                  CloseIconClicked="@(() => _showSimulateConfirm = false)">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudText Typo="Typo.body2">
+                                    Generate random valid results for every unfinished round-robin fixture (including all rubbers for team matches)?
+                                </MudText>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Tertiary"
+                                           Disabled="@_simulateRunning"
+                                           OnClick="SimulateRoundRobinAsync">Simulate</MudButton>
                             </MudStack>
                         </MudAlert>
                     }
@@ -1387,6 +1417,9 @@ else
     private bool _canEdit;
     private bool _canCreateUserComp;
     private bool _authChecked;
+    private bool _isSuperAdmin;
+    private bool _showSimulateConfirm;
+    private bool _simulateRunning;
 
     // When true, the host-club select is rendered but locked to the caller's
     // active ClubAdmin club — forces a club competition. Set during Create only.
@@ -1795,6 +1828,7 @@ else
                 Nav.NavigateTo("/", replace: true);
                 return;
             }
+            _isSuperAdmin = AuthzService.IsSuperAdmin(authState.User);
             _isStarted = comp.IsStarted;
             _nameOverride = true; // Existing competition — preserve its name
 
@@ -3593,6 +3627,36 @@ else
 
         _fixtures.Clear();
         Snackbar.Add($"{all.Count} fixture(s) deleted.", Severity.Warning);
+    }
+
+    private async Task SimulateRoundRobinAsync()
+    {
+        if (_simulateRunning) return;
+        _showSimulateConfirm = false;
+        _simulateRunning = true;
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var outcome = await FixtureSimulator.SimulateRoundRobinAsync(db, Id);
+
+            if (outcome.FixturesSimulated > 0)
+                Snackbar.Add($"Simulated {outcome.FixturesSimulated} round-robin fixture(s).", Severity.Success);
+            else
+                Snackbar.Add("No eligible round-robin fixtures to simulate.", Severity.Info);
+
+            foreach (var err in outcome.Errors)
+                Snackbar.Add(err, Severity.Warning);
+
+            await OnParametersSetAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Simulation failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _simulateRunning = false;
+        }
     }
 
     private async Task AddMatchWindow()
