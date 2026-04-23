@@ -87,15 +87,46 @@
 
             <MudForm @ref="_form" @bind-IsValid="_isValid" @bind-Errors="_errors">
                 <MudStack Spacing="3">
-                    <MudField Label="Category" Variant="Variant.Text"
-                              Error="@(_categoryError != null)" ErrorText="@_categoryError">
-                        <MudRadioGroup T="CompetitionCategoryUi?" Value="Model.Category"
-                                       ValueChanged="OnCategoryChanged">
-                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Male)" Color="Color.Primary">Male</MudRadio>
-                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Female)" Color="Color.Primary">Female</MudRadio>
-                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Mixed)" Color="Color.Primary">Mixed</MudRadio>
-                        </MudRadioGroup>
-                    </MudField>
+                    @{
+                        var _isTeamMatch = EffectivePersistedFormat() == CompetitionFormat.TeamMatch;
+                        var _derivedSex = DeriveCategoryFromRubberRoles(_availableRoles);
+                    }
+
+                    @if (_isTeamMatch)
+                    {
+                        @* For TeamMatch the rubber template drives player eligibility (roles like MA/MB
+                           imply male, FA/FB imply female). The Category radio is redundant — show a
+                           read-only summary instead. The persisted Category remains Mixed so the
+                           existing format-derivation logic continues to work. *@
+                        <MudField Label="Eligibility" Variant="Variant.Text">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">
+                                    @(_derivedSex switch
+                                    {
+                                        CompetitionCategoryUi.Male   => "Male only",
+                                        CompetitionCategoryUi.Female => "Female only",
+                                        CompetitionCategoryUi.Mixed  => "Mixed",
+                                        _                            => "Unrestricted"
+                                    })
+                                </MudChip>
+                                <MudText Typo="Typo.caption" Style="opacity:0.75">
+                                    Derived from the rubber template's roles. Edit it in the Rubber Template section below.
+                                </MudText>
+                            </MudStack>
+                        </MudField>
+                    }
+                    else
+                    {
+                        <MudField Label="Category" Variant="Variant.Text"
+                                  Error="@(_categoryError != null)" ErrorText="@_categoryError">
+                            <MudRadioGroup T="CompetitionCategoryUi?" Value="Model.Category"
+                                           ValueChanged="OnCategoryChanged">
+                                <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Male)" Color="Color.Primary">Male</MudRadio>
+                                <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Female)" Color="Color.Primary">Female</MudRadio>
+                                <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Mixed)" Color="Color.Primary">Mixed</MudRadio>
+                            </MudRadioGroup>
+                        </MudField>
+                    }
 
                     <MudSelect T="CompetitionFormatUi?" Label="Format" Variant="Variant.Text"
                                Required="true" RequiredError="Please select a competition format."
@@ -1814,6 +1845,30 @@
         CompetitionCategoryUi.Mixed  => null,
         _ => null
     };
+
+    /// Infer the competition category implied by a rubber template's role codes.
+    /// MA/MB imply male, FA/FB imply female, both imply Mixed, anything else
+    /// (e.g. County Doubles D1A/D2B) is gender-agnostic and returns null.
+    private static CompetitionCategoryUi? DeriveCategoryFromRubberRoles(IEnumerable<string>? roles)
+    {
+        if (roles == null) return null;
+        var hasMale = false;
+        var hasFemale = false;
+        foreach (var r in roles)
+        {
+            if (string.IsNullOrEmpty(r)) continue;
+            var c = char.ToUpperInvariant(r[0]);
+            if (c == 'M') hasMale = true;
+            else if (c == 'F') hasFemale = true;
+        }
+        return (hasMale, hasFemale) switch
+        {
+            (true, true)  => CompetitionCategoryUi.Mixed,
+            (true, false) => CompetitionCategoryUi.Male,
+            (false, true) => CompetitionCategoryUi.Female,
+            _             => null
+        };
+    }
 
     private string? _categoryError;
 
