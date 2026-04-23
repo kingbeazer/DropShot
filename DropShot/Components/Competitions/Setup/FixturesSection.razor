@@ -1,0 +1,164 @@
+@using DropShot.Models
+
+<MudPaper id="section-fixtures" Class="pa-4 setup-section" Elevation="0"
+     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+        <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
+        @if (Stages.Any(s => s.StageType == StageType.RoundRobin) &&
+             Stages.Any(s => s.StageType is StageType.Knockout or StageType.QuarterFinal))
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                       StartIcon="@Icons.Material.Filled.Leaderboard"
+                       OnClick="@(() => ShowSeedConfirmChanged.InvokeAsync(true))">
+                Seed from Standings
+            </MudButton>
+        }
+        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.AutoAwesome"
+                   OnClick="@(() => OnOpenScheduleConfirm.InvokeAsync())">
+            Auto Schedule
+        </MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OnOpenAddDialog.InvokeAsync())">Add Fixture</MudButton>
+        @if (Fixtures.Count > 0)
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                       OnClick="@(() => ShowDeleteAllConfirmChanged.InvokeAsync(true))">Delete All</MudButton>
+        }
+    </MudStack>
+
+    @if (ShowScheduleConfirm)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3" ShowCloseIcon="true"
+                  CloseIconClicked="@(() => ShowScheduleConfirmChanged.InvokeAsync(false))">
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.body2">
+                    Auto-scheduling creates missing fixtures based on the current stages and participants. Fixtures that already have a scheduled date will be preserved.
+                </MudText>
+                <MudCheckBox T="bool" Value="ScheduleDeleteExisting"
+                             ValueChanged="@(v => ScheduleDeleteExistingChanged.InvokeAsync(v))"
+                             Dense="true"
+                             Label="Also delete existing unscheduled fixtures" />
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                           OnClick="@(() => OnSchedule.InvokeAsync())">Schedule</MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    @if (ShowDeleteAllConfirm)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                  CloseIconClicked="@(() => ShowDeleteAllConfirmChanged.InvokeAsync(false))">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.body2">Delete all @Fixtures.Count fixture(s)? This cannot be undone.</MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                           OnClick="@(() => OnDeleteAll.InvokeAsync())">Confirm Delete</MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    <MudTable Items="@Fixtures" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Match</MudTh>
+            <MudTh>Date / Time</MudTh>
+            <MudTh>Players</MudTh>
+            <MudTh>Court</MudTh>
+            <MudTh>Result</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@(!string.IsNullOrEmpty(context.FixtureLabel) ? context.FixtureLabel : context.Stage?.Name ?? "—")</MudTd>
+            <MudTd>@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+            <MudTd>@FixturePlayers(context)</MudTd>
+            <MudTd>@FixtureCourtLabel(context)</MudTd>
+            <MudTd>
+                @{
+                    var fixtureResult = FixtureResultDisplay(context);
+                }
+                @if (!string.IsNullOrEmpty(fixtureResult))
+                {
+                    <MudText Typo="Typo.body2">@fixtureResult</MudText>
+                    @if (context.ResultModifiedByAdmin)
+                    {
+                        <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Modified</MudChip>
+                        </MudTooltip>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                }
+            </MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
+                    @context.Status
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                @if (context.HomeTeamId.HasValue && context.AwayTeamId.HasValue
+                     && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small"
+                                   Color="Color.Success" aria-label="Play Team Match"
+                                   Href="@($"/team-match/{context.CompetitionFixtureId}")" />
+                }
+                else if (context.Player1Id.HasValue && context.Player2Id.HasValue
+                     && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Scoreboard" Size="Size.Small"
+                                   Color="Color.Success" aria-label="Submit Score"
+                                   OnClick="@(() => OnSubmitScore.InvokeAsync(context))" />
+                }
+                @if (context.Status == FixtureStatus.AwaitingVerification && CanEdit)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Small"
+                                   Color="Color.Warning" aria-label="Override / Enter Result"
+                                   OnClick="@(() => OnOverrideResult.InvokeAsync(context))" />
+                }
+                @if (context.Player1Id.HasValue && context.Player2Id.HasValue)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.QrCode2" Size="Size.Small"
+                                   Color="Color.Info" aria-label="QR Code"
+                                   OnClick="@(() => OnShowQr.InvokeAsync(context))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => OnOpenEditDialog.InvokeAsync(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                               Color="Color.Error" OnClick="@(() => OnDeleteFixture.InvokeAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Typo="Typo.caption">No fixtures scheduled yet.</MudText></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionFixture> Fixtures { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionStage> Stages { get; set; } = [];
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter, EditorRequired] public Func<CompetitionFixture, string> FixturePlayers { get; set; } = _ => "";
+    [Parameter, EditorRequired] public Func<CompetitionFixture, string> FixtureCourtLabel { get; set; } = _ => "";
+    [Parameter, EditorRequired] public Func<CompetitionFixture, string> FixtureResultDisplay { get; set; } = _ => "";
+    [Parameter, EditorRequired] public Func<FixtureStatus, Color> StatusColor { get; set; } = _ => Color.Default;
+
+    [Parameter] public bool ShowScheduleConfirm { get; set; }
+    [Parameter] public EventCallback<bool> ShowScheduleConfirmChanged { get; set; }
+    [Parameter] public bool ShowSeedConfirm { get; set; }
+    [Parameter] public EventCallback<bool> ShowSeedConfirmChanged { get; set; }
+    [Parameter] public bool ShowDeleteAllConfirm { get; set; }
+    [Parameter] public EventCallback<bool> ShowDeleteAllConfirmChanged { get; set; }
+    [Parameter] public bool ScheduleDeleteExisting { get; set; }
+    [Parameter] public EventCallback<bool> ScheduleDeleteExistingChanged { get; set; }
+
+    [Parameter] public EventCallback OnOpenScheduleConfirm { get; set; }
+    [Parameter] public EventCallback OnOpenAddDialog { get; set; }
+    [Parameter] public EventCallback OnSchedule { get; set; }
+    [Parameter] public EventCallback OnDeleteAll { get; set; }
+    [Parameter] public EventCallback<CompetitionFixture> OnSubmitScore { get; set; }
+    [Parameter] public EventCallback<CompetitionFixture> OnOverrideResult { get; set; }
+    [Parameter] public EventCallback<CompetitionFixture> OnShowQr { get; set; }
+    [Parameter] public EventCallback<CompetitionFixture> OnOpenEditDialog { get; set; }
+    [Parameter] public EventCallback<CompetitionFixture> OnDeleteFixture { get; set; }
+}

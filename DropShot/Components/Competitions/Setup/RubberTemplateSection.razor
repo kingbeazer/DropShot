@@ -1,0 +1,111 @@
+@using DropShot.Services
+
+@{
+    var isCustom = Source == "custom";
+    var statusLabel = isCustom ? "Custom"
+                    : Source == "preset" ? "Preset"
+                    : "Default";
+}
+<MudPaper id="section-rubber-template" Class="pa-4 mb-4 setup-section" Elevation="0"
+     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+        <MudText Typo="Typo.h6" Style="flex:1">Rubber Template</MudText>
+        <MudChip T="string" Size="Size.Small" Color="@(isCustom ? Color.Warning : Color.Default)">
+            @statusLabel
+        </MudChip>
+    </MudStack>
+
+    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.8">
+        Configure the rubber template first — it determines team size and which roles participants can be assigned to.
+    </MudText>
+
+    <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.End">
+        <MudSelect T="string" Label="Load preset" Value="SelectedPresetKey"
+                   Clearable="true" Variant="Variant.Outlined" Dense="true"
+                   Style="max-width: 320px"
+                   ValueChanged="@(v => OnApplyPreset.InvokeAsync(v))">
+            @foreach (var p in Presets)
+            {
+                <MudSelectItem T="string" Value="@p.Key">@p.Label</MudSelectItem>
+            }
+        </MudSelect>
+
+        @if (isCustom)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="@(() => OnRevertToDefault.InvokeAsync())">
+                Revert to default
+            </MudButton>
+        }
+        else if (Defs.Count > 0)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Edit"
+                       OnClick="@(() => OnConvertToCustom.InvokeAsync())">
+                Customize this template
+            </MudButton>
+        }
+    </MudStack>
+
+    <MudTable Items="@Defs" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>#</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Court</MudTh>
+            <MudTh>Home roles</MudTh>
+            <MudTh>Away roles</MudTh>
+            @if (isCustom) { <MudTh></MudTh> }
+        </HeaderContent>
+        <RowTemplate>
+            @{
+                var homeCsv = string.Join(", ", context.HomeRoles);
+                var awayCsv = string.Join(", ", context.AwayRoles);
+            }
+            <MudTd>@context.Order</MudTd>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@context.CourtNumber</MudTd>
+            <MudTd>@homeCsv</MudTd>
+            <MudTd>@awayCsv</MudTd>
+            @if (isCustom)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OnEditRow.InvokeAsync(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => OnDeleteRow.InvokeAsync(context.Order))" />
+                </MudTd>
+            }
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Typo="Typo.caption">No rubbers defined yet.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    @if (isCustom)
+    {
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="mt-2"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OnAddRow.InvokeAsync())">
+            Add rubber
+        </MudButton>
+    }
+
+    <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.7">
+        Team size: @AvailableRoles.Count • Roles: @(string.Join(", ", AvailableRoles))
+    </MudText>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<RubberDef> Defs { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<(string Key, string Label)> Presets { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<string> AvailableRoles { get; set; } = [];
+    [Parameter] public string Source { get; set; } = "default";
+    [Parameter] public string? SelectedPresetKey { get; set; }
+    [Parameter] public EventCallback<string?> OnApplyPreset { get; set; }
+    [Parameter] public EventCallback OnRevertToDefault { get; set; }
+    [Parameter] public EventCallback OnConvertToCustom { get; set; }
+    [Parameter] public EventCallback OnAddRow { get; set; }
+    [Parameter] public EventCallback<RubberDef> OnEditRow { get; set; }
+    [Parameter] public EventCallback<int> OnDeleteRow { get; set; }
+}

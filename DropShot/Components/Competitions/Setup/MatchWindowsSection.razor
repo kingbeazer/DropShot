@@ -1,0 +1,131 @@
+@using DropShot.Models
+
+<MudPaper id="section-match-windows" Class="pa-4 mb-4 setup-section" Elevation="0"
+     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+    <MudText Typo="Typo.h6" Class="mb-1">Match Windows</MudText>
+
+    <MudGrid Spacing="1" Class="mb-2">
+        <MudItem xs="3">
+            <MudSelect T="DayOfWeek" Value="NewWindowDay"
+                       ValueChanged="@(v => NewWindowDayChanged.InvokeAsync(v))"
+                       Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                {
+                    <MudSelectItem Value="@d">@d</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="3">
+            <MudSelect T="int?" Value="NewWindowCourtId"
+                       ValueChanged="@(v => NewWindowCourtIdChanged.InvokeAsync(v))"
+                       Label="Court" Variant="Variant.Outlined"
+                       Margin="Margin.Dense" Clearable="true">
+                @foreach (var c in Courts)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)c.CourtId)">@c.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="2">
+            <MudTimePicker Time="NewWindowStart"
+                           TimeChanged="@(v => NewWindowStartChanged.InvokeAsync(v))"
+                           Label="From" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" AmPm="false" />
+        </MudItem>
+        <MudItem xs="2">
+            <MudTimePicker Time="NewWindowEnd"
+                           TimeChanged="@(v => NewWindowEndChanged.InvokeAsync(v))"
+                           Label="To" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" AmPm="false" />
+        </MudItem>
+        <MudItem xs="2" Class="d-flex align-center">
+            <MudStack Row="true" Spacing="1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           OnClick="@(() => OnAdd.InvokeAsync())">
+                    @(EditingWindowId.HasValue ? "Update" : "Add")
+                </MudButton>
+                @if (EditingWindowId.HasValue)
+                {
+                    <MudButton Variant="Variant.Text" Size="Size.Small"
+                               OnClick="@(() => OnCancelEdit.InvokeAsync())">Cancel</MudButton>
+                }
+            </MudStack>
+        </MudItem>
+    </MudGrid>
+
+    @{
+        var sharedWindows = Windows.Where(w => w.CompetitionDivisionId == null).ToList();
+    }
+    @if (sharedWindows.Count > 0)
+    {
+        <MudSimpleTable Dense="true" Class="mb-2">
+            <thead>
+                <tr><th>Day</th><th>Court</th><th>From</th><th>To</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var w in sharedWindows)
+                {
+                    var isEditing = EditingWindowId == w.CompetitionMatchWindowId;
+                    <tr style="@(isEditing ? "background-color: rgba(255,193,7,0.15);" : "")">
+                        <td>@w.DayOfWeek</td>
+                        <td>@(w.Court?.Name ?? "All courts")</td>
+                        <td>@w.StartTime.ToString(@"hh\:mm")</td>
+                        <td>@w.EndTime.ToString(@"hh\:mm")</td>
+                        <td>
+                            <MudTooltip Text="Copy values into the form">
+                                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                               OnClick="@(() => OnCopyToForm.InvokeAsync(w))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Edit this window">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                               OnClick="@(() => OnEdit.InvokeAsync(w))" />
+                            </MudTooltip>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error" OnClick="@(() => OnDelete.InvokeAsync(w))" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    }
+    else
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+            No shared windows defined — auto-schedule will use default time slots.
+        </MudText>
+    }
+
+    @if (ClubTemplates.Count > 0)
+    {
+        <MudSelect T="int?" Label="Import from club template" Variant="Variant.Outlined"
+                   Value="SelectedTemplateId" Clearable="true"
+                   ValueChanged="@(v => OnImportFromTemplate.InvokeAsync(v))">
+            @foreach (var t in ClubTemplates)
+            {
+                <MudSelectItem T="int?" Value="@((int?)t.ClubSchedulingTemplateId)">@t.Name</MudSelectItem>
+            }
+        </MudSelect>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionMatchWindow> Windows { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<Court> Courts { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<ClubSchedulingTemplate> ClubTemplates { get; set; } = [];
+    [Parameter] public int? SelectedTemplateId { get; set; }
+    [Parameter] public DayOfWeek NewWindowDay { get; set; }
+    [Parameter] public EventCallback<DayOfWeek> NewWindowDayChanged { get; set; }
+    [Parameter] public int? NewWindowCourtId { get; set; }
+    [Parameter] public EventCallback<int?> NewWindowCourtIdChanged { get; set; }
+    [Parameter] public TimeSpan? NewWindowStart { get; set; }
+    [Parameter] public EventCallback<TimeSpan?> NewWindowStartChanged { get; set; }
+    [Parameter] public TimeSpan? NewWindowEnd { get; set; }
+    [Parameter] public EventCallback<TimeSpan?> NewWindowEndChanged { get; set; }
+    [Parameter] public int? EditingWindowId { get; set; }
+    [Parameter] public EventCallback OnAdd { get; set; }
+    [Parameter] public EventCallback OnCancelEdit { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindow> OnCopyToForm { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindow> OnEdit { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindow> OnDelete { get; set; }
+    [Parameter] public EventCallback<int?> OnImportFromTemplate { get; set; }
+}
