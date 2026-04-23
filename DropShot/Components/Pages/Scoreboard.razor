@@ -281,7 +281,10 @@
             if (gameState != null)
                 slot.CurrentScore = gameState;
 
-            if (slot.ActiveMatch == null)
+            // Reload the cached match whenever the incoming scoreboard names
+            // don't match what we have — otherwise a new match on the same
+            // court keeps displaying the previous pairing's names.
+            if (slot.ActiveMatch == null || IsCachedMatchStale(slot.ActiveMatch, gameState))
             {
                 using var dbc = DbFactory.CreateDbContext();
                 slot.ActiveMatch = await dbc.SavedMatch
@@ -295,6 +298,28 @@
         {
             // Silently handle — component may be disposed or state inconsistent
         }
+    }
+
+    private static bool IsCachedMatchStale(SavedMatch cached, GameState? incoming)
+    {
+        if (incoming is null) return false;
+        if (string.IsNullOrWhiteSpace(incoming.UserName) && string.IsNullOrWhiteSpace(incoming.OpponentName))
+            return false;
+
+        var cachedUser = !string.IsNullOrWhiteSpace(cached.Player3)
+            ? $"{cached.Player1} & {cached.Player2}"
+            : cached.Player1;
+        var cachedOpp = !string.IsNullOrWhiteSpace(cached.Player3)
+            ? $"{cached.Player3} & {cached.Player4}"
+            : cached.Player2;
+
+        if (!string.IsNullOrWhiteSpace(incoming.UserName)
+            && !string.Equals(cachedUser, incoming.UserName, StringComparison.Ordinal))
+            return true;
+        if (!string.IsNullOrWhiteSpace(incoming.OpponentName)
+            && !string.Equals(cachedOpp, incoming.OpponentName, StringComparison.Ordinal))
+            return true;
+        return false;
     }
 
     private async Task OnReceiveDisplayCommandAsync(int courtId, string command, string value)
