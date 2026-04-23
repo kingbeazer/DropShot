@@ -11,16 +11,28 @@
 
         <MudText Typo="Typo.subtitle2" Class="mb-2">@UserName</MudText>
         <MudStack Row="true" Spacing="2" Class="mb-3">
-            <MudTextField @bind-Value="UserSets" Label="Sets" Variant="Variant.Outlined" InputMode="InputMode.numeric" UserAttributes="@_numericAttrs" Style="max-width:100px;" />
-            <MudTextField @bind-Value="UserGames" Label="Games" Variant="Variant.Outlined" InputMode="InputMode.numeric" UserAttributes="@_numericAttrs" Style="max-width:100px;" />
-            <MudTextField @bind-Value="UserPoints" Label="Points" Variant="Variant.Outlined" InputMode="InputMode.numeric" UserAttributes="@_numericAttrs" Style="max-width:100px;" />
+            <MudTextField T="int" @ref="_fields[0]" @bind-Value="UserSets" @bind-Value:after="() => JumpToAsync(1)"
+                          Label="Sets" Variant="Variant.Outlined" InputMode="InputMode.numeric"
+                          UserAttributes="@_numericAttrs" AutoFocus="true" Style="max-width:100px;" />
+            <MudTextField T="int" @ref="_fields[1]" @bind-Value="UserGames" @bind-Value:after="() => JumpToAsync(2)"
+                          Label="Games" Variant="Variant.Outlined" InputMode="InputMode.numeric"
+                          UserAttributes="@_numericAttrs" Style="max-width:100px;" />
+            <MudTextField T="int" @ref="_fields[2]" @bind-Value="UserPoints" @bind-Value:after="() => JumpToAsync(3)"
+                          Label="Points" Variant="Variant.Outlined" InputMode="InputMode.numeric"
+                          UserAttributes="@_numericAttrs" Style="max-width:100px;" />
         </MudStack>
 
         <MudText Typo="Typo.subtitle2" Class="mb-2">@OpponentName</MudText>
         <MudStack Row="true" Spacing="2" Class="mb-3">
-            <MudTextField @bind-Value="OppSets" Label="Sets" Variant="Variant.Outlined" InputMode="InputMode.numeric" UserAttributes="@_numericAttrs" Style="max-width:100px;" />
-            <MudTextField @bind-Value="OppGames" Label="Games" Variant="Variant.Outlined" InputMode="InputMode.numeric" UserAttributes="@_numericAttrs" Style="max-width:100px;" />
-            <MudTextField @bind-Value="OppPoints" Label="Points" Variant="Variant.Outlined" InputMode="InputMode.numeric" UserAttributes="@_numericAttrs" Style="max-width:100px;" />
+            <MudTextField T="int" @ref="_fields[3]" @bind-Value="OppSets" @bind-Value:after="() => JumpToAsync(4)"
+                          Label="Sets" Variant="Variant.Outlined" InputMode="InputMode.numeric"
+                          UserAttributes="@_numericAttrs" Style="max-width:100px;" />
+            <MudTextField T="int" @ref="_fields[4]" @bind-Value="OppGames" @bind-Value:after="() => JumpToAsync(5)"
+                          Label="Games" Variant="Variant.Outlined" InputMode="InputMode.numeric"
+                          UserAttributes="@_numericAttrs" Style="max-width:100px;" />
+            <MudTextField T="int" @ref="_fields[5]" @bind-Value="OppPoints"
+                          Label="Points" Variant="Variant.Outlined" InputMode="InputMode.numeric"
+                          UserAttributes="@_numericAttrs" Style="max-width:100px;" />
         </MudStack>
 
         <MudSwitch @bind-Value="IsUserServing" Label="@($"{UserName} is serving")" Color="Color.Primary" />
@@ -45,6 +57,16 @@
     [Parameter] public bool IsUserServing { get; set; }
     [Parameter] public string UserName { get; set; } = "Player 1";
     [Parameter] public string OpponentName { get; set; } = "Player 2";
+
+    private readonly MudTextField<int>?[] _fields = new MudTextField<int>?[6];
+
+    private async Task JumpToAsync(int index)
+    {
+        if (index < 0 || index >= _fields.Length) return;
+        var next = _fields[index];
+        if (next is not null)
+            await next.FocusAsync();
+    }
 
     private void Cancel() => MudDialog.Cancel();
 
