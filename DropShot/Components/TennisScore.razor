@@ -356,19 +356,31 @@
         <div class="match-complete-score">
             @string.Join("  ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}"))
         </div>
-        <div class="match-complete-countdown">
-            @if (_competitionFixture != null)
-            {
-                <span>Returning to @(_competitionFixture.Competition?.CompetitionName ?? "competition") in @_countdownSeconds…</span>
-            }
-            else
-            {
-                <span>New match in @_countdownSeconds…</span>
-            }
-        </div>
-        <MudButton Style="margin-top: 12px;" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
-                   StartIcon="@Icons.Material.Filled.SkipNext"
-                   OnClick="@NavigateAfterMatch">Skip</MudButton>
+        @if (_countdownHandle != null)
+        {
+            <div class="match-complete-countdown">
+                @if (_competitionFixture != null)
+                {
+                    <span>Returning to @(_competitionFixture.Competition?.CompetitionName ?? "competition") in @_countdownSeconds…</span>
+                }
+                else
+                {
+                    <span>New match in @_countdownSeconds…</span>
+                }
+            </div>
+        }
+        <MudStack Row="true" Spacing="2" Justify="Justify.Center" Style="margin-top: 16px;">
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.Undo"
+                       OnClick="UndoLastPoint">
+                Undo Last Point
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                       OnClick="@NavigateAfterMatch">
+                End Match
+            </MudButton>
+        </MudStack>
     </div>
 }
 
@@ -1339,7 +1351,9 @@
         {
             _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
             StopTimer();
-            StartMatchEndCountdown();
+            // Do NOT auto-navigate — show the match-complete overlay with
+            // End Match / Undo Last Point buttons so an accidental double
+            // tap at match point can still be reversed.
         }
         await SaveHistory();
     }
@@ -1362,7 +1376,8 @@
         {
             _winner = ScoreService.EndMatch(_state, CurrentMatch, Label_Switch1) ?? string.Empty;
             StopTimer();
-            StartMatchEndCountdown();
+            // See UserWinsPoint: let the user confirm or undo rather than
+            // auto-starting the post-match navigation countdown.
         }
         await SaveHistory();
     }
