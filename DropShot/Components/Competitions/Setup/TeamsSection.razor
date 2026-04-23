@@ -1,0 +1,161 @@
+@using DropShot.Models
+
+@{
+    var isDoubles = Format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
+    var sectionLabel = isDoubles ? "Pairings" : "Teams";
+    var itemLabel = isDoubles ? "Pair" : "Team";
+    var isTeamMatch = Format == CompetitionFormat.TeamMatch;
+}
+
+<MudPaper id="section-teams" Class="pa-4 mb-4 setup-section" Elevation="0"
+ Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+        <MudText Typo="Typo.h6" Style="flex:1">@sectionLabel</MudText>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OnOpenAddDialog.InvokeAsync())">Add @itemLabel</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                   OnClick="@(() => OnOpenGenerateDialog.InvokeAsync())">Generate @sectionLabel</MudButton>
+        @if (isTeamMatch && Teams.Any(t => !t.CaptainPlayerId.HasValue))
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Casino"
+                       OnClick="@(() => OnAutoAssignCaptains.InvokeAsync())">Auto-assign captains</MudButton>
+        }
+        @if (Teams.Count > 0)
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                       OnClick="@(() => ShowDeleteAllConfirmChanged.InvokeAsync(true))">Delete All</MudButton>
+        }
+    </MudStack>
+
+    @if (ShowDeleteAllConfirm)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                  CloseIconClicked="@(() => ShowDeleteAllConfirmChanged.InvokeAsync(false))">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.body2">
+                    Delete all @Teams.Count @(Teams.Count == 1 ? itemLabel.ToLower() : (itemLabel.ToLower() + "s"))?
+                    Participants will be unassigned and any fixture team references will be cleared. This cannot be undone.
+                </MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                           OnClick="@(() => OnDeleteAllTeams.InvokeAsync())">Confirm Delete</MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    @if (!isDoubles)
+    {
+        @if (isTeamMatch)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                Team size is <b>@AvailableRoles.Count</b> — derived from the rubber template above.
+            </MudAlert>
+        }
+        else
+        {
+            <MudNumericField T="int?" Value="TeamSize"
+                             ValueChanged="@(v => TeamSizeChanged.InvokeAsync(v))"
+                             Label="Team size (players per team)"
+                             Variant="Variant.Outlined" Min="2" Max="20"
+                             Style="max-width: 220px;" Class="mb-3" />
+        }
+    }
+
+    <MudTable Items="@Teams" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Team Name</MudTh>
+            @if (isTeamMatch)
+            {
+                <MudTh>Captain</MudTh>
+            }
+            <MudTh>Members</MudTh>
+            @if (HasDivisions)
+            {
+                <MudTh>Division</MudTh>
+            }
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            @if (isTeamMatch)
+            {
+                <MudTd>
+                    <MudSelect T="int?" Value="context.CaptainPlayerId" Dense="true" Variant="Variant.Text"
+                               Clearable="true"
+                               ValueChanged="@((int? pid) => OnAssignCaptain.InvokeAsync((context, pid)))">
+                        @foreach (var p in Participants.Where(p => p.TeamId == context.CompetitionTeamId))
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@(p.Player?.DisplayName ?? "")</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudTd>
+            }
+            <MudTd>
+                @if (isTeamMatch)
+                {
+                    @foreach (var p in Participants.Where(p => p.TeamId == context.CompetitionTeamId))
+                    {
+                        var label = $"{p.Player?.DisplayName} ({p.Role ?? "—"})";
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@label</MudChip>
+                    }
+                }
+                else
+                {
+                    @string.Join(", ", Participants
+                        .Where(p => p.TeamId == context.CompetitionTeamId)
+                        .Select(p => p.Player?.DisplayName ?? ""))
+                }
+            </MudTd>
+            @if (HasDivisions)
+            {
+                <MudTd>
+                    <MudSelect T="int?" Value="context.CompetitionDivisionId" Dense="true" Variant="Variant.Text"
+                               Clearable="true"
+                               ValueChanged="@((int? did) => OnAssignTeamDivision.InvokeAsync((context, did)))">
+                        @foreach (var d in Divisions)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudTd>
+            }
+            <MudTd>
+                @if (isTeamMatch)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small"
+                                   Color="Color.Info" aria-label="Validate"
+                                   OnClick="@(() => OnValidateTeam.InvokeAsync(context))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => OnOpenEditDialog.InvokeAsync(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                               Color="Color.Error" OnClick="@(() => OnDeleteTeam.InvokeAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Typo="Typo.caption">No teams yet.</MudText></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionTeam> Teams { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionParticipant> Participants { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionDivision> Divisions { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<string> AvailableRoles { get; set; } = [];
+    [Parameter] public CompetitionFormat? Format { get; set; }
+    [Parameter] public bool HasDivisions { get; set; }
+    [Parameter] public int? TeamSize { get; set; }
+    [Parameter] public EventCallback<int?> TeamSizeChanged { get; set; }
+    [Parameter] public bool ShowDeleteAllConfirm { get; set; }
+    [Parameter] public EventCallback<bool> ShowDeleteAllConfirmChanged { get; set; }
+    [Parameter] public EventCallback OnOpenAddDialog { get; set; }
+    [Parameter] public EventCallback OnOpenGenerateDialog { get; set; }
+    [Parameter] public EventCallback OnAutoAssignCaptains { get; set; }
+    [Parameter] public EventCallback OnDeleteAllTeams { get; set; }
+    [Parameter] public EventCallback<(CompetitionTeam Team, int? PlayerId)> OnAssignCaptain { get; set; }
+    [Parameter] public EventCallback<(CompetitionTeam Team, int? DivisionId)> OnAssignTeamDivision { get; set; }
+    [Parameter] public EventCallback<CompetitionTeam> OnValidateTeam { get; set; }
+    [Parameter] public EventCallback<CompetitionTeam> OnOpenEditDialog { get; set; }
+    [Parameter] public EventCallback<CompetitionTeam> OnDeleteTeam { get; set; }
+}

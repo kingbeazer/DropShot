@@ -1020,139 +1020,26 @@
             @* ── Teams / Pairings (hidden when HasDivisions — per-division UI in the Divisions section below) *@
             @if (!Model.HasDivisions && EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
             {
-                var isDoubles = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
-                var sectionLabel = isDoubles ? "Pairings" : "Teams";
-                var itemLabel = isDoubles ? "Pair" : "Team";
-                var isTeamMatch = EffectivePersistedFormat() == CompetitionFormat.TeamMatch;
-
-                <MudPaper id="section-teams" Class="pa-4 mb-4 setup-section" Elevation="0"
-                 Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
-                        <MudText Typo="Typo.h6" Style="flex:1">@sectionLabel</MudText>
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                                   OnClick="OpenAddTeamDialog">Add @itemLabel</MudButton>
-                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
-                                   OnClick="OpenGenerateDialog">Generate @sectionLabel</MudButton>
-                        @if (isTeamMatch && _teams.Any(t => !t.CaptainPlayerId.HasValue))
-                        {
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
-                                       StartIcon="@Icons.Material.Filled.Casino"
-                                       OnClick="AutoAssignCaptains">Auto-assign captains</MudButton>
-                        }
-                        @if (_teams.Count > 0)
-                        {
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
-                                       StartIcon="@Icons.Material.Filled.DeleteSweep"
-                                       OnClick="@(() => _showDeleteAllTeamsConfirm = true)">Delete All</MudButton>
-                        }
-                    </MudStack>
-
-                    @if (_showDeleteAllTeamsConfirm)
-                    {
-                        <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
-                                  CloseIconClicked="@(() => _showDeleteAllTeamsConfirm = false)">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                                <MudText Typo="Typo.body2">
-                                    Delete all @_teams.Count @(_teams.Count == 1 ? itemLabel.ToLower() : (itemLabel.ToLower() + "s"))?
-                                    Participants will be unassigned and any fixture team references will be cleared. This cannot be undone.
-                                </MudText>
-                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                                           OnClick="DeleteAllTeams">Confirm Delete</MudButton>
-                            </MudStack>
-                        </MudAlert>
-                    }
-
-                    @if (!isDoubles)
-                    {
-                        @if (isTeamMatch)
-                        {
-                            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-                                Team size is <b>@_availableRoles.Count</b> — derived from the rubber template above.
-                            </MudAlert>
-                        }
-                        else
-                        {
-                            <MudNumericField @bind-Value="Model.TeamSize" Label="Team size (players per team)"
-                                             Variant="Variant.Outlined" Min="2" Max="20"
-                                             Style="max-width: 220px;" Class="mb-3" />
-                        }
-                    }
-
-                    <MudTable Items="@_teams" Dense="true" Hover="true">
-                        <HeaderContent>
-                            <MudTh>Team Name</MudTh>
-                            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
-                            {
-                                <MudTh>Captain</MudTh>
-                            }
-                            <MudTh>Members</MudTh>
-                            @if (Model.HasDivisions)
-                            {
-                                <MudTh>Division</MudTh>
-                            }
-                            <MudTh></MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd>@context.Name</MudTd>
-                            @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
-                            {
-                                <MudTd>
-                                    <MudSelect T="int?" Value="context.CaptainPlayerId" Dense="true" Variant="Variant.Text"
-                                               Clearable="true"
-                                               ValueChanged="@((int? pid) => AssignCaptain(context, pid))">
-                                        @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
-                                        {
-                                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@(p.Player?.DisplayName ?? "")</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudTd>
-                            }
-                            <MudTd>
-                                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
-                                {
-                                    @foreach (var p in _participants.Where(p => p.TeamId == context.CompetitionTeamId))
-                                    {
-                                        var label = $"{p.Player?.DisplayName} ({p.Role ?? "—"})";
-                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@label</MudChip>
-                                    }
-                                }
-                                else
-                                {
-                                    @string.Join(", ", _participants
-                                        .Where(p => p.TeamId == context.CompetitionTeamId)
-                                        .Select(p => p.Player?.DisplayName ?? ""))
-                                }
-                            </MudTd>
-                            @if (Model.HasDivisions)
-                            {
-                                <MudTd>
-                                    <MudSelect T="int?" Value="context.CompetitionDivisionId" Dense="true" Variant="Variant.Text"
-                                               Clearable="true"
-                                               ValueChanged="@((int? did) => AssignTeamDivision(context, did))">
-                                        @foreach (var d in _divisions)
-                                        {
-                                            <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudTd>
-                            }
-                            <MudTd>
-                                @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
-                                {
-                                    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small"
-                                                   Color="Color.Info" aria-label="Validate"
-                                                   OnClick="@(() => ValidateTeam(context))" />
-                                }
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                               OnClick="@(() => OpenEditTeamDialog(context))" />
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                               Color="Color.Error" OnClick="@(() => DeleteTeam(context))" />
-                            </MudTd>
-                        </RowTemplate>
-                        <NoRecordsContent><MudText Typo="Typo.caption">No teams yet.</MudText></NoRecordsContent>
-                    </MudTable>
-                </MudPaper>
+                <DropShot.Components.Competitions.Setup.TeamsSection
+                    Teams="_teams"
+                    Participants="_participants"
+                    Divisions="_divisions"
+                    AvailableRoles="_availableRoles"
+                    Format="EffectivePersistedFormat()"
+                    HasDivisions="Model.HasDivisions"
+                    TeamSize="Model.TeamSize"
+                    TeamSizeChanged="@(v => Model.TeamSize = v)"
+                    ShowDeleteAllConfirm="_showDeleteAllTeamsConfirm"
+                    ShowDeleteAllConfirmChanged="@(v => _showDeleteAllTeamsConfirm = v)"
+                    OnOpenAddDialog="OpenAddTeamDialog"
+                    OnOpenGenerateDialog="OpenGenerateDialog"
+                    OnAutoAssignCaptains="AutoAssignCaptains"
+                    OnDeleteAllTeams="DeleteAllTeams"
+                    OnAssignCaptain="@((args) => AssignCaptain(args.Team, args.PlayerId))"
+                    OnAssignTeamDivision="@((args) => AssignTeamDivision(args.Team, args.DivisionId))"
+                    OnValidateTeam="ValidateTeam"
+                    OnOpenEditDialog="OpenEditTeamDialog"
+                    OnDeleteTeam="DeleteTeam" />
             }
 
             @* ── Fixtures (hidden when HasDivisions — per-division UI in the Divisions section below) *@
