@@ -52,14 +52,14 @@
                             <td>
                                 <MudNumericField T="int?" Value="_home[idx]"
                                                  ValueChanged="@(v => _home[idx] = v)"
-                                                 Variant="Variant.Outlined" Min="0" Max="20"
+                                                 Variant="Variant.Outlined" Min="0" Max="@_setMaxInput"
                                                  Style="width:80px" />
                             </td>
                             <td style="text-align:center; font-weight:bold">–</td>
                             <td>
                                 <MudNumericField T="int?" Value="_away[idx]"
                                                  ValueChanged="@(v => _away[idx] = v)"
-                                                 Variant="Variant.Outlined" Min="0" Max="20"
+                                                 Variant="Variant.Outlined" Min="0" Max="@_setMaxInput"
                                                  Style="width:80px" />
                             </td>
                         </tr>
@@ -84,6 +84,7 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
     [Parameter] public Rubber Rubber { get; set; } = default!;
+    [Parameter] public bool AdminOverride { get; set; }
 
     private Competition? _competition;
     private int _bestOf = 3;
@@ -95,6 +96,7 @@
     private string _awayLabel = "Away";
     private bool _saving;
     private string? _error;
+    private int _setMaxInput = 20;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -119,6 +121,9 @@
         _bestOf = newBestOf;
         _home = new int?[_bestOf];
         _away = new int?[_bestOf];
+        // Cap the numeric input a few games beyond the set length — a sensible
+        // ceiling for tie-breaks / extended sets without allowing typos like 26.
+        _setMaxInput = _gamesPerSet + 8;
         _error = null;
     }
 
@@ -142,6 +147,44 @@
             if (!_home[i].HasValue || !_away[i].HasValue) continue;
             int h = _home[i]!.Value, a = _away[i]!.Value;
             if (h == a) { _error = $"Set {i + 1}: scores are tied."; return; }
+
+            if (!AdminOverride)
+            {
+                int winner = Math.Max(h, a);
+                int loser = Math.Min(h, a);
+                if (_setWinMode == SetWinMode.FirstTo)
+                {
+                    if (winner != _gamesPerSet)
+                    {
+                        _error = $"Set {i + 1}: winner must reach exactly {_gamesPerSet} games (First to mode).";
+                        return;
+                    }
+                    if (loser >= _gamesPerSet)
+                    {
+                        _error = $"Set {i + 1}: loser cannot have {loser} games when target is {_gamesPerSet}.";
+                        return;
+                    }
+                }
+                else
+                {
+                    if (winner < _gamesPerSet)
+                    {
+                        _error = $"Set {i + 1}: winner must have at least {_gamesPerSet} games.";
+                        return;
+                    }
+                    if (winner == _gamesPerSet && loser > _gamesPerSet - 2)
+                    {
+                        _error = $"Set {i + 1}: at {_gamesPerSet} games, opponent can have at most {_gamesPerSet - 2} (Win by 2). Use {_gamesPerSet + 1}-{_gamesPerSet} for a tie-break.";
+                        return;
+                    }
+                    if (winner > _gamesPerSet && Math.Abs(h - a) != 1 && Math.Abs(h - a) != 2)
+                    {
+                        _error = $"Set {i + 1}: above {_gamesPerSet}-all the margin must be 1 (tie-break) or 2 (extended).";
+                        return;
+                    }
+                }
+            }
+
             homeGames += h; awayGames += a;
             if (h > a) homeSets++; else awaySets++;
             lastHome = h; lastAway = a;

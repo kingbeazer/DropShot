@@ -438,7 +438,15 @@
             return;
         }
 
-        var parameters = new DialogParameters<SubmitScoreDialog> { { x => x.Fixture, fixture } };
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAdmin = await AuthzService.CanEditCompetitionAsync(
+            authState.User, fixture.Competition?.HostClubId, fixture.CompetitionId);
+
+        var parameters = new DialogParameters<SubmitScoreDialog>
+        {
+            { x => x.Fixture, fixture },
+            { x => x.AdminOverride, isAdmin }
+        };
         var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
         var result = await dialog.Result;
         if (result is not null && !result.Canceled)
