@@ -396,8 +396,12 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
 
                                     if (comp.CompetitionFormat is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
                                     {
-                                        var homePair = allMembers.Where(m => m.TeamId == homeTeamId).ToList();
-                                        var awayPair = allMembers.Where(m => m.TeamId == awayTeamId).ToList();
+                                        var homePair = OrderDoublesPair(
+                                            allMembers.Where(m => m.TeamId == homeTeamId).ToList(),
+                                            comp.CompetitionFormat);
+                                        var awayPair = OrderDoublesPair(
+                                            allMembers.Where(m => m.TeamId == awayTeamId).ToList(),
+                                            comp.CompetitionFormat);
                                         if (homePair.Count >= 1) fixture.Player1Id = homePair[0].PlayerId;
                                         if (homePair.Count >= 2) fixture.Player3Id = homePair[1].PlayerId;
                                         if (awayPair.Count >= 1) fixture.Player2Id = awayPair[0].PlayerId;
@@ -497,5 +501,30 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
         await db.SaveChangesAsync();
 
         return new ScheduleFixturesResult(newFixtures.Count, unscheduled);
+    }
+
+    /// <summary>
+    /// Orders a team's doubles pair so auto-scheduling assigns a valid pair when
+    /// the format requires mixed sexes. For <see cref="CompetitionFormat.MixedDoubles"/>
+    /// the first returned element is a male and the second a female (when the
+    /// team has both). For plain doubles the original order is preserved.
+    /// When the team can't satisfy the format (e.g. all one sex for mixed) the
+    /// best-available pair is still returned — the fixture's validation guard in
+    /// <c>CompetitionsController</c> is the authoritative gate.
+    /// </summary>
+    private static List<CompetitionParticipant> OrderDoublesPair(
+        List<CompetitionParticipant> members, CompetitionFormat format)
+    {
+        if (format != CompetitionFormat.MixedDoubles || members.Count < 2)
+            return members;
+
+        var male = members.FirstOrDefault(m => m.Player?.Sex == PlayerSex.Male);
+        var female = members.FirstOrDefault(m => m.Player?.Sex == PlayerSex.Female);
+        if (male != null && female != null)
+        {
+            var rest = members.Where(m => m != male && m != female).ToList();
+            return new List<CompetitionParticipant> { male, female }.Concat(rest).ToList();
+        }
+        return members;
     }
 }

@@ -577,6 +577,7 @@
         var candidates = await dbc.Competition
             .Include(c => c.HostClub)
             .Include(c => c.Event)
+            .Include(c => c.AllowedPlayers)
             .Where(c => !enteredIds.Contains(c.CompetitionID) && !c.IsArchived && !c.IsStarted)
             .Where(c => !c.StartDate.HasValue || c.StartDate.Value >= today)
             .Where(c => !c.RegisterByDate.HasValue || c.RegisterByDate.Value >= today)
@@ -588,29 +589,7 @@
     }
 
     private static bool IsEligible(Competition c, Player p)
-    {
-        // Sex: null means open to all
-        if (c.EligibleSex.HasValue && c.EligibleSex != p.Sex) return false;
-
-        // Age: only enforce if competition specifies a bound
-        if (c.MinAge.HasValue || c.MaxAge.HasValue)
-        {
-            if (p.DateOfBirth == null) return false;
-            var refDate = c.StartDate ?? DateTime.UtcNow;
-            int age = AgeOn(DateOnly.FromDateTime(refDate), p.DateOfBirth.Value);
-            if (c.MinAge.HasValue && age < c.MinAge.Value) return false;
-            if (c.MaxAge.HasValue && age > c.MaxAge.Value) return false;
-        }
-
-        return true;
-    }
-
-    private static int AgeOn(DateOnly on, DateOnly dob)
-    {
-        int age = on.Year - dob.Year;
-        if (dob > on.AddYears(-age)) age--;
-        return age;
-    }
+        => EligibilityEvaluator.Evaluate(c, p).Count == 0;
 
     private static string FormatDates(Competition c)
     {
@@ -642,6 +621,23 @@
         }
 
         await using var db = DbFactory.CreateDbContext();
+
+        // Re-evaluate eligibility at entry time (hard block on the user path — the
+        // allow-list check isn't in the visibility filter so we rely on this gate).
+        var freshComp = await db.Competition
+            .Include(c => c.AllowedPlayers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == comp.CompetitionID);
+        if (freshComp == null)
+        {
+            Snackbar.Add("Competition not found.", Severity.Warning);
+            return;
+        }
+        var violations = EligibilityEvaluator.Evaluate(freshComp, _userPlayer);
+        if (violations.Count > 0)
+        {
+            Snackbar.Add($"You're not eligible for this competition: {violations[0].Message}", Severity.Warning);
+            return;
+        }
 
         // Basic capacity guard (mirrors CompetitionsController.AddParticipant)
         if (comp.MaxParticipants.HasValue)

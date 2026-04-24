@@ -91,6 +91,10 @@ public class FixtureSimulationService(RubberResolutionService rubberResolver)
         fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
                          : awayScore > homeScore ? fx.AwayTeamId
                          : null;
+        fx.HomeSetsWon = allRubbers.Sum(r => r.HomeSetsWon ?? 0);
+        fx.AwaySetsWon = allRubbers.Sum(r => r.AwaySetsWon ?? 0);
+        fx.HomeGamesTotal = allRubbers.Sum(r => r.HomeGamesTotal ?? 0);
+        fx.AwayGamesTotal = allRubbers.Sum(r => r.AwayGamesTotal ?? 0);
         fx.VerificationToken = null;
         await db.SaveChangesAsync();
 
@@ -110,6 +114,10 @@ public class FixtureSimulationService(RubberResolutionService rubberResolver)
         fx.WinnerPlayerId = side1Sets > side2Sets ? fx.Player1Id
                            : side2Sets > side1Sets ? fx.Player2Id
                            : null;
+        fx.HomeSetsWon = side1Sets;
+        fx.AwaySetsWon = side2Sets;
+        fx.HomeGamesTotal = sets.Sum(s => s.Side1);
+        fx.AwayGamesTotal = sets.Sum(s => s.Side2);
         // Simulation is a super-admin test tool — always completes immediately,
         // bypassing RequireVerification regardless of the competition setting.
         fx.Status = FixtureStatus.Completed;

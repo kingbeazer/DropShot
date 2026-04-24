@@ -23,6 +23,7 @@
 @inject ICompetitionRubberTemplateProvider RubberTemplateProvider
 @inject CompetitionSchedulerService Scheduler
 @inject FixtureSimulationService FixtureSimulator
+@inject Microsoft.Extensions.Logging.ILogger<CompetitionPage> Logger
 
 <MudProviders />
 
@@ -2494,6 +2495,33 @@ else
         }
 
         await using var db = DbFactory.CreateDbContext();
+        var comp = await db.Competition
+            .Include(c => c.AllowedPlayers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == Id);
+        if (comp != null)
+        {
+            var violations = EligibilityEvaluator.Evaluate(comp, player);
+            if (violations.Count > 0)
+            {
+                var body = "The following rule(s) would be broken:\n\n • "
+                    + string.Join("\n • ", violations.Select(v => v.Message))
+                    + "\n\nAdd this player anyway? This action will be logged.";
+                var confirm = await DialogService.ShowMessageBox(
+                    "Player is not eligible",
+                    body,
+                    yesText: "Add anyway", cancelText: "Cancel");
+                if (confirm != true)
+                {
+                    if (_participantAutocomplete != null)
+                        await _participantAutocomplete.ClearAsync();
+                    return;
+                }
+                Logger.LogWarning(
+                    "Admin override: player {PlayerId} added to competition {CompetitionId} despite {Count} eligibility violation(s).",
+                    player.PlayerId, Id, violations.Count);
+            }
+        }
+
         var cp = new CompetitionParticipant
         {
             CompetitionId = Id,
@@ -3259,6 +3287,8 @@ else
             return;
         }
 
+        if (!await ConfirmFixtureAssignmentAsync()) return;
+
         await using var db = DbFactory.CreateDbContext();
         if (_editingFixture == null)
         {
@@ -3296,6 +3326,76 @@ else
             Snackbar.Add("Fixture updated.", Severity.Success);
         }
         _showFixtureDialog = false;
+    }
+
+    /// <summary>
+    /// Runs the fixture-assignment eligibility + pairing rules for the currently
+    /// edited fixture. Returns true if the caller should proceed. Any violations
+    /// are surfaced as a confirm dialog; "Add anyway" logs an override and
+    /// continues, "Cancel" aborts.
+    /// </summary>
+    private async Task<bool> ConfirmFixtureAssignmentAsync()
+    {
+        var playerIds = new[] { _fixtureForm.Player1Id, _fixtureForm.Player2Id,
+                                _fixtureForm.Player3Id, _fixtureForm.Player4Id }
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
+        if (playerIds.Count == 0) return true;
+
+        await using var db = DbFactory.CreateDbContext();
+        var comp = await db.Competition
+            .Include(c => c.AllowedPlayers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == Id);
+        if (comp == null) return true;
+
+        var participantIds = _participants
+            .Where(p => p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed)
+            .Select(p => p.PlayerId).ToHashSet();
+        var missing = playerIds.Where(pid => !participantIds.Contains(pid)).ToList();
+        if (missing.Count > 0)
+        {
+            var names = string.Join(", ", missing.Select(pid => _participants.FirstOrDefault(p => p.PlayerId == pid)?.Player?.DisplayName
+                ?? _allPlayers.FirstOrDefault(p => p.PlayerId == pid)?.DisplayName ?? $"#{pid}"));
+            Snackbar.Add($"Player(s) {names} are not registered participants of this competition.", Severity.Error);
+            return false;
+        }
+
+        var warnings = new List<string>();
+        var players = await db.Players.Where(p => playerIds.Contains(p.PlayerId)).ToListAsync();
+        foreach (var p in players)
+        {
+            foreach (var v in EligibilityEvaluator.Evaluate(comp, p))
+                warnings.Add($"{p.DisplayName}: {v.Message}");
+        }
+
+        if (comp.CompetitionFormat == CompetitionFormat.MixedDoubles)
+        {
+            void CheckPair(int? aId, int? bId, string label)
+            {
+                if (!aId.HasValue || !bId.HasValue) return;
+                var a = players.FirstOrDefault(p => p.PlayerId == aId.Value);
+                var b = players.FirstOrDefault(p => p.PlayerId == bId.Value);
+                if (a == null || b == null) return;
+                if (a.Sex.HasValue && b.Sex.HasValue && a.Sex == b.Sex)
+                    warnings.Add($"{label} is two {(a.Sex == PlayerSex.Male ? "males" : "females")}; mixed doubles requires one male + one female.");
+            }
+            CheckPair(_fixtureForm.Player1Id, _fixtureForm.Player3Id, "Home pair");
+            CheckPair(_fixtureForm.Player2Id, _fixtureForm.Player4Id, "Away pair");
+        }
+
+        if (warnings.Count == 0) return true;
+
+        var body = "The following rule(s) would be broken:\n\n • "
+            + string.Join("\n • ", warnings)
+            + "\n\nSave this fixture anyway? This action will be logged.";
+        var confirm = await DialogService.ShowMessageBox(
+            "Fixture has eligibility warnings",
+            body,
+            yesText: "Save anyway", cancelText: "Cancel");
+        if (confirm != true) return false;
+        Logger.LogWarning(
+            "Admin override: fixture in competition {CompetitionId} saved with {Count} eligibility warning(s).",
+            Id, warnings.Count);
+        return true;
     }
 
     private void ApplyFixtureForm(CompetitionFixture f)

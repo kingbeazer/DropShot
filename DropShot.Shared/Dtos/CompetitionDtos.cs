@@ -129,7 +129,17 @@ public record SaveCompetitionRequest(
 
 public record AddStageRequest(StageType StageType, string? Name = null, int? StageOrder = null);
 
-public record AddParticipantRequest(int PlayerId);
+public record AddParticipantRequest(int PlayerId, bool Force = false);
+
+/// <summary>
+/// Response body returned with HTTP 409 when an admin action would violate a
+/// competition's eligibility rules (sex / age / allow-list / mixed-doubles
+/// pairing / MTT composition). The admin UI shows these as a confirmation
+/// prompt; re-posting the request with <c>Force = true</c> overrides the guard.
+/// </summary>
+public record EligibilityWarning(string Code, string Message);
+
+public record EligibilityWarningsResponse(string Message, List<EligibilityWarning> Warnings);
 
 public record UpdateParticipantStatusRequest(ParticipantStatus Status);
 
@@ -145,7 +155,8 @@ public record SaveFixtureRequest(
     int? Player4Id,
     FixtureStatus Status,
     string? ResultSummary = null,
-    int? WinnerPlayerId = null);
+    int? WinnerPlayerId = null,
+    bool Force = false);
 
 public record SaveTeamRequest(string Name);
 

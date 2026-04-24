@@ -1,6 +1,7 @@
 using DropShot.Data;
 using DropShot.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DropShot.Services;
 
@@ -9,7 +10,9 @@ public class RubberResolutionException : Exception
     public RubberResolutionException(string message) : base(message) { }
 }
 
-public class RubberResolutionService(ICompetitionRubberTemplateProvider templateProvider)
+public class RubberResolutionService(
+    ICompetitionRubberTemplateProvider templateProvider,
+    ILogger<RubberResolutionService>? logger = null)
 {
     /// <summary>
     /// Creates Rubber rows for a fixture by resolving each rubber definition's roles
@@ -47,8 +50,8 @@ public class RubberResolutionService(ICompetitionRubberTemplateProvider template
                 AwayRoles = def.AwayRoles,
             };
 
-            var homeIds = ResolveRoles(def.HomeRoles, homeMembers, "home", def.Name);
-            var awayIds = ResolveRoles(def.AwayRoles, awayMembers, "away", def.Name);
+            var homeIds = ResolveRoles(def.HomeRoles, homeMembers, "home", def.Name, logger);
+            var awayIds = ResolveRoles(def.AwayRoles, awayMembers, "away", def.Name, logger);
 
             rubber.HomePlayer1Id = homeIds.ElementAtOrDefault(0);
             rubber.HomePlayer2Id = homeIds.ElementAtOrDefault(1);
@@ -118,7 +121,8 @@ public class RubberResolutionService(ICompetitionRubberTemplateProvider template
     }
 
     private static List<int> ResolveRoles(
-        IReadOnlyList<string> roles, List<CompetitionParticipant> members, string side, string rubberName)
+        IReadOnlyList<string> roles, List<CompetitionParticipant> members, string side, string rubberName,
+        ILogger? logger)
     {
         var ids = new List<int>();
         foreach (var role in roles)
@@ -130,8 +134,63 @@ public class RubberResolutionService(ICompetitionRubberTemplateProvider template
             if (matches.Count > 1)
                 throw new RubberResolutionException(
                     $"The {side} team has more than one player with role '{role}'.");
-            ids.Add(matches[0].PlayerId);
+
+            var member = matches[0];
+            var expected = ExpectedSexForRole(role);
+            if (expected.HasValue && member.Player?.Sex is PlayerSex actual && actual != expected.Value)
+            {
+                // Role prefix implies a sex (MTT template). Don't throw — the
+                // captain may have overridden assignments and the rule is a
+                // convention, not a hard integrity invariant — but warn.
+                logger?.LogWarning(
+                    "Rubber '{Rubber}' {Side}: role '{Role}' expects {Expected} but player {PlayerId} is {Actual}.",
+                    rubberName, side, role, expected, member.PlayerId, actual);
+            }
+
+            ids.Add(member.PlayerId);
         }
         return ids;
+    }
+
+    /// <summary>
+    /// Returns the sex implied by a role's first character (M = Male, F = Female)
+    /// for MTT-style templates. Custom roles (e.g. "D1A") return null.
+    /// </summary>
+    internal static PlayerSex? ExpectedSexForRole(string role)
+    {
+        if (string.IsNullOrEmpty(role)) return null;
+        return role[0] switch
+        {
+            'M' or 'm' => PlayerSex.Male,
+            'F' or 'f' => PlayerSex.Female,
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Returns warnings if the team's membership can't satisfy a rubber template
+    /// (e.g. MTT needs 2M + 2F). The admin UI shows these as a confirmation prompt;
+    /// re-posting with Force=true overrides.
+    /// </summary>
+    public static List<string> ValidateTeamComposition(
+        IReadOnlyList<RubberDef> template, IReadOnlyList<CompetitionParticipant> members)
+    {
+        var warnings = new List<string>();
+        var roles = template
+            .SelectMany(d => d.HomeRoles.Concat(d.AwayRoles))
+            .Distinct()
+            .ToList();
+
+        int requiredMale = roles.Count(r => ExpectedSexForRole(r) == PlayerSex.Male);
+        int requiredFemale = roles.Count(r => ExpectedSexForRole(r) == PlayerSex.Female);
+        int males = members.Count(m => m.Player?.Sex == PlayerSex.Male);
+        int females = members.Count(m => m.Player?.Sex == PlayerSex.Female);
+
+        if (males < requiredMale)
+            warnings.Add($"Team has {males} male(s) but the template needs {requiredMale} for the M-roles.");
+        if (females < requiredFemale)
+            warnings.Add($"Team has {females} female(s) but the template needs {requiredFemale} for the F-roles.");
+
+        return warnings;
     }
 }
