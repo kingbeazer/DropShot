@@ -1,12 +1,14 @@
 @page "/players"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "SuperAdmin")]
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
 @using DropShot.Models
 @using DropShot.Data
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudProviders />
 
@@ -32,9 +34,7 @@
         <MudTh>Sex</MudTh>
         <MudTh>Linked Account</MudTh>
         <MudTh>Clubs</MudTh>
-        <AuthorizeView Roles="Admin" Context="auth">
-            <MudTh>Actions</MudTh>
-        </AuthorizeView>
+        <MudTh>Actions</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Display Name">@context.Player.DisplayName</MudTd>
@@ -68,17 +68,15 @@
                 </div>
             }
         </MudTd>
-        <AuthorizeView Roles="Admin" Context="auth">
-            <MudTd DataLabel="Actions">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                               OnClick="@(() => StartEdit(context.Player))" />
-                <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Info"
-                               OnClick="@(() => StartLink(context.Player))"
-                               aria-label="Link to account" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                               OnClick="@(() => DeletePlayer(context.Player))" />
-            </MudTd>
-        </AuthorizeView>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => StartEdit(context.Player))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Info"
+                           OnClick="@(() => StartLink(context.Player))"
+                           aria-label="Link to account" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           OnClick="@(() => DeletePlayer(context.Player))" />
+        </MudTd>
     </RowTemplate>
     <NoRecordsContent>
         <MudText>No players yet.</MudText>
@@ -203,6 +201,7 @@
     private bool _loading = true;
     private List<PlayerRow> _players = [];
     private string _searchText = "";
+    private string? _currentUserId;
 
     private bool FilterPlayers(PlayerRow row) =>
         string.IsNullOrWhiteSpace(_searchText) ||
@@ -242,7 +241,12 @@
     private static string FullName(Player p) =>
         string.Join(" ", new[] { p.FirstName, p.LastName }.Where(s => !string.IsNullOrWhiteSpace(s))) is { Length: > 0 } n ? n : "—";
 
-    protected override async Task OnInitializedAsync() => await LoadPlayers();
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await LoadPlayers();
+    }
 
     private async Task LoadPlayers()
     {
@@ -285,7 +289,9 @@
             MobileNumber = NullIfEmpty(_form.MobileNumber),
             DateOfBirth = _form.DateOfBirth,
             Sex = _form.Sex,
-            ContactPreferences = NullIfEmpty(_form.ContactPreferences)
+            ContactPreferences = NullIfEmpty(_form.ContactPreferences),
+            IsLight = true,
+            CreatedByUserId = _currentUserId
         });
         await dbc.SaveChangesAsync();
 
