@@ -31,6 +31,7 @@
         <MudTh>Date of Birth</MudTh>
         <MudTh>Sex</MudTh>
         <MudTh>Linked Account</MudTh>
+        <MudTh>Clubs</MudTh>
         <AuthorizeView Roles="Admin" Context="auth">
             <MudTh>Actions</MudTh>
         </AuthorizeView>
@@ -50,6 +51,21 @@
             else
             {
                 <MudText Typo="Typo.caption" Style="color: grey;">Not linked</MudText>
+            }
+        </MudTd>
+        <MudTd DataLabel="Clubs">
+            @if (context.ClubNames.Count == 0)
+            {
+                <MudText Typo="Typo.caption" Style="color: grey;">—</MudText>
+            }
+            else
+            {
+                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                    @foreach (var name in context.ClubNames)
+                    {
+                        <MudChip T="string" Size="Size.Small">@name</MudChip>
+                    }
+                </div>
             }
         </MudTd>
         <AuthorizeView Roles="Admin" Context="auth">
@@ -182,7 +198,7 @@
 </MudDialog>
 
 @code {
-    private record PlayerRow(Player Player, string? LinkedUserName);
+    private record PlayerRow(Player Player, string? LinkedUserName, IReadOnlyList<string> ClubNames);
 
     private bool _loading = true;
     private List<PlayerRow> _players = [];
@@ -193,7 +209,8 @@
         row.Player.DisplayName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
         (row.Player.FirstName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
         (row.Player.LastName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
-        (row.Player.Email ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+        (row.Player.Email ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        row.ClubNames.Any(n => n.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
 
     private bool _showAddDialog;
     private bool _showEditDialog;
@@ -233,11 +250,18 @@
         await using var dbc = DbFactory.CreateDbContext();
         var players = await dbc.Players
             .Include(p => p.User)
-            .Where(p => !p.IsLight)
+            .Include(p => p.ClubMemberships).ThenInclude(cp => cp.Club)
             .OrderBy(p => p.DisplayName)
             .ToListAsync();
 
-        _players = players.Select(p => new PlayerRow(p, p.User?.UserName)).ToList();
+        _players = players.Select(p => new PlayerRow(
+            p,
+            p.User?.UserName,
+            p.ClubMemberships
+                .Where(cp => cp.Club != null)
+                .Select(cp => cp.Club.Name)
+                .OrderBy(n => n)
+                .ToList())).ToList();
         _loading = false;
     }
 
