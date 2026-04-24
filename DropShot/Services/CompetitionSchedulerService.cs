@@ -19,7 +19,10 @@ public enum ScheduleDeleteMode
 
 public record ScheduleFixturesRequest(ScheduleDeleteMode DeleteMode = ScheduleDeleteMode.None);
 
-public record ScheduleFixturesResult(int FixturesCreated, int Unscheduled);
+public record ScheduleFixturesResult(
+    int FixturesCreated,
+    int Unscheduled,
+    IReadOnlyList<string> UnconfirmedParticipants);
 
 /// <summary>
 /// Auto-scheduler for round-robin, knockout, semi-final, quarter-final and
@@ -52,7 +55,19 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
             .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId);
-        if (comp is null) return new ScheduleFixturesResult(0, 0);
+        if (comp is null) return new ScheduleFixturesResult(0, 0, []);
+
+        // Callers want to know which participants are sitting at Registered
+        // (added but not confirmed) or Substitute — those rows are intentionally
+        // skipped by the scheduler, but it's easy to miss them on a big roster
+        // and end up wondering why a fixture was generated without so-and-so.
+        var unconfirmed = comp.Participants
+            .Where(p => p.Status != ParticipantStatus.FullPlayer
+                     && p.Status != ParticipantStatus.Withdrawn
+                     && p.Status != ParticipantStatus.Disqualified)
+            .Select(p => p.Player?.DisplayName ?? $"Player {p.PlayerId}")
+            .OrderBy(n => n)
+            .ToList();
 
         // ── Delete according to mode ─────────────────────────────────────────
         switch (request.DeleteMode)
@@ -523,7 +538,7 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
         db.CompetitionFixtures.AddRange(newFixtures);
         await db.SaveChangesAsync();
 
-        return new ScheduleFixturesResult(newFixtures.Count, unscheduled);
+        return new ScheduleFixturesResult(newFixtures.Count, unscheduled, unconfirmed);
     }
 
     /// <summary>

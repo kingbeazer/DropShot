@@ -4600,6 +4600,18 @@ else
             Snackbar.Add($"{result.FixturesCreated} fixtures scheduled. {result.Unscheduled} could not be scheduled — not enough available slots in the match windows.", Severity.Warning);
         else
             Snackbar.Add($"{result.FixturesCreated} fixtures scheduled.", Severity.Success);
+
+        if (result.UnconfirmedParticipants.Count > 0)
+        {
+            var names = string.Join(", ", result.UnconfirmedParticipants.Take(5));
+            var suffix = result.UnconfirmedParticipants.Count > 5
+                ? $" (+{result.UnconfirmedParticipants.Count - 5} more)"
+                : "";
+            Snackbar.Add(
+                $"{result.UnconfirmedParticipants.Count} participant(s) were not included — they're registered but not yet confirmed as full players: {names}{suffix}.",
+                Severity.Warning,
+                c => c.VisibleStateDuration = 12000);
+        }
     }
 
     private async Task SeedKnockoutFromStandingsAsync()
