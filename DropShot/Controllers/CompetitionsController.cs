@@ -665,8 +665,26 @@ public class CompetitionsController(
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
-        var fixture = await db.CompetitionFixtures.FindAsync(fixtureId);
+        var fixture = await db.CompetitionFixtures
+            .Include(f => f.Rubbers)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId);
         if (fixture is null || fixture.CompetitionId != id) return NotFound();
+
+        // Remove the linked SavedMatch so it doesn't re-appear as an
+        // "unlinked" casual match on the player's recent-results feed.
+        if (fixture.SavedMatchId.HasValue)
+        {
+            var savedMatch = await db.SavedMatch.FindAsync(fixture.SavedMatchId.Value);
+            if (savedMatch != null) db.SavedMatch.Remove(savedMatch);
+        }
+        // Remove any SavedMatches linked through the fixture's rubbers.
+        foreach (var rubber in fixture.Rubbers.Where(r => r.SavedMatchId.HasValue))
+        {
+            var rubberMatch = await db.SavedMatch.FindAsync(rubber.SavedMatchId!.Value);
+            if (rubberMatch != null) db.SavedMatch.Remove(rubberMatch);
+        }
+        if (fixture.Rubbers.Any()) db.Rubbers.RemoveRange(fixture.Rubbers);
+
         db.CompetitionFixtures.Remove(fixture);
         await db.SaveChangesAsync();
         return NoContent();

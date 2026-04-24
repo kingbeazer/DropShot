@@ -80,6 +80,12 @@
         public DropShot.Shared.RubberTieBreakMode RubberTieBreak { get; set; } = DropShot.Shared.RubberTieBreakMode.AdminDecides;
 
         /// <summary>
+        /// Minimum number of days that must elapse between any two matches for the
+        /// same player during auto-scheduling. Null or 0 means no constraint.
+        /// </summary>
+        public int? MinDaysBetweenPlayerMatches { get; set; }
+
+        /// <summary>
         /// When true, this competition is split into ranked divisions via
         /// <see cref="Divisions"/>. Teams only play other teams in the same
         /// division, and league tables render per-division.

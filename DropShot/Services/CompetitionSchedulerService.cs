@@ -206,7 +206,9 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
         var courtBusyAt  = new Dictionary<DateTime, HashSet<int>>();
         var playerBusyAt = new Dictionary<DateTime, HashSet<int>>();
         var teamBusyAt   = new Dictionary<DateTime, HashSet<int>>();
+        var playerSlotTimes = new Dictionary<int, List<DateTime>>();
         DateTime? earliestAllowedTime = null;
+        int minDaysBetweenPlayerMatches = Math.Max(0, comp.MinDaysBetweenPlayerMatches ?? 0);
 
         (DateTime time, int? courtId)? PickSlot(List<int> playerIds, List<int> teamIds, int? requestedDivisionId)
         {
@@ -229,6 +231,21 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
                         && (cBusy.Contains(pairCourts.Court1Id) || cBusy.Contains(pairCourts.Court2Id)))
                         conflict = true;
                 }
+
+                // Min-days-between-matches constraint per player.
+                if (!conflict && minDaysBetweenPlayerMatches > 0 && playerIds.Count > 0)
+                {
+                    foreach (var pid in playerIds)
+                    {
+                        if (!playerSlotTimes.TryGetValue(pid, out var times)) continue;
+                        if (times.Any(t => Math.Abs((slot.time.Date - t.Date).TotalDays) < minDaysBetweenPlayerMatches))
+                        {
+                            conflict = true;
+                            break;
+                        }
+                    }
+                }
+
                 if (conflict) continue;
 
                 usedSlots.Add((slot.time, slot.courtId));
@@ -237,6 +254,12 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
                     if (!playerBusyAt.TryGetValue(slot.time, out var pSet))
                         playerBusyAt[slot.time] = pSet = [];
                     foreach (var pid in playerIds) pSet.Add(pid);
+                    foreach (var pid in playerIds)
+                    {
+                        if (!playerSlotTimes.TryGetValue(pid, out var times))
+                            playerSlotTimes[pid] = times = [];
+                        times.Add(slot.time);
+                    }
                 }
                 if (teamIds.Count > 0)
                 {
