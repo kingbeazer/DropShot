@@ -2,6 +2,7 @@ using DropShot.Data;
 using DropShot.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using RubberTieBreakMode = DropShot.Shared.RubberTieBreakMode;
 
 namespace DropShot.Services;
 
@@ -77,6 +78,65 @@ public class RubberResolutionService(
             else if (r.WinnerTeamId == awayTeamId) away++;
         }
         return (home, away);
+    }
+
+    /// <summary>
+    /// Resolve a rubber tie (equal rubbers won) using the competition's configured
+    /// tie-break mode. Returns the winning team id, or null if the mode is
+    /// <see cref="RubberTieBreakMode.AdminDecides"/> or the configured fallback is
+    /// itself tied.
+    /// </summary>
+    public static async Task<int?> ResolveTieBreakAsync(
+        MyDbContext db, CompetitionFixture fixture, List<Rubber> rubbers,
+        RubberTieBreakMode mode)
+    {
+        if (!fixture.HomeTeamId.HasValue || !fixture.AwayTeamId.HasValue) return null;
+        int home = fixture.HomeTeamId.Value;
+        int away = fixture.AwayTeamId.Value;
+
+        int? byGames = ResolveByGames(rubbers, home, away);
+        int? byH2H = null;
+
+        switch (mode)
+        {
+            case RubberTieBreakMode.MostGamesWon:
+                return byGames;
+            case RubberTieBreakMode.HeadToHeadRoundRobin:
+                byH2H = await ResolveByRoundRobinH2HAsync(db, fixture.CompetitionId, home, away);
+                return byH2H;
+            case RubberTieBreakMode.MostGamesThenHeadToHead:
+                if (byGames.HasValue) return byGames;
+                byH2H = await ResolveByRoundRobinH2HAsync(db, fixture.CompetitionId, home, away);
+                return byH2H;
+            default:
+                return null;
+        }
+    }
+
+    private static int? ResolveByGames(List<Rubber> rubbers, int home, int away)
+    {
+        int hGames = rubbers.Where(r => r.IsComplete).Sum(r => r.HomeGamesTotal ?? 0);
+        int aGames = rubbers.Where(r => r.IsComplete).Sum(r => r.AwayGamesTotal ?? 0);
+        if (hGames > aGames) return home;
+        if (aGames > hGames) return away;
+        return null;
+    }
+
+    private static async Task<int?> ResolveByRoundRobinH2HAsync(
+        MyDbContext db, int competitionId, int home, int away)
+    {
+        var rrFixture = await db.CompetitionFixtures
+            .Include(f => f.Stage)
+            .Where(f => f.CompetitionId == competitionId
+                     && f.Stage != null && f.Stage.StageType == StageType.RoundRobin
+                     && ((f.HomeTeamId == home && f.AwayTeamId == away) ||
+                         (f.HomeTeamId == away && f.AwayTeamId == home))
+                     && f.Status == FixtureStatus.Completed
+                     && f.WinnerTeamId.HasValue)
+            .OrderByDescending(f => f.CompletedAt)
+            .FirstOrDefaultAsync();
+
+        return rrFixture?.WinnerTeamId;
     }
 
     /// <summary>
