@@ -24,6 +24,7 @@
 @inject CourtClaimService CourtClaim
 @inject ISnackbar Snackbar
 @inject ResultVerificationService ResultVerificationService
+@inject BackgroundTaskQueue BackgroundTasks
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
 
@@ -1334,22 +1335,35 @@
                         fx.CompletedAt = DateTime.UtcNow;
 
                         bool requireVerification = fx.Competition?.RequireVerification ?? false;
+                        // Fire emails in the background so the scorer isn't left
+                        // staring at SMTP latency after the last rubber. Bracket
+                        // progression stays awaited — it drives the UI.
                         if (requireVerification)
                         {
                             fx.Status = FixtureStatus.AwaitingVerification;
                             fx.VerificationToken = Guid.NewGuid();
                             await dbc4.SaveChangesAsync();
 
-                            var adminEmails = await ResultVerificationService.GetAdminEmailsForCompetitionAsync(fx.CompetitionId, dbc4);
-                            await ResultVerificationService.SendAdminVerificationEmailsForTeamMatchAsync(fx, allRubbers, adminEmails);
+                            var compId = fx.CompetitionId;
+                            BackgroundTasks.Run("team-match-verification-emails", async sp =>
+                            {
+                                var svc = sp.GetRequiredService<ResultVerificationService>();
+                                var dbf = sp.GetRequiredService<IDbContextFactory<MyDbContext>>();
+                                await using var bgDb = dbf.CreateDbContext();
+                                var adminEmails = await svc.GetAdminEmailsForCompetitionAsync(compId, bgDb);
+                                await svc.SendAdminVerificationEmailsForTeamMatchAsync(fx, allRubbers, adminEmails);
+                            });
                         }
                         else
                         {
                             fx.Status = FixtureStatus.Completed;
                             await dbc4.SaveChangesAsync();
-                            await Task.WhenAll(
-                                ResultVerificationService.SendResultNotificationForTeamMatchAsync(fx, allRubbers),
-                                CompetitionProgressionService.TryAdvanceAsync(dbc4, fx.CompetitionId, fx.CompetitionFixtureId));
+                            BackgroundTasks.Run("team-match-result-notification", async sp =>
+                            {
+                                var svc = sp.GetRequiredService<ResultVerificationService>();
+                                await svc.SendResultNotificationForTeamMatchAsync(fx, allRubbers);
+                            });
+                            await CompetitionProgressionService.TryAdvanceAsync(dbc4, fx.CompetitionId, fx.CompetitionFixtureId);
                         }
                     }
                 }
