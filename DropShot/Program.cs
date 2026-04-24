@@ -117,6 +117,7 @@ builder.Services.AddSingleton<SiteSettingsService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddSingleton<EmailTemplateService>();
+builder.Services.AddSingleton<BackgroundTaskQueue>();
 builder.Services.AddScoped<ResultVerificationService>();
 builder.Services.AddScoped<AdminEmailService>();
 builder.Services.AddScoped<FuzzySearchService>();

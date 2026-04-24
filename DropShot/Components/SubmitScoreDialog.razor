@@ -5,6 +5,7 @@
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ResultVerificationService ResultVerificationService
+@inject BackgroundTaskQueue BackgroundTasks
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -362,24 +363,40 @@
                 fx.Player4      = Fixture.Player4;
                 fx.FixtureLabel = Fixture.FixtureLabel;
 
-                try
+                // Fire notification + verification emails in the background so the
+                // dialog closes immediately — SMTP latency was blocking the UI.
+                // Bracket progression (in the non-verification path) stays awaited
+                // because the caller's view depends on the advanced state.
+                var competitionId = Fixture.CompetitionId;
+                var fixtureId = Fixture.CompetitionFixtureId;
+                if (requireVerification)
                 {
-                    if (requireVerification)
+                    BackgroundTasks.Run("fixture-verification-emails", async sp =>
                     {
-                        var adminEmailsTask = ResultVerificationService.GetAdminEmailsForCompetitionAsync(Fixture.CompetitionId, db);
-                        await Task.WhenAll(ResultVerificationService.SendResultNotificationAsync(fx), adminEmailsTask);
-                        await ResultVerificationService.SendAdminVerificationEmailsAsync(fx, adminEmailsTask.Result);
-                    }
-                    else
-                    {
+                        var svc = sp.GetRequiredService<ResultVerificationService>();
+                        var dbf = sp.GetRequiredService<IDbContextFactory<MyDbContext>>();
+                        await using var bgDb = dbf.CreateDbContext();
+                        var adminEmails = await svc.GetAdminEmailsForCompetitionAsync(competitionId, bgDb);
                         await Task.WhenAll(
-                            ResultVerificationService.SendResultNotificationAsync(fx),
-                            CompetitionProgressionService.TryAdvanceAsync(db, Fixture.CompetitionId, Fixture.CompetitionFixtureId));
-                    }
+                            svc.SendResultNotificationAsync(fx),
+                            svc.SendAdminVerificationEmailsAsync(fx, adminEmails));
+                    });
                 }
-                catch (Exception)
+                else
                 {
-                    Snackbar.Add("Score saved, but notifications or bracket progression failed. An admin may need to follow up.", Severity.Warning);
+                    BackgroundTasks.Run("fixture-result-notification", async sp =>
+                    {
+                        var svc = sp.GetRequiredService<ResultVerificationService>();
+                        await svc.SendResultNotificationAsync(fx);
+                    });
+                    try
+                    {
+                        await CompetitionProgressionService.TryAdvanceAsync(db, Fixture.CompetitionId, Fixture.CompetitionFixtureId);
+                    }
+                    catch (Exception)
+                    {
+                        Snackbar.Add("Score saved, but bracket progression failed. An admin may need to follow up.", Severity.Warning);
+                    }
                 }
             }
 
