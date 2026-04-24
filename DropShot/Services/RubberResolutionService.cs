@@ -58,9 +58,9 @@ public class RubberResolutionService(ICompetitionRubberTemplateProvider template
             db.Rubbers.Add(rubber);
         }
 
-        if (fixture.Status == FixtureStatus.Scheduled)
-            fixture.Status = FixtureStatus.InProgress;
-
+        // Do NOT advance status here — rubber rows are created lazily when the
+        // team-match page first loads, which is before any score is entered.
+        // Status is set to InProgress only when a rubber score is actually saved.
         await db.SaveChangesAsync();
     }
 

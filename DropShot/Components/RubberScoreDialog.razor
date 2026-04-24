@@ -230,6 +230,19 @@
                     }
                 }
             }
+            else
+            {
+                // Rubbers are in progress but not all done yet — mark fixture InProgress
+                // now that the first score has been entered. We deliberately did not do
+                // this in EnsureRubbersAsync (which runs when the page loads) so the
+                // fixture stays Scheduled until an actual score is recorded.
+                var fx = await db.CompetitionFixtures.FindAsync(rub.CompetitionFixtureId);
+                if (fx != null && fx.Status == FixtureStatus.Scheduled)
+                {
+                    fx.Status = FixtureStatus.InProgress;
+                    await db.SaveChangesAsync();
+                }
+            }
 
             MudDialog.Close(DialogResult.Ok(true));
         }
