@@ -81,6 +81,35 @@ public class AdminEmailService(
     // ── Club link requests ────────────────────────────────────────────────────
 
     /// <summary>
+    /// Notifies the site-wide admin address that a new user has just registered.
+    /// Destination address is read from <c>App:AdminNotificationEmail</c>
+    /// (defaults to <c>admin@ds.tennis</c>). Fire-and-forget — failures are
+    /// logged but don't block the registration flow.
+    /// </summary>
+    public async Task SendNewUserNotificationAsync(
+        string userEmail, string? displayName, DateTime registeredAtUtc)
+    {
+        var adminAddress = config["App:AdminNotificationEmail"];
+        if (string.IsNullOrWhiteSpace(adminAddress)) return;
+
+        var body = $"""
+            <p>A new user has just registered on DropShot.</p>
+            <ul>
+                <li><strong>Email:</strong> {System.Net.WebUtility.HtmlEncode(userEmail)}</li>
+                <li><strong>Display name:</strong> {System.Net.WebUtility.HtmlEncode(displayName ?? "(not set)")}</li>
+                <li><strong>Registered at (UTC):</strong> {registeredAtUtc:yyyy-MM-dd HH:mm:ss}</li>
+            </ul>
+            """;
+
+        await SendSafe(
+            adminAddress,
+            "New DropShot user registered",
+            emailTemplateService.AdminCustomEmail(body),
+            "new user notification",
+            isHtml: true);
+    }
+
+    /// <summary>
     /// Notifies club admins that a new link request has been submitted.
     /// </summary>
     public async Task SendClubLinkRequestReceivedAsync(

@@ -120,6 +120,8 @@ builder.Services.AddSingleton<EmailTemplateService>();
 builder.Services.AddSingleton<BackgroundTaskQueue>();
 builder.Services.AddScoped<ResultVerificationService>();
 builder.Services.AddScoped<AdminEmailService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ContactRateLimiter>();
 builder.Services.AddScoped<FuzzySearchService>();
 builder.Services.AddScoped<ICompetitionRubberTemplateProvider, CompetitionRubberTemplateProvider>();
 builder.Services.AddScoped<RubberResolutionService>();

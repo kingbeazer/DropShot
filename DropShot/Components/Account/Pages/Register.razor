@@ -19,6 +19,7 @@
 @inject EmailService EmailService
 @inject EmailTemplateService EmailTemplateService
 @inject IDbContextFactory<MyDbContext> DbFactory
+@inject DropShot.Services.BackgroundTaskQueue BackgroundTasks
 
 <PageTitle>Register</PageTitle>
 
@@ -250,6 +251,17 @@
 
         await EmailService.SendEmailAsync(Input.Email, "Confirm Your Email",
             EmailTemplateService.ConfirmationEmail(callbackUrl), isHtml: true);
+
+        // Notify site admin — fire-and-forget so a slow SMTP doesn't delay
+        // the user's redirect, and failures don't abort registration.
+        var notifyEmail = Input.Email;
+        var notifyName = Input.DisplayName;
+        var notifyAt = DateTime.UtcNow;
+        BackgroundTasks.Run("new-user-admin-notification", async sp =>
+        {
+            var svc = sp.GetRequiredService<DropShot.Services.AdminEmailService>();
+            await svc.SendNewUserNotificationAsync(notifyEmail, notifyName, notifyAt);
+        });
 
         if (UserManager.Options.SignIn.RequireConfirmedAccount)
         {

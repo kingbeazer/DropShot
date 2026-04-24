@@ -30,62 +30,6 @@
                 </div>
             </AuthorizeView>
 
-            <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
-                <div class="nav-item nav-dropdown">
-                    <button class="nav-link nav-dropdown-trigger" onclick="event.stopPropagation()">
-                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Class="nav-icon" />
-                        <span class="nav-label-group">
-                            <span class="nav-label">Admin</span>
-                            <span class="nav-sublabel">Scoreboards, users &amp; requests</span>
-                        </span>
-                        <span class="nav-expand-icon">
-                            <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
-                        </span>
-                    </button>
-                    <div class="nav-dropdown-menu">
-                        <NavLink class="nav-link" href="score">
-                            <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" />
-                            <span class="nav-label-group">
-                                <span class="nav-label">Scoreboard View</span>
-                                <span class="nav-sublabel">Display live scores</span>
-                            </span>
-                        </NavLink>
-                        <NavLink class="nav-link" href="score/display-control">
-                            <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" />
-                            <span class="nav-label-group">
-                                <span class="nav-label">Display Control</span>
-                                <span class="nav-sublabel">Manage scoreboards</span>
-                            </span>
-                        </NavLink>
-                        <AuthorizeView Roles="Admin,SuperAdmin" Context="adminCtx">
-                            <NavLink class="nav-link" href="admin/users">
-                                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" />
-                                <span class="nav-label-group">
-                                    <span class="nav-label">Users</span>
-                                    <span class="nav-sublabel">Manage accounts and roles</span>
-                                </span>
-                            </NavLink>
-                            <NavLink class="nav-link" href="admin/site-settings">
-                                <MudIcon Icon="@Icons.Material.Filled.Tune" Class="nav-icon" />
-                                <span class="nav-label-group">
-                                    <span class="nav-label">Site Settings</span>
-                                    <span class="nav-sublabel">Layout and site-wide options</span>
-                                </span>
-                            </NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin" Context="linkReqCtx">
-                            <NavLink class="nav-link" href="clubadmin/link-requests">
-                                <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Class="nav-icon" />
-                                <span class="nav-label-group">
-                                    <span class="nav-label">Link Requests</span>
-                                    <span class="nav-sublabel">Approve player links</span>
-                                </span>
-                            </NavLink>
-                        </AuthorizeView>
-                    </div>
-                </div>
-            </AuthorizeView>
-
             <AuthorizeView>
                 <Authorized Context="mainCtx">
                     <div class="nav-item">
@@ -203,6 +147,50 @@
                                     <span class="nav-sublabel">Profile &amp; settings</span>
                                 </span>
                             </a>
+
+                            @* Admin shortcuts — rolled into the user profile dropdown. *@
+                            <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin" Context="adminCtx">
+                                <hr class="nav-dropdown-divider" />
+                                <NavLink class="nav-link" href="score">
+                                    <MudIcon Icon="@Icons.Material.Filled.Tv" Class="nav-icon" />
+                                    <span class="nav-label-group">
+                                        <span class="nav-label">Scoreboard View</span>
+                                        <span class="nav-sublabel">Display live scores</span>
+                                    </span>
+                                </NavLink>
+                                <NavLink class="nav-link" href="score/display-control">
+                                    <MudIcon Icon="@Icons.Material.Filled.Settings" Class="nav-icon" />
+                                    <span class="nav-label-group">
+                                        <span class="nav-label">Display Control</span>
+                                        <span class="nav-sublabel">Manage scoreboards</span>
+                                    </span>
+                                </NavLink>
+                                <AuthorizeView Roles="Admin,SuperAdmin" Context="saCtx">
+                                    <NavLink class="nav-link" href="admin/users">
+                                        <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Class="nav-icon" />
+                                        <span class="nav-label-group">
+                                            <span class="nav-label">Users</span>
+                                            <span class="nav-sublabel">Manage accounts and roles</span>
+                                        </span>
+                                    </NavLink>
+                                    <NavLink class="nav-link" href="admin/site-settings">
+                                        <MudIcon Icon="@Icons.Material.Filled.Tune" Class="nav-icon" />
+                                        <span class="nav-label-group">
+                                            <span class="nav-label">Site Settings</span>
+                                            <span class="nav-sublabel">Layout and site-wide options</span>
+                                        </span>
+                                    </NavLink>
+                                </AuthorizeView>
+                                <NavLink class="nav-link" href="clubadmin/link-requests">
+                                    <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Class="nav-icon" />
+                                    <span class="nav-label-group">
+                                        <span class="nav-label">Link Requests</span>
+                                        <span class="nav-sublabel">Approve player links</span>
+                                    </span>
+                                </NavLink>
+                                <hr class="nav-dropdown-divider" />
+                            </AuthorizeView>
+
                             <div class="nav-dropdown-item">
                                 <form action="Account/Logout" method="post">
                                     <AntiforgeryToken />
