@@ -71,6 +71,17 @@ else
         {
             <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
         }
+        @if (_canEdit && IsEdit)
+        {
+            <MudTooltip Text="Create a new competition based on this one">
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Class="px-4"
+                           OnClick="OpenCloneDialog">
+                    Clone
+                </MudButton>
+            </MudTooltip>
+        }
         <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
                    Class="px-4"
                    OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
@@ -437,6 +448,13 @@ else
                                      ValueChanged="AddParticipant" ResetValueOnEmptyText="true"
                                      MaxItems="null"
                                      Variant="Variant.Outlined" Dense="true" Style="max-width:260px" />
+                    <MudSelect T="ParticipantStatus" @bind-Value="_addParticipantStatus"
+                               Label="Add as" Variant="Variant.Outlined" Dense="true"
+                               Style="max-width:160px">
+                        <MudSelectItem Value="@ParticipantStatus.Registered">Registered</MudSelectItem>
+                        <MudSelectItem Value="@ParticipantStatus.FullPlayer">Full Player</MudSelectItem>
+                        <MudSelectItem Value="@ParticipantStatus.Substitute">Substitute</MudSelectItem>
+                    </MudSelect>
                     @if (Model.HostClubId.HasValue)
                     {
                         <MudTooltip Text="Add a new light player to this club and competition">
@@ -513,7 +531,7 @@ else
                                Style="min-width:140px">
                         @foreach (ParticipantStatus s in Enum.GetValues<ParticipantStatus>())
                         {
-                            <MudSelectItem T="ParticipantStatus?" Value="@((ParticipantStatus?)s)">@s</MudSelectItem>
+                            <MudSelectItem T="ParticipantStatus?" Value="@((ParticipantStatus?)s)">@ParticipantStatusLabel(s)</MudSelectItem>
                         }
                     </MudSelect>
                     @if (hasTeamCol)
@@ -588,7 +606,7 @@ else
                                        T="ParticipantStatus">
                                 @foreach (ParticipantStatus s in Enum.GetValues<ParticipantStatus>())
                                 {
-                                    <MudSelectItem Value="@s">@s</MudSelectItem>
+                                    <MudSelectItem Value="@s">@ParticipantStatusLabel(s)</MudSelectItem>
                                 }
                             </MudSelect>
                         </MudTd>
@@ -1377,6 +1395,30 @@ else
 </MudDialog>
 
 @* ── QR Code Dialog ──────────────────────────────────────── *@
+@* ── Clone competition dialog ────────────────────────────────── *@
+<MudDialog @bind-Visible="_showCloneDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true })">
+    <TitleContent>Clone Competition</TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Creates a new competition with the same format, scoring, stages, and rubber template.
+                Dates are not copied — set them on the new competition after creation.
+            </MudText>
+            <MudTextField @bind-Value="_cloneName" Label="New competition name"
+                          Variant="Variant.Outlined" Required="true" Immediate="true" />
+            <MudCheckBox @bind-Value="_cloneCopyParticipants" Label="Copy participants (reset to Registered)" Color="Color.Primary" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showCloneDialog = false)">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   Disabled="@(string.IsNullOrWhiteSpace(_cloneName) || _cloneSaving)"
+                   OnClick="CloneCompetitionAsync">
+            @(_cloneSaving ? "Creating…" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
 <MudDialog @bind-Visible="_showQrDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
     <TitleContent>Match QR Code</TitleContent>
     <DialogContent>
@@ -1502,6 +1544,15 @@ else
     private byte _divisionRank = 1;
     private bool _addingDivision;
     private int? _inlineEditDivisionId;
+
+    // Add-participant status selector
+    private ParticipantStatus _addParticipantStatus = ParticipantStatus.Registered;
+
+    // Clone competition dialog state
+    private bool _showCloneDialog;
+    private string _cloneName = "";
+    private bool _cloneCopyParticipants;
+    private bool _cloneSaving;
 
     // Seed-from-previous dialog state
     private bool _showSeedDivisionsDialog;
@@ -2527,13 +2578,13 @@ else
             CompetitionId = Id,
             PlayerId = player.PlayerId,
             RegisteredAt = DateTime.UtcNow,
-            Status = ParticipantStatus.Registered
+            Status = _addParticipantStatus
         };
         db.CompetitionParticipants.Add(cp);
         await db.SaveChangesAsync();
         cp.Player = player;
         _participants.Add(cp);
-        Snackbar.Add($"{player.DisplayName} added.", Severity.Success);
+        Snackbar.Add($"{player.DisplayName} added as {ParticipantStatusLabel(_addParticipantStatus)}.", Severity.Success);
         if (_participantAutocomplete != null)
             await _participantAutocomplete.ClearAsync();
     }
@@ -2594,7 +2645,7 @@ else
         {
             var candidates = _participants
                 .Where(p => p.TeamId == team.CompetitionTeamId
-                         && (p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed))
+                         && p.Status == ParticipantStatus.FullPlayer)
                 .ToList();
             if (candidates.Count == 0) { skipped++; continue; }
 
@@ -2741,6 +2792,131 @@ else
         _divisions.Remove(d);
     }
 
+    // ── Clone competition ───────────────────────────────────────────────────
+
+    private void OpenCloneDialog()
+    {
+        _cloneName = $"{Model.CompetitionName} — New Season";
+        _cloneCopyParticipants = false;
+        _cloneSaving = false;
+        _showCloneDialog = true;
+    }
+
+    private async Task CloneCompetitionAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_cloneName)) return;
+        _cloneSaving = true;
+        try
+        {
+            await using var db = DbFactory.CreateDbContext();
+            var source = await db.Competition
+                .Include(c => c.Stages)
+                .Include(c => c.RubberTemplate!).ThenInclude(rt => rt.Rubbers)
+                .FirstOrDefaultAsync(c => c.CompetitionID == Id);
+            if (source == null) return;
+
+            var newComp = new Competition
+            {
+                CompetitionName     = _cloneName.Trim(),
+                CompetitionFormat   = source.CompetitionFormat,
+                HostClubId          = source.HostClubId,
+                CreatorUserId       = source.HostClubId == null ? source.CreatorUserId : null,
+                MaxParticipants     = source.MaxParticipants,
+                MaxAge              = source.MaxAge,
+                MinAge              = source.MinAge,
+                EligibleSex         = source.EligibleSex,
+                RulesSetId          = source.RulesSetId,
+                EventId             = source.EventId,
+                HasDivisions        = source.HasDivisions,
+                BestOf              = source.BestOf,
+                MatchFormat         = source.MatchFormat,
+                NumberOfSets        = source.NumberOfSets,
+                GamesPerSet         = source.GamesPerSet,
+                SetWinMode          = source.SetWinMode,
+                LeagueScoring       = source.LeagueScoring,
+                TeamSize            = source.TeamSize,
+                RubberTemplateKey   = source.RubberTemplateKey,
+                RequireVerification = source.RequireVerification,
+                IsRestricted        = source.IsRestricted,
+                SeededFromCompetitionId = Id,
+            };
+            db.Competition.Add(newComp);
+            await db.SaveChangesAsync(); // generates CompetitionID
+
+            // Copy stages
+            foreach (var stage in source.Stages.OrderBy(s => s.StageOrder))
+            {
+                db.CompetitionStages.Add(new CompetitionStage
+                {
+                    CompetitionId = newComp.CompetitionID,
+                    Name          = stage.Name,
+                    StageOrder    = stage.StageOrder,
+                    StageType     = stage.StageType,
+                });
+            }
+
+            // Copy custom rubber template rubbers (if any)
+            if (source.RubberTemplate?.Rubbers.Count > 0)
+            {
+                var newTemplate = new CompetitionRubberTemplate { CompetitionId = newComp.CompetitionID };
+                db.CompetitionRubberTemplates.Add(newTemplate);
+                await db.SaveChangesAsync(); // generates template ID
+                foreach (var r in source.RubberTemplate.Rubbers.OrderBy(r => r.Order))
+                {
+                    db.RubberTemplateRubbers.Add(new RubberTemplateRubber
+                    {
+                        CompetitionRubberTemplateId = newTemplate.CompetitionRubberTemplateId,
+                        Order        = r.Order,
+                        Name         = r.Name,
+                        CourtNumber  = r.CourtNumber,
+                        HomeRolesJson = r.HomeRolesJson,
+                        AwayRolesJson = r.AwayRolesJson,
+                    });
+                }
+            }
+
+            // Copy active participants (reset status to Registered)
+            if (_cloneCopyParticipants)
+            {
+                var toClone = await db.CompetitionParticipants
+                    .Where(p => p.CompetitionId == Id
+                        && p.Status != ParticipantStatus.Withdrawn
+                        && p.Status != ParticipantStatus.Disqualified)
+                    .ToListAsync();
+                foreach (var p in toClone)
+                {
+                    db.CompetitionParticipants.Add(new CompetitionParticipant
+                    {
+                        CompetitionId = newComp.CompetitionID,
+                        PlayerId      = p.PlayerId,
+                        RegisteredAt  = DateTime.UtcNow,
+                        Status        = ParticipantStatus.Registered,
+                    });
+                }
+            }
+
+            await db.SaveChangesAsync();
+            _showCloneDialog = false;
+            Nav.NavigateTo($"/competition/{newComp.CompetitionID}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to clone competition: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cloneSaving = false;
+        }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private static string ParticipantStatusLabel(ParticipantStatus s) => s switch
+    {
+        ParticipantStatus.FullPlayer => "Full Player",
+        _ => s.ToString()
+    };
+
     private void OpenSeedDivisionsDialog()
     {
         _seedSourceCompetitionId = _seedSourceCandidates.FirstOrDefault()?.CompetitionID;
@@ -2857,7 +3033,7 @@ else
     {
         var members = _participants
             .Where(p => p.TeamId == team.CompetitionTeamId
-                && (p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed))
+                && p.Status == ParticipantStatus.FullPlayer)
             .ToList();
 
         var errors = new List<string>();
@@ -3013,12 +3189,20 @@ else
         _generatedPreview = [];
 
         var active = _participants
-            .Where(p => p.Status is ParticipantStatus.Registered or ParticipantStatus.Confirmed)
+            .Where(p => p.Status == ParticipantStatus.FullPlayer)
             .ToList();
+
+        // Warn about participants who will be skipped
+        var skippedRegistered = _participants.Count(p => p.Status == ParticipantStatus.Registered);
+        var skippedDisqualified = _participants.Count(p => p.Status == ParticipantStatus.Disqualified);
+        if (skippedRegistered > 0)
+            _generateWarnings.Add($"{skippedRegistered} participant(s) with status 'Registered' will be skipped — only Full Players are included in team generation. Confirm their participation first.");
+        if (skippedDisqualified > 0)
+            _generateWarnings.Add($"{skippedDisqualified} disqualified participant(s) will be skipped.");
 
         if (active.Count == 0)
         {
-            _generateWarnings.Add("No active participants to generate from.");
+            _generateWarnings.Add("No Full Players to generate from.");
             return;
         }
 
@@ -4397,7 +4581,7 @@ else
             .ToHashSet();
 
         var activePlayers = _participants
-            .Where(p => p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed)
+            .Where(p => p.Status == ParticipantStatus.FullPlayer)
             .Select(p => p.PlayerId)
             .ToList();
 

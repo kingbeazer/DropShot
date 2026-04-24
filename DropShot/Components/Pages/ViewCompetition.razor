@@ -31,7 +31,36 @@ else if (!_competition.IsStarted && !_canEdit)
 }
 else if (!_canView)
 {
-    <MudAlert Severity="Severity.Warning" Class="mb-4">You can only view this competition if you are registered to play in it.</MudAlert>
+    @if (!string.IsNullOrEmpty(_currentUserId) && !(_competition!.IsRestricted))
+    {
+        @* Logged-in player who is not yet registered — offer self-registration *@
+        <MudCard Class="mb-4" Elevation="2">
+            <MudCardContent>
+                <MudText Typo="Typo.h6" Class="mb-2">Join @_competition.CompetitionName</MudText>
+                @if (!string.IsNullOrEmpty(_selfRegisterError))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">@_selfRegisterError</MudAlert>
+                }
+                <MudText Typo="Typo.body2" Class="mb-3">How would you like to participate?</MudText>
+                <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="_selfRegisterSaving"
+                               OnClick="@(() => SelfRegisterAsync(ParticipantStatus.FullPlayer))">
+                        Register as Full Player
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               Disabled="_selfRegisterSaving"
+                               OnClick="@(() => SelfRegisterAsync(ParticipantStatus.Substitute))">
+                        Register as Substitute
+                    </MudButton>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4">You can only view this competition if you are registered to play in it.</MudAlert>
+    }
 }
 else
 {
@@ -84,6 +113,35 @@ else
             </MudItem>
         }
     </MudGrid>
+
+    @* ── Confirm participation banner (for Registered-only players) ── *@
+    @if (!_canEdit && _myParticipant?.Status == ParticipantStatus.Registered)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.body2">
+                    You are registered for this competition but have not yet confirmed your participation.
+                    Please indicate how you would like to take part:
+                </MudText>
+                @if (!string.IsNullOrEmpty(_selfRegisterError))
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true">@_selfRegisterError</MudAlert>
+                }
+                <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               Disabled="_selfRegisterSaving"
+                               OnClick="@(() => ConfirmParticipationAsync(ParticipantStatus.FullPlayer))">
+                        Enter as Full Player
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                               Disabled="_selfRegisterSaving"
+                               OnClick="@(() => ConfirmParticipationAsync(ParticipantStatus.Substitute))">
+                        Enter as Substitute
+                    </MudButton>
+                </MudStack>
+            </MudStack>
+        </MudAlert>
+    }
 
     <MudDivider Class="mb-4" />
 
@@ -341,13 +399,39 @@ else
                                     <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
                                     <MudTd DataLabel="Status">
                                         <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                                            @context.Status
+                                            @ParticipantStatusLabel(context.Status)
                                         </MudChip>
                                     </MudTd>
                                 </RowTemplate>
                                 <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
                             </MudTable>
                         }
+                    }
+
+                    @* ── Substitutes for this division ── *@
+                    @{
+                        var divSubs = _participants
+                            .Where(p => p.Status == ParticipantStatus.Substitute
+                                && (p.CompetitionDivisionId == divKey
+                                    || (p.TeamId.HasValue && divTeams.Any(t => t.CompetitionTeamId == p.TeamId.Value))))
+                            .OrderBy(p => p.Player?.DisplayName)
+                            .ToList();
+                    }
+                    @if (divSubs.Count > 0)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Substitutes</MudText>
+                        <MudTable Items="@divSubs" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table">
+                            <HeaderContent>
+                                <MudTh Style="width:auto">Player</MudTh>
+                                <MudTh Style="width:180px">Mobile</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Player">@context.Player?.DisplayName</MudTd>
+                                <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
+                            </RowTemplate>
+                            <NoRecordsContent><MudText Typo="Typo.caption">No substitutes.</MudText></NoRecordsContent>
+                        </MudTable>
                     }
                 </MudExpansionPanel>
         }
@@ -503,7 +587,7 @@ else
                         <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
                         <MudTd DataLabel="Status">
                             <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                                @context.Status
+                                @ParticipantStatusLabel(context.Status)
                             </MudChip>
                         </MudTd>
                     </RowTemplate>
@@ -543,7 +627,7 @@ else
                         <MudTd DataLabel="Mobile">@(context.Player?.MobileNumber ?? "—")</MudTd>
                         <MudTd DataLabel="Status">
                             <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                                @context.Status
+                                @ParticipantStatusLabel(context.Status)
                             </MudChip>
                         </MudTd>
                     </RowTemplate>
@@ -629,6 +713,12 @@ else
     private List<DivisionFixtureGroup> _fixturesByDivision = [];
     private List<(CompetitionDivision? Division, List<CompetitionTeam> Teams)> _teamsByDivision = [];
 
+    // Self-registration / participation confirmation state
+    private CompetitionParticipant? _myParticipant;
+    private string? _currentUserId;
+    private bool _selfRegisterSaving;
+    private string? _selfRegisterError;
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
@@ -685,6 +775,10 @@ else
             _participants = _competition.Participants
                 .OrderBy(p => p.Player?.DisplayName)
                 .ToList();
+
+            // Track current user's participant record for self-registration / status-upgrade flows
+            _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _myParticipant = _participants.FirstOrDefault(p => p.Player?.UserId == _currentUserId);
 
             _teams = _competition.Teams
                 .OrderBy(t => t.Name)
@@ -1022,11 +1116,94 @@ else
 
     private static Color ParticipantColor(ParticipantStatus s) => s switch
     {
-        ParticipantStatus.Confirmed => Color.Success,
-        ParticipantStatus.Registered => Color.Info,
-        ParticipantStatus.Withdrawn => Color.Warning,
+        ParticipantStatus.FullPlayer   => Color.Success,
+        ParticipantStatus.Substitute   => Color.Info,
+        ParticipantStatus.Registered   => Color.Default,
+        ParticipantStatus.Withdrawn    => Color.Warning,
         ParticipantStatus.Disqualified => Color.Error,
         _ => Color.Default
     };
+
+    private static string ParticipantStatusLabel(ParticipantStatus s) => s switch
+    {
+        ParticipantStatus.FullPlayer => "Full Player",
+        _ => s.ToString()
+    };
+
+    private async Task SelfRegisterAsync(ParticipantStatus status)
+    {
+        if (string.IsNullOrEmpty(_currentUserId) || _competition == null) return;
+        _selfRegisterSaving = true;
+        _selfRegisterError = null;
+        StateHasChanged();
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == _currentUserId);
+            if (player == null)
+            {
+                _selfRegisterError = "Could not find your player record.";
+                return;
+            }
+            var existing = await db.CompetitionParticipants
+                .AnyAsync(cp => cp.CompetitionId == _competition.CompetitionID && cp.PlayerId == player.PlayerId);
+            if (existing)
+            {
+                _selfRegisterError = "You are already registered for this competition.";
+                return;
+            }
+            db.CompetitionParticipants.Add(new CompetitionParticipant
+            {
+                CompetitionId = _competition.CompetitionID,
+                PlayerId = player.PlayerId,
+                Status = status,
+                RegisteredAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            _selfRegisterError = $"Registration failed: {ex.Message}";
+        }
+        finally
+        {
+            _selfRegisterSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConfirmParticipationAsync(ParticipantStatus status)
+    {
+        if (string.IsNullOrEmpty(_currentUserId) || _competition == null || _myParticipant == null) return;
+        _selfRegisterSaving = true;
+        _selfRegisterError = null;
+        StateHasChanged();
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var participant = await db.CompetitionParticipants
+                .FirstOrDefaultAsync(cp => cp.CompetitionId == _competition.CompetitionID
+                    && cp.PlayerId == _myParticipant.PlayerId);
+            if (participant == null)
+            {
+                _selfRegisterError = "Could not find your participant record.";
+                return;
+            }
+            participant.Status = status;
+            await db.SaveChangesAsync();
+            _myParticipant.Status = status;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _selfRegisterError = $"Failed to update status: {ex.Message}";
+        }
+        finally
+        {
+            _selfRegisterSaving = false;
+            StateHasChanged();
+        }
+    }
 
 }
