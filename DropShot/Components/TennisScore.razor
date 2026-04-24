@@ -1343,6 +1343,19 @@
                         }
                     }
                 }
+                else
+                {
+                    // Rubbers are in progress but not all done — mark fixture InProgress
+                    // now that the first rubber has been scored. Status is deliberately
+                    // NOT set in EnsureRubbersAsync (which runs on page load) so the
+                    // fixture stays Scheduled until an actual score is recorded.
+                    var fx = await dbc4.CompetitionFixtures.FindAsync(rub.CompetitionFixtureId);
+                    if (fx != null && fx.Status == FixtureStatus.Scheduled)
+                    {
+                        fx.Status = FixtureStatus.InProgress;
+                        await dbc4.SaveChangesAsync();
+                    }
+                }
             }
         }
     }
