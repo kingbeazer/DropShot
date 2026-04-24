@@ -55,12 +55,16 @@
 
     private List<(string P1, string P2)> _sets = [];
 
+    private bool IsTeamMatch => Fixture != null
+        && (Fixture.HomeTeamId.HasValue || Fixture.AwayTeamId.HasValue);
+
     private string Player1Name
     {
         get
         {
             if (Fixture != null)
             {
+                if (IsTeamMatch) return Fixture.HomeTeam?.Name ?? "TBD";
                 return Fixture.Player3 != null
                     ? $"{Fixture.Player1?.DisplayName ?? "TBD"} & {Fixture.Player3?.DisplayName ?? "TBD"}"
                     : Fixture.Player1?.DisplayName ?? "TBD";
@@ -81,6 +85,7 @@
         {
             if (Fixture != null)
             {
+                if (IsTeamMatch) return Fixture.AwayTeam?.Name ?? "TBD";
                 return Fixture.Player4 != null
                     ? $"{Fixture.Player2?.DisplayName ?? "TBD"} & {Fixture.Player4?.DisplayName ?? "TBD"}"
                     : Fixture.Player2?.DisplayName ?? "TBD";

@@ -22,6 +22,13 @@ public class Rubber
     public string HomeRolesJson { get; set; } = "[]";
     public string AwayRolesJson { get; set; } = "[]";
 
+    /// <summary>
+    /// JSON array of per-set scores, e.g. [[6,4],[4,6],[7,5]]. Populated at
+    /// rubber-submit time so the UI can show individual set scores alongside
+    /// the set-count summary.
+    /// </summary>
+    public string? SetScoresJson { get; set; }
+
     public int? HomePlayer1Id { get; set; }
     public int? HomePlayer2Id { get; set; }
     public int? AwayPlayer1Id { get; set; }
@@ -57,5 +64,23 @@ public class Rubber
     {
         get => JsonSerializer.Deserialize<List<string>>(AwayRolesJson) ?? [];
         set => AwayRolesJson = JsonSerializer.Serialize(value);
+    }
+
+    [NotMapped]
+    public IReadOnlyList<(int Home, int Away)> SetScores
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(SetScoresJson)) return [];
+            try
+            {
+                var raw = JsonSerializer.Deserialize<List<int[]>>(SetScoresJson);
+                return raw?.Where(p => p.Length == 2).Select(p => (p[0], p[1])).ToList() ?? [];
+            }
+            catch
+            {
+                return [];
+            }
+        }
     }
 }
