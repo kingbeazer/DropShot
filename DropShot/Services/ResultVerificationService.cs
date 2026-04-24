@@ -40,6 +40,95 @@ public class ResultVerificationService(EmailService emailService, EmailTemplateS
         await Task.WhenAll(adminEmails.Select(email => SendSafe(email, subject, html, "admin verification", isHtml: true)));
     }
 
+    // ── Team match (rubber-based) notifications ──────────────────────────────
+
+    /// <summary>
+    /// Sends a result notification to every player who participated in the team
+    /// match (home and away players across all rubbers).
+    /// </summary>
+    public async Task SendResultNotificationForTeamMatchAsync(CompetitionFixture fixture, IEnumerable<Rubber> rubbers)
+    {
+        var title = FixtureTitle(fixture);
+        var (home, away) = SideNames(fixture);
+        var winnerName = WinnerName(fixture);
+        var subject = $"Match result: {home} vs {away}";
+        var rubberData = BuildRubberEmailData(rubbers, fixture);
+        var html = emailTemplateService.MatchResultEmailForTeamMatch(title, home, away, winnerName, rubberData);
+
+        var playerEmails = rubbers
+            .SelectMany(r => new[] { r.HomePlayer1, r.HomePlayer2, r.AwayPlayer1, r.AwayPlayer2 })
+            .Where(p => p?.Email != null)
+            .Select(p => p!.Email!)
+            .Distinct()
+            .Select(email => SendSafe(email, subject, html, "team match result notification", isHtml: true));
+
+        await Task.WhenAll(playerEmails);
+    }
+
+    /// <summary>
+    /// Sends an admin verification email for a team match. The fixture must already
+    /// have a VerificationToken set.
+    /// </summary>
+    public async Task SendAdminVerificationEmailsForTeamMatchAsync(
+        CompetitionFixture fixture, IEnumerable<Rubber> rubbers, IEnumerable<string> adminEmails)
+    {
+        if (fixture.VerificationToken == null) return;
+
+        var title = FixtureTitle(fixture);
+        var (home, away) = SideNames(fixture);
+        var winnerName = WinnerName(fixture);
+        var verifyUrl = $"{BaseUrl}/verify-result/{fixture.VerificationToken}";
+        var subject = $"Result verification required: {home} vs {away}";
+        var rubberData = BuildRubberEmailData(rubbers, fixture);
+        var html = emailTemplateService.AdminVerificationEmailForTeamMatch(title, home, away, winnerName, verifyUrl, rubberData);
+
+        await Task.WhenAll(adminEmails.Select(email =>
+            SendSafe(email, subject, html, "team match admin verification", isHtml: true)));
+    }
+
+    private static IEnumerable<(string Name, string HomePlayers, string AwayPlayers, string Score, bool? HomeWon)>
+        BuildRubberEmailData(IEnumerable<Rubber> rubbers, CompetitionFixture fixture)
+    {
+        foreach (var r in rubbers.OrderBy(x => x.Order))
+        {
+            var homeParts = new[] { r.HomePlayer1?.DisplayName, r.HomePlayer2?.DisplayName }
+                .Where(n => !string.IsNullOrEmpty(n));
+            var awayParts = new[] { r.AwayPlayer1?.DisplayName, r.AwayPlayer2?.DisplayName }
+                .Where(n => !string.IsNullOrEmpty(n));
+
+            string score;
+            bool? homeWon = null;
+            if (r.IsComplete && r.HomeSetsWon.HasValue && r.AwaySetsWon.HasValue)
+            {
+                score = $"{r.HomeSetsWon}–{r.AwaySetsWon} sets";
+                homeWon = r.WinnerTeamId == fixture.HomeTeamId ? true
+                        : r.WinnerTeamId == fixture.AwayTeamId ? false
+                        : (bool?)null;
+            }
+            else if (r.IsComplete && r.HomeGames.HasValue && r.AwayGames.HasValue)
+            {
+                score = $"{r.HomeGames}–{r.AwayGames}";
+                homeWon = r.WinnerTeamId == fixture.HomeTeamId ? true
+                        : r.WinnerTeamId == fixture.AwayTeamId ? false
+                        : (bool?)null;
+            }
+            else
+            {
+                score = "Not played";
+            }
+
+            yield return (
+                r.Name,
+                homeParts.Any() ? string.Join(" & ", homeParts) : "TBD",
+                awayParts.Any() ? string.Join(" & ", awayParts) : "TBD",
+                score,
+                homeWon
+            );
+        }
+    }
+
+    // ── Shared ───────────────────────────────────────────────────────────────
+
     public async Task<List<string>> GetAdminEmailsForCompetitionAsync(int competitionId, MyDbContext db)
     {
         return await db.ClubAdministrators

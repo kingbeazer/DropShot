@@ -5,6 +5,7 @@
 
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
+@inject ResultVerificationService ResultVerificationService
 
 <MudDialog>
     <TitleContent>Enter rubber score</TitleContent>
@@ -186,6 +187,8 @@
             // If every rubber in this fixture is now complete, finalize the fixture
             // result — same pathway as the live-scoring match-end handler.
             var allRubbers = await db.Rubbers
+                .Include(r => r.HomePlayer1).Include(r => r.HomePlayer2)
+                .Include(r => r.AwayPlayer1).Include(r => r.AwayPlayer2)
                 .Where(r => r.CompetitionFixtureId == rub.CompetitionFixtureId)
                 .ToListAsync();
 
@@ -194,17 +197,37 @@
             {
                 var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
                     allRubbers, rub.Fixture.HomeTeamId.Value, rub.Fixture.AwayTeamId.Value);
-                var fx = await db.CompetitionFixtures.FindAsync(rub.CompetitionFixtureId);
+                var fx = await db.CompetitionFixtures
+                    .Include(f => f.Competition)
+                    .Include(f => f.HomeTeam)
+                    .Include(f => f.AwayTeam)
+                    .FirstOrDefaultAsync(f => f.CompetitionFixtureId == rub.CompetitionFixtureId);
                 if (fx != null)
                 {
-                    fx.Status = FixtureStatus.Completed;
-                    fx.CompletedAt = DateTime.UtcNow;
                     fx.ResultSummary = $"{homeScore}-{awayScore}";
                     fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
                                     : awayScore > homeScore ? fx.AwayTeamId
                                     : null;
-                    await db.SaveChangesAsync();
-                    await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+                    fx.CompletedAt = DateTime.UtcNow;
+
+                    bool requireVerification = fx.Competition?.RequireVerification ?? false;
+                    if (requireVerification)
+                    {
+                        fx.Status = FixtureStatus.AwaitingVerification;
+                        fx.VerificationToken = Guid.NewGuid();
+                        await db.SaveChangesAsync();
+
+                        var adminEmails = await ResultVerificationService.GetAdminEmailsForCompetitionAsync(fx.CompetitionId, db);
+                        await ResultVerificationService.SendAdminVerificationEmailsForTeamMatchAsync(fx, allRubbers, adminEmails);
+                    }
+                    else
+                    {
+                        fx.Status = FixtureStatus.Completed;
+                        await db.SaveChangesAsync();
+                        await Task.WhenAll(
+                            ResultVerificationService.SendResultNotificationForTeamMatchAsync(fx, allRubbers),
+                            CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId));
+                    }
                 }
             }
 

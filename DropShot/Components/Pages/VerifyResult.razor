@@ -62,56 +62,103 @@
                         </MudText>
                     </MudAlert>
 
-                    <MudSwitch @bind-Value="_editing" Label="Modify score" Color="Color.Warning" />
-
-                    @if (_editing)
+                    @* ── Team match: show rubber-by-rubber breakdown ── *@
+                    @if (_isTeamMatch && _rubbers.Count > 0)
                     {
-                        <MudAlert Severity="Severity.Warning" Dense="true">
-                            The original submission will be preserved for audit purposes.
-                        </MudAlert>
-
-                        <MudText Typo="Typo.subtitle2">Updated Set Scores</MudText>
-                        <MudSimpleTable Dense="true" Style="max-width:300px">
+                        <MudText Typo="Typo.subtitle2">Rubber Results</MudText>
+                        <MudSimpleTable Dense="true">
                             <thead>
                                 <tr>
-                                    <th style="width:50px"></th>
-                                    <th style="text-align:center; font-size:0.8rem">@_side1</th>
-                                    <th style="width:20px"></th>
-                                    <th style="text-align:center; font-size:0.8rem">@_side2</th>
+                                    <th>Rubber</th>
+                                    <th>@_side1</th>
+                                    <th>@_side2</th>
+                                    <th style="text-align:center">Score</th>
+                                    <th>Winner</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @for (int i = 0; i < _bestOf; i++)
+                                @foreach (var r in _rubbers.OrderBy(r => r.Order))
                                 {
-                                    int idx = i;
+                                    var homePair = string.Join(" & ", new[] { r.HomePlayer1?.DisplayName, r.HomePlayer2?.DisplayName }.Where(n => !string.IsNullOrEmpty(n)));
+                                    var awayPair = string.Join(" & ", new[] { r.AwayPlayer1?.DisplayName, r.AwayPlayer2?.DisplayName }.Where(n => !string.IsNullOrEmpty(n)));
+                                    var rubberScore = r.IsComplete && r.HomeSetsWon.HasValue
+                                        ? $"{r.HomeSetsWon}–{r.AwaySetsWon}"
+                                        : "—";
+                                    var rubberWinner = !r.IsComplete ? "—"
+                                        : r.WinnerTeamId == _fixture.HomeTeamId ? _side1
+                                        : r.WinnerTeamId == _fixture.AwayTeamId ? _side2
+                                        : "Draw";
                                     <tr>
-                                        <td style="color:#888; font-size:0.8rem; padding-right:8px">Set @(idx + 1)</td>
-                                        <td>
-                                            <MudNumericField T="int?" @bind-Value="_score1[idx]"
-                                                            Min="0" Max="13" Variant="Variant.Outlined"
-                                                            Style="width:65px" HideSpinButtons="true" />
-                                        </td>
-                                        <td style="text-align:center; padding:0 4px; font-weight:bold">-</td>
-                                        <td>
-                                            <MudNumericField T="int?" @bind-Value="_score2[idx]"
-                                                            Min="0" Max="13" Variant="Variant.Outlined"
-                                                            Style="width:65px" HideSpinButtons="true" />
-                                        </td>
+                                        <td>@r.Name</td>
+                                        <td style="font-size:0.8rem">@(string.IsNullOrEmpty(homePair) ? "TBD" : homePair)</td>
+                                        <td style="font-size:0.8rem">@(string.IsNullOrEmpty(awayPair) ? "TBD" : awayPair)</td>
+                                        <td style="text-align:center;font-weight:bold">@rubberScore</td>
+                                        <td>@rubberWinner</td>
                                     </tr>
                                 }
                             </tbody>
                         </MudSimpleTable>
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            Score modification is not available for team matches. To correct rubber scores, use the
+                            <MudLink Href="@($"/team-match/{_fixture.CompetitionFixtureId}")">team match page</MudLink>
+                            after approving.
+                        </MudAlert>
+                    }
 
-                        <MudSelect T="int?" @bind-Value="_winnerPlayerId" Label="Winner" Variant="Variant.Outlined">
-                            @if (_fixture.Player1Id.HasValue)
-                            {
-                                <MudSelectItem T="int?" Value="@_fixture.Player1Id">@_side1</MudSelectItem>
-                            }
-                            @if (_fixture.Player2Id.HasValue)
-                            {
-                                <MudSelectItem T="int?" Value="@_fixture.Player2Id">@_side2</MudSelectItem>
-                            }
-                        </MudSelect>
+                    @* ── Individual match: allow score editing ── *@
+                    @if (!_isTeamMatch)
+                    {
+                        <MudSwitch @bind-Value="_editing" Label="Modify score" Color="Color.Warning" />
+
+                        @if (_editing)
+                        {
+                            <MudAlert Severity="Severity.Warning" Dense="true">
+                                The original submission will be preserved for audit purposes.
+                            </MudAlert>
+
+                            <MudText Typo="Typo.subtitle2">Updated Set Scores</MudText>
+                            <MudSimpleTable Dense="true" Style="max-width:300px">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50px"></th>
+                                        <th style="text-align:center; font-size:0.8rem">@_side1</th>
+                                        <th style="width:20px"></th>
+                                        <th style="text-align:center; font-size:0.8rem">@_side2</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < _bestOf; i++)
+                                    {
+                                        int idx = i;
+                                        <tr>
+                                            <td style="color:#888; font-size:0.8rem; padding-right:8px">Set @(idx + 1)</td>
+                                            <td>
+                                                <MudNumericField T="int?" @bind-Value="_score1[idx]"
+                                                                Min="0" Max="13" Variant="Variant.Outlined"
+                                                                Style="width:65px" HideSpinButtons="true" />
+                                            </td>
+                                            <td style="text-align:center; padding:0 4px; font-weight:bold">-</td>
+                                            <td>
+                                                <MudNumericField T="int?" @bind-Value="_score2[idx]"
+                                                                Min="0" Max="13" Variant="Variant.Outlined"
+                                                                Style="width:65px" HideSpinButtons="true" />
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+
+                            <MudSelect T="int?" @bind-Value="_winnerPlayerId" Label="Winner" Variant="Variant.Outlined">
+                                @if (_fixture.Player1Id.HasValue)
+                                {
+                                    <MudSelectItem T="int?" Value="@_fixture.Player1Id">@_side1</MudSelectItem>
+                                }
+                                @if (_fixture.Player2Id.HasValue)
+                                {
+                                    <MudSelectItem T="int?" Value="@_fixture.Player2Id">@_side2</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
                     }
 
                     @if (!string.IsNullOrEmpty(_error))
@@ -146,6 +193,8 @@
     private int? _competitionId;
 
     private CompetitionFixture? _fixture;
+    private List<Rubber> _rubbers = [];
+    private bool _isTeamMatch;
     private string _side1 = "";
     private string _side2 = "";
     private int _bestOf = 3;
@@ -169,6 +218,8 @@
 
         _fixture = await db.CompetitionFixtures
             .Include(f => f.Competition)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
             .Include(f => f.Player1).Include(f => f.Player2)
             .Include(f => f.Player3).Include(f => f.Player4)
             .FirstOrDefaultAsync(f => f.VerificationToken == token && f.Status == FixtureStatus.AwaitingVerification);
@@ -180,20 +231,37 @@
             return;
         }
 
-        var comp = _fixture.Competition;
-        _bestOf = comp?.MatchFormat == MatchFormatType.FixedSets
-            ? Math.Max(1, comp.NumberOfSets)
-            : Math.Max(1, comp?.BestOf ?? 3);
-        _score1 = new int?[_bestOf];
-        _score2 = new int?[_bestOf];
+        _isTeamMatch = _fixture.HomeTeamId.HasValue || _fixture.AwayTeamId.HasValue;
 
-        var s1Parts = new[] { _fixture.Player1?.DisplayName, _fixture.Player3?.DisplayName }.Where(n => n != null).ToList();
-        var s2Parts = new[] { _fixture.Player2?.DisplayName, _fixture.Player4?.DisplayName }.Where(n => n != null).ToList();
-        _side1 = s1Parts.Any() ? string.Join(" & ", s1Parts) : "Player 1";
-        _side2 = s2Parts.Any() ? string.Join(" & ", s2Parts) : "Player 2";
+        if (_isTeamMatch)
+        {
+            _rubbers = await db.Rubbers
+                .Include(r => r.HomePlayer1).Include(r => r.HomePlayer2)
+                .Include(r => r.AwayPlayer1).Include(r => r.AwayPlayer2)
+                .Where(r => r.CompetitionFixtureId == _fixture.CompetitionFixtureId)
+                .OrderBy(r => r.Order)
+                .ToListAsync();
 
-        _winnerPlayerId = _fixture.WinnerPlayerId;
-        ParseResultSummary(_fixture.ResultSummary);
+            _side1 = _fixture.HomeTeam?.Name ?? "Home";
+            _side2 = _fixture.AwayTeam?.Name ?? "Away";
+        }
+        else
+        {
+            var comp = _fixture.Competition;
+            _bestOf = comp?.MatchFormat == MatchFormatType.FixedSets
+                ? Math.Max(1, comp.NumberOfSets)
+                : Math.Max(1, comp?.BestOf ?? 3);
+            _score1 = new int?[_bestOf];
+            _score2 = new int?[_bestOf];
+
+            var s1Parts = new[] { _fixture.Player1?.DisplayName, _fixture.Player3?.DisplayName }.Where(n => n != null).ToList();
+            var s2Parts = new[] { _fixture.Player2?.DisplayName, _fixture.Player4?.DisplayName }.Where(n => n != null).ToList();
+            _side1 = s1Parts.Any() ? string.Join(" & ", s1Parts) : "Player 1";
+            _side2 = s2Parts.Any() ? string.Join(" & ", s2Parts) : "Player 2";
+
+            _winnerPlayerId = _fixture.WinnerPlayerId;
+            ParseResultSummary(_fixture.ResultSummary);
+        }
 
         _loading = false;
     }
@@ -216,6 +284,14 @@
 
     private string WinnerName()
     {
+        // Team match — winner identified by WinnerTeamId
+        if (_fixture?.WinnerTeamId.HasValue == true)
+        {
+            if (_fixture.WinnerTeamId == _fixture.HomeTeamId) return _side1;
+            if (_fixture.WinnerTeamId == _fixture.AwayTeamId) return _side2;
+            return "Draw";
+        }
+        // Individual match — winner identified by WinnerPlayerId
         if (_fixture?.WinnerPlayerId == _fixture?.Player1Id) return _side1;
         if (_fixture?.WinnerPlayerId == _fixture?.Player2Id) return _side2;
         return "Unknown";
@@ -225,7 +301,7 @@
     {
         _error = null;
 
-        if (_editing)
+        if (!_isTeamMatch && _editing)
         {
             var enteredSets = Enumerable.Range(0, _bestOf)
                 .Where(i => _score1[i].HasValue || _score2[i].HasValue)
@@ -243,7 +319,7 @@
                 .FirstOrDefaultAsync(f => f.CompetitionFixtureId == _fixture!.CompetitionFixtureId);
             if (fx == null) { _error = "Fixture not found."; return; }
 
-            if (_editing)
+            if (!_isTeamMatch && _editing)
             {
                 var newSummary = string.Join(" ", Enumerable.Range(0, _bestOf)
                     .Where(i => _score1[i].HasValue || _score2[i].HasValue)
