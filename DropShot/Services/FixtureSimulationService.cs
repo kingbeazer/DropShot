@@ -83,6 +83,8 @@ public class FixtureSimulationService(RubberResolutionService rubberResolver)
         var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
             allRubbers, fx.HomeTeamId!.Value, fx.AwayTeamId!.Value);
 
+        // Simulation is a super-admin test tool — always completes immediately,
+        // bypassing RequireVerification regardless of the competition setting.
         fx.Status = FixtureStatus.Completed;
         fx.CompletedAt = DateTime.UtcNow;
         fx.ResultSummary = $"{homeScore}-{awayScore}";
@@ -108,6 +110,8 @@ public class FixtureSimulationService(RubberResolutionService rubberResolver)
         fx.WinnerPlayerId = side1Sets > side2Sets ? fx.Player1Id
                            : side2Sets > side1Sets ? fx.Player2Id
                            : null;
+        // Simulation is a super-admin test tool — always completes immediately,
+        // bypassing RequireVerification regardless of the competition setting.
         fx.Status = FixtureStatus.Completed;
         fx.CompletedAt = DateTime.UtcNow;
         fx.VerificationToken = null;
