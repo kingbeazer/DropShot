@@ -430,6 +430,14 @@
 
     private async Task OpenSubmitScoreAsync(CompetitionFixture fixture)
     {
+        // Team match fixtures (with rubbers) are scored on the team-match page,
+        // not via the individual-match score dialog.
+        if (fixture.HomeTeamId.HasValue || fixture.AwayTeamId.HasValue)
+        {
+            Navigation.NavigateTo($"/team-match/{fixture.CompetitionFixtureId}");
+            return;
+        }
+
         var parameters = new DialogParameters<SubmitScoreDialog> { { x => x.Fixture, fixture } };
         var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
         var result = await dialog.Result;
