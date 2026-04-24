@@ -3532,7 +3532,7 @@ else
         if (comp == null) return true;
 
         var participantIds = _participants
-            .Where(p => p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed)
+            .Where(p => p.Status == ParticipantStatus.FullPlayer)
             .Select(p => p.PlayerId).ToHashSet();
         var missing = playerIds.Where(pid => !participantIds.Contains(pid)).ToList();
         if (missing.Count > 0)
