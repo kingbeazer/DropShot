@@ -49,9 +49,17 @@ else
                         }
                     </MudText>
                 </MudStack>
-                <MudChip T="string" Size="Size.Large" Color="@(_allComplete ? Color.Success : Color.Primary)">
-                    @_homeScore — @_awayScore @_scoreUnit
-                </MudChip>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudChip T="string" Size="Size.Large" Color="@(_allComplete ? Color.Success : Color.Primary)">
+                        @_homeScore — @_awayScore @_scoreUnit
+                    </MudChip>
+                    @if (!_allComplete && _rubbers.Any(r => !r.IsComplete && !r.SavedMatchId.HasValue))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.PlaylistAddCheck"
+                                   OnClick="OpenBulkRubberDialogAsync">Enter all scores</MudButton>
+                    }
+                </MudStack>
             </MudStack>
         </MudPaper>
 
@@ -185,6 +193,25 @@ else
         {
             var returnUrl = $"/team-match/{FixtureId}";
             Navigation.NavigateTo($"/match/{rubber.SavedMatchId}?ReturnUrl={Uri.EscapeDataString(returnUrl)}");
+        }
+    }
+
+    private async Task OpenBulkRubberDialogAsync()
+    {
+        var parameters = new DialogParameters<BulkRubberScoreDialog>
+        {
+            { x => x.FixtureId, FixtureId },
+            { x => x.AdminOverride, _isCompetitionAdmin }
+        };
+        var dlg = await DialogService.ShowAsync<BulkRubberScoreDialog>(
+            "Enter all rubber scores",
+            parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Medium, CloseOnEscapeKey = true });
+        var res = await dlg.Result;
+        if (res is not null && !res.Canceled)
+        {
+            await EnsureAndLoad();
+            StateHasChanged();
         }
     }
 
