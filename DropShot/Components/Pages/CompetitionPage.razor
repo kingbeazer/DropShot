@@ -3401,6 +3401,19 @@ else
                 var p = _participants.FirstOrDefault(x => x.PlayerId == pid);
                 if (p?.CompetitionDivisionId == divisionId) return true;
             }
+
+            // Placeholder knockout fixtures (SF/Final) have no teams or players
+            // assigned yet. Infer division from the label prefix, e.g.
+            // "Premier SF 1" or "Premier Final" → belongs to the division named
+            // "Premier". Use longest-name-first to avoid prefix collisions.
+            if (!string.IsNullOrEmpty(f.FixtureLabel))
+            {
+                var division = _divisions
+                    .OrderByDescending(d => d.Name.Length)
+                    .FirstOrDefault(d => d.CompetitionDivisionId == divisionId
+                        && f.FixtureLabel.StartsWith(d.Name + " ", StringComparison.OrdinalIgnoreCase));
+                if (division != null) return true;
+            }
         }
         return false;
     }
