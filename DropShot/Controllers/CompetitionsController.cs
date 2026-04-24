@@ -431,8 +431,7 @@ public class CompetitionsController(
 
         var members = await db.CompetitionParticipants
             .Where(cp => cp.CompetitionId == id && cp.TeamId == teamId
-                && (cp.Status == DropShot.Models.ParticipantStatus.Registered
-                    || cp.Status == DropShot.Models.ParticipantStatus.Confirmed))
+                && cp.Status == DropShot.Models.ParticipantStatus.FullPlayer)
             .Include(cp => cp.Player)
             .ToListAsync();
 
@@ -592,8 +591,7 @@ public class CompetitionsController(
 
         var confirmedParticipantIds = await db.CompetitionParticipants
             .Where(cp => cp.CompetitionId == id && playerIds.Contains(cp.PlayerId)
-                && (cp.Status == DropShot.Models.ParticipantStatus.Registered
-                    || cp.Status == DropShot.Models.ParticipantStatus.Confirmed))
+                && cp.Status == DropShot.Models.ParticipantStatus.FullPlayer)
             .Select(cp => cp.PlayerId)
             .ToListAsync();
         var missingParticipant = playerIds.Except(confirmedParticipantIds).ToList();
