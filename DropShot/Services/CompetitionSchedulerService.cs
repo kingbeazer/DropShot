@@ -275,6 +275,27 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
             return fixture;
         }
 
+        // Knockout placeholder: always creates the fixture. Tries to pick a slot
+        // first; falls back to ScheduledAt = null if slots are exhausted so the
+        // placeholder still appears in the fixture list (matching the old behaviour
+        // where the slot-picker always returned a fallback date rather than null).
+        CompetitionFixture NewKnockoutPlaceholder(int? divisionId = null)
+        {
+            var slot = PickSlot([], [], divisionId);
+            var fixture = new CompetitionFixture
+            {
+                CompetitionId = competitionId,
+                ScheduledAt   = slot?.time,
+                Status        = FixtureStatus.Scheduled,
+            };
+            if (slot is not null)
+            {
+                if (isTeamMatchScheduling) fixture.CourtPairId = slot.Value.courtId;
+                else fixture.CourtId = slot.Value.courtId;
+            }
+            return fixture;
+        }
+
         // ── Knockout bucket enumeration ──────────────────────────────────────
         IEnumerable<(string? DivPrefix, int? DivisionId, int N)> EnumerateKnockoutBuckets()
         {
@@ -303,8 +324,7 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
             {
                 var label = divPrefix is null ? $"{fullLabel} {m + 1}" : $"{divPrefix} {shortLabel} {m + 1}";
                 if (existingLabels.Contains(((int?)stageId, label))) continue;
-                var f = NewScheduledFixture(divisionId: divisionId);
-                if (f == null) { unscheduled++; continue; }
+                var f = NewKnockoutPlaceholder(divisionId);
                 f.CompetitionStageId = stageId;
                 f.FixtureLabel = label;
                 f.RoundNumber = roundNumber;
@@ -316,8 +336,7 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
         {
             var label = divPrefix is null ? "Final" : $"{divPrefix} Final";
             if (existingLabels.Contains(((int?)stageId, label))) return;
-            var f = NewScheduledFixture(divisionId: divisionId);
-            if (f == null) { unscheduled++; return; }
+            var f = NewKnockoutPlaceholder(divisionId);
             f.CompetitionStageId = stageId;
             f.FixtureLabel = label;
             f.RoundNumber = roundNumber;
