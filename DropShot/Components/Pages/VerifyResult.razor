@@ -6,6 +6,7 @@
 @using Microsoft.EntityFrameworkCore
 
 @inject IDbContextFactory<MyDbContext> DbFactory
+@inject IDialogService DialogService
 
 <MudProviders />
 <PageTitle>Verify Result</PageTitle>
@@ -56,7 +57,19 @@
 
                     <MudAlert Severity="Severity.Info" Dense="true" NoIcon="true">
                         <MudText Typo="Typo.subtitle2">Submitted Score</MudText>
-                        <MudText Typo="Typo.h6">@_fixture.ResultSummary</MudText>
+                        @if (_isTeamMatch)
+                        {
+                            <MudText Typo="Typo.h6">
+                                @_aggregateHome – @_aggregateAway @_aggregateUnit
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @_secondaryAggregate
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.h6">@_fixture.ResultSummary</MudText>
+                        }
                         <MudText Typo="Typo.body2">
                             Winner: <strong>@WinnerName()</strong>
                         </MudText>
@@ -72,8 +85,10 @@
                                     <th>Rubber</th>
                                     <th>@_side1</th>
                                     <th>@_side2</th>
-                                    <th style="text-align:center">Score</th>
+                                    <th style="text-align:center">Sets</th>
+                                    <th style="text-align:center">Set scores</th>
                                     <th>Winner</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -84,6 +99,9 @@
                                     var rubberScore = r.IsComplete && r.HomeSetsWon.HasValue
                                         ? $"{r.HomeSetsWon}–{r.AwaySetsWon}"
                                         : "—";
+                                    var setScores = r.SetScores.Count > 0
+                                        ? string.Join(", ", r.SetScores.Select(s => $"{s.Home}-{s.Away}"))
+                                        : "—";
                                     var rubberWinner = !r.IsComplete ? "—"
                                         : r.WinnerTeamId == _fixture.HomeTeamId ? _side1
                                         : r.WinnerTeamId == _fixture.AwayTeamId ? _side2
@@ -93,15 +111,20 @@
                                         <td style="font-size:0.8rem">@(string.IsNullOrEmpty(homePair) ? "TBD" : homePair)</td>
                                         <td style="font-size:0.8rem">@(string.IsNullOrEmpty(awayPair) ? "TBD" : awayPair)</td>
                                         <td style="text-align:center;font-weight:bold">@rubberScore</td>
+                                        <td style="text-align:center;font-size:0.8rem">@setScores</td>
                                         <td>@rubberWinner</td>
+                                        <td>
+                                            <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit"
+                                                           OnClick="@(() => EditRubberAsync(r))" />
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
                         </MudSimpleTable>
                         <MudAlert Severity="Severity.Info" Dense="true">
-                            Score modification is not available for team matches. To correct rubber scores, use the
-                            <MudLink Href="@($"/team-match/{_fixture.CompetitionFixtureId}")">team match page</MudLink>
-                            after approving.
+                            Edit any rubber above before approving. Once approved the result is
+                            locked — further changes must happen on the
+                            <MudLink Href="@($"/team-match/{_fixture.CompetitionFixtureId}?edit=1")">team match page</MudLink>.
                         </MudAlert>
                     }
 
@@ -204,6 +227,10 @@
     private bool _editing;
     private bool _saving;
     private string? _error;
+    private int _aggregateHome;
+    private int _aggregateAway;
+    private string _aggregateUnit = "rubbers";
+    private string _secondaryAggregate = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -244,6 +271,8 @@
 
             _side1 = _fixture.HomeTeam?.Name ?? "Home";
             _side2 = _fixture.AwayTeam?.Name ?? "Away";
+
+            RecomputeAggregate();
         }
         else
         {
@@ -264,6 +293,54 @@
         }
 
         _loading = false;
+    }
+
+    private void RecomputeAggregate()
+    {
+        if (_fixture == null || !_fixture.HomeTeamId.HasValue || !_fixture.AwayTeamId.HasValue) return;
+        var mode = _fixture.Competition?.LeagueScoring ?? LeagueScoringMode.WinPoints;
+        (_aggregateHome, _aggregateAway, _aggregateUnit) = RubberResolutionService.ComputeLeagueScore(
+            _rubbers, _fixture.HomeTeamId.Value, _fixture.AwayTeamId.Value, mode);
+
+        // Show the other two metrics as a secondary line for context.
+        var completed = _rubbers.Where(r => r.IsComplete).ToList();
+        int rubbersHome = completed.Count(r => r.WinnerTeamId == _fixture.HomeTeamId);
+        int rubbersAway = completed.Count(r => r.WinnerTeamId == _fixture.AwayTeamId);
+        int setsHome = completed.Sum(r => r.HomeSetsWon ?? 0);
+        int setsAway = completed.Sum(r => r.AwaySetsWon ?? 0);
+        int gamesHome = completed.Sum(r => r.HomeGamesTotal ?? 0);
+        int gamesAway = completed.Sum(r => r.AwayGamesTotal ?? 0);
+
+        _secondaryAggregate = mode switch
+        {
+            LeagueScoringMode.SetsWon  => $"Rubbers: {rubbersHome}–{rubbersAway} · Games: {gamesHome}–{gamesAway}",
+            LeagueScoringMode.GamesWon => $"Rubbers: {rubbersHome}–{rubbersAway} · Sets: {setsHome}–{setsAway}",
+            _                          => $"Sets: {setsHome}–{setsAway} · Games: {gamesHome}–{gamesAway}",
+        };
+    }
+
+    private async Task EditRubberAsync(Rubber rubber)
+    {
+        if (_fixture == null) return;
+        var parameters = new DialogParameters<RubberScoreDialog>
+        {
+            { x => x.Rubber, rubber },
+            { x => x.AdminOverride, true }
+        };
+        var dlg = await DialogService.ShowAsync<RubberScoreDialog>("Edit rubber score", parameters);
+        var res = await dlg.Result;
+        if (res is null || res.Canceled) return;
+
+        // Reload the rubbers so the aggregate + set-scores columns reflect the edit
+        await using var db = DbFactory.CreateDbContext();
+        _rubbers = await db.Rubbers
+            .Include(r => r.HomePlayer1).Include(r => r.HomePlayer2)
+            .Include(r => r.AwayPlayer1).Include(r => r.AwayPlayer2)
+            .Where(r => r.CompetitionFixtureId == _fixture.CompetitionFixtureId)
+            .OrderBy(r => r.Order)
+            .ToListAsync();
+        RecomputeAggregate();
+        StateHasChanged();
     }
 
     private void ParseResultSummary(string? summary)

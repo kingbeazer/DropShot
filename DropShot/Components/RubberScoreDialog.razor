@@ -121,9 +121,16 @@
         _bestOf = newBestOf;
         _home = new int?[_bestOf];
         _away = new int?[_bestOf];
-        // Cap the numeric input a few games beyond the set length — a sensible
-        // ceiling for tie-breaks / extended sets without allowing typos like 26.
         _setMaxInput = _gamesPerSet + 8;
+
+        // Pre-populate from the existing rubber when re-opening to edit.
+        var existing = Rubber.SetScores;
+        for (int i = 0; i < existing.Count && i < _bestOf; i++)
+        {
+            _home[i] = existing[i].Home;
+            _away[i] = existing[i].Away;
+        }
+
         _error = null;
     }
 
@@ -217,6 +224,12 @@
             rub.AwayGamesTotal = awayGames;
             rub.HomeGames = lastHome;
             rub.AwayGames = lastAway;
+
+            var enteredPairs = Enumerable.Range(0, _bestOf)
+                .Where(i => _home[i].HasValue && _away[i].HasValue)
+                .Select(i => new[] { _home[i]!.Value, _away[i]!.Value })
+                .ToList();
+            rub.SetScoresJson = System.Text.Json.JsonSerializer.Serialize(enteredPairs);
             rub.WinnerTeamId = homeSets > awaySets
                 ? rub.Fixture.HomeTeamId
                 : awaySets > homeSets
@@ -248,10 +261,25 @@
                     .FirstOrDefaultAsync(f => f.CompetitionFixtureId == rub.CompetitionFixtureId);
                 if (fx != null)
                 {
+                    bool alreadyFinalised = fx.Status == FixtureStatus.AwaitingVerification
+                        || fx.Status == FixtureStatus.Completed;
+
                     fx.ResultSummary = $"{homeScore}-{awayScore}";
                     fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
                                     : awayScore > homeScore ? fx.AwayTeamId
                                     : null;
+
+                    // Admin edit of a rubber on an already-finalised fixture: just
+                    // update the aggregates in place. Don't regenerate the verification
+                    // token (that would break the admin's current verify link) and don't
+                    // resend notification emails.
+                    if (AdminOverride && alreadyFinalised)
+                    {
+                        await db.SaveChangesAsync();
+                        MudDialog.Close(DialogResult.Ok(true));
+                        return;
+                    }
+
                     fx.CompletedAt = DateTime.UtcNow;
 
                     bool requireVerification = fx.Competition?.RequireVerification ?? false;

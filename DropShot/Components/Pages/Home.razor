@@ -348,6 +348,8 @@
                 .Include(f => f.Competition)
                 .Include(f => f.Player1).Include(f => f.Player2)
                 .Include(f => f.Player3).Include(f => f.Player4)
+                .Include(f => f.HomeTeam)
+                .Include(f => f.AwayTeam)
                 .Where(f => f.Status == FixtureStatus.AwaitingVerification
                     && (isAdmin
                         || (f.Competition.HostClubId.HasValue && editableClubIds.Contains(f.Competition.HostClubId.Value))

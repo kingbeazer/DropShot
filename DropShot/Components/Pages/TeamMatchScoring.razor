@@ -88,6 +88,7 @@ else
 
 @code {
     [Parameter] public int FixtureId { get; set; }
+    [SupplyParameterFromQuery(Name = "edit")] public int? EditMode { get; set; }
 
     private CompetitionFixture? _fixture;
     private List<Rubber> _rubbers = [];
@@ -98,6 +99,8 @@ else
     private bool _allComplete;
     private string? _resolutionError;
     private bool _isCompetitionAdmin;
+
+    private bool CanEditCompletedRubber => _isCompetitionAdmin && EditMode == 1;
 
     protected override async Task OnInitializedAsync()
     {
@@ -226,13 +229,24 @@ else
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                         @if (rubber.IsComplete)
                         {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Success">
-                                @* Prefer sets-won; fall back to games-in-last-set for rows *@
-                                @* predating the sets-won column. *@
-                                @(rubber.HomeSetsWon.HasValue && rubber.AwaySetsWon.HasValue
-                                    ? $"{rubber.HomeSetsWon} — {rubber.AwaySetsWon} sets"
-                                    : $"{rubber.HomeGames} — {rubber.AwayGames}")
-                            </MudChip>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                    @(rubber.HomeSetsWon.HasValue && rubber.AwaySetsWon.HasValue
+                                        ? $"{rubber.HomeSetsWon} — {rubber.AwaySetsWon} sets"
+                                        : $"{rubber.HomeGames} — {rubber.AwayGames}")
+                                </MudChip>
+                                @if (rubber.SetScores.Count > 0)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        (@string.Join(", ", rubber.SetScores.Select(s => $"{s.Home}-{s.Away}")))
+                                    </MudText>
+                                }
+                                @if (CanEditCompletedRubber)
+                                {
+                                    <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit"
+                                                   OnClick="@(() => EnterRubberScore(rubber))" />
+                                }
+                            </MudStack>
                         }
                         else if (rubber.SavedMatchId.HasValue)
                         {
