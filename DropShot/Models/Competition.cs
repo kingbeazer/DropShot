@@ -74,6 +74,12 @@
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
 
         /// <summary>
+        /// How to resolve a knockout team-match when the rubbers are tied.
+        /// Only applies to TeamMatch competitions. See <see cref="DropShot.Shared.RubberTieBreakMode"/>.
+        /// </summary>
+        public DropShot.Shared.RubberTieBreakMode RubberTieBreak { get; set; } = DropShot.Shared.RubberTieBreakMode.AdminDecides;
+
+        /// <summary>
         /// When true, this competition is split into ranked divisions via
         /// <see cref="Divisions"/>. Teams only play other teams in the same
         /// division, and league tables render per-division.

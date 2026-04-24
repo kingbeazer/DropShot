@@ -126,6 +126,18 @@
                             locked — further changes must happen on the
                             <MudLink Href="@($"/team-match/{_fixture.CompetitionFixtureId}?edit=1")">team match page</MudLink>.
                         </MudAlert>
+
+                        @if (_allRubbersComplete && !_fixture.WinnerTeamId.HasValue)
+                        {
+                            <MudAlert Severity="Severity.Warning" Dense="true">
+                                Rubbers are tied and the configured tie-break (@(_fixture.Competition?.RubberTieBreak.ToString() ?? "AdminDecides"))
+                                did not pick a winner. Choose which team wins:
+                            </MudAlert>
+                            <MudSelect T="int?" @bind-Value="_manualWinnerTeamId" Label="Winner" Variant="Variant.Outlined" Dense="true">
+                                <MudSelectItem T="int?" Value="@_fixture.HomeTeamId">@_side1</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@_fixture.AwayTeamId">@_side2</MudSelectItem>
+                            </MudSelect>
+                        }
                     }
 
                     @* ── Individual match: allow score editing ── *@
@@ -231,6 +243,8 @@
     private int _aggregateAway;
     private string _aggregateUnit = "rubbers";
     private string _secondaryAggregate = "";
+    private bool _allRubbersComplete;
+    private int? _manualWinnerTeamId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -317,6 +331,8 @@
             LeagueScoringMode.GamesWon => $"Rubbers: {rubbersHome}–{rubbersAway} · Sets: {setsHome}–{setsAway}",
             _                          => $"Sets: {setsHome}–{setsAway} · Games: {gamesHome}–{gamesAway}",
         };
+
+        _allRubbersComplete = _rubbers.Count > 0 && _rubbers.All(r => r.IsComplete);
     }
 
     private async Task EditRubberAsync(Rubber rubber)
@@ -388,6 +404,15 @@
             if (_winnerPlayerId == null) { _error = "Please select a winner."; return; }
         }
 
+        // Team match: if rubbers are tied and there's no resolved winner, the
+        // admin must pick one before approving.
+        if (_isTeamMatch && _allRubbersComplete && !_fixture!.WinnerTeamId.HasValue
+            && !_manualWinnerTeamId.HasValue)
+        {
+            _error = "Rubbers are tied — please pick a winner before approving.";
+            return;
+        }
+
         _saving = true;
         try
         {
@@ -395,6 +420,12 @@
             var fx = await db.CompetitionFixtures
                 .FirstOrDefaultAsync(f => f.CompetitionFixtureId == _fixture!.CompetitionFixtureId);
             if (fx == null) { _error = "Fixture not found."; return; }
+
+            // Apply manual tie-break pick.
+            if (_isTeamMatch && !fx.WinnerTeamId.HasValue && _manualWinnerTeamId.HasValue)
+            {
+                fx.WinnerTeamId = _manualWinnerTeamId;
+            }
 
             if (!_isTeamMatch && _editing)
             {

@@ -76,3 +76,20 @@ public enum SetWinMode : byte
     WinBy2 = 0,
     FirstTo = 1
 }
+
+/// <summary>
+/// How to resolve a knockout team-match when the rubbers are tied.
+/// Applied by <c>RubberResolutionService.ResolveTieBreakAsync</c> after
+/// all rubbers are complete and the rubber counts are equal.
+/// </summary>
+public enum RubberTieBreakMode : byte
+{
+    /// <summary>No automatic resolution — the fixture stays unresolved until an admin picks a winner.</summary>
+    AdminDecides = 0,
+    /// <summary>Winner is the team with the greater total games across all rubbers.</summary>
+    MostGamesWon = 1,
+    /// <summary>Winner is the team that won the round-robin fixture between the same two teams.</summary>
+    HeadToHeadRoundRobin = 2,
+    /// <summary>Try MostGamesWon first; if still tied, fall back to HeadToHeadRoundRobin.</summary>
+    MostGamesThenHeadToHead = 3,
+}

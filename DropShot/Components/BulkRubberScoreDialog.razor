@@ -275,9 +275,17 @@
                     || fx.Status == FixtureStatus.Completed;
 
                 fx.ResultSummary = $"{homeScore}-{awayScore}";
-                fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
-                                : awayScore > homeScore ? fx.AwayTeamId
-                                : null;
+                int? winner = homeScore > awayScore ? fx.HomeTeamId
+                            : awayScore > homeScore ? fx.AwayTeamId
+                            : null;
+
+                if (!winner.HasValue && homeScore == awayScore
+                    && fx.HomeTeamId.HasValue && fx.AwayTeamId.HasValue)
+                {
+                    var mode = fx.Competition?.RubberTieBreak ?? DropShot.Shared.RubberTieBreakMode.AdminDecides;
+                    winner = await RubberResolutionService.ResolveTieBreakAsync(db, fx, allRubbers, mode);
+                }
+                fx.WinnerTeamId = winner;
 
                 if (AdminOverride && alreadyFinalised)
                 {

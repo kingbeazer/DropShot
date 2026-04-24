@@ -296,6 +296,22 @@ else
                         </MudStack>
                     </MudRadioGroup>
 
+                    @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Rubber tie-break</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                            How to resolve knockout fixtures when rubbers are tied.
+                        </MudText>
+                        <MudRadioGroup @bind-Value="Model.RubberTieBreak">
+                            <MudStack Spacing="1">
+                                <MudRadio Value="DropShot.Shared.RubberTieBreakMode.AdminDecides" Color="Color.Primary">Admin picks the winner</MudRadio>
+                                <MudRadio Value="DropShot.Shared.RubberTieBreakMode.MostGamesWon" Color="Color.Primary">Most games won across all rubbers</MudRadio>
+                                <MudRadio Value="DropShot.Shared.RubberTieBreakMode.HeadToHeadRoundRobin" Color="Color.Primary">Winner of the round-robin meeting</MudRadio>
+                                <MudRadio Value="DropShot.Shared.RubberTieBreakMode.MostGamesThenHeadToHead" Color="Color.Primary">Most games won, then round-robin head-to-head</MudRadio>
+                            </MudStack>
+                        </MudRadioGroup>
+                    }
+
                     <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" Class="mt-2" />
 
                     <MudCheckBox @bind-Value="Model.HasDivisions"
@@ -1693,6 +1709,7 @@ else
         public int GamesPerSet { get; set; } = 6;
         public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
+        public DropShot.Shared.RubberTieBreakMode RubberTieBreak { get; set; } = DropShot.Shared.RubberTieBreakMode.AdminDecides;
         public bool HasDivisions { get; set; }
         public int? SeededFromCompetitionId { get; set; }
     }
@@ -1907,6 +1924,7 @@ else
                 GamesPerSet = comp.GamesPerSet,
                 SetWinMode = comp.SetWinMode,
                 LeagueScoring = comp.LeagueScoring,
+                RubberTieBreak = comp.RubberTieBreak,
                 HasDivisions = comp.HasDivisions,
                 SeededFromCompetitionId = comp.SeededFromCompetitionId
             };
@@ -2247,6 +2265,7 @@ else
         comp.GamesPerSet = Model.GamesPerSet;
         comp.SetWinMode = Model.SetWinMode;
         comp.LeagueScoring = Model.LeagueScoring;
+        comp.RubberTieBreak = Model.RubberTieBreak;
         comp.HasDivisions = Model.HasDivisions;
         comp.SeededFromCompetitionId = Model.SeededFromCompetitionId;
     }
@@ -2834,6 +2853,7 @@ else
                 GamesPerSet         = source.GamesPerSet,
                 SetWinMode          = source.SetWinMode,
                 LeagueScoring       = source.LeagueScoring,
+                RubberTieBreak      = source.RubberTieBreak,
                 TeamSize            = source.TeamSize,
                 RubberTemplateKey   = source.RubberTemplateKey,
                 RequireVerification = source.RequireVerification,
