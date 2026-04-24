@@ -1312,8 +1312,8 @@
                         allRubbers, rub.Fixture.HomeTeamId.Value, rub.Fixture.AwayTeamId.Value);
                     var fx = await dbc4.CompetitionFixtures
                         .Include(f => f.Competition)
-                        .Include(f => f.HomeTeam)
-                        .Include(f => f.AwayTeam)
+                        .Include(f => f.HomeTeam).ThenInclude(t => t.Division)
+                        .Include(f => f.AwayTeam).ThenInclude(t => t.Division)
                         .FirstOrDefaultAsync(f => f.CompetitionFixtureId == rub.CompetitionFixtureId);
                     if (fx != null)
                     {

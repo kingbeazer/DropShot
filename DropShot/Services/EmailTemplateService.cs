@@ -215,74 +215,104 @@ public class EmailTemplateService
 
     /// <param name="rubbers">Each tuple: (rubberName, homePlayersLabel, awayPlayersLabel, scoreText, homeWon)</param>
     public string MatchResultEmailForTeamMatch(
-        string fixtureTitle, string homeName, string awayName, string? winnerName,
+        string competitionName, string? divisionName,
+        string homeName, string awayName, string? winnerName,
+        int totalHomeSets, int totalAwaySets,
         IEnumerable<(string Name, string HomePlayers, string AwayPlayers, string Score, bool? HomeWon)> rubbers)
     {
+        var winnerBlock = winnerName != null
+            ? $@"<p style=""margin:12px 0 16px 0;font-size:15px;"">
+    <strong style=""color:#1b5e20;"">Winner: {Encode(winnerName)} &#9733;</strong>
+</p>"
+            : "";
+
         var body = $@"
 <h2 style=""margin:0 0 16px 0;font-size:22px;color:#1b5e20;"">Match Result</h2>
 <p style=""margin:0 0 12px 0;"">The result for your team match has been recorded:</p>
-{InfoBox($@"<strong>{Encode(fixtureTitle)}</strong>")}
-{RubberScoreCard(homeName, awayName, winnerName, rubbers)}
+{MatchHeader(competitionName, divisionName, homeName, awayName)}
+{RubberScoreCard(homeName, awayName, totalHomeSets, totalAwaySets, rubbers)}
+{winnerBlock}
 <p style=""margin:16px 0 0 0;font-size:13px;color:#888888;"">This is an automated notification from DropShot.</p>";
 
-        return WrapInBaseLayout($"Match Result: {fixtureTitle}", body, $"Result recorded: {homeName} vs {awayName}");
+        return WrapInBaseLayout($"Match Result: {competitionName}", body, $"Result recorded: {homeName} vs {awayName}");
     }
 
     /// <param name="rubbers">Each tuple: (rubberName, homePlayersLabel, awayPlayersLabel, scoreText, homeWon)</param>
     public string AdminVerificationEmailForTeamMatch(
-        string fixtureTitle, string homeName, string awayName, string? winnerName,
+        string competitionName, string? divisionName,
+        string homeName, string awayName, string? winnerName,
         string verifyUrl,
+        int totalHomeSets, int totalAwaySets,
         IEnumerable<(string Name, string HomePlayers, string AwayPlayers, string Score, bool? HomeWon)> rubbers)
     {
+        var winnerBlock = winnerName != null
+            ? $@"<p style=""margin:12px 0 8px 0;font-size:15px;"">
+    <strong style=""color:#1b5e20;"">Winner: {Encode(winnerName)} &#9733;</strong>
+</p>"
+            : "";
+
         var body = $@"
 <h2 style=""margin:0 0 16px 0;font-size:22px;color:#1b5e20;"">Result Verification Required</h2>
 <p style=""margin:0 0 12px 0;"">A team match result has been submitted and requires your verification:</p>
-{InfoBox($@"<strong>{Encode(fixtureTitle)}</strong>")}
-{RubberScoreCard(homeName, awayName, winnerName, rubbers)}
+{MatchHeader(competitionName, divisionName, homeName, awayName)}
+{RubberScoreCard(homeName, awayName, totalHomeSets, totalAwaySets, rubbers)}
+{winnerBlock}
 {ActionButton("Verify Result", verifyUrl)}
 <p style=""margin:16px 0 0 0;font-size:13px;color:#888888;"">Please review and verify this result at your earliest convenience.</p>";
 
-        return WrapInBaseLayout($"Verify Result: {fixtureTitle}", body, $"Result verification needed: {homeName} vs {awayName}");
+        return WrapInBaseLayout($"Verify Result: {competitionName}", body, $"Result verification needed: {homeName} vs {awayName}");
+    }
+
+    private string MatchHeader(string competitionName, string? divisionName, string homeName, string awayName)
+    {
+        var divLine = divisionName != null
+            ? $@"<p style=""margin:0 0 4px 0;font-size:13px;color:#888888;"">{Encode(divisionName)}</p>"
+            : "";
+        return $@"<div style=""margin:0 0 16px 0;"">
+    <p style=""margin:0 0 4px 0;font-size:14px;font-weight:600;color:#333333;"">{Encode(competitionName)}</p>
+    {divLine}
+    <p style=""margin:0;font-size:15px;""><strong>{Encode(homeName)}</strong>&nbsp;vs&nbsp;<strong>{Encode(awayName)}</strong></p>
+</div>";
     }
 
     private string RubberScoreCard(
-        string homeName, string awayName, string? winnerName,
+        string homeName, string awayName,
+        int totalHomeSets, int totalAwaySets,
         IEnumerable<(string Name, string HomePlayers, string AwayPlayers, string Score, bool? HomeWon)> rubbers)
     {
-        var homeStyle = winnerName == homeName ? "color:#1b5e20;font-weight:bold;" : "";
-        var awayStyle = winnerName == awayName ? "color:#1b5e20;font-weight:bold;" : "";
-
         var rows = "";
-        foreach (var (name, homePlayers, awayPlayers, score, homeWon) in rubbers)
+        foreach (var (name, homePlayers, awayPlayers, score, _) in rubbers)
         {
-            var winCol = homeWon == true  ? $@"<td style=""padding:6px 10px;font-size:13px;color:#1b5e20;font-weight:bold;"">{Encode(homeName)} &#9733;</td>"
-                       : homeWon == false ? $@"<td style=""padding:6px 10px;font-size:13px;color:#1b5e20;font-weight:bold;"">{Encode(awayName)} &#9733;</td>"
-                       :                    $@"<td style=""padding:6px 10px;font-size:13px;color:#888;"">Draw</td>";
             rows += $@"
     <tr style=""border-bottom:1px solid #f0f0f0;"">
         <td style=""padding:6px 10px;font-size:13px;font-weight:600;"">{Encode(name)}</td>
         <td style=""padding:6px 10px;font-size:13px;color:#555;"">{Encode(homePlayers)}</td>
         <td style=""padding:6px 10px;font-size:13px;color:#555;"">{Encode(awayPlayers)}</td>
         <td style=""padding:6px 10px;font-size:14px;font-weight:bold;text-align:center;"">{Encode(score)}</td>
-        {winCol}
     </tr>";
         }
 
-        return $@"<p style=""margin:12px 0 4px 0;font-size:14px;"">
-    <span style=""{homeStyle}"">{Encode(homeName)}{(winnerName == homeName ? " &#9733;" : "")}</span>
-    &nbsp;vs&nbsp;
-    <span style=""{awayStyle}"">{Encode(awayName)}{(winnerName == awayName ? " &#9733;" : "")}</span>
-</p>
-<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%""
-       style=""margin:12px 0 16px 0;border-collapse:collapse;font-family:Arial,sans-serif;"">
-    <tr style=""border-bottom:2px solid #e0e0e0;background:#f5f5f5;"">
-        <th style=""padding:6px 10px;text-align:left;font-size:12px;color:#888;"">Rubber</th>
-        <th style=""padding:6px 10px;text-align:left;font-size:12px;color:#888;"">{Encode(homeName)}</th>
-        <th style=""padding:6px 10px;text-align:left;font-size:12px;color:#888;"">{Encode(awayName)}</th>
-        <th style=""padding:6px 10px;text-align:center;font-size:12px;color:#888;"">Sets</th>
-        <th style=""padding:6px 10px;text-align:left;font-size:12px;color:#888;"">Winner</th>
-    </tr>
-    {rows}
+        return $@"<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%""
+       style=""margin:0 0 8px 0;border-collapse:collapse;font-family:Arial,sans-serif;"">
+    <thead>
+        <tr style=""border-bottom:2px solid #e0e0e0;background:#f5f5f5;"">
+            <th style=""padding:6px 10px;text-align:left;font-size:12px;color:#888;"">Rubber</th>
+            <th style=""padding:6px 10px;text-align:left;font-size:12px;color:#888;"">{Encode(homeName)}</th>
+            <th style=""padding:6px 10px;text-align:left;font-size:12px;color:#888;"">{Encode(awayName)}</th>
+            <th style=""padding:6px 10px;text-align:center;font-size:12px;color:#888;"">Sets</th>
+        </tr>
+    </thead>
+    <tbody>
+        {rows}
+    </tbody>
+    <tfoot>
+        <tr style=""border-top:2px solid #e0e0e0;background:#f5f5f5;"">
+            <td style=""padding:8px 10px;font-size:13px;font-weight:bold;color:#555;"">Total sets</td>
+            <td style=""padding:8px 10px;font-size:15px;font-weight:bold;"">{totalHomeSets}</td>
+            <td style=""padding:8px 10px;font-size:15px;font-weight:bold;"">{totalAwaySets}</td>
+            <td></td>
+        </tr>
+    </tfoot>
 </table>";
     }
 
