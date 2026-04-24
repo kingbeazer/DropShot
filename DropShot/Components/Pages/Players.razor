@@ -1,12 +1,14 @@
 @page "/players"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "SuperAdmin")]
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
 @using DropShot.Models
 @using DropShot.Data
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudProviders />
 
@@ -203,6 +205,7 @@
     private bool _loading = true;
     private List<PlayerRow> _players = [];
     private string _searchText = "";
+    private string? _currentUserId;
 
     private bool FilterPlayers(PlayerRow row) =>
         string.IsNullOrWhiteSpace(_searchText) ||
@@ -242,7 +245,12 @@
     private static string FullName(Player p) =>
         string.Join(" ", new[] { p.FirstName, p.LastName }.Where(s => !string.IsNullOrWhiteSpace(s))) is { Length: > 0 } n ? n : "—";
 
-    protected override async Task OnInitializedAsync() => await LoadPlayers();
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await LoadPlayers();
+    }
 
     private async Task LoadPlayers()
     {
@@ -285,7 +293,9 @@
             MobileNumber = NullIfEmpty(_form.MobileNumber),
             DateOfBirth = _form.DateOfBirth,
             Sex = _form.Sex,
-            ContactPreferences = NullIfEmpty(_form.ContactPreferences)
+            ContactPreferences = NullIfEmpty(_form.ContactPreferences),
+            IsLight = true,
+            CreatedByUserId = _currentUserId
         });
         await dbc.SaveChangesAsync();
 
