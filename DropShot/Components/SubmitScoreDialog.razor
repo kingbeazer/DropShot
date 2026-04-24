@@ -335,6 +335,10 @@
 
                 fx.ResultSummary  = resultSummary;
                 fx.WinnerPlayerId = _winnerPlayerId;
+                fx.HomeSetsWon    = side1Sets;
+                fx.AwaySetsWon    = side2Sets;
+                fx.HomeGamesTotal = Enumerable.Range(0, _bestOf).Sum(i => _score1[i] ?? 0);
+                fx.AwayGamesTotal = Enumerable.Range(0, _bestOf).Sum(i => _score2[i] ?? 0);
 
                 bool requireVerification = !AdminOverride && (Fixture.Competition?.RequireVerification ?? false);
                 if (requireVerification)

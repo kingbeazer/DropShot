@@ -44,6 +44,17 @@ public class CompetitionFixture
     public int? WinnerTeamId { get; set; }
     public int? CourtPairId { get; set; }
 
+    // Per-fixture score aggregates. Populated when a match completes so the
+    // league-table endpoint can honour Competition.LeagueScoring without
+    // re-parsing ResultSummary or joining SavedMatch.MatchJson. For singles/doubles
+    // the "home" side is Player1/Player3 and "away" is Player2/Player4; for team
+    // matches these mirror HomeTeam/AwayTeam. Null for legacy fixtures that
+    // completed before this column existed.
+    public int? HomeSetsWon { get; set; }
+    public int? AwaySetsWon { get; set; }
+    public int? HomeGamesTotal { get; set; }
+    public int? AwayGamesTotal { get; set; }
+
     public Competition Competition { get; set; } = null!;
     public CompetitionStage? Stage { get; set; }
     public Court? Court { get; set; }

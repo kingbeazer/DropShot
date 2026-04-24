@@ -216,6 +216,21 @@
                 fx.ResultModifiedByAdmin = true;
                 fx.ResultSummary = newSummary;
                 fx.WinnerPlayerId = _winnerPlayerId;
+
+                int homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
+                for (int i = 0; i < _bestOf; i++)
+                {
+                    int s1 = _score1[i] ?? 0;
+                    int s2 = _score2[i] ?? 0;
+                    homeGames += s1;
+                    awayGames += s2;
+                    if (s1 > s2) homeSets++;
+                    else if (s2 > s1) awaySets++;
+                }
+                fx.HomeSetsWon = homeSets;
+                fx.AwaySetsWon = awaySets;
+                fx.HomeGamesTotal = homeGames;
+                fx.AwayGamesTotal = awayGames;
             }
 
             fx.Status = FixtureStatus.Completed;

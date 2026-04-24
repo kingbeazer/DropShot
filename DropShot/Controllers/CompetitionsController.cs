@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DropShot.Controllers;
 
@@ -17,7 +18,8 @@ public class CompetitionsController(
     ClubAuthorizationService authzService,
     UserManager<ApplicationUser> userManager,
     ICompetitionRubberTemplateProvider rubberTemplateProvider,
-    CompetitionSchedulerService scheduler) : ControllerBase
+    CompetitionSchedulerService scheduler,
+    ILogger<CompetitionsController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<CompetitionDto>>> GetAll(
@@ -261,7 +263,9 @@ public class CompetitionsController(
     public async Task<IActionResult> AddParticipant(int id, [FromBody] AddParticipantRequest req)
     {
         await using var db = dbFactory.CreateDbContext();
-        var comp = await db.Competition.FindAsync(id);
+        var comp = await db.Competition
+            .Include(c => c.AllowedPlayers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
@@ -276,6 +280,31 @@ public class CompetitionsController(
                 .CountAsync(p => p.CompetitionId == id);
             if (currentCount >= comp.MaxParticipants.Value)
                 return BadRequest(new { message = "Competition has reached its maximum number of participants." });
+        }
+
+        // Eligibility gate (overrideable with Force=true). Admins see the warnings
+        // as a 409 + warnings body on the first call; re-posting with Force=true
+        // bypasses the guard and is audit-logged below.
+        if (!req.Force)
+        {
+            var player = await db.Players.FindAsync(req.PlayerId);
+            if (player is null)
+                return BadRequest(new { message = "Player does not exist." });
+
+            var violations = EligibilityEvaluator.Evaluate(comp, player);
+            if (violations.Count > 0)
+            {
+                return Conflict(new EligibilityWarningsResponse(
+                    "Player does not satisfy one or more of this competition's rules.",
+                    violations.Select(v => new EligibilityWarning(v.Code, v.Message)).ToList()));
+            }
+        }
+        else
+        {
+            // Force path — log the override so the audit trail names the admin who bypassed the rule.
+            logger.LogWarning(
+                "Admin {UserId} added player {PlayerId} to competition {CompetitionId} with Force=true (eligibility rules bypassed).",
+                userManager.GetUserId(User), req.PlayerId, id);
         }
 
         var cp = new CompetitionParticipant
@@ -380,6 +409,37 @@ public class CompetitionsController(
         return Ok();
     }
 
+    /// <summary>
+    /// Returns any rubber-template composition warnings for a team (e.g. MTT
+    /// needs 2M + 2F). The admin UI calls this after a membership or role change
+    /// to surface a warning without blocking the save.
+    /// </summary>
+    [HttpGet("{id:int}/teams/{teamId:int}/validate")]
+    public async Task<ActionResult<List<EligibilityWarning>>> ValidateTeamComposition(int id, int teamId)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var comp = await db.Competition.FindAsync(id);
+        if (comp is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
+
+        var team = await db.CompetitionTeams.FindAsync(teamId);
+        if (team is null || team.CompetitionId != id) return NotFound();
+
+        var template = await rubberTemplateProvider.GetAsync(db, id);
+        if (template is null || template.Count == 0)
+            return new List<EligibilityWarning>();
+
+        var members = await db.CompetitionParticipants
+            .Where(cp => cp.CompetitionId == id && cp.TeamId == teamId
+                && (cp.Status == DropShot.Models.ParticipantStatus.Registered
+                    || cp.Status == DropShot.Models.ParticipantStatus.Confirmed))
+            .Include(cp => cp.Player)
+            .ToListAsync();
+
+        var warnings = RubberResolutionService.ValidateTeamComposition(template, members);
+        return warnings.Select(w => new EligibilityWarning("team-composition", w)).ToList();
+    }
+
     [HttpDelete("{id:int}/teams/{teamId:int}")]
     public async Task<IActionResult> DeleteTeam(int id, int teamId)
     {
@@ -428,32 +488,24 @@ public class CompetitionsController(
     public async Task<IActionResult> AddFixture(int id, [FromBody] SaveFixtureRequest req)
     {
         await using var db = dbFactory.CreateDbContext();
-        var comp = await db.Competition.FindAsync(id);
+        var comp = await db.Competition
+            .Include(c => c.AllowedPlayers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
-        if (req.CompetitionStageId.HasValue)
-        {
-            var stage = await db.CompetitionStages.FindAsync(req.CompetitionStageId.Value);
-            if (stage is null || stage.CompetitionId != id)
-                return BadRequest(new { message = "Stage does not belong to this competition." });
-        }
+        if (await ValidateFixtureShapeAsync(db, id, comp, req) is { } shapeError) return shapeError;
 
-        if (req.CourtId.HasValue)
+        var assignmentResult = await ValidateFixturePlayersAsync(db, id, comp, req);
+        if (assignmentResult.HardError != null)
+            return BadRequest(new { message = assignmentResult.HardError });
+        if (assignmentResult.Warnings.Count > 0 && !req.Force)
         {
-            var court = await db.Courts.FindAsync(req.CourtId.Value);
-            if (court is null || court.ClubId != comp.HostClubId)
-                return BadRequest(new { message = "Court does not belong to the competition's host club." });
+            return Conflict(new EligibilityWarningsResponse(
+                "One or more assigned players do not satisfy this competition's rules.",
+                assignmentResult.Warnings));
         }
-
-        var playerIds = new[] { req.Player1Id, req.Player2Id, req.Player3Id, req.Player4Id }
-            .Where(id => id.HasValue).Select(id => id!.Value).ToList();
-        if (playerIds.Count > 0)
-        {
-            var existingCount = await db.Players.CountAsync(p => playerIds.Contains(p.PlayerId));
-            if (existingCount != playerIds.Count)
-                return BadRequest(new { message = "One or more player IDs are invalid." });
-        }
+        if (req.Force && assignmentResult.Warnings.Count > 0) LogFixtureForce(id, req);
 
         var fixture = new CompetitionFixture { CompetitionId = id };
         ApplyFixture(fixture, req);
@@ -466,10 +518,35 @@ public class CompetitionsController(
     public async Task<IActionResult> UpdateFixture(int id, int fixtureId, [FromBody] SaveFixtureRequest req)
     {
         await using var db = dbFactory.CreateDbContext();
-        var comp = await db.Competition.FindAsync(id);
+        var comp = await db.Competition
+            .Include(c => c.AllowedPlayers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
+        if (await ValidateFixtureShapeAsync(db, id, comp, req) is { } shapeError) return shapeError;
+
+        var assignmentResult = await ValidateFixturePlayersAsync(db, id, comp, req);
+        if (assignmentResult.HardError != null)
+            return BadRequest(new { message = assignmentResult.HardError });
+        if (assignmentResult.Warnings.Count > 0 && !req.Force)
+        {
+            return Conflict(new EligibilityWarningsResponse(
+                "One or more assigned players do not satisfy this competition's rules.",
+                assignmentResult.Warnings));
+        }
+        if (req.Force && assignmentResult.Warnings.Count > 0) LogFixtureForce(id, req);
+
+        var fixture = await db.CompetitionFixtures.FindAsync(fixtureId);
+        if (fixture is null || fixture.CompetitionId != id) return NotFound();
+        ApplyFixture(fixture, req);
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    private async Task<IActionResult?> ValidateFixtureShapeAsync(
+        MyDbContext db, int id, Competition comp, SaveFixtureRequest req)
+    {
         if (req.CompetitionStageId.HasValue)
         {
             var stage = await db.CompetitionStages.FindAsync(req.CompetitionStageId.Value);
@@ -484,20 +561,102 @@ public class CompetitionsController(
                 return BadRequest(new { message = "Court does not belong to the competition's host club." });
         }
 
-        var playerIds = new[] { req.Player1Id, req.Player2Id, req.Player3Id, req.Player4Id }
-            .Where(id => id.HasValue).Select(id => id!.Value).ToList();
-        if (playerIds.Count > 0)
+        return null;
+    }
+
+    private sealed record FixtureAssignmentResult(string? HardError, List<EligibilityWarning> Warnings);
+
+    /// <summary>
+    /// Integrity + eligibility + pairing rules for a fixture's assigned players.
+    /// HardError blocks the save regardless of Force (bad data is never OK).
+    /// Warnings may be overridden by re-posting with Force=true.
+    /// </summary>
+    private async Task<FixtureAssignmentResult> ValidateFixturePlayersAsync(
+        MyDbContext db, int id, Competition comp, SaveFixtureRequest req)
+    {
+        var slotMap = new Dictionary<string, int?>
         {
-            var existingCount = await db.Players.CountAsync(p => playerIds.Contains(p.PlayerId));
-            if (existingCount != playerIds.Count)
-                return BadRequest(new { message = "One or more player IDs are invalid." });
+            ["Player 1"] = req.Player1Id,
+            ["Player 2"] = req.Player2Id,
+            ["Player 3"] = req.Player3Id,
+            ["Player 4"] = req.Player4Id,
+        };
+        var playerIds = slotMap.Values.Where(v => v.HasValue).Select(v => v!.Value).Distinct().ToList();
+        if (playerIds.Count == 0) return new(null, new());
+
+        var players = await db.Players
+            .Where(p => playerIds.Contains(p.PlayerId))
+            .ToListAsync();
+        if (players.Count != playerIds.Count)
+            return new("One or more player IDs are invalid.", new());
+
+        var confirmedParticipantIds = await db.CompetitionParticipants
+            .Where(cp => cp.CompetitionId == id && playerIds.Contains(cp.PlayerId)
+                && (cp.Status == DropShot.Models.ParticipantStatus.Registered
+                    || cp.Status == DropShot.Models.ParticipantStatus.Confirmed))
+            .Select(cp => cp.PlayerId)
+            .ToListAsync();
+        var missingParticipant = playerIds.Except(confirmedParticipantIds).ToList();
+        if (missingParticipant.Count > 0)
+        {
+            return new(
+                $"Player(s) {string.Join(", ", missingParticipant)} are not registered participants of this competition.",
+                new());
         }
 
-        var fixture = await db.CompetitionFixtures.FindAsync(fixtureId);
-        if (fixture is null || fixture.CompetitionId != id) return NotFound();
-        ApplyFixture(fixture, req);
-        await db.SaveChangesAsync();
-        return Ok();
+        var warnings = new List<EligibilityWarning>();
+        foreach (var p in players)
+        {
+            foreach (var v in EligibilityEvaluator.Evaluate(comp, p))
+                warnings.Add(new EligibilityWarning(v.Code, $"{p.DisplayName}: {v.Message}"));
+        }
+
+        if (comp.CompetitionFormat == DropShot.Models.CompetitionFormat.MixedDoubles)
+        {
+            AppendMixedDoublesWarnings(warnings, players, req);
+        }
+
+        return new(null, warnings);
+    }
+
+    private static void AppendMixedDoublesWarnings(
+        List<EligibilityWarning> warnings, List<Player> players, SaveFixtureRequest req)
+    {
+        var byId = players.ToDictionary(p => p.PlayerId);
+        void Check(int? aId, int? bId, string pairLabel)
+        {
+            if (!aId.HasValue || !bId.HasValue) return;
+            if (!byId.TryGetValue(aId.Value, out var a) || !byId.TryGetValue(bId.Value, out var b)) return;
+            if (!a.Sex.HasValue || !b.Sex.HasValue)
+            {
+                warnings.Add(new("mixed-doubles-unknown-sex",
+                    $"{pairLabel}: {a.DisplayName} or {b.DisplayName} has no sex on file; mixed doubles requires one male + one female."));
+                return;
+            }
+            if (a.Sex == b.Sex)
+            {
+                warnings.Add(new("mixed-doubles-pair",
+                    $"{pairLabel} is {FormatSexPair(a.Sex.Value)}; mixed doubles requires one male + one female."));
+            }
+        }
+
+        Check(req.Player1Id, req.Player3Id, "Home pair");
+        Check(req.Player2Id, req.Player4Id, "Away pair");
+    }
+
+    private static string FormatSexPair(DropShot.Models.PlayerSex sex) => sex switch
+    {
+        DropShot.Models.PlayerSex.Male => "two males",
+        DropShot.Models.PlayerSex.Female => "two females",
+        _ => "both the same",
+    };
+
+    private void LogFixtureForce(int competitionId, SaveFixtureRequest req)
+    {
+        logger.LogWarning(
+            "Admin {UserId} saved fixture in competition {CompetitionId} with Force=true (players: {P1}, {P2}, {P3}, {P4}).",
+            userManager.GetUserId(User), competitionId,
+            req.Player1Id, req.Player2Id, req.Player3Id, req.Player4Id);
     }
 
     [HttpDelete("{id:int}/fixtures/{fixtureId:int}")]
@@ -660,6 +819,11 @@ public class CompetitionsController(
     {
         await using var db = dbFactory.CreateDbContext();
 
+        var comp = await db.Competition
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CompetitionID == id);
+        if (comp is null) return NotFound();
+
         // Find round-robin stage IDs for this competition
         var rrStageIds = await db.CompetitionStages
             .Where(s => s.CompetitionId == id && s.StageType == DropShot.Models.StageType.RoundRobin)
@@ -688,23 +852,39 @@ public class CompetitionsController(
         var played = participants.ToDictionary(cp => cp.PlayerId, _ => 0);
         var won = participants.ToDictionary(cp => cp.PlayerId, _ => 0);
         var lost = participants.ToDictionary(cp => cp.PlayerId, _ => 0);
+        var setsWon = participants.ToDictionary(cp => cp.PlayerId, _ => 0);
+        var gamesWon = participants.ToDictionary(cp => cp.PlayerId, _ => 0);
 
         foreach (var f in fixtures)
         {
-            var ids = new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
-                .Where(pid => pid.HasValue)
-                .Select(pid => pid!.Value)
-                .Distinct()
-                .Where(pid => played.ContainsKey(pid))
-                .ToList();
+            // Side membership: home = Player1/Player3, away = Player2/Player4.
+            var homeIds = new[] { f.Player1Id, f.Player3Id }
+                .Where(pid => pid.HasValue).Select(pid => pid!.Value)
+                .Where(pid => played.ContainsKey(pid)).Distinct().ToList();
+            var awayIds = new[] { f.Player2Id, f.Player4Id }
+                .Where(pid => pid.HasValue).Select(pid => pid!.Value)
+                .Where(pid => played.ContainsKey(pid)).Distinct().ToList();
 
-            foreach (var pid in ids)
-            {
+            bool homeWon = f.WinnerPlayerId.HasValue
+                && (f.WinnerPlayerId == f.Player1Id || f.WinnerPlayerId == f.Player3Id);
+
+            foreach (var pid in homeIds.Concat(awayIds))
                 played[pid]++;
-                if (pid == f.WinnerPlayerId)
-                    won[pid]++;
-                else if (f.WinnerPlayerId.HasValue)
-                    lost[pid]++;
+
+            foreach (var pid in homeWon ? homeIds : awayIds)
+                won[pid]++;
+            foreach (var pid in homeWon ? awayIds : homeIds)
+                lost[pid]++;
+
+            foreach (var pid in homeIds)
+            {
+                setsWon[pid] += f.HomeSetsWon ?? 0;
+                gamesWon[pid] += f.HomeGamesTotal ?? 0;
+            }
+            foreach (var pid in awayIds)
+            {
+                setsWon[pid] += f.AwaySetsWon ?? 0;
+                gamesWon[pid] += f.AwayGamesTotal ?? 0;
             }
         }
 
@@ -719,6 +899,13 @@ public class CompetitionsController(
                 h2h.Add((f.WinnerPlayerId!.Value, lid));
         }
 
+        int PointsFor(int pid) => comp.LeagueScoring switch
+        {
+            LeagueScoringMode.SetsWon  => setsWon[pid],
+            LeagueScoringMode.GamesWon => gamesWon[pid],
+            _                          => won[pid] * 3,
+        };
+
         var entries = participants
             .Select(cp => new LeagueTableEntryDto(
                 cp.PlayerId,
@@ -726,7 +913,7 @@ public class CompetitionsController(
                 played[cp.PlayerId],
                 won[cp.PlayerId],
                 lost[cp.PlayerId],
-                won[cp.PlayerId] * 3))
+                PointsFor(cp.PlayerId)))
             .OrderByDescending(e => e.Points)
             .ThenByDescending(e => e.Won)
             .ThenByDescending(e => h2h.Count(h => h.winner == e.PlayerId))

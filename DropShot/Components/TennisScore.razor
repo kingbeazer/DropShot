@@ -1261,6 +1261,10 @@
                 bool userSideWon = _state.UserSets > _state.OppSets;
                 fx.WinnerPlayerId = userSideWon ? _competitionFixture.Player1Id : _competitionFixture.Player2Id;
                 fx.ResultSummary = string.Join(", ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}"));
+                fx.HomeSetsWon = _state.UserSets;
+                fx.AwaySetsWon = _state.OppSets;
+                fx.HomeGamesTotal = _state.SetScores.Sum(s => s.UserGames);
+                fx.AwayGamesTotal = _state.SetScores.Sum(s => s.OpponentGames);
                 await dbc3.SaveChangesAsync();
 
                 // Auto-advance the next round if all matches in this round are now complete
@@ -1321,6 +1325,12 @@
                         fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
                                         : awayScore > homeScore ? fx.AwayTeamId
                                         : null; // draw
+                        // Roll up the rubber aggregates so the league-table endpoint
+                        // can use the fixture row directly (mirrors the singles/doubles path).
+                        fx.HomeSetsWon = allRubbers.Sum(r => r.HomeSetsWon ?? 0);
+                        fx.AwaySetsWon = allRubbers.Sum(r => r.AwaySetsWon ?? 0);
+                        fx.HomeGamesTotal = allRubbers.Sum(r => r.HomeGamesTotal ?? 0);
+                        fx.AwayGamesTotal = allRubbers.Sum(r => r.AwayGamesTotal ?? 0);
                         fx.CompletedAt = DateTime.UtcNow;
 
                         bool requireVerification = fx.Competition?.RequireVerification ?? false;
