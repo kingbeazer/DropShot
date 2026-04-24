@@ -147,6 +147,13 @@
     transform: rotate(180deg);
 }
 
+.nav-dropdown-divider {
+    border: none;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+    margin: 0.35rem 0;
+}
+
 .nav-dropdown-menu ::deep .nav-link,
 .nav-dropdown-menu > .nav-link,
 .nav-dropdown-menu a.nav-link,
@@ -268,6 +275,8 @@
 
 /* ══════════════════════════════════════════════════════════════════════
    Medium screens – tighten spacing
+   Labels stay visible; we shrink the font / gap / sublabel instead of
+   hiding labels (which used to leave users with unlabelled icons).
    ══════════════════════════════════════════════════════════════════════ */
 @media (min-width: 641px) and (max-width: 1024px) {
     .nav-item ::deep .nav-link,
@@ -275,11 +284,24 @@
     .nav-dropdown-trigger {
         padding: 0 0.5rem;
         gap: 0.3rem;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }
 
     .nav-label {
+        display: inline;
+        font-size: 0.8rem;
+    }
+
+    /* Hide the small grey descriptor on tight screens — label alone is enough. */
+    .nav-primary .nav-sublabel,
+    .nav-utils .nav-sublabel {
         display: none;
+    }
+
+    /* Shrink icons a touch so the label has room. */
+    .nav-primary .nav-icon,
+    .nav-utils .nav-icon {
+        font-size: 1.1rem;
     }
 }
 

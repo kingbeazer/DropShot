@@ -1,0 +1,157 @@
+@page "/contact"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using DropShot.Services
+@using Microsoft.AspNetCore.Http
+
+@inject EmailService EmailService
+@inject EmailTemplateService EmailTemplateService
+@inject ContactRateLimiter RateLimiter
+@inject IConfiguration Configuration
+@inject IHttpContextAccessor HttpContextAccessor
+@inject ILogger<Contact> Logger
+
+<MudProviders />
+<PageTitle>Contact DropShot</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h5" Class="mb-2">Get in touch</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                We would love to hear from you. All emails will be responded to and we would love
+                your feedback and suggestions for improvements or to hear about any issues you're
+                having with the site or improvements or anything.
+            </MudText>
+
+            @if (_sent)
+            {
+                <MudAlert Severity="Severity.Success">
+                    Thanks — your message has been received. We'll get back to you shortly.
+                </MudAlert>
+            }
+            else
+            {
+                <EditForm Model="_input" OnValidSubmit="SubmitAsync" FormName="contact">
+                    <DataAnnotationsValidator />
+                    <MudStack Spacing="3">
+                        <MudTextField @bind-Value="_input.Name" Label="Your name"
+                                      Required="true" Variant="Variant.Outlined" />
+                        <MudTextField @bind-Value="_input.Email" Label="Email"
+                                      InputType="InputType.Email" Required="true" Variant="Variant.Outlined" />
+                        <MudTextField @bind-Value="_input.Subject" Label="Subject"
+                                      Required="true" Variant="Variant.Outlined" />
+                        <MudTextField @bind-Value="_input.Message" Label="Message"
+                                      Required="true" Lines="6" Variant="Variant.Outlined" />
+
+                        @* Honeypot: real users can't see this field; bots fill it in and get dropped. *@
+                        <div style="position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;" aria-hidden="true">
+                            <label>Website (leave blank)
+                                <input type="text" tabindex="-1" autocomplete="off"
+                                       @bind="_input.Website" />
+                            </label>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_error))
+                        {
+                            <MudAlert Severity="Severity.Error">@_error</MudAlert>
+                        }
+
+                        <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary"
+                                   Variant="Variant.Filled" Disabled="_sending">
+                            @(_sending ? "Sending…" : "Send message")
+                        </MudButton>
+                    </MudStack>
+                </EditForm>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private ContactInput _input = new();
+    private bool _sending;
+    private bool _sent;
+    private string? _error;
+    private DateTime _loadedAt;
+
+    protected override void OnInitialized()
+    {
+        _loadedAt = DateTime.UtcNow;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+
+        // Layer 1: honeypot. Any value here means a bot. Silently succeed so the
+        // bot doesn't retry.
+        if (!string.IsNullOrWhiteSpace(_input.Website))
+        {
+            Logger.LogInformation("Contact form: honeypot triggered (IP {Ip}).", RequestIp());
+            _sent = true;
+            return;
+        }
+
+        // Layer 2: time-trap. Humans can't read + type a message in 3s.
+        if ((DateTime.UtcNow - _loadedAt) < TimeSpan.FromSeconds(3))
+        {
+            Logger.LogInformation("Contact form: time-trap triggered (IP {Ip}).", RequestIp());
+            _sent = true;
+            return;
+        }
+
+        // Layer 3: rate-limit per IP and per email.
+        var ip = RequestIp();
+        if (!RateLimiter.TryRecord($"ip:{ip}") ||
+            !RateLimiter.TryRecord($"email:{_input.Email}"))
+        {
+            _error = "You've sent a few messages recently — please wait a few minutes and try again.";
+            return;
+        }
+
+        _sending = true;
+        try
+        {
+            var adminAddress = Configuration["App:AdminNotificationEmail"] ?? "admin@ds.tennis";
+            var body = $"""
+                <p><strong>From:</strong> {System.Net.WebUtility.HtmlEncode(_input.Name)} &lt;{System.Net.WebUtility.HtmlEncode(_input.Email)}&gt;</p>
+                <p><strong>Subject:</strong> {System.Net.WebUtility.HtmlEncode(_input.Subject)}</p>
+                <hr />
+                <p>{System.Net.WebUtility.HtmlEncode(_input.Message).Replace("\n", "<br />")}</p>
+                """;
+
+            await EmailService.SendEmailAsync(
+                adminAddress,
+                $"[DropShot contact] {_input.Subject}",
+                EmailTemplateService.AdminCustomEmail(body),
+                isHtml: true);
+
+            _sent = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Contact form send failed for {Email}", _input.Email);
+            _error = "Sorry — something went wrong sending your message. Please try again.";
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+
+    private string RequestIp()
+    {
+        var ctx = HttpContextAccessor.HttpContext;
+        return ctx?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    }
+
+    public class ContactInput
+    {
+        [Required] public string Name { get; set; } = "";
+        [Required, EmailAddress] public string Email { get; set; } = "";
+        [Required] public string Subject { get; set; } = "";
+        [Required] public string Message { get; set; } = "";
+        public string? Website { get; set; }
+    }
+}
