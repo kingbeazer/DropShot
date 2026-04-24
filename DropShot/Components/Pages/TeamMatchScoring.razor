@@ -27,11 +27,38 @@ else if (_fixture == null)
 else if (_resolutionError != null)
 {
     <MudContainer MaxWidth="MaxWidth.Medium" Class="py-4">
-        <MudAlert Severity="Severity.Error" Class="mb-3">@_resolutionError</MudAlert>
-        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
-                   Href="@($"/competition/{_fixture.CompetitionId}/view")">
-            Back to Competition
-        </MudButton>
+        <MudAlert Severity="Severity.Error" Class="mb-3">
+            <MudText Typo="Typo.body1" Class="mb-2">@_resolutionError</MudText>
+            @if (_isCompetitionAdmin)
+            {
+                <MudText Typo="Typo.body2">
+                    Fix the team roster in the competition setup, then reload this page.
+                    The rubber template requires specific role tags on each team member
+                    (for example MA / MB for a men's doubles). Roles are assigned in the
+                    <strong>Teams</strong> section of the setup page.
+                </MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2">
+                    Ask a competition admin to assign the missing role on the team roster.
+                </MudText>
+            }
+        </MudAlert>
+        <MudStack Row="true" Spacing="2">
+            @if (_isCompetitionAdmin && _fixture != null)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ManageAccounts"
+                           Href="@($"/competition/{_fixture.CompetitionId}#section-teams")">
+                    Fix team roster
+                </MudButton>
+            }
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                       Href="@($"/competition/{_fixture!.CompetitionId}/view")">
+                Back to Competition
+            </MudButton>
+        </MudStack>
     </MudContainer>
 }
 else
