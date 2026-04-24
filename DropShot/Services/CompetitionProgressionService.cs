@@ -8,6 +8,10 @@ namespace DropShot.Services;
 /// Handles automatic bracket progression: when all fixtures in a round are
 /// complete, winners are assigned to the next round's fixtures.
 /// Covers RoundRobin → QF/SF, QF → SF, and SF → Final transitions.
+///
+/// For multi-division (league) competitions, progression is scoped per
+/// division: each league's fixtures are seeded and advanced independently,
+/// using the fixture label prefix set by the auto-scheduler ("{DivisionName} …").
 /// </summary>
 public static class CompetitionProgressionService
 {
@@ -229,6 +233,11 @@ public static class CompetitionProgressionService
     }
 
     // ── Team RoundRobin → first knockout round ────────────────────────────────
+    //
+    // For multi-division (league) competitions each division's knockout slots
+    // are seeded independently, using only that division's RR results.
+    // Division membership is inferred from the fixture label prefix set by
+    // the auto-scheduler: "{DivisionName} SF 1", "{DivisionName} Final", etc.
 
     private static async Task TryAdvanceTeamFromRoundRobinAsync(
         MyDbContext db, int competitionId, List<CompetitionStage> allStages)
@@ -269,50 +278,79 @@ public static class CompetitionProgressionService
 
         if (!targetFixtures.Any()) return;
 
-        // Rank teams by rubbers won
-        var teamIds = await db.CompetitionTeams
+        var allTeams = await db.CompetitionTeams
             .Where(t => t.CompetitionId == competitionId)
-            .Select(t => t.CompetitionTeamId)
             .ToListAsync();
 
-        var rubbersWon = teamIds.ToDictionary(tid => tid, _ => 0);
-        var rubbersAgainst = teamIds.ToDictionary(tid => tid, _ => 0);
+        var divisions = await db.CompetitionDivisions
+            .Where(d => d.CompetitionId == competitionId)
+            .OrderBy(d => d.Rank)
+            .ToListAsync();
 
-        foreach (var f in rrFixtures.Where(f => f.Status == FixtureStatus.Completed
-                    && f.HomeTeamId.HasValue && f.AwayTeamId.HasValue))
+        bool hasDivisions = divisions.Any() && allTeams.Any(t => t.CompetitionDivisionId.HasValue);
+
+        if (!hasDivisions)
         {
-            int hid = f.HomeTeamId!.Value;
-            int aid = f.AwayTeamId!.Value;
-            if (!rubbersWon.ContainsKey(hid) || !rubbersWon.ContainsKey(aid)) continue;
+            // No divisions — seed all teams together (original behaviour)
+            var seeded = RankTeamsByRubbers(
+                allTeams.Select(t => t.CompetitionTeamId).ToList(), rrFixtures);
+            AssignTeamWinners(targetFixtures, seeded.Take(targetFixtures.Count * 2).ToList());
+        }
+        else
+        {
+            // Seed each division's knockout fixtures independently using only
+            // that division's RR results and label-matched target fixtures.
+            foreach (var division in divisions)
+            {
+                var divTeamIds = allTeams
+                    .Where(t => t.CompetitionDivisionId == division.CompetitionDivisionId)
+                    .Select(t => t.CompetitionTeamId)
+                    .ToList();
 
-            var completed = f.Rubbers.Where(r => r.IsComplete).ToList();
-            int hw = completed.Count(r => r.WinnerTeamId == hid);
-            int aw = completed.Count(r => r.WinnerTeamId == aid);
+                if (!divTeamIds.Any()) continue;
 
-            rubbersWon[hid] += hw;
-            rubbersAgainst[hid] += aw;
-            rubbersWon[aid] += aw;
-            rubbersAgainst[aid] += hw;
+                var divPrefix = division.Name + " ";
+                var divTargets = targetFixtures
+                    .Where(f => f.FixtureLabel != null &&
+                                f.FixtureLabel.StartsWith(divPrefix, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(f => f.FixtureLabel)
+                    .ToList();
+
+                if (!divTargets.Any()) continue;
+
+                // Only count RR fixtures that involve teams from this division
+                var divRrFixtures = rrFixtures
+                    .Where(f => (f.HomeTeamId.HasValue && divTeamIds.Contains(f.HomeTeamId.Value)) ||
+                                (f.AwayTeamId.HasValue && divTeamIds.Contains(f.AwayTeamId.Value)))
+                    .ToList();
+
+                var seeded = RankTeamsByRubbers(divTeamIds, divRrFixtures);
+                AssignTeamWinners(divTargets, seeded.Take(divTargets.Count * 2).ToList());
+            }
         }
 
-        var seeded = teamIds
-            .OrderByDescending(tid => rubbersWon[tid])
-            .ThenByDescending(tid => rubbersWon[tid] - rubbersAgainst[tid])
-            .ThenBy(tid => rubbersAgainst[tid])
-            .Take(targetFixtures.Count * 2)
-            .ToList();
-
-        AssignTeamWinners(targetFixtures, seeded);
         await db.SaveChangesAsync();
     }
 
     // ── Team knockout round → next round ────────────────────────────────────
+    //
+    // For multi-division competitions only the fixtures belonging to the same
+    // division as the completed fixture are checked and advanced, so each
+    // league's semi-final → final transition fires independently.
 
     private static async Task TryAdvanceTeamKnockoutRoundAsync(
         MyDbContext db, int competitionId,
         CompetitionFixture completedFixture, CompetitionStage stage,
         List<CompetitionStage> allStages)
     {
+        var divisions = await db.CompetitionDivisions
+            .Where(d => d.CompetitionId == competitionId)
+            .OrderBy(d => d.Rank)
+            .ToListAsync();
+
+        // Infer which division this fixture belongs to from its label prefix
+        var fixtureDiv = InferDivisionFromLabel(completedFixture.FixtureLabel, divisions);
+
         IQueryable<CompetitionFixture> sourceQuery = db.CompetitionFixtures
             .Where(f => f.CompetitionId == competitionId
                      && f.CompetitionStageId == completedFixture.CompetitionStageId);
@@ -324,6 +362,16 @@ public static class CompetitionProgressionService
         }
 
         var sourceFixtures = await sourceQuery.ToListAsync();
+
+        // Narrow to this division only so each league advances independently
+        if (fixtureDiv is not null)
+        {
+            var divPrefix = fixtureDiv.Name + " ";
+            sourceFixtures = sourceFixtures
+                .Where(f => f.FixtureLabel != null &&
+                            f.FixtureLabel.StartsWith(divPrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
 
         bool allDone = sourceFixtures.All(f =>
             f.Status == FixtureStatus.Completed ||
@@ -353,6 +401,15 @@ public static class CompetitionProgressionService
                          && f.Status == FixtureStatus.Scheduled)
                 .OrderBy(f => f.FixtureLabel)
                 .ToListAsync();
+
+            if (fixtureDiv is not null)
+            {
+                var divPrefix = fixtureDiv.Name + " ";
+                targetFixtures = targetFixtures
+                    .Where(f => f.FixtureLabel != null &&
+                                f.FixtureLabel.StartsWith(divPrefix, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
         }
         else
         {
@@ -370,12 +427,77 @@ public static class CompetitionProgressionService
                          && f.Status == FixtureStatus.Scheduled)
                 .OrderBy(f => f.FixtureLabel)
                 .ToListAsync();
+
+            if (fixtureDiv is not null)
+            {
+                var divPrefix = fixtureDiv.Name + " ";
+                targetFixtures = targetFixtures
+                    .Where(f => f.FixtureLabel != null &&
+                                f.FixtureLabel.StartsWith(divPrefix, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
         }
 
         if (!targetFixtures.Any()) return;
 
         AssignTeamWinners(targetFixtures, winners);
         await db.SaveChangesAsync();
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Rank a set of teams by rubbers won (then rubber differential, then rubbers
+    /// conceded) using only the provided set of completed RR fixtures.
+    /// </summary>
+    private static List<int> RankTeamsByRubbers(
+        List<int> teamIds, List<CompetitionFixture> rrFixtures)
+    {
+        var rubbersWon     = teamIds.ToDictionary(tid => tid, _ => 0);
+        var rubbersAgainst = teamIds.ToDictionary(tid => tid, _ => 0);
+
+        foreach (var f in rrFixtures.Where(f =>
+            f.Status == FixtureStatus.Completed &&
+            f.HomeTeamId.HasValue && f.AwayTeamId.HasValue))
+        {
+            int hid = f.HomeTeamId!.Value;
+            int aid = f.AwayTeamId!.Value;
+            if (!rubbersWon.ContainsKey(hid) || !rubbersWon.ContainsKey(aid)) continue;
+
+            var completed = f.Rubbers.Where(r => r.IsComplete).ToList();
+            int hw = completed.Count(r => r.WinnerTeamId == hid);
+            int aw = completed.Count(r => r.WinnerTeamId == aid);
+
+            rubbersWon[hid]     += hw;
+            rubbersAgainst[hid] += aw;
+            rubbersWon[aid]     += aw;
+            rubbersAgainst[aid] += hw;
+        }
+
+        return teamIds
+            .OrderByDescending(tid => rubbersWon[tid])
+            .ThenByDescending(tid => rubbersWon[tid] - rubbersAgainst[tid])
+            .ThenBy(tid => rubbersAgainst[tid])
+            .ToList();
+    }
+
+    /// <summary>
+    /// Infer which division a fixture belongs to from its label.
+    /// The auto-scheduler prefixes all divisional fixture labels with
+    /// "{DivisionName} " (e.g. "League A SF 1"). Longest name wins to
+    /// avoid false positives when one division name is a prefix of another.
+    /// Returns null for non-divisional or unrecognised labels.
+    /// </summary>
+    private static CompetitionDivision? InferDivisionFromLabel(
+        string? label, List<CompetitionDivision> divisions)
+    {
+        if (string.IsNullOrEmpty(label) || divisions.Count == 0) return null;
+
+        return divisions
+            .Where(d => !string.IsNullOrEmpty(d.Name))
+            .OrderByDescending(d => d.Name!.Length)   // longest name first — avoids prefix collisions
+            .FirstOrDefault(d =>
+                label.StartsWith(d.Name! + " ", StringComparison.OrdinalIgnoreCase));
     }
 
     // ── Team helper: assign teams to knockout fixtures ──────────────────────
@@ -393,17 +515,15 @@ public static class CompetitionProgressionService
         for (int i = 0; i < n; i++)
         {
             int p2Idx = 2 * n - 1 - i;
-            targets[i].HomeTeamId = i < teamIds.Count ? teamIds[i] : null;
+            targets[i].HomeTeamId = i     < teamIds.Count ? teamIds[i]     : null;
             targets[i].AwayTeamId = p2Idx < teamIds.Count ? teamIds[p2Idx] : null;
         }
     }
 
     // ── Helper: bracket-pair winners into target fixtures ────────────────────
-    // source[0], source[1] → target[0].Player1, target[0].Player2
-    // source[2], source[3] → target[1].Player1, target[1].Player2  etc.
-
     // Bracket seeding: seed[i] vs seed[2n-1-i] pairs top with bottom
     // (e.g. 4 players → fixture[0]=(1st,4th), fixture[1]=(2nd,3rd)).
+
     internal static void AssignWinners(List<CompetitionFixture> targets, List<int> winners)
     {
         int n = targets.Count;
