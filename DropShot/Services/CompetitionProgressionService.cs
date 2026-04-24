@@ -162,37 +162,25 @@ public static class CompetitionProgressionService
         CompetitionFixture completedFixture, CompetitionStage stage,
         List<CompetitionStage> allStages)
     {
-        // Collect all fixtures in the same logical "source round"
+        if (!completedFixture.WinnerPlayerId.HasValue) return;
+
+        // Collect all fixtures in the same logical "source round" (ordered by label).
         IQueryable<CompetitionFixture> sourceQuery = db.CompetitionFixtures
             .Where(f => f.CompetitionId == competitionId
                      && f.CompetitionStageId == completedFixture.CompetitionStageId);
 
         if (stage.StageType == StageType.Knockout)
         {
-            // Within a single Knockout stage, round number differentiates QF/SF/Final
             if (!completedFixture.RoundNumber.HasValue) return;
             sourceQuery = sourceQuery.Where(f => f.RoundNumber == completedFixture.RoundNumber);
         }
-        // For explicit QF/SF/Final stages, all fixtures in the stage belong to that round
 
-        var sourceFixtures = await sourceQuery.ToListAsync();
-
-        bool allDone = sourceFixtures.All(f =>
-            f.Status == FixtureStatus.Completed ||
-            f.Status == FixtureStatus.Walkover   ||
-            f.Status == FixtureStatus.Cancelled);
-
-        if (!allDone) return;
-
-        var winners = sourceFixtures
+        var sourceFixtures = await sourceQuery
             .OrderBy(f => f.FixtureLabel)
-            .Where(f => f.WinnerPlayerId.HasValue)
-            .Select(f => f.WinnerPlayerId!.Value)
-            .ToList();
+            .ToListAsync();
 
-        if (!winners.Any()) return;
-
-        // Find the unassigned target fixtures in the next round
+        // Target fixtures in the next round — do not filter on empty slots, since
+        // the sibling's winner may already have populated one of them.
         List<CompetitionFixture> targetFixtures;
 
         if (stage.StageType == StageType.Knockout)
@@ -202,25 +190,22 @@ public static class CompetitionProgressionService
                 .Where(f => f.CompetitionId == competitionId
                          && f.CompetitionStageId == completedFixture.CompetitionStageId
                          && f.RoundNumber == nextRound
-                         && f.Player1Id == null && f.Player2Id == null
                          && f.Status == FixtureStatus.Scheduled)
                 .OrderBy(f => f.FixtureLabel)
                 .ToListAsync();
         }
         else
         {
-            // Move to the next stage in StageOrder
             var nextStage = allStages
                 .Where(s => s.StageOrder > stage.StageOrder)
                 .OrderBy(s => s.StageOrder)
                 .FirstOrDefault();
 
-            if (nextStage is null) return; // This is the final stage — nothing to advance to
+            if (nextStage is null) return;
 
             targetFixtures = await db.CompetitionFixtures
                 .Where(f => f.CompetitionId == competitionId
                          && f.CompetitionStageId == nextStage.CompetitionStageId
-                         && f.Player1Id == null && f.Player2Id == null
                          && f.Status == FixtureStatus.Scheduled)
                 .OrderBy(f => f.FixtureLabel)
                 .ToListAsync();
@@ -228,7 +213,10 @@ public static class CompetitionProgressionService
 
         if (!targetFixtures.Any()) return;
 
-        AssignWinners(targetFixtures, winners);
+        AssignSingleWinner(
+            sourceFixtures, targetFixtures, completedFixture.CompetitionFixtureId,
+            isTeam: false, completedFixture.WinnerPlayerId.Value);
+
         await db.SaveChangesAsync();
     }
 
@@ -343,12 +331,13 @@ public static class CompetitionProgressionService
         CompetitionFixture completedFixture, CompetitionStage stage,
         List<CompetitionStage> allStages)
     {
+        if (!completedFixture.WinnerTeamId.HasValue) return;
+
         var divisions = await db.CompetitionDivisions
             .Where(d => d.CompetitionId == competitionId)
             .OrderBy(d => d.Rank)
             .ToListAsync();
 
-        // Infer which division this fixture belongs to from its label prefix
         var fixtureDiv = InferDivisionFromLabel(completedFixture.FixtureLabel, divisions);
 
         IQueryable<CompetitionFixture> sourceQuery = db.CompetitionFixtures
@@ -361,9 +350,8 @@ public static class CompetitionProgressionService
             sourceQuery = sourceQuery.Where(f => f.RoundNumber == completedFixture.RoundNumber);
         }
 
-        var sourceFixtures = await sourceQuery.ToListAsync();
+        var sourceFixtures = await sourceQuery.OrderBy(f => f.FixtureLabel).ToListAsync();
 
-        // Narrow to this division only so each league advances independently
         if (fixtureDiv is not null)
         {
             var divPrefix = fixtureDiv.Name + " ";
@@ -372,21 +360,6 @@ public static class CompetitionProgressionService
                             f.FixtureLabel.StartsWith(divPrefix, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
-
-        bool allDone = sourceFixtures.All(f =>
-            f.Status == FixtureStatus.Completed ||
-            f.Status == FixtureStatus.Walkover   ||
-            f.Status == FixtureStatus.Cancelled);
-
-        if (!allDone) return;
-
-        var winners = sourceFixtures
-            .OrderBy(f => f.FixtureLabel)
-            .Where(f => f.WinnerTeamId.HasValue)
-            .Select(f => f.WinnerTeamId!.Value)
-            .ToList();
-
-        if (!winners.Any()) return;
 
         List<CompetitionFixture> targetFixtures;
 
@@ -397,19 +370,9 @@ public static class CompetitionProgressionService
                 .Where(f => f.CompetitionId == competitionId
                          && f.CompetitionStageId == completedFixture.CompetitionStageId
                          && f.RoundNumber == nextRound
-                         && f.HomeTeamId == null && f.AwayTeamId == null
                          && f.Status == FixtureStatus.Scheduled)
                 .OrderBy(f => f.FixtureLabel)
                 .ToListAsync();
-
-            if (fixtureDiv is not null)
-            {
-                var divPrefix = fixtureDiv.Name + " ";
-                targetFixtures = targetFixtures
-                    .Where(f => f.FixtureLabel != null &&
-                                f.FixtureLabel.StartsWith(divPrefix, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-            }
         }
         else
         {
@@ -423,24 +386,26 @@ public static class CompetitionProgressionService
             targetFixtures = await db.CompetitionFixtures
                 .Where(f => f.CompetitionId == competitionId
                          && f.CompetitionStageId == nextStage.CompetitionStageId
-                         && f.HomeTeamId == null && f.AwayTeamId == null
                          && f.Status == FixtureStatus.Scheduled)
                 .OrderBy(f => f.FixtureLabel)
                 .ToListAsync();
+        }
 
-            if (fixtureDiv is not null)
-            {
-                var divPrefix = fixtureDiv.Name + " ";
-                targetFixtures = targetFixtures
-                    .Where(f => f.FixtureLabel != null &&
-                                f.FixtureLabel.StartsWith(divPrefix, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-            }
+        if (fixtureDiv is not null)
+        {
+            var divPrefix = fixtureDiv.Name + " ";
+            targetFixtures = targetFixtures
+                .Where(f => f.FixtureLabel != null &&
+                            f.FixtureLabel.StartsWith(divPrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
 
         if (!targetFixtures.Any()) return;
 
-        AssignTeamWinners(targetFixtures, winners);
+        AssignSingleWinner(
+            sourceFixtures, targetFixtures, completedFixture.CompetitionFixtureId,
+            isTeam: true, completedFixture.WinnerTeamId.Value);
+
         await db.SaveChangesAsync();
     }
 
@@ -498,6 +463,83 @@ public static class CompetitionProgressionService
             .OrderByDescending(d => d.Name!.Length)   // longest name first — avoids prefix collisions
             .FirstOrDefault(d =>
                 label.StartsWith(d.Name! + " ", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ── Per-fixture helper: place one winner into its target slot ───────────
+    //
+    // Standard bracket pairing: source fixtures ordered by label, target
+    // fixtures ordered by label. Target[i] = winner-of-Source[i] vs
+    // winner-of-Source[2n-1-i] (n = target count). So:
+    //   source index < n → target[idx].Player1/HomeTeam
+    //   source index >= n → target[2n-1-idx].Player2/AwayTeam
+    //
+    // For non-standard ratios (e.g. 3 sources into 2 targets on a bye round),
+    // fall back to filling the first empty slot in order — matches the legacy
+    // batch behaviour's "not enough winners" case.
+
+    internal static void AssignSingleWinner(
+        List<CompetitionFixture> sourceFixtures,
+        List<CompetitionFixture> targetFixtures,
+        int completedFixtureId,
+        bool isTeam,
+        int winnerId)
+    {
+        int sourceIdx = sourceFixtures.FindIndex(f => f.CompetitionFixtureId == completedFixtureId);
+        if (sourceIdx < 0) return;
+
+        int n = targetFixtures.Count;
+        if (n == 0) return;
+
+        bool standardBracket = sourceFixtures.Count == 2 * n;
+
+        if (standardBracket)
+        {
+            bool isSlot1 = sourceIdx < n;
+            int targetIdx = isSlot1 ? sourceIdx : (2 * n - 1 - sourceIdx);
+            if (targetIdx < 0 || targetIdx >= n) return;
+            SetSlot(targetFixtures[targetIdx], isTeam, isSlot1, winnerId);
+        }
+        else
+        {
+            // Fallback: first empty slot in bracket order (Player1/HomeTeam then
+            // Player2/AwayTeam across targets).
+            foreach (var t in targetFixtures)
+            {
+                if (isTeam)
+                {
+                    if (!t.HomeTeamId.HasValue) { t.HomeTeamId = winnerId; return; }
+                }
+                else
+                {
+                    if (!t.Player1Id.HasValue) { t.Player1Id = winnerId; return; }
+                }
+            }
+            foreach (var t in targetFixtures)
+            {
+                if (isTeam)
+                {
+                    if (!t.AwayTeamId.HasValue) { t.AwayTeamId = winnerId; return; }
+                }
+                else
+                {
+                    if (!t.Player2Id.HasValue) { t.Player2Id = winnerId; return; }
+                }
+            }
+        }
+    }
+
+    private static void SetSlot(CompetitionFixture target, bool isTeam, bool isSlot1, int winnerId)
+    {
+        if (isTeam)
+        {
+            if (isSlot1) target.HomeTeamId = winnerId;
+            else target.AwayTeamId = winnerId;
+        }
+        else
+        {
+            if (isSlot1) target.Player1Id = winnerId;
+            else target.Player2Id = winnerId;
+        }
     }
 
     // ── Team helper: assign teams to knockout fixtures ──────────────────────

@@ -348,7 +348,7 @@ else
         {
             <DropShot.Components.Competitions.Setup.AdminsSection
                 Admins="_competitionAdmins"
-                NewAdminEmail="_newAdminEmail"
+                NewAdminEmail="@_newAdminEmail"
                 NewAdminEmailChanged="@(v => _newAdminEmail = v)"
                 OnAddAdmin="AddCompetitionAdmin"
                 OnRemoveAdmin="RemoveCompetitionAdmin" />
@@ -396,7 +396,7 @@ else
                     Presets="_rubberPresets"
                     AvailableRoles="_availableRoles"
                     Source="_rubberTemplateSource"
-                    SelectedPresetKey="_selectedRubberPresetKey"
+                    SelectedPresetKey="@_selectedRubberPresetKey"
                     OnApplyPreset="ApplyRubberPreset"
                     OnRevertToDefault="RevertToDefaultTemplate"
                     OnConvertToCustom="ConvertToCustomTemplate"
@@ -740,7 +740,7 @@ else
             }
         </MudTabPanel>
 
-        <MudTabPanel Text="Fixtures">
+        <MudTabPanel Text="Fixtures/Results">
             @if (!Model.HasDivisions)
             {
                 <DropShot.Components.Competitions.Setup.FixturesSection
@@ -780,7 +780,7 @@ else
                 <MudPaper Class="pa-4 mb-4 setup-section" Elevation="0"
                      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
-                        <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
+                        <MudText Typo="Typo.h6" Style="flex:1">Fixtures/Results</MudText>
                         @if (_isSuperAdmin && _stages.Any(s => s.StageType == StageType.RoundRobin))
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary"
@@ -3276,10 +3276,7 @@ else
         int teamSize, string itemLabel,
         RubberTemplateRegistry.RoleAssigner? assigner, Random rng)
     {
-        string TeamName(int idx) =>
-            divisionName is null
-                ? $"{itemLabel} {(char)('A' + idx)}"
-                : $"{divisionName} — {itemLabel} {(char)('A' + idx)}";
+        string TeamName(int idx) => $"{itemLabel} {(char)('A' + idx)}";
 
         string BucketPrefix() => divisionName is null ? "" : $"[{divisionName}] ";
 
@@ -3624,7 +3621,13 @@ else
         var loaded = await LoadFixtureForDialogAsync(fixture.CompetitionFixtureId);
         if (loaded == null) return;
 
-        var parameters = new DialogParameters<SubmitScoreDialog> { { x => x.Fixture, loaded } };
+        // This page is only reachable by admins / competition admins, so anyone
+        // who can edit the competition gets the score-validation bypass too.
+        var parameters = new DialogParameters<SubmitScoreDialog>
+        {
+            { x => x.Fixture, loaded },
+            { x => x.AdminOverride, _canEdit }
+        };
         var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
         var result = await dialog.Result;
         if (result is not null && !result.Canceled)

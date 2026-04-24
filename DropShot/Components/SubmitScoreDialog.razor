@@ -241,55 +241,54 @@
             return;
         }
 
-        // Validate each set score against competition rules
-        for (int i = 0; i < _bestOf; i++)
+        // Validate each set score against competition rules. Admins bypass range
+        // validation so they can correct historical / irregular scores.
+        if (!AdminOverride)
         {
-            if (!_score1[i].HasValue || !_score2[i].HasValue) continue;
-            int s1 = _score1[i]!.Value, s2 = _score2[i]!.Value;
-
-            if (s1 == s2)
+            for (int i = 0; i < _bestOf; i++)
             {
-                _error = $"Set {i + 1}: scores are tied — one player must win each set.";
-                return;
-            }
+                if (!_score1[i].HasValue || !_score2[i].HasValue) continue;
+                int s1 = _score1[i]!.Value, s2 = _score2[i]!.Value;
 
-            int winner = Math.Max(s1, s2);
-            int loser = Math.Min(s1, s2);
+                if (s1 == s2)
+                {
+                    _error = $"Set {i + 1}: scores are tied — one player must win each set.";
+                    return;
+                }
 
-            if (_setWinMode == SetWinMode.FirstTo)
-            {
-                // First to: winner must have exactly GamesPerSet, loser must have fewer
-                if (winner != _gamesPerSet)
+                int winner = Math.Max(s1, s2);
+                int loser = Math.Min(s1, s2);
+
+                if (_setWinMode == SetWinMode.FirstTo)
                 {
-                    _error = $"Set {i + 1}: winner must reach exactly {_gamesPerSet} games (First to mode).";
-                    return;
+                    if (winner != _gamesPerSet)
+                    {
+                        _error = $"Set {i + 1}: winner must reach exactly {_gamesPerSet} games (First to mode).";
+                        return;
+                    }
+                    if (loser >= _gamesPerSet)
+                    {
+                        _error = $"Set {i + 1}: loser cannot have {loser} games when target is {_gamesPerSet}.";
+                        return;
+                    }
                 }
-                if (loser >= _gamesPerSet)
+                else
                 {
-                    _error = $"Set {i + 1}: loser cannot have {loser} games when target is {_gamesPerSet}.";
-                    return;
-                }
-            }
-            else
-            {
-                // Win by 2: winner needs at least GamesPerSet games
-                if (winner < _gamesPerSet)
-                {
-                    _error = $"Set {i + 1}: winner must have at least {_gamesPerSet} games.";
-                    return;
-                }
-                // Normal win: exactly GamesPerSet with loser having at most GamesPerSet-2
-                // Or tie-break: GamesPerSet+1 vs GamesPerSet (e.g. 7-6)
-                // Or extended: both above GamesPerSet with exactly 2 game difference
-                if (winner == _gamesPerSet && loser > _gamesPerSet - 2)
-                {
-                    _error = $"Set {i + 1}: at {_gamesPerSet} games, opponent can have at most {_gamesPerSet - 2} (Win by 2 mode). Use {_gamesPerSet + 1}-{_gamesPerSet} for a tie-break.";
-                    return;
-                }
-                if (winner > _gamesPerSet && Math.Abs(s1 - s2) != 1 && Math.Abs(s1 - s2) != 2)
-                {
-                    _error = $"Set {i + 1}: above {_gamesPerSet}-all, the margin must be 1 (tie-break) or 2 (extended).";
-                    return;
+                    if (winner < _gamesPerSet)
+                    {
+                        _error = $"Set {i + 1}: winner must have at least {_gamesPerSet} games.";
+                        return;
+                    }
+                    if (winner == _gamesPerSet && loser > _gamesPerSet - 2)
+                    {
+                        _error = $"Set {i + 1}: at {_gamesPerSet} games, opponent can have at most {_gamesPerSet - 2} (Win by 2 mode). Use {_gamesPerSet + 1}-{_gamesPerSet} for a tie-break.";
+                        return;
+                    }
+                    if (winner > _gamesPerSet && Math.Abs(s1 - s2) != 1 && Math.Abs(s1 - s2) != 2)
+                    {
+                        _error = $"Set {i + 1}: above {_gamesPerSet}-all, the margin must be 1 (tie-break) or 2 (extended).";
+                        return;
+                    }
                 }
             }
         }
