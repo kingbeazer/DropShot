@@ -173,7 +173,9 @@
                 int h = _home[r][i]!.Value, a = _away[r][i]!.Value;
                 if (h == a) { _error = $"{_rubbers[r].Name} – Set {i + 1}: scores are tied."; return; }
 
-                if (!AdminOverride)
+                // Per-set validation always runs in the bulk dialog — score
+                // entry here is the normal match-result flow, so we want the
+                // same guardrails that the single-rubber path uses.
                 {
                     int winner = Math.Max(h, a);
                     int loser = Math.Min(h, a);
@@ -289,13 +291,17 @@
 
                 if (AdminOverride && alreadyFinalised)
                 {
-                    // Admin correcting an already-finalised fixture — update aggregates
-                    // in place; don't touch verification token or fire emails.
+                    // Admin correcting an already-finalised fixture — update
+                    // aggregates in place; don't regenerate the verification
+                    // token and don't resend emails (the outstanding admin
+                    // link needs to keep working).
                     await db.SaveChangesAsync();
                 }
                 else
                 {
                     fx.CompletedAt = DateTime.UtcNow;
+                    // Admins bypass email verification, but all users hit
+                    // the per-set validation at the top of this method.
                     bool requireVerification = !AdminOverride && (fx.Competition?.RequireVerification ?? false);
                     if (requireVerification)
                     {
