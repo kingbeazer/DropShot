@@ -48,14 +48,19 @@ public class ResultVerificationService(EmailService emailService, EmailTemplateS
     /// </summary>
     public async Task SendResultNotificationForTeamMatchAsync(CompetitionFixture fixture, IEnumerable<Rubber> rubbers)
     {
-        var title = FixtureTitle(fixture);
+        var competitionName = fixture.Competition?.CompetitionName ?? "Competition";
+        var divisionName = fixture.HomeTeam?.Division?.Name ?? fixture.AwayTeam?.Division?.Name;
         var (home, away) = SideNames(fixture);
         var winnerName = WinnerName(fixture);
         var subject = $"Match result: {home} vs {away}";
-        var rubberData = BuildRubberEmailData(rubbers, fixture);
-        var html = emailTemplateService.MatchResultEmailForTeamMatch(title, home, away, winnerName, rubberData);
+        var rubberList = rubbers.ToList();
+        var rubberData = BuildRubberEmailData(rubberList, fixture);
+        var (totalHomeSets, totalAwaySets) = ComputeRubberTotals(rubberList);
+        var html = emailTemplateService.MatchResultEmailForTeamMatch(
+            competitionName, divisionName, home, away, winnerName,
+            totalHomeSets, totalAwaySets, rubberData);
 
-        var playerEmails = rubbers
+        var playerEmails = rubberList
             .SelectMany(r => new[] { r.HomePlayer1, r.HomePlayer2, r.AwayPlayer1, r.AwayPlayer2 })
             .Where(p => p?.Email != null)
             .Select(p => p!.Email!)
@@ -74,16 +79,32 @@ public class ResultVerificationService(EmailService emailService, EmailTemplateS
     {
         if (fixture.VerificationToken == null) return;
 
-        var title = FixtureTitle(fixture);
+        var competitionName = fixture.Competition?.CompetitionName ?? "Competition";
+        var divisionName = fixture.HomeTeam?.Division?.Name ?? fixture.AwayTeam?.Division?.Name;
         var (home, away) = SideNames(fixture);
         var winnerName = WinnerName(fixture);
         var verifyUrl = $"{BaseUrl}/verify-result/{fixture.VerificationToken}";
         var subject = $"Result verification required: {home} vs {away}";
-        var rubberData = BuildRubberEmailData(rubbers, fixture);
-        var html = emailTemplateService.AdminVerificationEmailForTeamMatch(title, home, away, winnerName, verifyUrl, rubberData);
+        var rubberList = rubbers.ToList();
+        var rubberData = BuildRubberEmailData(rubberList, fixture);
+        var (totalHomeSets, totalAwaySets) = ComputeRubberTotals(rubberList);
+        var html = emailTemplateService.AdminVerificationEmailForTeamMatch(
+            competitionName, divisionName, home, away, winnerName, verifyUrl,
+            totalHomeSets, totalAwaySets, rubberData);
 
         await Task.WhenAll(adminEmails.Select(email =>
             SendSafe(email, subject, html, "team match admin verification", isHtml: true)));
+    }
+
+    private static (int totalHomeSets, int totalAwaySets) ComputeRubberTotals(IEnumerable<Rubber> rubbers)
+    {
+        int h = 0, a = 0;
+        foreach (var r in rubbers.Where(x => x.IsComplete))
+        {
+            h += r.HomeSetsWon ?? 0;
+            a += r.AwaySetsWon ?? 0;
+        }
+        return (h, a);
     }
 
     private static IEnumerable<(string Name, string HomePlayers, string AwayPlayers, string Score, bool? HomeWon)>
