@@ -312,6 +312,15 @@ else
                         </MudRadioGroup>
                     }
 
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Minimum days between matches</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                        Auto-scheduling will try to keep each player's matches this many days apart.
+                        Leave blank for no restriction.
+                    </MudText>
+                    <MudNumericField T="int?" @bind-Value="Model.MinDaysBetweenPlayerMatches"
+                                     Label="Days" Min="0" Max="30" Variant="Variant.Outlined"
+                                     Style="max-width: 160px" />
+
                     <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" Class="mt-2" />
 
                     <MudCheckBox @bind-Value="Model.HasDivisions"
@@ -1710,6 +1719,7 @@ else
         public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
         public DropShot.Shared.RubberTieBreakMode RubberTieBreak { get; set; } = DropShot.Shared.RubberTieBreakMode.AdminDecides;
+        public int? MinDaysBetweenPlayerMatches { get; set; }
         public bool HasDivisions { get; set; }
         public int? SeededFromCompetitionId { get; set; }
     }
@@ -1925,6 +1935,7 @@ else
                 SetWinMode = comp.SetWinMode,
                 LeagueScoring = comp.LeagueScoring,
                 RubberTieBreak = comp.RubberTieBreak,
+                MinDaysBetweenPlayerMatches = comp.MinDaysBetweenPlayerMatches,
                 HasDivisions = comp.HasDivisions,
                 SeededFromCompetitionId = comp.SeededFromCompetitionId
             };
@@ -2266,6 +2277,7 @@ else
         comp.SetWinMode = Model.SetWinMode;
         comp.LeagueScoring = Model.LeagueScoring;
         comp.RubberTieBreak = Model.RubberTieBreak;
+        comp.MinDaysBetweenPlayerMatches = Model.MinDaysBetweenPlayerMatches;
         comp.HasDivisions = Model.HasDivisions;
         comp.SeededFromCompetitionId = Model.SeededFromCompetitionId;
     }
@@ -2854,6 +2866,7 @@ else
                 SetWinMode          = source.SetWinMode,
                 LeagueScoring       = source.LeagueScoring,
                 RubberTieBreak      = source.RubberTieBreak,
+                MinDaysBetweenPlayerMatches = source.MinDaysBetweenPlayerMatches,
                 TeamSize            = source.TeamSize,
                 RubberTemplateKey   = source.RubberTemplateKey,
                 RequireVerification = source.RequireVerification,
@@ -3936,12 +3949,30 @@ else
 
         await using var db = DbFactory.CreateDbContext();
 
-        // Delete any Rubbers first
         var fixtureIds = _fixtures.Select(f => f.CompetitionFixtureId).ToList();
+
+        // Delete Rubbers first, capturing any SavedMatch links.
         var rubbers = await db.Rubbers.Where(r => fixtureIds.Contains(r.CompetitionFixtureId)).ToListAsync();
+        var rubberSavedMatchIds = rubbers
+            .Where(r => r.SavedMatchId.HasValue)
+            .Select(r => r.SavedMatchId!.Value)
+            .ToList();
         if (rubbers.Count > 0) db.Rubbers.RemoveRange(rubbers);
 
         var all = await db.CompetitionFixtures.Where(f => f.CompetitionId == Id).ToListAsync();
+
+        // Collect all SavedMatch IDs linked either directly on a fixture or via one of its rubbers,
+        // so they get cleaned up too and don't re-appear as orphaned casual matches on players' feeds.
+        var directSavedMatchIds = all.Where(f => f.SavedMatchId.HasValue).Select(f => f.SavedMatchId!.Value);
+        var savedMatchIds = directSavedMatchIds.Concat(rubberSavedMatchIds).Distinct().ToList();
+        if (savedMatchIds.Count > 0)
+        {
+            var savedMatches = await db.SavedMatch
+                .Where(m => savedMatchIds.Contains(m.SavedMatchId))
+                .ToListAsync();
+            if (savedMatches.Count > 0) db.SavedMatch.RemoveRange(savedMatches);
+        }
+
         db.CompetitionFixtures.RemoveRange(all);
         await db.SaveChangesAsync();
 
