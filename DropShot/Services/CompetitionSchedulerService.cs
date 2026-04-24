@@ -111,7 +111,7 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
             .ToHashSet();
 
         var activePlayers = comp.Participants
-            .Where(p => p.Status is ParticipantStatus.Registered or ParticipantStatus.Confirmed)
+            .Where(p => p.Status == ParticipantStatus.FullPlayer)
             .Select(p => p.PlayerId)
             .ToList();
 
@@ -307,7 +307,7 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
                         ? comp.Teams.Count(t => t.CompetitionDivisionId == d.CompetitionDivisionId)
                         : comp.Participants.Count(p =>
                             p.CompetitionDivisionId == d.CompetitionDivisionId &&
-                            (p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed));
+                            p.Status == ParticipantStatus.FullPlayer);
                     yield return (d.Name, d.CompetitionDivisionId, bucketN);
                 }
             }
@@ -355,7 +355,7 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
                     if (isTeamComp && comp.Teams.Count >= 2)
                     {
                         var allMembers = comp.Participants
-                            .Where(p => p.TeamId != null && (p.Status is ParticipantStatus.Registered or ParticipantStatus.Confirmed))
+                            .Where(p => p.TeamId != null && p.Status == ParticipantStatus.FullPlayer)
                             .ToList();
 
                         IEnumerable<IGrouping<int?, CompetitionTeam>> teamGroups = comp.HasDivisions

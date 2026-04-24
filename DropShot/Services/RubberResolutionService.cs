@@ -112,7 +112,7 @@ public class RubberResolutionService(ICompetitionRubberTemplateProvider template
     {
         return await db.CompetitionParticipants
             .Where(cp => cp.CompetitionId == competitionId && cp.TeamId == teamId
-                && (cp.Status == ParticipantStatus.Registered || cp.Status == ParticipantStatus.Confirmed))
+                && cp.Status == ParticipantStatus.FullPlayer)
             .Include(cp => cp.Player)
             .ToListAsync();
     }

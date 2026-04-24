@@ -104,7 +104,7 @@ public static class CompetitionProgressionService
         // Compute RR standings
         var activePids = await db.CompetitionParticipants
             .Where(p => p.CompetitionId == competitionId
-                     && (p.Status == ParticipantStatus.Registered || p.Status == ParticipantStatus.Confirmed))
+                     && p.Status == ParticipantStatus.FullPlayer)
             .Select(p => p.PlayerId)
             .ToListAsync();
 

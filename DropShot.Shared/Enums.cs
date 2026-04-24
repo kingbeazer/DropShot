@@ -35,10 +35,11 @@ public enum StageType : byte
 
 public enum ParticipantStatus : byte
 {
-    Registered = 1,
-    Confirmed = 2,
-    Withdrawn = 3,
-    Eliminated = 4
+    Registered   = 1,  // Added by admin but player has not yet confirmed participation
+    FullPlayer   = 2,  // Active full participant (was Confirmed — byte value unchanged)
+    Withdrawn    = 3,
+    Disqualified = 4,
+    Substitute   = 5,  // Available as a substitute, not in a team
 }
 
 public enum FriendStatus : byte
