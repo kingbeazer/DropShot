@@ -14,6 +14,7 @@
 @inject ClubAuthorizationService AuthzService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
+@inject IDialogService DialogService
 
 <MudProviders />
 
@@ -62,7 +63,12 @@
                     <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Linked</MudChip>
                     break;
                 case ClubLinkState.Pending:
-                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Request Pending</MudChip>
+                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Request Pending</MudChip>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       aria-label="Cancel link request"
+                                       OnClick="@(() => CancelRequest(context))" />
+                    </div>
                     break;
                 default:
                     <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
@@ -699,6 +705,15 @@
             return;
         }
 
+        var confirmed = await DialogService.ShowMessageBox(
+            $"Request to link with {club.Name}?",
+            $"This will send a request to the administrators of {club.Name}. " +
+            "If they approve it, you will be added as a player on their roster. " +
+            "You can cancel a pending request from this page at any time before it is approved.",
+            yesText: "Send request", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
         await using var db = DbFactory.CreateDbContext();
 
         // Guard against a race with approval or an existing pending request.
@@ -723,6 +738,37 @@
 
         _pendingLinkClubIds.Add(club.ClubId);
         Snackbar.Add($"Request sent to {club.Name}.", Severity.Success);
+    }
+
+    private async Task CancelRequest(Club club)
+    {
+        if (string.IsNullOrEmpty(_currentUserId)) return;
+
+        var confirmed = await DialogService.ShowMessageBox(
+            $"Cancel link request to {club.Name}?",
+            "Your pending request will be deleted. You can submit a new one later if you change your mind.",
+            yesText: "Delete request", cancelText: "Keep request");
+
+        if (confirmed != true) return;
+
+        await using var db = DbFactory.CreateDbContext();
+        var pending = await db.ClubLinkRequests
+            .Where(r => r.UserId == _currentUserId && r.ClubId == club.ClubId
+                        && r.Status == ClubLinkRequestStatus.Pending)
+            .ToListAsync();
+
+        if (pending.Count == 0)
+        {
+            _pendingLinkClubIds.Remove(club.ClubId);
+            Snackbar.Add("No pending request found.", Severity.Info);
+            return;
+        }
+
+        db.ClubLinkRequests.RemoveRange(pending);
+        await db.SaveChangesAsync();
+
+        _pendingLinkClubIds.Remove(club.ClubId);
+        Snackbar.Add($"Request to {club.Name} cancelled.", Severity.Success);
     }
 
     private async Task LoadClubs()
