@@ -39,7 +39,10 @@
         <MudTh>Email</MudTh>
         <MudTh>Courts</MudTh>
         <MudTh>Link Status</MudTh>
-        <MudTh>Actions</MudTh>
+        @if (_canSeeActionsColumn)
+        {
+            <MudTh>Actions</MudTh>
+        }
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Name">@context.Name</MudTd>
@@ -69,31 +72,31 @@
                     break;
             }
         </MudTd>
-        <MudTd DataLabel="Actions">
-            @if (_isAdmin || _editableClubIds.Contains(context.ClubId))
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                               OnClick="@(() => StartEdit(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Info"
-                               aria-label="Manage courts" OnClick="@(() => OpenCourts(context))" />
-            }
-            <MudIconButton Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Color="Color.Secondary"
-                           aria-label="Scheduling templates" OnClick="@(() => OpenTemplates(context))" />
-            <MudIconButton Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Small" Color="Color.Warning"
-                           aria-label="Competition templates" OnClick="@(() => OpenCompetitionTemplates(context))" />
-            <MudIconButton Icon="@Icons.Material.Filled.Email" Size="Size.Small" Color="Color.Default"
-                           aria-label="Email templates" OnClick="@(() => OpenEmailTemplates(context))" />
-            @if (_isAdmin || _editableClubIds.Contains(context.ClubId))
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Gavel" Size="Size.Small" Color="Color.Tertiary"
-                               aria-label="Rules" OnClick="@(() => OpenRules(context))" />
-            }
-            @if (_isAdmin)
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                               OnClick="@(() => DeleteClub(context))" />
-            }
-        </MudTd>
+        @if (_canSeeActionsColumn)
+        {
+            <MudTd DataLabel="Actions">
+                @if (_isAdmin || _editableClubIds.Contains(context.ClubId))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => StartEdit(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Info"
+                                   aria-label="Manage courts" OnClick="@(() => OpenCourts(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Color="Color.Secondary"
+                                   aria-label="Scheduling templates" OnClick="@(() => OpenTemplates(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Small" Color="Color.Warning"
+                                   aria-label="Competition templates" OnClick="@(() => OpenCompetitionTemplates(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Email" Size="Size.Small" Color="Color.Default"
+                                   aria-label="Email templates" OnClick="@(() => OpenEmailTemplates(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Gavel" Size="Size.Small" Color="Color.Tertiary"
+                                   aria-label="Rules" OnClick="@(() => OpenRules(context))" />
+                }
+                @if (_isAdmin)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteClub(context))" />
+                }
+            </MudTd>
+        }
     </RowTemplate>
     <NoRecordsContent>
         <MudText>No clubs yet.</MudText>
@@ -568,6 +571,8 @@
     private HashSet<int> _linkedClubIds = [];
     private HashSet<int> _pendingLinkClubIds = [];
     private string? _currentUserId;
+
+    private bool _canSeeActionsColumn => _isAdmin || _editableClubIds.Count > 0;
 
     private enum ClubLinkState { None, Pending, Linked, Administered }
 
