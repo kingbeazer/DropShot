@@ -11,7 +11,7 @@ public class ViewCompetitionTests
     [Fact]
     public async Task ViewCompetition_Renders_Without_Exception()
     {
-        await using var ctx = new DropShotTestContext(authenticated: true);
+        await using var ctx = new DropShotTestContext(authenticated: true, roles: ["Admin"]);
 
         using (var db = ctx.SeedDatabase())
         {

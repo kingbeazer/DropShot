@@ -21,7 +21,7 @@ public class CompetitionPageTests
     [Fact]
     public async Task CompetitionPage_Existing_Renders_With_Data()
     {
-        await using var ctx = new DropShotTestContext(authenticated: true);
+        await using var ctx = new DropShotTestContext(authenticated: true, roles: ["Admin"]);
 
         using (var db = ctx.SeedDatabase())
         {
