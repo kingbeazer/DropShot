@@ -11,7 +11,7 @@ public class CompetitionsTests
     [Fact]
     public async Task Competitions_Renders_Without_Exception()
     {
-        await using var ctx = new DropShotTestContext(authenticated: true);
+        await using var ctx = new DropShotTestContext(authenticated: true, roles: ["Admin"]);
         var cut = ctx.Render<Competitions>();
 
         Assert.Contains("Search competitions", cut.Markup);
@@ -20,7 +20,7 @@ public class CompetitionsTests
     [Fact]
     public async Task Competitions_Shows_Seeded_Data()
     {
-        await using var ctx = new DropShotTestContext(authenticated: true);
+        await using var ctx = new DropShotTestContext(authenticated: true, roles: ["Admin"]);
 
         using (var db = ctx.SeedDatabase())
         {

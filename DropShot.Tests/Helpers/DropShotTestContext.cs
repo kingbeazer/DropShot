@@ -89,15 +89,28 @@ public class DropShotTestContext : BunitContext
         var emailService = Substitute.For<EmailService>(config);
         Services.AddSingleton(emailService);
 
+        var emailTemplateService = new EmailTemplateService(config);
+        Services.AddSingleton(emailTemplateService);
+
         var resultVerification = Substitute.For<ResultVerificationService>(
-            emailService, config, NullLogger<ResultVerificationService>.Instance);
+            emailService, emailTemplateService, config, NullLogger<ResultVerificationService>.Instance);
         Services.AddScoped(_ => resultVerification);
 
         var adminEmailSvc = Substitute.For<AdminEmailService>(
-            emailService, config, NullLogger<AdminEmailService>.Instance);
+            emailService, emailTemplateService, config, NullLogger<AdminEmailService>.Instance);
         Services.AddScoped(_ => adminEmailSvc);
 
         Services.AddScoped(_ => Substitute.For<JwtTokenService>(config, userManager));
+
+        Services.AddScoped(_ => new CourtClaimService(DbFactory));
+
+        Services.AddSingleton<QrLoginService>();
+        Services.AddSingleton<BackgroundTaskQueue>();
+        Services.AddScoped<ICompetitionRubberTemplateProvider, CompetitionRubberTemplateProvider>();
+        Services.AddScoped<RubberResolutionService>();
+        Services.AddScoped<FixtureSimulationService>();
+        Services.AddScoped<CompetitionSchedulerService>();
+        Services.AddScoped<FuzzySearchService>();
 
         // Logging
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
