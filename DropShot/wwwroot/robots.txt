@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /Account/
+Disallow: /mobile-auth
+Disallow: /verify-result/
+Disallow: /invite/
+Disallow: /Error
+Disallow: /score/display-control
+Allow: /

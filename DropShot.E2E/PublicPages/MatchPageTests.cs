@@ -16,10 +16,4 @@ public class MatchPageTests : DropShotPageTest
     {
         await NavigateAndAssertLoaded("/score");
     }
-
-    [Test]
-    public async Task CounterPage_Loads_Successfully()
-    {
-        await NavigateAndAssertLoaded("/counter", "Counter");
-    }
 }

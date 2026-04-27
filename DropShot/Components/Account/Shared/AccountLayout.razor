@@ -2,6 +2,10 @@
 @layout DropShot.Components.Layout.MainLayout
 @inject NavigationManager NavigationManager
 
+<HeadContent>
+    <meta name="robots" content="noindex" />
+</HeadContent>
+
 @if (HttpContext is null)
 {
     <p>Loading...</p>
