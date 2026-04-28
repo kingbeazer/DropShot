@@ -4,6 +4,7 @@
         <TargetFrameworks>net8.0-android34.0;net8.0-ios17.2;net8.0-maccatalyst17.2</TargetFrameworks>
         <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net8.0-windows10.0.19041.0</TargetFrameworks>
         <CheckEolTargetFramework>false</CheckEolTargetFramework>
+        <MauiVersion Condition="'$(MauiVersion)' == ''">8.0.100</MauiVersion>
         <!-- Uncomment to also build the tizen app. You will need to install tizen by following this: https://github.com/Samsung/Tizen.NET -->
         <!-- <TargetFrameworks>$(TargetFrameworks);net9.0-tizen</TargetFrameworks> -->
 
