@@ -5,4 +5,11 @@ Disallow: /verify-result/
 Disallow: /invite/
 Disallow: /Error
 Disallow: /score/display-control
+Disallow: /whats-new
+Disallow: /subscription
+Disallow: /about
+Disallow: /careers
+Disallow: /press
+Disallow: /support
+Disallow: /student-discount
 Allow: /
