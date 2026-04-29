@@ -24,7 +24,7 @@
         <Nullable>enable</Nullable>
 
         <!-- Display name -->
-        <ApplicationTitle>ds tennis</ApplicationTitle>
+        <ApplicationTitle>DS Tennis</ApplicationTitle>
 
         <!-- App Identifier -->
         <ApplicationId>tennis.ds.dropshot</ApplicationId>
