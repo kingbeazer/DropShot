@@ -27,7 +27,7 @@
         <ApplicationTitle>DropShot.Maui</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.companyname.dropshot.maui</ApplicationId>
+        <ApplicationId>tennis.ds.dropshot</ApplicationId>
 
         <!-- Versions -->
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
