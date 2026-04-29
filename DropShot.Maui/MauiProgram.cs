@@ -7,8 +7,12 @@ namespace DropShot.Maui;
 
 public static class MauiProgram
 {
-    /// <summary>Base URL of the DropShot API. Update before publishing.</summary>
-    public const string ApiBaseUrl = "https://localhost:7001/";
+    /// <summary>Base URL of the DropShot API. Debug points to local dev server, Release points to production.</summary>
+#if DEBUG
+    public const string ApiBaseUrl = "https://localhost:7243/";
+#else
+    public const string ApiBaseUrl = "https://ds.tennis/";
+#endif
 
     public static MauiApp CreateMauiApp()
     {
