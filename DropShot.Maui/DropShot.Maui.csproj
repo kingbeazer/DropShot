@@ -24,7 +24,7 @@
         <Nullable>enable</Nullable>
 
         <!-- Display name -->
-        <ApplicationTitle>DropShot.Maui</ApplicationTitle>
+        <ApplicationTitle>ds tennis</ApplicationTitle>
 
         <!-- App Identifier -->
         <ApplicationId>tennis.ds.dropshot</ApplicationId>
