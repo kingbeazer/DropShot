@@ -38,4 +38,20 @@ html, body {
         width: 100%;
         z-index: 1000;
     }
+
+    /* Push MudBlazor AppBar and Drawer below the iOS status bar so the
+       hamburger menu and logout button aren't hidden under the system
+       clock / battery / signal indicators. The .status-bar-safe-area
+       above provides the primary-coloured backdrop. */
+    .mud-appbar {
+        top: env(safe-area-inset-top) !important;
+    }
+
+    .mud-main-content {
+        padding-top: calc(64px + env(safe-area-inset-top)) !important;
+    }
+
+    .mud-drawer-fixed {
+        top: env(safe-area-inset-top) !important;
+    }
 }
