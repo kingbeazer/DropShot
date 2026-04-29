@@ -4,6 +4,16 @@ html, body {
     overflow: hidden;
 }
 
+/* MudMainContent owns the scroll viewport so the AppBar and Drawer stay
+   pinned while lists (Competitions, Clubs, etc.) scroll inside. Without
+   this the body's overflow:hidden clips overflowing content and it
+   becomes unreachable. */
+.mud-main-content {
+    height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 #blazor-error-ui {
     background: lightyellow;
     bottom: 0;
