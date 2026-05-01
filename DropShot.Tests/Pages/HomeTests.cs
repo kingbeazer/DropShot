@@ -1,33 +1,31 @@
 using Bunit;
-using DropShot.Components.Pages;
-using DropShot.Data;
 using DropShot.Models;
 using DropShot.Shared;
 using DropShot.Tests.Helpers;
-using Microsoft.EntityFrameworkCore;
 using Xunit;
+using UIHome = DropShot.UI.Components.Pages.Home;
 
 namespace DropShot.Tests.Pages;
 
 public class HomeTests
 {
     [Fact]
-    public async Task Home_Renders_Without_Exception()
+    public async Task Home_Anonymous_Renders_Welcome()
     {
         await using var ctx = new DropShotTestContext(authenticated: false);
-        var cut = ctx.Render<Home>();
+        var cut = ctx.Render<UIHome>();
 
-        cut.Markup.Contains("Welcome");
+        cut.WaitForAssertion(() => Assert.Contains("Welcome", cut.Markup));
     }
 
     [Fact]
     public async Task Home_Authenticated_Renders_Carousel_And_Welcome()
     {
         await using var ctx = new DropShotTestContext(authenticated: true);
-        var cut = ctx.Render<Home>();
+        var cut = ctx.Render<UIHome>();
 
-        Assert.Contains("Welcome", cut.Markup);
-        Assert.Contains("mud-carousel", cut.Markup);
+        cut.WaitForAssertion(() => Assert.Contains("Welcome", cut.Markup));
+        cut.WaitForAssertion(() => Assert.Contains("mud-carousel", cut.Markup));
     }
 
     [Fact]
@@ -60,8 +58,8 @@ public class HomeTests
             db.SaveChanges();
         }
 
-        var cut = ctx.Render<Home>();
+        var cut = ctx.Render<UIHome>();
 
-        Assert.Contains("Your Upcoming Matches", cut.Markup);
+        cut.WaitForAssertion(() => Assert.Contains("Your Upcoming Matches", cut.Markup));
     }
 }
