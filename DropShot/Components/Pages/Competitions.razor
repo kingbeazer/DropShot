@@ -726,10 +726,22 @@
             .Include(f => f.Competition)
             .Include(f => f.Player1).Include(f => f.Player2)
             .Include(f => f.Player3).Include(f => f.Player4)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
             .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixture.CompetitionFixtureId);
         if (loaded == null) return;
 
-        var parameters = new DialogParameters<ReviewResultDialog> { { x => x.Fixture, loaded } };
+        var dto = ToFixtureDto(loaded);
+        var maxSets = loaded.Competition?.MatchFormat == MatchFormatType.FixedSets
+            ? Math.Max(1, loaded.Competition.NumberOfSets)
+            : Math.Max(1, loaded.Competition?.BestOf ?? 3);
+
+        var parameters = new DialogParameters<ReviewResultDialog>
+        {
+            { x => x.Fixture, dto },
+            { x => x.CompetitionName, loaded.Competition?.CompetitionName },
+            { x => x.MaxSets, maxSets }
+        };
         var dialog = await DialogService.ShowAsync<ReviewResultDialog>("Review Result", parameters,
             new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
@@ -739,6 +751,22 @@
             Snackbar.Add("Result verified.", Severity.Success);
         }
     }
+
+    private static DropShot.Shared.Dtos.CompetitionFixtureDto ToFixtureDto(CompetitionFixture f) =>
+        new(
+            f.CompetitionFixtureId, f.CompetitionId,
+            f.CompetitionStageId, f.Stage?.Name,
+            f.CourtId, f.Court?.Name,
+            f.ScheduledAt, (DropShot.Shared.FixtureStatus)f.Status,
+            f.FixtureLabel, f.RoundNumber,
+            f.Player1Id, f.Player1?.DisplayName,
+            f.Player2Id, f.Player2?.DisplayName,
+            f.Player3Id, f.Player3?.DisplayName,
+            f.Player4Id, f.Player4?.DisplayName,
+            f.ResultSummary, f.WinnerPlayerId,
+            f.HomeTeamId, f.HomeTeam?.Name,
+            f.AwayTeamId, f.AwayTeam?.Name,
+            f.WinnerTeamId, f.CourtPairId, f.CourtPair?.Name);
 
     private async Task OpenCreateEventDialogAsync()
     {

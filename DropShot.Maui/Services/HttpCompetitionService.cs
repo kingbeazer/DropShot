@@ -33,4 +33,11 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
             new UpdateParticipantStatusRequest(status), ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task ApproveFixtureResultAsync(int fixtureId, ApproveFixtureResultRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/fixtures/{fixtureId}/approve-result", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }

@@ -1,9 +1,4 @@
-@using DropShot.Data
-@using DropShot.Models
-@using DropShot.Services
-@using Microsoft.EntityFrameworkCore
-
-@inject IDbContextFactory<MyDbContext> DbFactory
+@inject ICompetitionService CompetitionService
 
 <MudDialog>
     <TitleContent>
@@ -13,7 +8,7 @@
         <MudStack Spacing="3">
             @* Competition & fixture info *@
             <MudText Typo="Typo.subtitle2" Color="Color.Primary">
-                @(Fixture.Competition?.CompetitionName ?? "Competition")
+                @(string.IsNullOrEmpty(CompetitionName) ? "Competition" : CompetitionName)
             </MudText>
             @if (!string.IsNullOrEmpty(Fixture.FixtureLabel))
             {
@@ -114,7 +109,14 @@
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public CompetitionFixture Fixture { get; set; } = default!;
+    [Parameter, EditorRequired] public CompetitionFixtureDto Fixture { get; set; } = default!;
+    [Parameter] public string? CompetitionName { get; set; }
+
+    /// <summary>
+    /// Number of set fields to render. Caller computes from the competition's
+    /// MatchFormat / BestOf / NumberOfSets — defaults to 3 if not provided.
+    /// </summary>
+    [Parameter] public int MaxSets { get; set; } = 3;
 
     private int _bestOf = 3;
     private int?[] _score1 = new int?[3];
@@ -128,21 +130,17 @@
 
     protected override void OnParametersSet()
     {
-        var comp = Fixture.Competition;
-        _bestOf = comp?.MatchFormat == MatchFormatType.FixedSets
-            ? Math.Max(1, comp.NumberOfSets)
-            : Math.Max(1, comp?.BestOf ?? 3);
+        _bestOf = Math.Max(1, MaxSets);
         _score1 = new int?[_bestOf];
         _score2 = new int?[_bestOf];
 
-        var s1Parts = new[] { Fixture.Player1?.DisplayName, Fixture.Player3?.DisplayName }
-            .Where(n => n != null).ToList();
-        var s2Parts = new[] { Fixture.Player2?.DisplayName, Fixture.Player4?.DisplayName }
-            .Where(n => n != null).ToList();
+        var s1Parts = new[] { Fixture.Player1Name, Fixture.Player3Name }
+            .Where(n => !string.IsNullOrEmpty(n)).ToList();
+        var s2Parts = new[] { Fixture.Player2Name, Fixture.Player4Name }
+            .Where(n => !string.IsNullOrEmpty(n)).ToList();
         _side1 = s1Parts.Any() ? string.Join(" & ", s1Parts) : "Player 1";
         _side2 = s2Parts.Any() ? string.Join(" & ", s2Parts) : "Player 2";
 
-        // Pre-fill edit fields from submitted result
         _winnerPlayerId = Fixture.WinnerPlayerId;
         ParseResultSummary(Fixture.ResultSummary);
     }
@@ -150,12 +148,10 @@
     private void ParseResultSummary(string? summary)
     {
         if (string.IsNullOrEmpty(summary)) return;
-        // Handle both comma-separated and space-separated formats
         var sets = summary.Replace(",", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < Math.Min(sets.Length, _bestOf); i++)
         {
-            // Handle both regular dash and en-dash
-            var parts = sets[i].Replace("\u2013", "-").Split('-', StringSplitOptions.TrimEntries);
+            var parts = sets[i].Replace("–", "-").Split('-', StringSplitOptions.TrimEntries);
             if (parts.Length == 2 && int.TryParse(parts[0], out var s1) && int.TryParse(parts[1], out var s2))
             {
                 _score1[i] = s1;
@@ -175,14 +171,13 @@
     {
         _error = null;
 
+        FixtureScoreOverride? overrideScores = null;
         if (_editing)
         {
-            var enteredSets = Enumerable.Range(0, _bestOf)
-                .Where(i => _score1[i].HasValue || _score2[i].HasValue)
-                .Select(i => $"{_score1[i] ?? 0}\u2013{_score2[i] ?? 0}")
-                .ToList();
+            var enteredCount = Enumerable.Range(0, _bestOf)
+                .Count(i => _score1[i].HasValue || _score2[i].HasValue);
 
-            if (!enteredSets.Any())
+            if (enteredCount == 0)
             {
                 _error = "Please enter at least one set score.";
                 return;
@@ -193,52 +188,32 @@
                 _error = "Please select a winner.";
                 return;
             }
+
+            var newSummary = string.Join(" ", Enumerable.Range(0, _bestOf)
+                .Where(i => _score1[i].HasValue || _score2[i].HasValue)
+                .Select(i => $"{_score1[i] ?? 0}–{_score2[i] ?? 0}"));
+
+            int homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
+            for (int i = 0; i < _bestOf; i++)
+            {
+                int s1 = _score1[i] ?? 0;
+                int s2 = _score2[i] ?? 0;
+                homeGames += s1;
+                awayGames += s2;
+                if (s1 > s2) homeSets++;
+                else if (s2 > s1) awaySets++;
+            }
+
+            overrideScores = new FixtureScoreOverride(
+                newSummary, _winnerPlayerId.Value, homeSets, awaySets, homeGames, awayGames);
         }
 
         _saving = true;
         try
         {
-            await using var db = DbFactory.CreateDbContext();
-            var fx = await db.CompetitionFixtures
-                .Include(f => f.Competition)
-                .FirstOrDefaultAsync(f => f.CompetitionFixtureId == Fixture.CompetitionFixtureId);
-            if (fx == null) { _error = "Fixture not found."; return; }
-
-            if (_editing)
-            {
-                var newSummary = string.Join(" ", Enumerable.Range(0, _bestOf)
-                    .Where(i => _score1[i].HasValue || _score2[i].HasValue)
-                    .Select(i => $"{_score1[i] ?? 0}\u2013{_score2[i] ?? 0}"));
-
-                // Store original before overwriting
-                fx.OriginalResultSummary = fx.ResultSummary;
-                fx.OriginalWinnerPlayerId = fx.WinnerPlayerId;
-                fx.ResultModifiedByAdmin = true;
-                fx.ResultSummary = newSummary;
-                fx.WinnerPlayerId = _winnerPlayerId;
-
-                int homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
-                for (int i = 0; i < _bestOf; i++)
-                {
-                    int s1 = _score1[i] ?? 0;
-                    int s2 = _score2[i] ?? 0;
-                    homeGames += s1;
-                    awayGames += s2;
-                    if (s1 > s2) homeSets++;
-                    else if (s2 > s1) awaySets++;
-                }
-                fx.HomeSetsWon = homeSets;
-                fx.AwaySetsWon = awaySets;
-                fx.HomeGamesTotal = homeGames;
-                fx.AwayGamesTotal = awayGames;
-            }
-
-            fx.Status = FixtureStatus.Completed;
-            fx.CompletedAt = DateTime.UtcNow;
-            fx.VerificationToken = null;
-
-            await db.SaveChangesAsync();
-            await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+            await CompetitionService.ApproveFixtureResultAsync(
+                Fixture.CompetitionFixtureId,
+                new ApproveFixtureResultRequest(overrideScores));
         }
         catch (Exception)
         {

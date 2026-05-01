@@ -26,4 +26,12 @@ public interface ICompetitionService
     /// Registered → FullPlayer or Substitute).
     /// </summary>
     Task ConfirmParticipationAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default);
+
+    /// <summary>
+    /// Approve a fixture's awaiting-verification result. Without
+    /// <c>OverrideScores</c> the existing submission is accepted as-is; with
+    /// it, the original result is preserved for audit and the new score
+    /// becomes authoritative. Marks Completed + runs CompetitionProgressionService.
+    /// </summary>
+    Task ApproveFixtureResultAsync(int fixtureId, ApproveFixtureResultRequest request, CancellationToken ct = default);
 }
