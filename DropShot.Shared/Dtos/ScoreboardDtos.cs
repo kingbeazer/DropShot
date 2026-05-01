@@ -2,8 +2,7 @@ namespace DropShot.Shared.Dtos;
 
 /// <summary>
 /// Court info needed by the scoreboard subcomponents (Default + Wimbledon
-/// layouts). The web-only host page constructs these from EF entities;
-/// any future RCL move of Scoreboard.razor will source them via the API.
+/// layouts) and the courts dropdown on the Scoreboard page.
 /// </summary>
 public record ScoreboardCourtDto(int CourtId, string ClubName, string CourtName);
 
@@ -24,3 +23,28 @@ public record ScoreboardActiveMatchDto(
 /// match is tied to a competition fixture (competition name + fixture label).
 /// </summary>
 public record ScoreboardFixtureDto(string? CompetitionName, string? FixtureLabel);
+
+/// <summary>
+/// Snapshot of a court's live scoreboard state: the in-progress active match
+/// (if any), its linked fixture, the most recent <c>GameState</c> parsed from
+/// <c>SavedMatch.MatchJson</c>, and the persisted per-court display settings
+/// (layout / fullscreen / live-stream URL).
+/// </summary>
+public record ScoreboardCourtStateDto(
+    GameState CurrentScore,
+    ScoreboardActiveMatchDto? ActiveMatch,
+    ScoreboardFixtureDto? ActiveFixture,
+    ScoreboardDisplaySettingDto DisplaySetting);
+
+public record ScoreboardDisplaySettingDto(
+    int CourtId,
+    string Layout,
+    bool Fullscreen,
+    string? LiveStreamUrl,
+    bool ShowLiveStream);
+
+public record UpdateDisplaySettingRequest(
+    string? Layout = null,
+    bool? Fullscreen = null,
+    string? LiveStreamUrl = null,
+    bool? ShowLiveStream = null);
