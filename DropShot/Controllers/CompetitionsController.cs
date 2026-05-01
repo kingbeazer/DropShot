@@ -2,6 +2,7 @@ using DropShot.Data;
 using DropShot.Models;
 using DropShot.Services;
 using DropShot.Shared.Dtos;
+using DropShot.UI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +20,7 @@ public class CompetitionsController(
     UserManager<ApplicationUser> userManager,
     ICompetitionRubberTemplateProvider rubberTemplateProvider,
     CompetitionSchedulerService scheduler,
+    ICompetitionService competitionService,
     ILogger<CompetitionsController> logger) : ControllerBase
 {
     [HttpGet]
@@ -331,6 +333,42 @@ public class CompetitionsController(
         cp.Status = (DropShot.Models.ParticipantStatus)req.Status;
         await db.SaveChangesAsync();
         return Ok();
+    }
+
+    /// <summary>
+    /// Self-register the authenticated user as a participant in this competition.
+    /// Backs the ViewCompetition page on MAUI (phase 4 batch B). Any signed-in
+    /// user with a linked Player record can call this; if the competition is
+    /// restricted, ViewCompetition hides the entry button.
+    /// </summary>
+    [HttpPost("{id:int}/self-register")]
+    public async Task<IActionResult> SelfRegister(
+        int id, [FromBody] UpdateParticipantStatusRequest req, CancellationToken ct)
+    {
+        try
+        {
+            await competitionService.SelfRegisterAsync(id, req.Status, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
+
+    /// <summary>
+    /// Upgrade the authenticated user's participation status (typically
+    /// Registered → FullPlayer or Substitute).
+    /// </summary>
+    [HttpPost("{id:int}/confirm-participation")]
+    public async Task<IActionResult> ConfirmParticipation(
+        int id, [FromBody] UpdateParticipantStatusRequest req, CancellationToken ct)
+    {
+        try
+        {
+            await competitionService.ConfirmParticipationAsync(id, req.Status, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpDelete("{id:int}/participants/{playerId:int}")]

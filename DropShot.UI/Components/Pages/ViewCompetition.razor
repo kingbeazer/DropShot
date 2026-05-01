@@ -1,0 +1,972 @@
+@inject ICompetitionService CompetitionService
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Nav
+@using DropShot.Shared.Extensions
+@using DropShot.Shared.Helpers
+
+@* Routing + auth + MudProviders supplied by host shims. *@
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_competition == null)
+{
+    <MudAlert Severity="Severity.Error">Competition not found.</MudAlert>
+}
+else if (!_competition.IsStarted && !_canEdit)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4">This competition has not started yet. Check back later.</MudAlert>
+}
+else if (!_canView)
+{
+    @if (CurrentUser.IsAuthenticated && !_competition.IsRestricted)
+    {
+        <MudCard Class="mb-4" Elevation="2">
+            <MudCardContent>
+                <MudText Typo="Typo.h6" Class="mb-2">Join @_competition.CompetitionName</MudText>
+                @if (!string.IsNullOrEmpty(_selfRegisterError))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">@_selfRegisterError</MudAlert>
+                }
+                <MudText Typo="Typo.body2" Class="mb-3">How would you like to participate?</MudText>
+                <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="_selfRegisterSaving"
+                               OnClick="@(() => SelfRegisterAsync(ParticipantStatus.FullPlayer))">
+                        Register as Full Player
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               Disabled="_selfRegisterSaving"
+                               OnClick="@(() => SelfRegisterAsync(ParticipantStatus.Substitute))">
+                        Register as Substitute
+                    </MudButton>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4">You can only view this competition if you are registered to play in it.</MudAlert>
+    }
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudText Typo="Typo.h4" Style="flex:1">@_competition.CompetitionName</MudText>
+        @if (_canEdit)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.Edit"
+                       OnClick="@(() => Nav.NavigateTo($"/competition/{Id}"))">
+                Edit
+            </MudButton>
+        }
+    </MudStack>
+
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="6" sm="3">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Format</MudText>
+            <MudText Typo="Typo.body1">@_competition.CompetitionFormat.ToDisplayName()</MudText>
+        </MudItem>
+        @if (_competition.StartDate.HasValue || _competition.EndDate.HasValue)
+        {
+            <MudItem xs="6" sm="3">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Dates</MudText>
+                <MudText Typo="Typo.body1">
+                    @(_competition.StartDate?.ToString("dd MMM yyyy") ?? "—") – @(_competition.EndDate?.ToString("dd MMM yyyy") ?? "—")
+                </MudText>
+            </MudItem>
+        }
+        @if (!string.IsNullOrEmpty(_competition.HostClubName))
+        {
+            <MudItem xs="6" sm="3">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Host Club</MudText>
+                <MudText Typo="Typo.body1">@_competition.HostClubName</MudText>
+            </MudItem>
+        }
+        @if (!_canEdit && _competition.HasDivisions && _userDivision != null)
+        {
+            <MudItem xs="6" sm="3">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Division</MudText>
+                <MudText Typo="Typo.body1">@_userDivision.Name</MudText>
+            </MudItem>
+        }
+        @if (!string.IsNullOrEmpty(_competition.RulesSetName))
+        {
+            <MudItem xs="6" sm="3">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Rules</MudText>
+                <MudText Typo="Typo.body1">@_competition.RulesSetName</MudText>
+            </MudItem>
+        }
+    </MudGrid>
+
+    @if (!_canEdit && _myParticipant?.Status == ParticipantStatus.Registered)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.body2">
+                    You are registered for this competition but have not yet confirmed your participation.
+                    Please indicate how you would like to take part:
+                </MudText>
+                @if (!string.IsNullOrEmpty(_selfRegisterError))
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true">@_selfRegisterError</MudAlert>
+                }
+                <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               Disabled="_selfRegisterSaving"
+                               OnClick="@(() => ConfirmParticipationAsync(ParticipantStatus.FullPlayer))">
+                        Enter as Full Player
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                               Disabled="_selfRegisterSaving"
+                               OnClick="@(() => ConfirmParticipationAsync(ParticipantStatus.Substitute))">
+                        Enter as Substitute
+                    </MudButton>
+                </MudStack>
+            </MudStack>
+        </MudAlert>
+    }
+
+    <MudDivider Class="mb-4" />
+
+    <MudExpansionPanels MultiExpansion="true" Class="mb-4">
+
+    @if (!(_canEdit && _competition.HasDivisions))
+    {
+    var visibleDivisionCount = _fixturesByDivision.Count(g => g.StageGroups.Count > 0);
+    var showDivisionHeadings = _competition.HasDivisions && visibleDivisionCount > 1;
+
+    <MudExpansionPanel Text="Scheduled Matches">
+    @if (!_fixtures.Any())
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">No matches scheduled yet.</MudAlert>
+    }
+    else
+    {
+        @foreach (var divGroup in _fixturesByDivision.Where(g => g.StageGroups.Count > 0))
+        {
+            @if (showDivisionHeadings)
+            {
+                <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(divGroup.Division?.Name ?? "Unassigned")</MudText>
+            }
+            @foreach (var stageGroup in divGroup.StageGroups)
+            {
+                <MudText Typo="@(showDivisionHeadings ? Typo.subtitle1 : Typo.h6)"
+                         Class="@(showDivisionHeadings ? "mt-2 mb-1 ms-3" : "mt-3 mb-2")">
+                    @(stageGroup.StageName ?? "Unassigned")
+                </MudText>
+                @RenderFixturesTable(stageGroup.Fixtures)
+            }
+        }
+    }
+    </MudExpansionPanel>
+    }
+
+    @if (_canEdit && _competition.HasDivisions)
+    {
+        @foreach (var divGroup in _fixturesByDivision)
+        {
+            var divKey = divGroup.Division?.CompetitionDivisionId;
+            var divTeams = _teamsByDivision
+                .FirstOrDefault(g => g.Division?.CompetitionDivisionId == divKey).Teams
+                ?? new List<CompetitionTeamDto>();
+            var stageGroups = divGroup.StageGroups;
+            var fxCount = stageGroups.Sum(sg => sg.Fixtures.Count);
+            var panelTitle = $"{divGroup.Division?.Name ?? "Unassigned"} — {divTeams.Count} team{(divTeams.Count == 1 ? "" : "s")}, {fxCount} match{(fxCount == 1 ? "" : "es")}";
+
+            <MudExpansionPanel Text="@panelTitle">
+                <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Scheduled Matches</MudText>
+                @if (stageGroups.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">No matches scheduled.</MudText>
+                }
+                else
+                {
+                    @foreach (var stageGroup in stageGroups)
+                    {
+                        <MudText Typo="Typo.body1" Class="mt-2 mb-1">@(stageGroup.StageName ?? "Unassigned")</MudText>
+                        @RenderFixturesTable(stageGroup.Fixtures)
+                    }
+                }
+
+                <MudDivider Class="my-3" />
+
+                <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Teams</MudText>
+                @if (divTeams.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">No teams assigned.</MudText>
+                }
+                else
+                {
+                    @foreach (var team in divTeams)
+                    {
+                        var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
+                        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1" Style="font-weight:600">
+                            @team.Name <MudText Inline="true" Typo="Typo.caption" Color="Color.Secondary">(@members.Count player@(members.Count == 1 ? "" : "s"))</MudText>
+                        </MudText>
+                        <MudTable Items="@members" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table team-members-table">
+                            <HeaderContent>
+                                <MudTh Style="width:auto">Player</MudTh>
+                                <MudTh Style="width:180px">Mobile</MudTh>
+                                <MudTh Style="width:140px">Status</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                                <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                                <MudTd DataLabel="Status">
+                                    <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                                        @ParticipantStatusLabel(context.Status)
+                                    </MudChip>
+                                </MudTd>
+                            </RowTemplate>
+                            <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
+                        </MudTable>
+                    }
+                }
+
+                @{
+                    var divSubs = _participants
+                        .Where(p => p.Status == ParticipantStatus.Substitute
+                            && (p.CompetitionDivisionId == divKey
+                                || (p.TeamId.HasValue && divTeams.Any(t => t.CompetitionTeamId == p.TeamId.Value))))
+                        .OrderBy(p => p.DisplayName)
+                        .ToList();
+                }
+                @if (divSubs.Count > 0)
+                {
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Substitutes</MudText>
+                    <MudTable Items="@divSubs" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table">
+                        <HeaderContent>
+                            <MudTh Style="width:auto">Player</MudTh>
+                            <MudTh Style="width:180px">Mobile</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                            <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><MudText Typo="Typo.caption">No substitutes.</MudText></NoRecordsContent>
+                    </MudTable>
+                }
+            </MudExpansionPanel>
+        }
+    }
+
+    @if (_teamLeagueTablesByDivision.Any(g => g.Rows.Any()))
+    {
+        var (forHeader, againstHeader, forTooltip, againstTooltip) = LeagueHeaders();
+        var visibleLeagueGroups = _teamLeagueTablesByDivision.Where(g => g.Rows.Any()).ToList();
+        var showLeagueHeadings = visibleLeagueGroups.Count > 1;
+        var leagueTitle = showLeagueHeadings ? "Division League Tables" : "League Table";
+
+        <MudExpansionPanel Text="@leagueTitle">
+            @foreach (var group in visibleLeagueGroups)
+            {
+                var rows = group.Rows;
+                var heading = group.Division?.Name ?? "Unassigned";
+                @if (showLeagueHeadings)
+                {
+                    <MudText Typo="Typo.h6" Class="mt-3 mb-2">@heading</MudText>
+                }
+                @RenderTeamLeagueTable(rows, forHeader, againstHeader, forTooltip, againstTooltip)
+            }
+        </MudExpansionPanel>
+    }
+    else if (_teamLeagueTable.Any())
+    {
+        var (forHeader, againstHeader, forTooltip, againstTooltip) = LeagueHeaders();
+        <MudExpansionPanel Text="Team League Table">
+            @RenderTeamLeagueTable(_teamLeagueTable, forHeader, againstHeader, forTooltip, againstTooltip)
+        </MudExpansionPanel>
+    }
+    else if (_leagueTable.Any())
+    {
+        <MudExpansionPanel Text="League Table">
+            <MudTable Items="@_leagueTable" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:600px">
+                <HeaderContent>
+                    <MudTh>Pos</MudTh>
+                    <MudTh>Player</MudTh>
+                    <MudTh>P</MudTh>
+                    <MudTh>W</MudTh>
+                    <MudTh>L</MudTh>
+                    <MudTh>Pts</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Pos">@(_leagueTable.IndexOf(context) + 1)</MudTd>
+                    <MudTd DataLabel="Player" Style="font-weight:500">@context.PlayerName</MudTd>
+                    <MudTd DataLabel="P">@context.Played</MudTd>
+                    <MudTd DataLabel="W">@context.Won</MudTd>
+                    <MudTd DataLabel="L">@context.Lost</MudTd>
+                    <MudTd DataLabel="Pts" Style="font-weight:bold">@context.Points</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudExpansionPanel>
+    }
+
+    @if (_canEdit && _competition.HasDivisions)
+    {
+        @if (_participants.Any(p => p.TeamId == null))
+        {
+            <MudExpansionPanel Text="Unassigned Participants">
+                <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table">
+                    <HeaderContent>
+                        <MudTh>Player</MudTh>
+                        <MudTh>Mobile</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                        <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                                @ParticipantStatusLabel(context.Status)
+                            </MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudExpansionPanel>
+        }
+    }
+    else
+    {
+        var isTeamFormat = _competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch && _teams.Any();
+        var competitorsPanelText = isTeamFormat ? "Teams" : "Competitors";
+    <MudExpansionPanel Text="@competitorsPanelText">
+    @if (isTeamFormat)
+    {
+        var visibleTeamGroups = _teamsByDivision.Where(g => g.Teams.Count > 0).ToList();
+        var showTeamsDivisionHeadings = _competition.HasDivisions && visibleTeamGroups.Count > 1;
+        @foreach (var teamsGroup in visibleTeamGroups)
+        {
+            @if (showTeamsDivisionHeadings)
+            {
+                <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(teamsGroup.Division?.Name ?? "Unassigned")</MudText>
+            }
+            @foreach (var team in teamsGroup.Teams)
+            {
+                var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
+                <MudText Typo="Typo.subtitle1" Class="mt-3 mb-1" Style="font-weight:600">
+                    @team.Name <MudText Inline="true" Typo="Typo.caption" Color="Color.Secondary">(@members.Count player@(members.Count == 1 ? "" : "s"))</MudText>
+                </MudText>
+                <MudTable Items="@members" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table team-members-table">
+                    <HeaderContent>
+                        <MudTh Style="width:auto">Player</MudTh>
+                        <MudTh Style="width:180px">Mobile</MudTh>
+                        <MudTh Style="width:140px">Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                        <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                                @ParticipantStatusLabel(context.Status)
+                            </MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
+                </MudTable>
+            }
+        }
+
+        @if (_participants.Any(p => p.TeamId == null))
+        {
+            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Unassigned</MudText>
+            <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table team-members-table">
+                <HeaderContent>
+                    <MudTh Style="width:auto">Player</MudTh>
+                    <MudTh Style="width:180px">Mobile</MudTh>
+                    <MudTh Style="width:140px">Status</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                    <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    }
+    else
+    {
+        <MudTable Items="@_participants" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:700px">
+            <HeaderContent>
+                <MudTh>Player</MudTh>
+                <MudTh>Mobile</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Registered</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Player" Style="font-weight:500">@context.DisplayName</MudTd>
+                <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                        @context.Status
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Registered">@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Typo="Typo.caption">No competitors registered.</MudText></NoRecordsContent>
+        </MudTable>
+    }
+    </MudExpansionPanel>
+    }
+
+    </MudExpansionPanels>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private bool _loading = true;
+    private bool _canEdit;
+    private bool _canView;
+    private CompetitionDetailDto? _competition;
+    private List<CompetitionFixtureDto> _fixtures = [];
+    private List<CompetitionParticipantDto> _participants = [];
+    private List<CompetitionTeamDto> _teams = [];
+
+    private record LeagueRow(int PlayerId, string PlayerName, int Played, int Won, int Lost, int Points);
+    private List<LeagueRow> _leagueTable = [];
+
+    private record TeamLeagueRow(int TeamId, string TeamName, string? CaptainName, int Played, int Won, int Drawn, int Lost, int ScoringFor, int ScoringAgainst, int Points);
+    private List<TeamLeagueRow> _teamLeagueTable = [];
+    private string _scoringUnitLabel = "rubbers";
+
+    private List<CompetitionDivisionDto> _divisions = [];
+    private CompetitionDivisionDto? _userDivision;
+    private List<(CompetitionDivisionDto? Division, List<TeamLeagueRow> Rows)> _teamLeagueTablesByDivision = [];
+
+    private record DivisionFixtureGroup(
+        CompetitionDivisionDto? Division,
+        List<(string? StageName, List<CompetitionFixtureDto> Fixtures)> StageGroups);
+    private List<DivisionFixtureGroup> _fixturesByDivision = [];
+    private List<(CompetitionDivisionDto? Division, List<CompetitionTeamDto> Teams)> _teamsByDivision = [];
+
+    private CompetitionParticipantDto? _myParticipant;
+    private bool _selfRegisterSaving;
+    private string? _selfRegisterError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _competition = await CompetitionService.GetCompetitionAsync(Id);
+
+        if (_competition != null)
+        {
+            _canEdit = CurrentUser.CanEditCompetition(_competition.HostClubId);
+            _canView = _canEdit || _competition.MyPlayerId is not null;
+
+            _fixtures = (_competition.Fixtures ?? new())
+                .OrderBy(f => f.ScheduledAt)
+                .ThenBy(f => f.RoundNumber ?? 0)
+                .ToList();
+
+            _participants = _competition.Participants
+                .OrderBy(p => p.DisplayName)
+                .ToList();
+
+            _myParticipant = _competition.MyPlayerId is { } mid
+                ? _participants.FirstOrDefault(p => p.PlayerId == mid)
+                : null;
+
+            _teams = (_competition.Teams ?? new())
+                .OrderBy(t => t.Name)
+                .ToList();
+
+            _divisions = (_competition.Divisions ?? new())
+                .OrderBy(d => d.Rank)
+                .ToList();
+
+            // Restrict non-editors to their own division (mirrors the legacy filter).
+            if (!_canEdit && _canView && _competition.HasDivisions && _myParticipant is not null)
+            {
+                int? userDivisionId = _myParticipant.CompetitionDivisionId
+                    ?? _teams.FirstOrDefault(t => t.CompetitionTeamId == _myParticipant.TeamId)?.CompetitionDivisionId;
+
+                _userDivision = _divisions.FirstOrDefault(d => d.CompetitionDivisionId == userDivisionId);
+
+                _teams = _teams
+                    .Where(t => t.CompetitionDivisionId == userDivisionId)
+                    .ToList();
+                var visibleTeamIds = _teams.Select(t => t.CompetitionTeamId).ToHashSet();
+
+                _participants = _participants
+                    .Where(p => (p.TeamId.HasValue && visibleTeamIds.Contains(p.TeamId.Value))
+                        || (!p.TeamId.HasValue && p.CompetitionDivisionId == userDivisionId))
+                    .ToList();
+                var visiblePlayerIds = _participants.Select(p => p.PlayerId).ToHashSet();
+
+                _fixtures = _fixtures
+                    .Where(f =>
+                        (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+                            ? (f.HomeTeamId.HasValue && visibleTeamIds.Contains(f.HomeTeamId.Value))
+                                || (f.AwayTeamId.HasValue && visibleTeamIds.Contains(f.AwayTeamId.Value))
+                            : new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
+                                .Any(pid => pid.HasValue && visiblePlayerIds.Contains(pid.Value)))
+                    .ToList();
+
+                _divisions = _divisions
+                    .Where(d => d.CompetitionDivisionId == userDivisionId)
+                    .ToList();
+            }
+
+            var orderedStages = _competition.Stages.OrderBy(s => s.StageOrder).ToList();
+
+            List<(string? StageName, List<CompetitionFixtureDto> Fixtures)> BuildStageGroups(
+                IEnumerable<CompetitionFixtureDto> source)
+            {
+                var src = source.ToList();
+                var groups = new List<(string? StageName, List<CompetitionFixtureDto> Fixtures)>();
+                foreach (var stage in orderedStages)
+                {
+                    var fx = src.Where(f => f.CompetitionStageId == stage.CompetitionStageId).ToList();
+                    if (fx.Count > 0) groups.Add((stage.Name, fx));
+                }
+                var unstaged = src.Where(f => f.CompetitionStageId == null).ToList();
+                if (unstaged.Count > 0) groups.Add((null, unstaged));
+                return groups;
+            }
+
+            if (_competition.HasDivisions)
+            {
+                var teamDivisionById = _teams.ToDictionary(t => t.CompetitionTeamId, t => t.CompetitionDivisionId);
+                int? DivisionOfFixture(CompetitionFixtureDto f)
+                {
+                    if (f.HomeTeamId.HasValue
+                        && teamDivisionById.TryGetValue(f.HomeTeamId.Value, out var dh)
+                        && dh.HasValue) return dh;
+                    if (f.AwayTeamId.HasValue
+                        && teamDivisionById.TryGetValue(f.AwayTeamId.Value, out var da)
+                        && da.HasValue) return da;
+                    if (!string.IsNullOrEmpty(f.FixtureLabel))
+                    {
+                        foreach (var d in _divisions.OrderByDescending(x => x.Name?.Length ?? 0))
+                        {
+                            if (!string.IsNullOrEmpty(d.Name)
+                                && f.FixtureLabel.StartsWith(d.Name + " ", StringComparison.OrdinalIgnoreCase))
+                                return d.CompetitionDivisionId;
+                        }
+                    }
+                    return null;
+                }
+
+                _fixturesByDivision = _divisions
+                    .Select(d => new DivisionFixtureGroup(
+                        d,
+                        BuildStageGroups(_fixtures.Where(f => DivisionOfFixture(f) == d.CompetitionDivisionId))))
+                    .ToList();
+                var unassignedFixtures = _fixtures.Where(f => DivisionOfFixture(f) == null).ToList();
+                if (unassignedFixtures.Count > 0)
+                {
+                    _fixturesByDivision.Add(new DivisionFixtureGroup(null, BuildStageGroups(unassignedFixtures)));
+                }
+
+                _teamsByDivision = _divisions
+                    .Select(d => ((CompetitionDivisionDto?)d,
+                        _teams.Where(t => t.CompetitionDivisionId == d.CompetitionDivisionId).ToList()))
+                    .ToList();
+                var unassignedTeamList = _teams.Where(t => t.CompetitionDivisionId == null).ToList();
+                if (unassignedTeamList.Count > 0)
+                {
+                    _teamsByDivision.Add((null, unassignedTeamList));
+                }
+            }
+            else
+            {
+                _fixturesByDivision = [new DivisionFixtureGroup(null, BuildStageGroups(_fixtures))];
+                _teamsByDivision = [(null, _teams)];
+            }
+
+            var rrStageIds = _competition.Stages
+                .Where(s => s.StageType == StageType.RoundRobin)
+                .Select(s => s.CompetitionStageId)
+                .ToHashSet();
+
+            if (rrStageIds.Any())
+            {
+                var played = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+                var won = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+                var lost = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+
+                foreach (var f in _fixtures.Where(f =>
+                    f.CompetitionStageId.HasValue &&
+                    rrStageIds.Contains(f.CompetitionStageId.Value) &&
+                    f.Status == FixtureStatus.Completed &&
+                    f.WinnerPlayerId.HasValue))
+                {
+                    var pids = new[] { f.Player1Id, f.Player2Id, f.Player3Id, f.Player4Id }
+                        .Where(pid => pid.HasValue)
+                        .Select(pid => pid!.Value)
+                        .Distinct()
+                        .Where(pid => played.ContainsKey(pid))
+                        .ToList();
+
+                    foreach (var pid in pids)
+                    {
+                        played[pid]++;
+                        if (pid == f.WinnerPlayerId) won[pid]++;
+                        else lost[pid]++;
+                    }
+                }
+
+                _leagueTable = _participants
+                    .Select(p => new LeagueRow(
+                        p.PlayerId,
+                        p.DisplayName,
+                        played[p.PlayerId],
+                        won[p.PlayerId],
+                        lost[p.PlayerId],
+                        won[p.PlayerId] * 3))
+                    .OrderByDescending(r => r.Points)
+                    .ThenByDescending(r => r.Won)
+                    .ThenBy(r => r.Lost)
+                    .ToList();
+            }
+
+            if (_competition.CompetitionFormat == CompetitionFormat.TeamMatch && rrStageIds.Any())
+            {
+                var scoringMode = _competition.LeagueScoring;
+                _scoringUnitLabel = scoringMode switch
+                {
+                    LeagueScoringMode.SetsWon => "sets",
+                    LeagueScoringMode.GamesWon => "games",
+                    _ => "rubbers",
+                };
+
+                if (_competition.HasDivisions && _divisions.Count > 0)
+                {
+                    _teamLeagueTablesByDivision = _divisions
+                        .Select(d => (
+                            (CompetitionDivisionDto?)d,
+                            ComputeTeamLeagueRows(
+                                _teams.Where(t => t.CompetitionDivisionId == d.CompetitionDivisionId).ToList(),
+                                rrStageIds, scoringMode)))
+                        .ToList();
+
+                    var unassignedTeams = _teams.Where(t => t.CompetitionDivisionId == null).ToList();
+                    if (unassignedTeams.Count > 0)
+                    {
+                        _teamLeagueTablesByDivision.Add((null,
+                            ComputeTeamLeagueRows(unassignedTeams, rrStageIds, scoringMode)));
+                    }
+                }
+                else
+                {
+                    _teamLeagueTable = ComputeTeamLeagueRows(_teams, rrStageIds, scoringMode);
+                }
+            }
+        }
+
+        _loading = false;
+    }
+
+    private List<TeamLeagueRow> ComputeTeamLeagueRows(
+        List<CompetitionTeamDto> teams, HashSet<int> rrStageIds, LeagueScoringMode scoringMode)
+    {
+        var tPlayed = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var tWon = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var tDrawn = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var tLost = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var tFor = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var tAgainst = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+        var tPoints = teams.ToDictionary(t => t.CompetitionTeamId, _ => 0);
+
+        foreach (var f in _fixtures.Where(f =>
+            f.CompetitionStageId.HasValue &&
+            rrStageIds.Contains(f.CompetitionStageId.Value) &&
+            f.Status == FixtureStatus.Completed &&
+            f.HomeTeamId.HasValue && f.AwayTeamId.HasValue))
+        {
+            int hid = f.HomeTeamId!.Value;
+            int aid = f.AwayTeamId!.Value;
+            if (!tPlayed.ContainsKey(hid) || !tPlayed.ContainsKey(aid)) continue;
+
+            var completed = (f.Rubbers ?? new List<RubberDto>()).Where(r => r.IsComplete).ToList();
+            int homeRubbers = completed.Count(r => r.WinnerTeamId == hid);
+            int awayRubbers = completed.Count(r => r.WinnerTeamId == aid);
+            int homeSets = completed.Sum(r => r.HomeSetsWon ?? 0);
+            int awaySets = completed.Sum(r => r.AwaySetsWon ?? 0);
+            int homeGames = completed.Sum(r => r.HomeGamesTotal ?? 0);
+            int awayGames = completed.Sum(r => r.AwayGamesTotal ?? 0);
+
+            tPlayed[hid]++;
+            tPlayed[aid]++;
+
+            (int homeFor, int awayFor) = scoringMode switch
+            {
+                LeagueScoringMode.SetsWon => (homeSets, awaySets),
+                LeagueScoringMode.GamesWon => (homeGames, awayGames),
+                _ => (homeRubbers, awayRubbers),
+            };
+            tFor[hid] += homeFor;
+            tAgainst[hid] += awayFor;
+            tFor[aid] += awayFor;
+            tAgainst[aid] += homeFor;
+
+            bool homeWin = homeRubbers > awayRubbers;
+            bool awayWin = awayRubbers > homeRubbers;
+            if (homeWin) { tWon[hid]++; tLost[aid]++; }
+            else if (awayWin) { tWon[aid]++; tLost[hid]++; }
+            else { tDrawn[hid]++; tDrawn[aid]++; }
+
+            (int homePts, int awayPts) = scoringMode switch
+            {
+                LeagueScoringMode.SetsWon => (homeSets, awaySets),
+                LeagueScoringMode.GamesWon => (homeGames, awayGames),
+                _ => (homeWin ? 3 : (!awayWin ? 1 : 0),
+                      awayWin ? 3 : (!homeWin ? 1 : 0)),
+            };
+            tPoints[hid] += homePts;
+            tPoints[aid] += awayPts;
+        }
+
+        return teams
+            .Select(t => new TeamLeagueRow(
+                t.CompetitionTeamId, t.Name, t.CaptainName,
+                tPlayed[t.CompetitionTeamId], tWon[t.CompetitionTeamId],
+                tDrawn[t.CompetitionTeamId], tLost[t.CompetitionTeamId],
+                tFor[t.CompetitionTeamId], tAgainst[t.CompetitionTeamId],
+                tPoints[t.CompetitionTeamId]))
+            .OrderByDescending(r => r.Points)
+            .ThenByDescending(r => r.ScoringFor - r.ScoringAgainst)
+            .ThenBy(r => r.ScoringAgainst)
+            .ToList();
+    }
+
+    private (string forH, string againstH, string forT, string againstT) LeagueHeaders()
+    {
+        var forH = _scoringUnitLabel switch { "sets" => "SW", "games" => "GW", _ => "RW" };
+        var againstH = _scoringUnitLabel switch { "sets" => "SA", "games" => "GA", _ => "RA" };
+        return (forH, againstH, $"{_scoringUnitLabel} won", $"{_scoringUnitLabel} against");
+    }
+
+    private RenderFragment RenderTeamLeagueTable(
+        List<TeamLeagueRow> rows, string forHeader, string againstHeader,
+        string forTooltip, string againstTooltip) => __builder =>
+    {
+        <MudTable Items="@rows" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table">
+            <HeaderContent>
+                <MudTh>Pos</MudTh>
+                <MudTh>Team</MudTh>
+                <MudTh>Captain</MudTh>
+                <MudTh>P</MudTh>
+                <MudTh>W</MudTh>
+                <MudTh>D</MudTh>
+                <MudTh>L</MudTh>
+                <MudTh><MudTooltip Text="@forTooltip">@forHeader</MudTooltip></MudTh>
+                <MudTh><MudTooltip Text="@againstTooltip">@againstHeader</MudTooltip></MudTh>
+                <MudTh>Pts</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Pos">@(rows.IndexOf(context) + 1)</MudTd>
+                <MudTd DataLabel="Team" Style="font-weight:500">@context.TeamName</MudTd>
+                <MudTd DataLabel="Captain">@(context.CaptainName ?? "—")</MudTd>
+                <MudTd DataLabel="P">@context.Played</MudTd>
+                <MudTd DataLabel="W">@context.Won</MudTd>
+                <MudTd DataLabel="D">@context.Drawn</MudTd>
+                <MudTd DataLabel="L">@context.Lost</MudTd>
+                <MudTd DataLabel="@forHeader">@context.ScoringFor</MudTd>
+                <MudTd DataLabel="@againstHeader">@context.ScoringAgainst</MudTd>
+                <MudTd DataLabel="Pts" Style="font-weight:bold">@context.Points</MudTd>
+            </RowTemplate>
+        </MudTable>
+    };
+
+    private RenderFragment RenderFixturesTable(List<CompetitionFixtureDto> fixtures) => __builder =>
+    {
+        <MudTable Items="@fixtures" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table">
+            <HeaderContent>
+                <MudTh>Date / Time</MudTh>
+                <MudTh>Match</MudTh>
+                <MudTh>Players</MudTh>
+                <MudTh>Court</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Result</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Date / Time">@(((context.Status == FixtureStatus.Completed || context.Status == FixtureStatus.AwaitingVerification) ? (context.CompletedAt ?? context.ScheduledAt) : context.ScheduledAt)?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+                <MudTd DataLabel="Match">@(context.FixtureLabel ?? "—")</MudTd>
+                <MudTd DataLabel="Players">@FixturePlayers(context)</MudTd>
+                <MudTd DataLabel="Court">@FixtureCourtLabel(context)</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+                </MudTd>
+                <MudTd DataLabel="Result">
+                    @{
+                        bool isTeamFixtureRow = context.HomeTeamId.HasValue && context.AwayTeamId.HasValue;
+                        bool hasResult = context.Status == FixtureStatus.Completed
+                            || context.Status == FixtureStatus.AwaitingVerification;
+                        var rubbers = context.Rubbers ?? new List<RubberDto>();
+                        var teamResult = (isTeamFixtureRow && rubbers.Any(r => r.IsComplete))
+                            ? TeamLeagueScoreCalculator.Compute(
+                                rubbers, context.HomeTeamId!.Value, context.AwayTeamId!.Value,
+                                _competition?.LeagueScoring ?? LeagueScoringMode.WinPoints)
+                            : (homeFor: 0, awayFor: 0, unitLabel: "");
+                        bool homeWon = context.WinnerTeamId == context.HomeTeamId;
+                        bool awayWon = context.WinnerTeamId == context.AwayTeamId;
+                    }
+                    @if (hasResult && isTeamFixtureRow && rubbers.Any(r => r.IsComplete))
+                    {
+                        <MudStack Spacing="0" Style="min-width:160px">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                    @(context.HomeTeamName ?? "Home")
+                                </MudText>
+                                <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                    @teamResult.homeFor
+                                </MudText>
+                            </MudStack>
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                    @(context.AwayTeamName ?? "Away")
+                                </MudText>
+                                <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                    @teamResult.awayFor
+                                </MudText>
+                            </MudStack>
+                        </MudStack>
+                        @if (context.Status == FixtureStatus.AwaitingVerification)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
+                        }
+                    }
+                    else if (hasResult && !isTeamFixtureRow && !string.IsNullOrEmpty(context.ResultSummary))
+                    {
+                        <FixtureResultCard Fixture="context" Compact="true" />
+                        @if (context.ResultModifiedByAdmin)
+                        {
+                            <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Modified</MudChip>
+                            </MudTooltip>
+                        }
+                        @if (context.Status == FixtureStatus.AwaitingVerification)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
+                        }
+                    }
+                    else if (hasResult)
+                    {
+                        <MudText Typo="Typo.body2" Style="font-weight:500">
+                            @WinnerName(context)
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    };
+
+    private static string FixturePlayers(CompetitionFixtureDto f)
+    {
+        if (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+        {
+            var home = f.HomeTeamName ?? "TBD";
+            var away = f.AwayTeamName ?? "TBD";
+            return $"{home} vs {away}";
+        }
+
+        var side1 = new[] { f.Player1Name, f.Player3Name }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        var side2 = new[] { f.Player2Name, f.Player4Name }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        return $"{side1} vs {side2}";
+    }
+
+    private static string FixtureCourtLabel(CompetitionFixtureDto f) =>
+        f.CourtPairName ?? f.CourtName ?? "—";
+
+    private string? WinnerName(CompetitionFixtureDto f)
+    {
+        if (f.WinnerTeamId.HasValue)
+        {
+            var name = f.WinnerTeamId == f.HomeTeamId ? f.HomeTeamName : f.AwayTeamName;
+            return name is { } tn ? $"Winner: {tn}" : null;
+        }
+        if (!f.WinnerPlayerId.HasValue) return null;
+        var name2 = new[] {
+            (f.Player1Id, f.Player1Name),
+            (f.Player2Id, f.Player2Name),
+            (f.Player3Id, f.Player3Name),
+            (f.Player4Id, f.Player4Name)
+        }.FirstOrDefault(p => p.Item1 == f.WinnerPlayerId).Item2;
+        return name2 is null ? null : $"Winner: {name2}";
+    }
+
+    private static Color StatusColor(FixtureStatus s) => s switch
+    {
+        FixtureStatus.Scheduled => Color.Default,
+        FixtureStatus.InProgress => Color.Warning,
+        FixtureStatus.Completed => Color.Success,
+        FixtureStatus.Cancelled => Color.Error,
+        FixtureStatus.Walkover => Color.Info,
+        _ => Color.Default
+    };
+
+    private static Color ParticipantColor(ParticipantStatus s) => s switch
+    {
+        ParticipantStatus.FullPlayer => Color.Success,
+        ParticipantStatus.Substitute => Color.Info,
+        ParticipantStatus.Registered => Color.Default,
+        ParticipantStatus.Withdrawn => Color.Warning,
+        ParticipantStatus.Disqualified => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string ParticipantStatusLabel(ParticipantStatus s) => s switch
+    {
+        ParticipantStatus.FullPlayer => "Full Player",
+        _ => s.ToString()
+    };
+
+    private async Task SelfRegisterAsync(ParticipantStatus status)
+    {
+        if (_competition is null) return;
+        _selfRegisterSaving = true;
+        _selfRegisterError = null;
+        StateHasChanged();
+        try
+        {
+            await CompetitionService.SelfRegisterAsync(_competition.CompetitionId, status);
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            _selfRegisterError = $"Registration failed: {ex.Message}";
+        }
+        finally
+        {
+            _selfRegisterSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConfirmParticipationAsync(ParticipantStatus status)
+    {
+        if (_competition is null) return;
+        _selfRegisterSaving = true;
+        _selfRegisterError = null;
+        StateHasChanged();
+        try
+        {
+            await CompetitionService.ConfirmParticipationAsync(_competition.CompetitionId, status);
+            await OnParametersSetAsync();
+        }
+        catch (Exception ex)
+        {
+            _selfRegisterError = $"Failed to update status: {ex.Message}";
+        }
+        finally
+        {
+            _selfRegisterSaving = false;
+            StateHasChanged();
+        }
+    }
+}
