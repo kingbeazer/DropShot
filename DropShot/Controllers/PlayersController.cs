@@ -129,3 +129,73 @@ public class PlayersController(
         p.ContactPreferences, p.ProfileImagePath, p.UserId, p.MobileNumber,
         p.IsLight, p.CreatedByUserId);
 }
+
+/// <summary>
+/// Per-club player roster endpoints. Backs ClubPlayers.razor (phase 4 batch B.3).
+/// All routes require an active ClubAdmin / Admin / SuperAdmin role with edit
+/// rights on the club (delegated to <see cref="ClubAuthorizationService"/>).
+/// </summary>
+[ApiController]
+[Route("api/clubs/{clubId:int}/players")]
+[Authorize(AuthenticationSchemes = "Bearer", Roles = "ClubAdmin,Admin,SuperAdmin")]
+public class ClubPlayersController(
+    IPlayerService playerService,
+    DropShot.Services.ClubAuthorizationService authzService) : ControllerBase
+{
+    [HttpGet]
+    public async Task<ActionResult<List<ClubPlayerDto>>> GetClubPlayers(int clubId, CancellationToken ct)
+    {
+        if (!await authzService.CanEditClubAsync(User, clubId)) return Forbid();
+        return await playerService.GetClubPlayersAsync(clubId, ct);
+    }
+
+    [HttpGet("search")]
+    public async Task<ActionResult<List<PlayerDto>>> SearchForLink(
+        int clubId, [FromQuery] string term, CancellationToken ct)
+    {
+        if (!await authzService.CanEditClubAsync(User, clubId)) return Forbid();
+        return await playerService.SearchPlayersForClubLinkAsync(clubId, term, ct);
+    }
+
+    [HttpPost("light")]
+    public async Task<ActionResult<PlayerDto>> CreateLight(
+        int clubId, [FromBody] CreateLightPlayerRequest req, CancellationToken ct)
+    {
+        if (!await authzService.CanEditClubAsync(User, clubId)) return Forbid();
+        if (string.IsNullOrWhiteSpace(req.DisplayName))
+            return BadRequest(new { message = "DisplayName is required." });
+        var dto = await playerService.CreateLightPlayerAsync(clubId, req, ct);
+        return CreatedAtAction(nameof(GetClubPlayers), new { clubId }, dto);
+    }
+
+    [HttpPut("light/{playerId:int}")]
+    public async Task<ActionResult<PlayerDto>> UpdateLight(
+        int clubId, int playerId, [FromBody] UpdateLightPlayerRequest req, CancellationToken ct)
+    {
+        if (!await authzService.CanEditClubAsync(User, clubId)) return Forbid();
+        if (string.IsNullOrWhiteSpace(req.DisplayName))
+            return BadRequest(new { message = "DisplayName is required." });
+        try
+        {
+            return await playerService.UpdateLightPlayerAsync(clubId, playerId, req, ct);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException) { return Forbid(); }
+    }
+
+    [HttpPost("{playerId:int}/link")]
+    public async Task<IActionResult> LinkExisting(int clubId, int playerId, CancellationToken ct)
+    {
+        if (!await authzService.CanEditClubAsync(User, clubId)) return Forbid();
+        await playerService.LinkExistingPlayerToClubAsync(clubId, playerId, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("{playerId:int}")]
+    public async Task<IActionResult> RemoveFromClub(int clubId, int playerId, CancellationToken ct)
+    {
+        if (!await authzService.CanEditClubAsync(User, clubId)) return Forbid();
+        await playerService.RemovePlayerFromClubAsync(clubId, playerId, ct);
+        return NoContent();
+    }
+}

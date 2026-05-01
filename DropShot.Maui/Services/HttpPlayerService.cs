@@ -42,4 +42,37 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
         var resp = await http.DeleteAsync($"api/players/{playerId}", ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task<List<ClubPlayerDto>> GetClubPlayersAsync(int clubId, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<ClubPlayerDto>>($"api/clubs/{clubId}/players", ct) ?? [];
+
+    public async Task<List<PlayerDto>> SearchPlayersForClubLinkAsync(int clubId, string term, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<PlayerDto>>(
+            $"api/clubs/{clubId}/players/search?term={Uri.EscapeDataString(term)}", ct) ?? [];
+
+    public async Task<PlayerDto> CreateLightPlayerAsync(int clubId, CreateLightPlayerRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync($"api/clubs/{clubId}/players/light", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<PlayerDto> UpdateLightPlayerAsync(int clubId, int playerId, UpdateLightPlayerRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync($"api/clubs/{clubId}/players/light/{playerId}", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken: ct))!;
+    }
+
+    public async Task RemovePlayerFromClubAsync(int clubId, int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/clubs/{clubId}/players/{playerId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task LinkExistingPlayerToClubAsync(int clubId, int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/clubs/{clubId}/players/{playerId}/link", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }

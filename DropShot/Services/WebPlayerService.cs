@@ -149,6 +149,121 @@ public sealed class WebPlayerService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task<List<ClubPlayerDto>> GetClubPlayersAsync(int clubId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var rows = await db.ClubPlayers
+            .Where(cp => cp.ClubId == clubId)
+            .Join(db.Players, cp => cp.PlayerId, p => p.PlayerId,
+                (cp, p) => new
+                {
+                    p.PlayerId, p.DisplayName, p.FirstName, p.LastName,
+                    p.IsLight, p.CreatedByClubId, p.Email, p.MobileNumber,
+                    p.Sex, p.ProfileImagePath, p.DateOfBirth,
+                    UserImage = p.User != null ? p.User.ProfileImagePath : null
+                })
+            .OrderBy(x => x.DisplayName)
+            .ToListAsync(ct);
+
+        return rows.Select(x => new ClubPlayerDto(
+            x.PlayerId, x.DisplayName, x.FirstName, x.LastName,
+            x.Email, x.MobileNumber, (DropShot.Shared.PlayerSex?)x.Sex,
+            x.DateOfBirth, x.UserImage ?? x.ProfileImagePath,
+            x.IsLight, x.CreatedByClubId == clubId)).ToList();
+    }
+
+    public async Task<List<PlayerDto>> SearchPlayersForClubLinkAsync(int clubId, string term, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(term)) return [];
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var alreadyInClub = await db.ClubPlayers
+            .Where(cp => cp.ClubId == clubId)
+            .Select(cp => cp.PlayerId)
+            .ToListAsync(ct);
+
+        var matches = await db.Players
+            .Where(p => !alreadyInClub.Contains(p.PlayerId)
+                && !p.IsLight
+                && p.DisplayName.Contains(term))
+            .OrderBy(p => p.DisplayName)
+            .Take(10)
+            .ToListAsync(ct);
+
+        return matches.Select(ToDto).ToList();
+    }
+
+    public async Task<PlayerDto> CreateLightPlayerAsync(int clubId, CreateLightPlayerRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var player = new Player
+        {
+            DisplayName = request.DisplayName.Trim(),
+            FirstName = NullIfEmpty(request.FirstName),
+            LastName = NullIfEmpty(request.LastName),
+            Email = NullIfEmpty(request.Email),
+            MobileNumber = NullIfEmpty(request.MobileNumber),
+            DateOfBirth = request.DateOfBirth,
+            Sex = (DropShot.Models.PlayerSex?)request.Sex,
+            IsLight = true,
+            CreatedByClubId = clubId,
+            CreatedByUserId = currentUser.UserId
+        };
+        db.Players.Add(player);
+        await db.SaveChangesAsync(ct);
+
+        db.ClubPlayers.Add(new ClubPlayer { ClubId = clubId, PlayerId = player.PlayerId });
+        await db.SaveChangesAsync(ct);
+
+        return ToDto(player);
+    }
+
+    public async Task<PlayerDto> UpdateLightPlayerAsync(int clubId, int playerId, UpdateLightPlayerRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var p = await db.Players.FindAsync([playerId], ct)
+            ?? throw new KeyNotFoundException($"Player {playerId} not found.");
+
+        if (!p.IsLight || p.CreatedByClubId != clubId)
+            throw new InvalidOperationException("Only light players owned by this club can be edited.");
+
+        p.DisplayName = request.DisplayName.Trim();
+        p.FirstName = NullIfEmpty(request.FirstName);
+        p.LastName = NullIfEmpty(request.LastName);
+        p.Email = NullIfEmpty(request.Email);
+        p.MobileNumber = NullIfEmpty(request.MobileNumber);
+        p.DateOfBirth = request.DateOfBirth;
+        p.Sex = (DropShot.Models.PlayerSex?)request.Sex;
+        await db.SaveChangesAsync(ct);
+        return ToDto(p);
+    }
+
+    public async Task RemovePlayerFromClubAsync(int clubId, int playerId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var cp = await db.ClubPlayers.FindAsync([clubId, playerId], ct);
+        if (cp is null) return;
+
+        db.ClubPlayers.Remove(cp);
+
+        var player = await db.Players.FindAsync([playerId], ct);
+        if (player is { IsLight: true } && player.CreatedByClubId == clubId)
+        {
+            db.Players.Remove(player);
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task LinkExistingPlayerToClubAsync(int clubId, int playerId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var exists = await db.ClubPlayers.AnyAsync(cp => cp.ClubId == clubId && cp.PlayerId == playerId, ct);
+        if (exists) return;
+        db.ClubPlayers.Add(new ClubPlayer { ClubId = clubId, PlayerId = playerId });
+        await db.SaveChangesAsync(ct);
+    }
+
     private static string? NullIfEmpty(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
