@@ -1,0 +1,297 @@
+@using DropShot.Shared.Helpers
+
+@inject ICompetitionService CompetitionService
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+
+@* Routing + auth + MudProviders supplied by host shims. *@
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_resolutionError != null)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="py-4">
+        <MudAlert Severity="Severity.Error" Class="mb-3">
+            <MudText Typo="Typo.body1" Class="mb-2">@_resolutionError</MudText>
+            @if (_isCompetitionAdmin)
+            {
+                <MudText Typo="Typo.body2">
+                    Fix the team roster in the competition setup, then reload this page.
+                    The rubber template requires specific role tags on each team member
+                    (for example MA / MB for a men's doubles). Roles are assigned in the
+                    <strong>Teams</strong> section of the setup page.
+                </MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2">
+                    Ask a competition admin to assign the missing role on the team roster.
+                </MudText>
+            }
+        </MudAlert>
+        <MudStack Row="true" Spacing="2">
+            @if (_isCompetitionAdmin && _context is not null)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ManageAccounts"
+                           Href="@($"/competition/{_context.CompetitionId}#section-teams")">
+                    Fix team roster
+                </MudButton>
+            }
+            @if (_context is not null)
+            {
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                           Href="@($"/competitions/{_context.CompetitionId}/view")">
+                    Back to Competition
+                </MudButton>
+            }
+        </MudStack>
+    </MudContainer>
+}
+else if (_context is null)
+{
+    <MudAlert Severity="Severity.Error">Fixture not found.</MudAlert>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+        <MudPaper Class="pa-4 mb-4" Elevation="2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h5">@_context.CompetitionName</MudText>
+                    <MudText Typo="Typo.subtitle1" Color="Color.Tertiary">
+                        @_context.HomeTeamName vs @_context.AwayTeamName
+                        @if (!string.IsNullOrEmpty(_context.FixtureLabel))
+                        {
+                            <span> — @_context.FixtureLabel</span>
+                        }
+                    </MudText>
+                </MudStack>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudChip T="string" Size="Size.Large" Color="@(_allComplete ? Color.Success : Color.Primary)">
+                        @_homeScore — @_awayScore @_scoreUnit
+                    </MudChip>
+                    @if (!_allComplete && _context.Rubbers.Any(r => !r.IsComplete && !r.SavedMatchId.HasValue))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.PlaylistAddCheck"
+                                   OnClick="OpenBulkRubberDialogAsync">Enter all scores</MudButton>
+                    }
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+        @foreach (var group in _context.Rubbers.GroupBy(r => r.CourtNumber).OrderBy(g => g.Key))
+        {
+            <MudText Typo="Typo.h6" Class="mb-2">Court @group.Key</MudText>
+            <MudGrid Spacing="3" Class="mb-4">
+                <MudItem xs="12">
+                    @foreach (var r in group.OrderBy(r => r.Order))
+                    {
+                        @RenderRubber(r)
+                    }
+                </MudItem>
+            </MudGrid>
+        }
+
+        @if (_allComplete)
+        {
+            <MudAlert Severity="Severity.Success" Class="mt-4">
+                Match complete: @_context.HomeTeamName @_homeScore — @_awayScore @_scoreUnit @_context.AwayTeamName
+                @if (_homeScore == _awayScore)
+                {
+                    <span> (Draw)</span>
+                }
+            </MudAlert>
+        }
+
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Href="@($"/competitions/{_context.CompetitionId}/view")">
+            Back to Competition
+        </MudButton>
+    </MudContainer>
+}
+
+@code {
+    [Parameter] public int FixtureId { get; set; }
+    [SupplyParameterFromQuery(Name = "edit")] public int? EditMode { get; set; }
+
+    private FixtureRubberContextDto? _context;
+    private bool _loading = true;
+    private int _homeScore;
+    private int _awayScore;
+    private string _scoreUnit = "rubbers";
+    private bool _allComplete;
+    private string? _resolutionError;
+    private bool _isCompetitionAdmin;
+
+    private bool CanEditCompletedRubber => _isCompetitionAdmin && EditMode == 1;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _resolutionError = null;
+        try
+        {
+            await CompetitionService.EnsureFixtureRubbersAsync(FixtureId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _resolutionError = ex.Message;
+        }
+
+        _context = await CompetitionService.GetFixtureRubberContextAsync(FixtureId);
+        if (_context is not null)
+        {
+            _isCompetitionAdmin = CurrentUser.CanEditCompetition(_context.HostClubId);
+            ComputeScores();
+        }
+
+        _loading = false;
+    }
+
+    private void ComputeScores()
+    {
+        if (_context is null) { _allComplete = false; return; }
+
+        if (_context.HomeTeamId.HasValue && _context.AwayTeamId.HasValue)
+        {
+            (_homeScore, _awayScore, _scoreUnit) = TeamLeagueScoreCalculator.Compute(
+                _context.Rubbers, _context.HomeTeamId.Value, _context.AwayTeamId.Value, _context.LeagueScoring);
+        }
+        _allComplete = _context.Rubbers.Count > 0 && TeamLeagueScoreCalculator.AllComplete(_context.Rubbers);
+    }
+
+    private bool CanStart(RubberDialogDto rubber)
+    {
+        if (_context is null) return false;
+        if (rubber.IsComplete || rubber.SavedMatchId.HasValue) return false;
+
+        // Within the same court, rubbers play sequentially by Order.
+        var sameCourt = _context.Rubbers.Where(r => r.CourtNumber == rubber.CourtNumber)
+            .OrderBy(r => r.Order).ToList();
+        var idx = sameCourt.IndexOf(rubber);
+        if (idx == 0) return true;
+        return sameCourt[idx - 1].IsComplete;
+    }
+
+    private void StartRubber(RubberDialogDto rubber)
+    {
+        var returnUrl = $"/team-match/{FixtureId}";
+        Navigation.NavigateTo(
+            $"/tennisscore?RubberId={rubber.RubberId}&ReturnUrl={Uri.EscapeDataString(returnUrl)}&AutoStart=true");
+    }
+
+    private void ResumeRubber(RubberDialogDto rubber)
+    {
+        if (rubber.SavedMatchId.HasValue)
+        {
+            var returnUrl = $"/team-match/{FixtureId}";
+            Navigation.NavigateTo($"/match/{rubber.SavedMatchId}?ReturnUrl={Uri.EscapeDataString(returnUrl)}");
+        }
+    }
+
+    private async Task OpenBulkRubberDialogAsync()
+    {
+        var parameters = new DialogParameters<BulkRubberScoreDialog>
+        {
+            { x => x.FixtureId, FixtureId },
+            { x => x.AdminOverride, _isCompetitionAdmin }
+        };
+        var dlg = await DialogService.ShowAsync<BulkRubberScoreDialog>(
+            "Enter all rubber scores",
+            parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Medium, CloseOnEscapeKey = true });
+        var res = await dlg.Result;
+        if (res is not null && !res.Canceled)
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnterRubberScore(RubberDialogDto rubber)
+    {
+        var parameters = new DialogParameters<RubberScoreDialog>
+        {
+            { x => x.FixtureId, FixtureId },
+            { x => x.RubberId, rubber.RubberId },
+            { x => x.AdminOverride, _isCompetitionAdmin }
+        };
+        var dialog = await DialogService.ShowAsync<RubberScoreDialog>("Enter rubber score", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }
+    }
+
+    private RenderFragment RenderRubber(RubberDialogDto rubber) => __builder =>
+    {
+        var homeTeam = _context?.HomeTeamName ?? "Home";
+        var awayTeam = _context?.AwayTeamName ?? "Away";
+        var homePair = $"{rubber.HomePlayer1Name} & {rubber.HomePlayer2Name}";
+        var awayPair = $"{rubber.AwayPlayer1Name} & {rubber.AwayPlayer2Name}";
+        <MudCard Class="mb-2" Outlined="true">
+            <MudCardContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="3">
+                    <MudStack Spacing="1" Style="flex:1; min-width:0">
+                        <MudText Typo="Typo.subtitle2">@rubber.Name (rubber @rubber.Order)</MudText>
+                        <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
+                            <MudText Typo="Typo.body2" Style="font-weight:600; min-width:90px">@homeTeam</MudText>
+                            <MudText Typo="Typo.body2" Style="opacity:0.9">@homePair</MudText>
+                        </MudStack>
+                        <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
+                            <MudText Typo="Typo.body2" Style="font-weight:600; min-width:90px">@awayTeam</MudText>
+                            <MudText Typo="Typo.body2" Style="opacity:0.9">@awayPair</MudText>
+                        </MudStack>
+                    </MudStack>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        @if (rubber.IsComplete)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                    @(rubber.HomeSetsWon.HasValue && rubber.AwaySetsWon.HasValue
+                                        ? $"{rubber.HomeSetsWon} — {rubber.AwaySetsWon} sets"
+                                        : $"{rubber.HomeGames} — {rubber.AwayGames}")
+                                </MudChip>
+                                @if (rubber.ExistingSetScores.Count > 0)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        (@string.Join(", ", rubber.ExistingSetScores.Select(s => $"{s.Home}-{s.Away}")))
+                                    </MudText>
+                                }
+                                @if (CanEditCompletedRubber)
+                                {
+                                    <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit"
+                                                   OnClick="@(() => EnterRubberScore(rubber))" />
+                                }
+                            </MudStack>
+                        }
+                        else if (rubber.SavedMatchId.HasValue)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
+                                       OnClick="@(() => ResumeRubber(rubber))">Resume</MudButton>
+                        }
+                        else if (CanStart(rubber))
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="@(() => StartRubber(rubber))">Play</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                       OnClick="@(() => EnterRubberScore(rubber))">Enter score</MudButton>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default">Waiting</MudChip>
+                        }
+                    </MudStack>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    };
+}

@@ -467,6 +467,30 @@ public class CompetitionsController(
     }
 
     /// <summary>
+    /// Lazily creates rubber rows for a fixture. Idempotent. Returns 400 with
+    /// a user-facing message if role resolution fails (missing or duplicate
+    /// role tags). Caller must be able to view the competition; fixture must
+    /// have both home and away teams set.
+    /// </summary>
+    [HttpPost("fixtures/{fixtureId:int}/ensure-rubbers")]
+    public async Task<IActionResult> EnsureFixtureRubbers(int fixtureId, CancellationToken ct)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures
+            .Select(f => new { f.CompetitionFixtureId, f.CompetitionId })
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return NotFound();
+        if (!await authzService.CanViewCompetitionAsync(User, fx.CompetitionId)) return Forbid();
+
+        try
+        {
+            await competitionService.EnsureFixtureRubbersAsync(fixtureId, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>
     /// Submit one or many rubber scores for a fixture (single dialog or bulk
     /// dialog). Backs phase 7 RubberScoreDialog/BulkRubberScoreDialog. Server
     /// enforces that <c>AdminOverride</c> is honoured only for competition
