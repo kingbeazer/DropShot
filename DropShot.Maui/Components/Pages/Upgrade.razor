@@ -1,0 +1,25 @@
+@page "/upgrade"
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+
+<DropShot.UI.Components.Pages.Upgrade>
+    <CheckoutControls>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.OpenInNew"
+                   OnClick="OpenWebUpgradeAsync">
+            Subscribe via website
+        </MudButton>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+            Subscriptions are processed by PayPal in your browser. Once payment
+            completes, return to the app — your Premium status will update.
+        </MudText>
+    </CheckoutControls>
+</DropShot.UI.Components.Pages.Upgrade>
+
+@code {
+    private async Task OpenWebUpgradeAsync()
+    {
+        var baseUrl = Configuration["App:BaseUrl"]?.TrimEnd('/') ?? "";
+        var url = $"{baseUrl}/upgrade";
+        await Browser.Default.OpenAsync(url, BrowserLaunchMode.External);
+    }
+}

@@ -109,7 +109,7 @@ public class SubscriptionController(
     // ── Status ──────────────────────────────────────────────────────────────────
     [HttpGet("status")]
     [Authorize]
-    public async Task<IActionResult> Status()
+    public async Task<ActionResult<DropShot.Shared.Dtos.SubscriptionStatusDto>> Status()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId is null) return Unauthorized();
@@ -117,14 +117,8 @@ public class SubscriptionController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
-        return Ok(new
-        {
-            user.IsSubscribed,
-            user.SubscriptionTier,
-            user.SubscriptionStartDate,
-            user.SubscriptionEndDate,
-            user.PaypalSubscriptionId
-        });
+        return new DropShot.Shared.Dtos.SubscriptionStatusDto(
+            user.IsSubscribed, user.SubscriptionTier, user.SubscriptionStartDate);
     }
 
     // ── PayPal API helpers ──────────────────────────────────────────────────────

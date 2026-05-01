@@ -1,0 +1,118 @@
+@inject IPaymentService PaymentService
+@inject NavigationManager Navigation
+
+@* Routing + auth + MudProviders supplied by host shims. The PayPal SDK
+   button is hosted-shim-supplied (web only — MAUI shim provides a
+   "Subscribe via website" external-browser button instead). *@
+
+<PageTitle>Upgrade to Premium — DropShot</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6 mb-6">
+    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">Upgrade to Premium</MudText>
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary" Class="mb-6">
+        Unlock the full DropShot experience
+    </MudText>
+
+    @if (_alreadySubscribed)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-4">
+            You are already a Premium subscriber. Thank you for your support!
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid Spacing="4" Justify="Justify.Center">
+            <MudItem xs="12" md="6">
+                <MudCard Elevation="2" Style="height: 100%">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Premium Benefits</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudIcon Icon="@Icons.Material.Filled.Star" Color="Color.Warning" />
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList T="string" Dense="true">
+                            <MudListItem Icon="@Icons.Material.Filled.Block" IconColor="Color.Success">
+                                Ad-free experience
+                            </MudListItem>
+                            <MudListItem Icon="@Icons.Material.Filled.Support" IconColor="Color.Success">
+                                Priority support
+                            </MudListItem>
+                            <MudListItem Icon="@Icons.Material.Filled.TrendingUp" IconColor="Color.Success">
+                                Increased usage limits
+                            </MudListItem>
+                            <MudListItem Icon="@Icons.Material.Filled.WorkspacePremium" IconColor="Color.Success">
+                                Premium features
+                            </MudListItem>
+                            <MudListItem Icon="@Icons.Material.Filled.NewReleases" IconColor="Color.Success">
+                                Early access to new features
+                            </MudListItem>
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudCard Elevation="4" Style="height: 100%; border: 2px solid var(--mud-palette-primary)">
+                    <MudCardHeader Style="background: var(--mud-palette-primary); color: white;">
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h5" Style="color: white;">Premium</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Class="d-flex flex-column align-center pa-6">
+                        <MudText Typo="Typo.h3" Color="Color.Primary" Class="mb-1">
+                            &pound;4.99
+                        </MudText>
+                        <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+                            per month
+                        </MudText>
+
+                        <AuthorizeView>
+                            <Authorized>
+                                @if (CheckoutControls is not null)
+                                {
+                                    @CheckoutControls
+                                }
+                                else
+                                {
+                                    <MudAlert Severity="Severity.Info" Dense="true">
+                                        Subscription checkout isn't available on this device.
+                                    </MudAlert>
+                                }
+                            </Authorized>
+                            <NotAuthorized>
+                                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                                    Please log in to subscribe.
+                                </MudAlert>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                           Href="Account/Login" data-enhance-nav="false">
+                                    Log In
+                                </MudButton>
+                            </NotAuthorized>
+                        </AuthorizeView>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    /// <summary>
+    /// Host-supplied checkout controls. Web shim renders the inline PayPal
+    /// SDK button + JSInvokable activation callbacks; MAUI shim renders a
+    /// "Subscribe via website" button that calls Browser.Default.OpenAsync
+    /// against the production /upgrade URL.
+    /// </summary>
+    [Parameter] public RenderFragment? CheckoutControls { get; set; }
+
+    private bool _alreadySubscribed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var status = await PaymentService.GetSubscriptionStatusAsync();
+        _alreadySubscribed = status.IsSubscribed;
+    }
+}
