@@ -440,6 +440,22 @@ public sealed class WebPlayerService(
             p.PlayerId, p.DisplayName, p.FirstName, p.LastName)).ToList();
     }
 
+    public async Task<List<ApplicationUserDto>> GetUsersForLinkingAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var users = await db.Users.OrderBy(u => u.UserName).ToListAsync(ct);
+        return users.Select(u => new ApplicationUserDto(u.Id, u.UserName, u.Email)).ToList();
+    }
+
+    public async Task LinkPlayerAccountAsync(int playerId, string? userId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var p = await db.Players.FindAsync([playerId], ct)
+            ?? throw new KeyNotFoundException($"Player {playerId} not found.");
+        p.UserId = string.IsNullOrEmpty(userId) ? null : userId;
+        await db.SaveChangesAsync(ct);
+    }
+
     private static string? NullIfEmpty(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 

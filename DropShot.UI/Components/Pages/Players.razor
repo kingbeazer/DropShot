@@ -1,10 +1,9 @@
 @inject IPlayerService PlayerService
 @inject ISnackbar Snackbar
 
-@* Account-linking dropdown deferred to phase 5 (needs GET /api/users + admin
-   gating alongside Admin/UserManagement). Routing + auth + MudProviders are
-   supplied by host shims (web: DropShot/Components/Pages/Players.razor;
-   MAUI: DropShot.Maui/Components/Pages/Players.razor). *@
+@* Routing + auth + MudProviders supplied by host shims (web:
+   DropShot/Components/Pages/Players.razor; MAUI:
+   DropShot.Maui/Components/Pages/Players.razor). *@
 
 <MudText Typo="Typo.h4" Class="mb-4">Players</MudText>
 
@@ -65,6 +64,9 @@
         <MudTd DataLabel="Actions">
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                            OnClick="@(() => StartEdit(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Info"
+                           aria-label="Link to account"
+                           OnClick="@(() => StartLink(context))" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
                            OnClick="@(() => DeletePlayer(context))" />
         </MudTd>
@@ -168,6 +170,24 @@
     </DialogActions>
 </MudDialog>
 
+@* ── Link to Account Dialog ────────────────────────────────── *@
+<MudDialog @bind-Visible="_showLinkDialog">
+    <TitleContent>Link "@_linkingPlayer?.DisplayName" to Account</TitleContent>
+    <DialogContent>
+        <MudSelect @bind-Value="_selectedUserId" Label="Select Account" Variant="Variant.Outlined">
+            <MudSelectItem T="string" Value="@null">— Unlink —</MudSelectItem>
+            @foreach (var u in _aspNetUsers)
+            {
+                <MudSelectItem T="string" Value="@u.Id">@u.UserName</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showLinkDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Info" OnClick="SaveLink">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private bool _loading = true;
     private List<PlayerWithClubsDto> _players = [];
@@ -184,6 +204,11 @@
     private bool _showAddDialog;
     private bool _showEditDialog;
     private int? _editingPlayerId;
+
+    private bool _showLinkDialog;
+    private PlayerWithClubsDto? _linkingPlayer;
+    private string? _selectedUserId;
+    private List<ApplicationUserDto> _aspNetUsers = [];
 
     private PlayerForm _form = new();
 
@@ -273,6 +298,23 @@
     {
         await PlayerService.DeletePlayerAsync(player.PlayerId);
         Snackbar.Add("Player deleted.", Severity.Warning);
+        await LoadPlayers();
+    }
+
+    private async Task StartLink(PlayerWithClubsDto player)
+    {
+        _linkingPlayer = player;
+        _selectedUserId = player.UserId;
+        _aspNetUsers = await PlayerService.GetUsersForLinkingAsync();
+        _showLinkDialog = true;
+    }
+
+    private async Task SaveLink()
+    {
+        if (_linkingPlayer is null) return;
+        await PlayerService.LinkPlayerAccountAsync(_linkingPlayer.PlayerId, _selectedUserId);
+        _showLinkDialog = false;
+        Snackbar.Add("Account link updated.", Severity.Success);
         await LoadPlayers();
     }
 }
