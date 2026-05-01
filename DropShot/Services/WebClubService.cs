@@ -15,7 +15,8 @@ namespace DropShot.Services;
 /// </summary>
 public sealed class WebClubService(
     IDbContextFactory<MyDbContext> dbFactory,
-    ICurrentUser currentUser) : IClubService
+    ICurrentUser currentUser,
+    AdminEmailService adminEmail) : IClubService
 {
     public async Task<List<ClubDto>> GetClubsAsync(CancellationToken ct = default)
     {
@@ -173,6 +174,109 @@ public sealed class WebClubService(
         if (pending.Count == 0) return;
         db.ClubLinkRequests.RemoveRange(pending);
         await db.SaveChangesAsync(ct);
+    }
+
+    // ── Club admin moderation ───────────────────────────────────────────
+
+    public async Task<List<ClubLinkRequestDto>> GetPendingLinkRequestsForAdminAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        IQueryable<ClubLinkRequest> q = db.ClubLinkRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .Where(r => r.Status == ClubLinkRequestStatus.Pending);
+
+        if (!currentUser.IsAdmin)
+        {
+            var adminClubIds = currentUser.AdminClubIds.ToList();
+            if (adminClubIds.Count == 0) return [];
+            q = q.Where(r => adminClubIds.Contains(r.ClubId));
+        }
+
+        var rows = await q.OrderByDescending(r => r.RequestedAt).ToListAsync(ct);
+        return rows.Select(r => new ClubLinkRequestDto(
+            r.ClubLinkRequestId, r.ClubId, r.Club.Name,
+            r.UserId, r.User.UserName ?? "", r.User.Email,
+            r.Status.ToString(), r.RequestedAt, r.ResolvedAt,
+            r.User.DisplayName)).ToList();
+    }
+
+    public async Task ApproveLinkRequestAsync(int requestId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fresh = await db.ClubLinkRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.ClubLinkRequestId == requestId, ct)
+            ?? throw new KeyNotFoundException($"Link request {requestId} not found.");
+
+        if (fresh.Status != ClubLinkRequestStatus.Pending)
+            throw new InvalidOperationException("Request already resolved.");
+
+        if (!currentUser.CanEditClub(fresh.ClubId))
+            throw new InvalidOperationException("Not authorised for this club.");
+
+        var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == fresh.UserId && !p.IsLight, ct);
+        if (player is null)
+        {
+            var displayName = fresh.User.DisplayName is { Length: > 0 }
+                ? fresh.User.DisplayName
+                : fresh.User.UserName ?? "Player";
+            player = new Player
+            {
+                DisplayName = displayName,
+                Email = fresh.User.Email,
+                UserId = fresh.UserId,
+                IsLight = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Players.Add(player);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var alreadyLinked = await db.ClubPlayers
+            .AnyAsync(cp => cp.ClubId == fresh.ClubId && cp.PlayerId == player.PlayerId, ct);
+        if (!alreadyLinked)
+        {
+            db.ClubPlayers.Add(new ClubPlayer
+            {
+                ClubId = fresh.ClubId,
+                PlayerId = player.PlayerId,
+                JoinedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+        }
+
+        fresh.Status = ClubLinkRequestStatus.Approved;
+        fresh.ResolvedAt = DateTime.UtcNow;
+        fresh.ResolvedByUserId = currentUser.UserId;
+        await db.SaveChangesAsync(ct);
+
+        await adminEmail.SendClubLinkRequestApprovedAsync(fresh.Club, fresh.User);
+    }
+
+    public async Task RejectLinkRequestAsync(int requestId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fresh = await db.ClubLinkRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.ClubLinkRequestId == requestId, ct)
+            ?? throw new KeyNotFoundException($"Link request {requestId} not found.");
+
+        if (fresh.Status != ClubLinkRequestStatus.Pending)
+            throw new InvalidOperationException("Request already resolved.");
+
+        if (!currentUser.CanEditClub(fresh.ClubId))
+            throw new InvalidOperationException("Not authorised for this club.");
+
+        fresh.Status = ClubLinkRequestStatus.Rejected;
+        fresh.ResolvedAt = DateTime.UtcNow;
+        fresh.ResolvedByUserId = currentUser.UserId;
+        await db.SaveChangesAsync(ct);
+
+        await adminEmail.SendClubLinkRequestRejectedAsync(fresh.Club, fresh.User);
     }
 
     private static Club ApplyTo(Club c, SaveClubRequest req)

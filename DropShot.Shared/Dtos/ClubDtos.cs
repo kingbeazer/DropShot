@@ -49,7 +49,8 @@ public record ClubLinkRequestDto(
     string? UserEmail,
     string Status,
     DateTime RequestedAt,
-    DateTime? ResolvedAt);
+    DateTime? ResolvedAt,
+    string? UserDisplayName = null);
 
 public record ClubDetailDto(
     int ClubId,

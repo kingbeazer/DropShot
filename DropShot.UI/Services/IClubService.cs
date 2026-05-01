@@ -26,4 +26,23 @@ public interface IClubService
 
     Task RequestClubLinkAsync(int clubId, CancellationToken ct = default);
     Task CancelMyClubLinkRequestAsync(int clubId, CancellationToken ct = default);
+
+    // ── Club admin moderation (phase 5 — backs ClubAdmin/ClubLinkRequests) ──
+
+    /// <summary>
+    /// Pending link requests across every club the caller administers. Admin
+    /// and SuperAdmin see all pending requests; ClubAdmin sees just their
+    /// admin clubs' requests.
+    /// </summary>
+    Task<List<ClubLinkRequestDto>> GetPendingLinkRequestsForAdminAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Approve a link request: ensures a verified Player record exists for the
+    /// requesting user, links them to the club via ClubPlayer, marks the
+    /// request approved, and notifies the requester by email.
+    /// </summary>
+    Task ApproveLinkRequestAsync(int requestId, CancellationToken ct = default);
+
+    /// <summary>Reject a link request and notify the requester by email.</summary>
+    Task RejectLinkRequestAsync(int requestId, CancellationToken ct = default);
 }
