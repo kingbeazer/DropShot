@@ -11,6 +11,11 @@
     <MudNavLink Href="/rulessets" Icon="@Icons.Material.Filled.Gavel">
         Rules Sets
     </MudNavLink>
+    <AuthorizeView Roles="ClubAdmin,Admin,SuperAdmin">
+        <MudNavLink Href="/players/club" Icon="@Icons.Material.Filled.Groups">
+            Club Players
+        </MudNavLink>
+    </AuthorizeView>
     <AuthorizeView Roles="SuperAdmin">
         <MudNavLink Href="/players" Icon="@Icons.Material.Filled.People">
             Players

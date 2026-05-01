@@ -1,8 +1,5 @@
 @page "/players/club"
-@rendermode InteractiveServer
 @attribute [Authorize(Roles = "ClubAdmin,Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Authorization
-
-<MudProviders />
 
 <DropShot.UI.Components.Pages.ClubPlayers />
