@@ -104,7 +104,7 @@ public class TennisScoreService
 
     public void EndSet(TennisMatchState s)
     {
-        s.SetScores.Add(new SetScore
+        s.SetScores.Add(new DropShot.Shared.SetScore
         {
             SetNumber = s.SetScores.Count + 1,
             UserGames = s.UserGames,
@@ -165,7 +165,7 @@ public class TennisScoreService
         s.SetScores.Clear();
     }
 
-    public void RestoreFromGameState(TennisMatchState s, GameState gs)
+    public void RestoreFromGameState(TennisMatchState s, DropShot.Shared.GameState gs)
     {
         s.UserPoints = gs.UserPts;
         s.OppPoints = gs.OppPts;

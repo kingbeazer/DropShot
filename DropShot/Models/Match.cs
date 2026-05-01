@@ -1,3 +1,5 @@
+using DropShot.Shared;
+
 namespace DropShot.Models;
 
 public class Match
