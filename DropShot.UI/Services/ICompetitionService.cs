@@ -83,11 +83,22 @@ public interface ICompetitionService
 
     /// <summary>
     /// Loads the rubber-scoring context for a team-match fixture: per-rubber
-    /// player names + existing set scores, plus the fixture's match-config
-    /// knobs (BestOf, GamesPerSet, SetWinMode, MatchFormat, RequireVerification).
-    /// Backs RubberScoreDialog and BulkRubberScoreDialog (phase 7).
+    /// player names + existing set scores + score aggregates, plus the fixture's
+    /// match-config knobs (BestOf, GamesPerSet, SetWinMode, MatchFormat,
+    /// RequireVerification, LeagueScoring, HostClubId). Backs both rubber
+    /// scoring dialogs and the TeamMatchScoring page.
     /// </summary>
     Task<FixtureRubberContextDto?> GetFixtureRubberContextAsync(int fixtureId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lazily creates the Rubber rows for a team-match fixture by resolving
+    /// each rubber template's roles against the home and away team rosters.
+    /// Idempotent (returns immediately if rubbers already exist). Throws
+    /// <see cref="InvalidOperationException"/> with a user-facing message when
+    /// role resolution fails (missing or duplicate role assignments) — the
+    /// TeamMatchScoring page surfaces this as a recoverable error.
+    /// </summary>
+    Task EnsureFixtureRubbersAsync(int fixtureId, CancellationToken ct = default);
 
     /// <summary>
     /// Submit one or many rubber scores for a fixture in a single call. The

@@ -88,4 +88,16 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
             $"api/competitions/fixtures/{fixtureId}/submit-rubber-scores", request, ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task EnsureFixtureRubbersAsync(int fixtureId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/fixtures/{fixtureId}/ensure-rubbers", null, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(
+                string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to ensure rubbers." : body);
+        }
+    }
 }

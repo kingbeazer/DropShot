@@ -1,7 +1,6 @@
 @page "/team-match/{FixtureId:int}"
-@rendermode InteractiveServer
-
-<MudProviders />
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
 
 <DropShot.UI.Components.Pages.TeamMatchScoring FixtureId="@FixtureId" />
 

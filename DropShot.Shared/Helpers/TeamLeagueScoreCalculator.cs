@@ -33,4 +33,33 @@ public static class TeamLeagueScoreCalculator
             _ => (homeRubbers, awayRubbers, "rubbers"),
         };
     }
+
+    /// <summary>
+    /// Overload for the rubber-dialog DTO surface used by TeamMatchScoring.
+    /// </summary>
+    public static (int homeFor, int awayFor, string unitLabel) Compute(
+        IEnumerable<RubberDialogDto> rubbers, int homeTeamId, int awayTeamId, LeagueScoringMode mode)
+    {
+        int homeRubbers = 0, awayRubbers = 0;
+        int homeSets = 0, awaySets = 0;
+        int homeGames = 0, awayGames = 0;
+        foreach (var r in rubbers.Where(r => r.IsComplete))
+        {
+            if (r.WinnerTeamId == homeTeamId) homeRubbers++;
+            else if (r.WinnerTeamId == awayTeamId) awayRubbers++;
+            homeSets += r.HomeSetsWon ?? 0;
+            awaySets += r.AwaySetsWon ?? 0;
+            homeGames += r.HomeGamesTotal ?? 0;
+            awayGames += r.AwayGamesTotal ?? 0;
+        }
+        return mode switch
+        {
+            LeagueScoringMode.SetsWon => (homeSets, awaySets, "sets"),
+            LeagueScoringMode.GamesWon => (homeGames, awayGames, "games"),
+            _ => (homeRubbers, awayRubbers, "rubbers"),
+        };
+    }
+
+    public static bool AllComplete(IEnumerable<RubberDialogDto> rubbers)
+        => rubbers.All(r => r.IsComplete);
 }

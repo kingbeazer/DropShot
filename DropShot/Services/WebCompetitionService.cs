@@ -20,7 +20,8 @@ public sealed class WebCompetitionService(
     ClubAuthorizationService authzService,
     IHttpContextAccessor httpContextAccessor,
     ICurrentUser currentUser,
-    BackgroundTaskQueue backgroundTasks) : ICompetitionService
+    BackgroundTaskQueue backgroundTasks,
+    RubberResolutionService rubberResolver) : ICompetitionService
 {
     public async Task<List<CompetitionDto>> GetCompetitionsAsync(bool includeArchived = false, CancellationToken ct = default)
     {
@@ -356,7 +357,9 @@ public sealed class WebCompetitionService(
                 r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
                 r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
                 r.IsComplete, r.SavedMatchId,
-                r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList()))
+                r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList(),
+                r.WinnerTeamId, r.HomeGames, r.AwayGames,
+                r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal))
             .ToList();
 
         return new FixtureRubberContextDto(
@@ -376,7 +379,22 @@ public sealed class WebCompetitionService(
             comp?.RequireVerification ?? false,
             fx.Status == DropShot.Models.FixtureStatus.AwaitingVerification
                 || fx.Status == DropShot.Models.FixtureStatus.Completed,
-            rubbers);
+            rubbers,
+            (DropShot.Shared.LeagueScoringMode)(comp?.LeagueScoring ?? DropShot.Models.LeagueScoringMode.WinPoints),
+            comp?.HostClubId);
+    }
+
+    public async Task EnsureFixtureRubbersAsync(int fixtureId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        try
+        {
+            await rubberResolver.EnsureRubbersAsync(db, fixtureId);
+        }
+        catch (RubberResolutionException ex)
+        {
+            throw new InvalidOperationException(ex.Message);
+        }
     }
 
     public async Task SubmitRubberScoresAsync(
