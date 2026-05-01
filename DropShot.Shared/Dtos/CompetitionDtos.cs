@@ -142,6 +142,23 @@ public record AddStageRequest(StageType StageType, string? Name = null, int? Sta
 public record AddParticipantRequest(int PlayerId, bool Force = false);
 
 /// <summary>
+/// Approve an awaiting-verification fixture result, optionally overriding the
+/// score. When <c>OverrideScores</c> is non-null, the original ResultSummary
+/// + WinnerPlayerId are preserved on the fixture for audit and the new score
+/// becomes authoritative.
+/// </summary>
+public record ApproveFixtureResultRequest(
+    FixtureScoreOverride? OverrideScores = null);
+
+public record FixtureScoreOverride(
+    string ResultSummary,
+    int WinnerPlayerId,
+    int HomeSetsWon,
+    int AwaySetsWon,
+    int HomeGamesTotal,
+    int AwayGamesTotal);
+
+/// <summary>
 /// Response body returned with HTTP 409 when an admin action would violate a
 /// competition's eligibility rules (sex / age / allow-list / mixed-doubles
 /// pairing / MTT composition). The admin UI shows these as a confirmation

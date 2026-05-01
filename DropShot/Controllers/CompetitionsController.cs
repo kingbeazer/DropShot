@@ -371,6 +371,30 @@ public class CompetitionsController(
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    /// <summary>
+    /// Approve an awaiting-verification fixture result (optionally overriding
+    /// the score). Backs ReviewResultDialog (phase 7).
+    /// </summary>
+    [HttpPost("fixtures/{fixtureId:int}/approve-result")]
+    public async Task<IActionResult> ApproveFixtureResult(
+        int fixtureId, [FromBody] ApproveFixtureResultRequest req, CancellationToken ct)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return NotFound();
+        if (!await authzService.CanEditCompetitionAsync(User, fx.Competition?.HostClubId, fx.CompetitionId))
+            return Forbid();
+
+        try
+        {
+            await competitionService.ApproveFixtureResultAsync(fixtureId, req, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
     [HttpDelete("{id:int}/participants/{playerId:int}")]
     public async Task<IActionResult> RemoveParticipant(int id, int playerId)
     {

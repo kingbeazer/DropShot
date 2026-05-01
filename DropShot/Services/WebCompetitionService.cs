@@ -211,6 +211,36 @@ public sealed class WebCompetitionService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task ApproveFixtureResultAsync(
+        int fixtureId, ApproveFixtureResultRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct)
+            ?? throw new KeyNotFoundException($"Fixture {fixtureId} not found.");
+
+        if (request.OverrideScores is { } o)
+        {
+            fx.OriginalResultSummary = fx.ResultSummary;
+            fx.OriginalWinnerPlayerId = fx.WinnerPlayerId;
+            fx.ResultModifiedByAdmin = true;
+            fx.ResultSummary = o.ResultSummary;
+            fx.WinnerPlayerId = o.WinnerPlayerId;
+            fx.HomeSetsWon = o.HomeSetsWon;
+            fx.AwaySetsWon = o.AwaySetsWon;
+            fx.HomeGamesTotal = o.HomeGamesTotal;
+            fx.AwayGamesTotal = o.AwayGamesTotal;
+        }
+
+        fx.Status = DropShot.Models.FixtureStatus.Completed;
+        fx.CompletedAt = DateTime.UtcNow;
+        fx.VerificationToken = null;
+
+        await db.SaveChangesAsync(ct);
+        await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+    }
+
     private static CompetitionDto ToDto(Competition c) => new(
         c.CompetitionID, c.CompetitionName,
         (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
