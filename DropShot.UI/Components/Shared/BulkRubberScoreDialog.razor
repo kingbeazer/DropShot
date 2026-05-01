@@ -1,0 +1,222 @@
+@inject ICompetitionService CompetitionService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>Enter all rubber scores</TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_context is null)
+        {
+            <MudAlert Severity="Severity.Error">Fixture not found.</MudAlert>
+        }
+        else
+        {
+            <MudStack Spacing="3">
+                <MudText Typo="Typo.body2">
+                    <strong>@_context.HomeTeamName</strong> vs <strong>@_context.AwayTeamName</strong>
+                    <span>&nbsp;·&nbsp;@(_context.MatchFormat == MatchFormatType.FixedSets ? $"{_bestOf} sets" : $"Best of {_bestOf}")</span>
+                    <span>&nbsp;·&nbsp;@_context.GamesPerSet games/set</span>
+                    <span>&nbsp;·&nbsp;@(_context.SetWinMode == SetWinMode.WinBy2 ? "Win by 2" : "First to")</span>
+                </MudText>
+
+                <MudDivider />
+
+                @for (int rIdx = 0; rIdx < _rubbers.Count; rIdx++)
+                {
+                    int rCopy = rIdx;
+                    var rubber = _rubbers[rCopy];
+                    var homePair = string.Join(" & ", new[] { rubber.HomePlayer1Name, rubber.HomePlayer2Name }.Where(n => !string.IsNullOrEmpty(n)));
+                    var awayPair = string.Join(" & ", new[] { rubber.AwayPlayer1Name, rubber.AwayPlayer2Name }.Where(n => !string.IsNullOrEmpty(n)));
+                    <MudPaper Class="pa-2" Outlined="true">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.subtitle2">@rubber.Name</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @(string.IsNullOrEmpty(homePair) ? "TBD" : homePair) — @(string.IsNullOrEmpty(awayPair) ? "TBD" : awayPair)
+                            </MudText>
+                            <MudSimpleTable Dense="true" Style="max-width:320px">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50px"></th>
+                                        <th style="text-align:center">@_context.HomeTeamName</th>
+                                        <th style="width:20px"></th>
+                                        <th style="text-align:center">@_context.AwayTeamName</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int sIdx = 0; sIdx < _bestOf; sIdx++)
+                                    {
+                                        int setIdx = sIdx;
+                                        <tr>
+                                            <td style="color:#888">Set @(setIdx + 1)</td>
+                                            <td>
+                                                <MudNumericField T="int?" Value="_home[rCopy][setIdx]"
+                                                                 ValueChanged="@(v => _home[rCopy][setIdx] = v)"
+                                                                 Variant="Variant.Outlined" Min="0" Max="@_setMaxInput"
+                                                                 Style="width:80px" />
+                                            </td>
+                                            <td style="text-align:center; font-weight:bold">–</td>
+                                            <td>
+                                                <MudNumericField T="int?" Value="_away[rCopy][setIdx]"
+                                                                 ValueChanged="@(v => _away[rCopy][setIdx] = v)"
+                                                                 Variant="Variant.Outlined" Min="0" Max="@_setMaxInput"
+                                                                 Style="width:80px" />
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudStack>
+                    </MudPaper>
+                }
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+                }
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="SubmitAsync" Disabled="@(_saving || _loading || _context is null)">Submit all</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public int FixtureId { get; set; }
+    [Parameter] public bool AdminOverride { get; set; }
+
+    private FixtureRubberContextDto? _context;
+    private List<RubberDialogDto> _rubbers = [];
+    private int _bestOf = 3;
+    private int _setMaxInput = 20;
+    private int?[][] _home = [];
+    private int?[][] _away = [];
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _context = await CompetitionService.GetFixtureRubberContextAsync(FixtureId);
+        if (_context is null) { _loading = false; return; }
+
+        _bestOf = _context.MatchFormat == MatchFormatType.FixedSets
+            ? Math.Max(1, _context.NumberOfSets)
+            : Math.Max(1, _context.BestOf);
+        _setMaxInput = _context.GamesPerSet + 8;
+
+        _rubbers = _context.Rubbers.OrderBy(r => r.Order).ToList();
+        _home = new int?[_rubbers.Count][];
+        _away = new int?[_rubbers.Count][];
+        for (int i = 0; i < _rubbers.Count; i++)
+        {
+            _home[i] = new int?[_bestOf];
+            _away[i] = new int?[_bestOf];
+
+            // Pre-populate from already-entered scores for the edit case.
+            var existing = _rubbers[i].ExistingSetScores;
+            for (int s = 0; s < existing.Count && s < _bestOf; s++)
+            {
+                _home[i][s] = existing[s].Home;
+                _away[i][s] = existing[s].Away;
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        if (_context is null) return;
+
+        // Per-rubber validation matches the single-rubber dialog's rules.
+        var entries = new List<RubberScoreEntry>();
+
+        for (int r = 0; r < _rubbers.Count; r++)
+        {
+            int homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
+            int? lastHome = null, lastAway = null;
+            var pairs = new List<RubberSetScoreDto>();
+            bool anyEntered = false;
+
+            for (int i = 0; i < _bestOf; i++)
+            {
+                if (!_home[r][i].HasValue || !_away[r][i].HasValue) continue;
+                anyEntered = true;
+                int h = _home[r][i]!.Value, a = _away[r][i]!.Value;
+                if (h == a) { _error = $"{_rubbers[r].Name} – Set {i + 1}: scores are tied."; return; }
+
+                int gps = _context.GamesPerSet;
+                int winner = Math.Max(h, a);
+                int loser = Math.Min(h, a);
+                if (_context.SetWinMode == SetWinMode.FirstTo)
+                {
+                    if (winner != gps) { _error = $"{_rubbers[r].Name} – Set {i + 1}: winner must reach exactly {gps} games."; return; }
+                    if (loser >= gps) { _error = $"{_rubbers[r].Name} – Set {i + 1}: loser cannot reach {gps} games."; return; }
+                }
+                else
+                {
+                    if (winner < gps) { _error = $"{_rubbers[r].Name} – Set {i + 1}: winner must have at least {gps} games."; return; }
+                    if (winner == gps && loser > gps - 2)
+                    {
+                        _error = $"{_rubbers[r].Name} – Set {i + 1}: at {gps}, opponent can have at most {gps - 2}.";
+                        return;
+                    }
+                    if (winner > gps && Math.Abs(h - a) != 1 && Math.Abs(h - a) != 2)
+                    {
+                        _error = $"{_rubbers[r].Name} – Set {i + 1}: above {gps}-all, margin must be 1 or 2.";
+                        return;
+                    }
+                }
+
+                homeGames += h; awayGames += a;
+                if (h > a) homeSets++; else awaySets++;
+                lastHome = h; lastAway = a;
+                pairs.Add(new RubberSetScoreDto(h, a));
+            }
+
+            if (!anyEntered)
+            {
+                _error = $"{_rubbers[r].Name}: enter at least one set score.";
+                return;
+            }
+
+            bool isFixedSets = _context.MatchFormat == MatchFormatType.FixedSets;
+            if (homeSets == awaySets && !isFixedSets)
+            {
+                _error = $"{_rubbers[r].Name}: sets are tied.";
+                return;
+            }
+
+            entries.Add(new RubberScoreEntry(
+                _rubbers[r].RubberId, homeSets, awaySets, homeGames, awayGames,
+                lastHome, lastAway, pairs));
+        }
+
+        _saving = true;
+        try
+        {
+            var req = new SubmitRubberScoresRequest(AdminOverride, entries);
+            await CompetitionService.SubmitRubberScoresAsync(FixtureId, req);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception)
+        {
+            _error = "Failed to save scores. Please try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
