@@ -55,7 +55,8 @@ public enum FixtureStatus : byte
     InProgress = 2,
     Completed = 3,
     Cancelled = 4,
-    Walkover = 5
+    Walkover = 5,
+    AwaitingVerification = 6
 }
 
 public enum MatchFormatType : byte

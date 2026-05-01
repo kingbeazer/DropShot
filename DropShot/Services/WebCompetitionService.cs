@@ -2,6 +2,7 @@ using DropShot.Data;
 using DropShot.Models;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
+using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -17,7 +18,8 @@ namespace DropShot.Services;
 public sealed class WebCompetitionService(
     IDbContextFactory<MyDbContext> dbFactory,
     ClubAuthorizationService authzService,
-    IHttpContextAccessor httpContextAccessor) : ICompetitionService
+    IHttpContextAccessor httpContextAccessor,
+    ICurrentUser currentUser) : ICompetitionService
 {
     public async Task<List<CompetitionDto>> GetCompetitionsAsync(bool includeArchived = false, CancellationToken ct = default)
     {
@@ -87,6 +89,13 @@ public sealed class WebCompetitionService(
             .OrderBy(cp => cp.Name)
             .ToListAsync(ct);
 
+        int? myPlayerId = null;
+        if (!string.IsNullOrEmpty(currentUser.UserId))
+        {
+            myPlayerId = c.Participants
+                .FirstOrDefault(p => p.Player?.UserId == currentUser.UserId)?.PlayerId;
+        }
+
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
             (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
@@ -122,13 +131,16 @@ public sealed class WebCompetitionService(
             c.Teams
                 .Select(t => new CompetitionTeamDto(
                     t.CompetitionTeamId, t.CompetitionId, t.Name,
-                    t.CaptainPlayerId, t.Captain?.DisplayName))
+                    t.CaptainPlayerId, t.Captain?.DisplayName,
+                    t.CompetitionDivisionId))
                 .ToList(),
             courtPairs.Select(cp => new CourtPairDto(
                 cp.CourtPairId, cp.CompetitionId,
                 cp.Court1Id, cp.Court1.Name,
                 cp.Court2Id, cp.Court2.Name,
-                cp.Name)).ToList());
+                cp.Name)).ToList(),
+            (DropShot.Shared.LeagueScoringMode)c.LeagueScoring,
+            myPlayerId);
     }
 
     private static CompetitionFixtureDto ToFixtureDto(DropShot.Models.CompetitionFixture f) => new(
@@ -155,8 +167,49 @@ public sealed class WebCompetitionService(
                 r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
                 r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
                 r.HomeGames, r.AwayGames, r.WinnerTeamId,
-                r.IsComplete, r.SavedMatchId))
-            .ToList());
+                r.IsComplete, r.SavedMatchId,
+                r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal))
+            .ToList(),
+        f.CompletedAt, f.OriginalResultSummary, f.ResultModifiedByAdmin);
+
+    public async Task SelfRegisterAsync(int competitionId, DropShot.Shared.ParticipantStatus status, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(currentUser.UserId))
+            throw new InvalidOperationException("Not authenticated.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == currentUser.UserId, ct)
+            ?? throw new KeyNotFoundException("Could not find your player record.");
+
+        var existing = await db.CompetitionParticipants
+            .AnyAsync(cp => cp.CompetitionId == competitionId && cp.PlayerId == player.PlayerId, ct);
+        if (existing)
+            throw new InvalidOperationException("You are already registered for this competition.");
+
+        db.CompetitionParticipants.Add(new CompetitionParticipant
+        {
+            CompetitionId = competitionId,
+            PlayerId = player.PlayerId,
+            Status = (DropShot.Models.ParticipantStatus)status,
+            RegisteredAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task ConfirmParticipationAsync(int competitionId, DropShot.Shared.ParticipantStatus status, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(currentUser.UserId))
+            throw new InvalidOperationException("Not authenticated.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var participant = await db.CompetitionParticipants
+            .FirstOrDefaultAsync(cp => cp.CompetitionId == competitionId
+                && cp.Player!.UserId == currentUser.UserId, ct)
+            ?? throw new KeyNotFoundException("Could not find your participant record.");
+
+        participant.Status = (DropShot.Models.ParticipantStatus)status;
+        await db.SaveChangesAsync(ct);
+    }
 
     private static CompetitionDto ToDto(Competition c) => new(
         c.CompetitionID, c.CompetitionName,

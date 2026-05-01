@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 
@@ -16,4 +17,20 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
 
     public Task<CompetitionDetailDto?> GetCompetitionAsync(int id, CancellationToken ct = default) =>
         http.GetFromJsonAsync<CompetitionDetailDto>($"api/competitions/{id}", ct);
+
+    public async Task SelfRegisterAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/{competitionId}/self-register",
+            new UpdateParticipantStatusRequest(status), ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task ConfirmParticipationAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/{competitionId}/confirm-participation",
+            new UpdateParticipantStatusRequest(status), ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }

@@ -48,7 +48,9 @@ public record CompetitionDetailDto(
     List<CompetitionDivisionDto>? Divisions = null,
     List<CompetitionFixtureDto>? Fixtures = null,
     List<CompetitionTeamDto>? Teams = null,
-    List<CourtPairDto>? CourtPairs = null);
+    List<CourtPairDto>? CourtPairs = null,
+    LeagueScoringMode LeagueScoring = LeagueScoringMode.WinPoints,
+    int? MyPlayerId = null);
 
 public record CompetitionStageDto(
     int CompetitionStageId,
@@ -97,14 +99,18 @@ public record CompetitionFixtureDto(
     int? WinnerTeamId = null,
     int? CourtPairId = null,
     string? CourtPairName = null,
-    IReadOnlyList<RubberDto>? Rubbers = null);
+    IReadOnlyList<RubberDto>? Rubbers = null,
+    DateTime? CompletedAt = null,
+    string? OriginalResultSummary = null,
+    bool ResultModifiedByAdmin = false);
 
 public record CompetitionTeamDto(
     int CompetitionTeamId,
     int CompetitionId,
     string Name,
     int? CaptainPlayerId = null,
-    string? CaptainName = null);
+    string? CaptainName = null,
+    int? CompetitionDivisionId = null);
 
 public record LeagueTableEntryDto(
     int PlayerId,
@@ -236,7 +242,11 @@ public record RubberDto(
     int? AwayGames,
     int? WinnerTeamId,
     bool IsComplete,
-    int? SavedMatchId);
+    int? SavedMatchId,
+    int? HomeSetsWon = null,
+    int? AwaySetsWon = null,
+    int? HomeGamesTotal = null,
+    int? AwayGamesTotal = null);
 
 public record TeamLeagueTableEntryDto(
     int TeamId,
