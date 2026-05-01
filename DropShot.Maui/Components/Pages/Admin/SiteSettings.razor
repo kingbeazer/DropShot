@@ -1,8 +1,5 @@
 @page "/admin/site-settings"
-@rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Authorization
-
-<MudProviders />
 
 <DropShot.UI.Components.Pages.Admin.SiteSettings />
