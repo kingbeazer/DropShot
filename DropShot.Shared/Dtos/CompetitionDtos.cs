@@ -362,12 +362,15 @@ public record SetTeamCaptainRequest(int CaptainPlayerId);
 public record TeamValidationResultDto(bool IsValid, List<string> Errors);
 
 /// <summary>
-/// Bundle returned to the rubber-scoring dialogs (single + bulk). Carries the
-/// fixture's match-config knobs so the dialog can render set inputs and run
-/// per-set validation client-side without a separate competition fetch.
-/// <c>IsAlreadyFinalised</c> tells admin-edit flows whether the fixture is
-/// AwaitingVerification/Completed (in which case re-submitting an admin score
-/// updates aggregates in place rather than regenerating verification tokens).
+/// Bundle returned to the rubber-scoring dialogs (single + bulk) and the
+/// TeamMatchScoring page. Carries the fixture's match-config knobs so the
+/// dialog can render set inputs and run per-set validation client-side
+/// without a separate competition fetch. <c>IsAlreadyFinalised</c> tells
+/// admin-edit flows whether the fixture is AwaitingVerification/Completed
+/// (in which case re-submitting an admin score updates aggregates in place
+/// rather than regenerating verification tokens). <c>LeagueScoring</c> and
+/// <c>HostClubId</c> support the TeamMatchScoring page's running-score chip
+/// and admin-authorisation gate.
 /// </summary>
 public record FixtureRubberContextDto(
     int CompetitionFixtureId,
@@ -385,7 +388,9 @@ public record FixtureRubberContextDto(
     SetWinMode SetWinMode,
     bool RequireVerification,
     bool IsAlreadyFinalised,
-    IReadOnlyList<RubberDialogDto> Rubbers);
+    IReadOnlyList<RubberDialogDto> Rubbers,
+    LeagueScoringMode LeagueScoring = LeagueScoringMode.WinPoints,
+    int? HostClubId = null);
 
 public record RubberDialogDto(
     int RubberId,
@@ -402,7 +407,14 @@ public record RubberDialogDto(
     string? AwayPlayer2Name,
     bool IsComplete,
     int? SavedMatchId,
-    IReadOnlyList<RubberSetScoreDto> ExistingSetScores);
+    IReadOnlyList<RubberSetScoreDto> ExistingSetScores,
+    int? WinnerTeamId = null,
+    int? HomeGames = null,
+    int? AwayGames = null,
+    int? HomeSetsWon = null,
+    int? AwaySetsWon = null,
+    int? HomeGamesTotal = null,
+    int? AwayGamesTotal = null);
 
 public record RubberSetScoreDto(int Home, int Away);
 
