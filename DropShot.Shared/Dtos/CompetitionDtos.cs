@@ -19,7 +19,8 @@ public record CompetitionDto(
     bool IsArchived = false,
     bool IsStarted = false,
     string? CreatorUserId = null,
-    bool IsRestricted = false);
+    bool IsRestricted = false,
+    DateTime? RegisterByDate = null);
 
 public record CompetitionDetailDto(
     int CompetitionId,
@@ -102,7 +103,8 @@ public record CompetitionFixtureDto(
     IReadOnlyList<RubberDto>? Rubbers = null,
     DateTime? CompletedAt = null,
     string? OriginalResultSummary = null,
-    bool ResultModifiedByAdmin = false);
+    bool ResultModifiedByAdmin = false,
+    string? CompetitionName = null);
 
 public record CompetitionTeamDto(
     int CompetitionTeamId,
@@ -119,6 +121,18 @@ public record LeagueTableEntryDto(
     int Won,
     int Lost,
     int Points);
+
+/// <summary>
+/// Bundled view for the "/competitions" page from a non-admin user's
+/// perspective: the competitions they've already entered + the ones currently
+/// open to them. <c>HasPlayer</c> is false when the authenticated user has no
+/// linked Player row, in which case the page shows the "create a profile"
+/// hint and the two lists are empty.
+/// </summary>
+public record MyCompetitionsViewDto(
+    bool HasPlayer,
+    List<CompetitionDto> Entered,
+    List<CompetitionDto> Available);
 
 public record SaveCompetitionRequest(
     string CompetitionName,

@@ -15,4 +15,19 @@ public sealed class HttpEventService(HttpClient http) : IEventService
 
     public Task<EventDetailDto?> GetEventAsync(int id, CancellationToken ct = default) =>
         http.GetFromJsonAsync<EventDetailDto>($"api/events/{id}", ct);
+
+    public async Task<EventDto> CreateEventAsync(SaveEventRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync("api/events", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<EventDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<List<CompetitionDto>> BulkCreateCompetitionsAsync(
+        int eventId, CreateEventCompetitionsRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync($"api/events/{eventId}/competitions", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<List<CompetitionDto>>(cancellationToken: ct)) ?? [];
+    }
 }

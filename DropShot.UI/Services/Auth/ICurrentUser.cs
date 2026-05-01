@@ -24,9 +24,18 @@ public interface ICurrentUser
     bool IsAuthenticated { get; }
     bool IsAdmin { get; }
     bool IsClubAdmin { get; }
+    bool IsSubscribed { get; }
     bool HasRole(string role);
     bool CanEditClub(int clubId);
     bool CanEditCompetition(int? hostClubId);
+
+    /// <summary>
+    /// Whether the user can create a competition without a host club. Mirrors
+    /// <c>ClubAuthorizationService.CanCreateUserCompetition</c> for the UI:
+    /// admin/superadmin always; otherwise only when "User" is the sole granted
+    /// role and the user has an active subscription.
+    /// </summary>
+    bool CanCreateUserCompetition { get; }
 
     /// <summary>Raised after the underlying auth state changes (login, logout, role switch, session restore).</summary>
     event Action? Changed;
