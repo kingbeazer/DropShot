@@ -94,11 +94,9 @@ public sealed class WebMatchService(
     }
 
     /// <summary>
-    /// Mirrors <c>ResultCard.razor</c>'s ParseCasualSets: pulls the latest
-    /// GameState snapshot from MatchJson and emits per-set game counts. Falls
-    /// back to a single (UserG, OppG) pseudo-set for game-only scored matches
-    /// that never recorded a per-set breakdown. PR 6 will move ResultCard into
-    /// DropShot.UI and consume this DTO directly, retiring the original parser.
+    /// Pulls the latest GameState snapshot from MatchJson and emits per-set
+    /// game counts. Falls back to a single (UserG, OppG) pseudo-set for
+    /// game-only scored matches that never recorded a per-set breakdown.
     /// </summary>
     private static IReadOnlyList<CasualSetScoreDto> ParseSets(string? matchJson)
     {
