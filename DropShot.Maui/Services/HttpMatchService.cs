@@ -1,11 +1,22 @@
+using System.Net.Http.Json;
+using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 
 namespace DropShot.Maui.Services;
 
 /// <summary>
-/// Phase 3 placeholder. Populated in phases 5–6 alongside Match and
-/// TeamMatchScoring page moves and the match scoring write endpoints.
+/// MAUI HTTP implementation of <see cref="IMatchService"/>. Phase 5 — Match
+/// landing page reads. Scoring writes land in phase 6.
 /// </summary>
-public sealed class HttpMatchService : IMatchService
+public sealed class HttpMatchService(HttpClient http) : IMatchService
 {
+    public async Task<List<ActiveMatchDto>> GetMyActiveMatchesAsync(
+        string? deviceToken, CancellationToken ct = default)
+    {
+        var qs = string.IsNullOrEmpty(deviceToken)
+            ? ""
+            : $"?deviceToken={Uri.EscapeDataString(deviceToken)}";
+        return await http.GetFromJsonAsync<List<ActiveMatchDto>>(
+            $"api/matches/mine{qs}", ct) ?? [];
+    }
 }
