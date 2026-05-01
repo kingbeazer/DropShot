@@ -1,5 +1,3 @@
-@using DropShot.Models
-@using DropShot.Shared
 @implements IDisposable
 
 <div class="wimbledon-board">
@@ -22,10 +20,10 @@
     </div>
 
     @* Court / match info *@
-    @if (ActiveFixture?.Competition != null)
+    @if (ActiveFixture is not null && !string.IsNullOrEmpty(ActiveFixture.CompetitionName))
     {
         <div class="wb-court-label" style="color:#FFD700;">
-            @ActiveFixture.Competition.CompetitionName
+            @ActiveFixture.CompetitionName
             @if (!string.IsNullOrEmpty(ActiveFixture.FixtureLabel))
             {
                 <span> &mdash; @ActiveFixture.FixtureLabel</span>
@@ -34,7 +32,7 @@
     }
     @if (SelectedCourt != null)
     {
-        <div class="wb-court-label">@SelectedCourt.Club.Name &mdash; @SelectedCourt.Name</div>
+        <div class="wb-court-label">@SelectedCourt.ClubName &mdash; @SelectedCourt.CourtName</div>
     }
 
     @* Player 1 row *@
@@ -97,9 +95,9 @@
 
 @code {
     [Parameter, EditorRequired] public GameState Score { get; set; } = default!;
-    [Parameter] public SavedMatch? ActiveMatch { get; set; }
-    [Parameter] public Court? SelectedCourt { get; set; }
-    [Parameter] public CompetitionFixture? ActiveFixture { get; set; }
+    [Parameter] public ScoreboardActiveMatchDto? ActiveMatch { get; set; }
+    [Parameter] public ScoreboardCourtDto? SelectedCourt { get; set; }
+    [Parameter] public ScoreboardFixtureDto? ActiveFixture { get; set; }
 
     private string _currentTime = "";
     private string _elapsedTime = "";

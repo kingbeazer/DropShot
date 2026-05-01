@@ -1,18 +1,15 @@
-@using DropShot.Models
-@using DropShot.Shared
-
 <div class="default-scoreboard">
     @if (SelectedCourt != null)
     {
         <div class="score-court-name">
-            @SelectedCourt.Club.Name — @SelectedCourt.Name
+            @SelectedCourt.ClubName — @SelectedCourt.CourtName
         </div>
     }
 
-    @if (ActiveFixture?.Competition != null)
+    @if (ActiveFixture is not null && !string.IsNullOrEmpty(ActiveFixture.CompetitionName))
     {
         <div class="score-competition">
-            @ActiveFixture.Competition.CompetitionName
+            @ActiveFixture.CompetitionName
             @if (!string.IsNullOrEmpty(ActiveFixture.FixtureLabel))
             {
                 <span> — @ActiveFixture.FixtureLabel</span>
@@ -31,10 +28,10 @@
         <div class="score-points-row">
             <div class="score-point-group">
                 <span class="score-serve-indicator" style="visibility: @(Score.IsUserServing ? "visible" : "hidden");">🎾</span>
-                <span class="score-point-value">@PointDisplay(Score.UserPts, Score.OppPts, Score.DeuceCount, Score.TieBreak, true)</span>
+                <span class="score-point-value">@PointDisplay(Score.UserPts, Score.OppPts, Score.DeuceCount, Score.TieBreak)</span>
             </div>
             <div class="score-point-group">
-                <span class="score-point-value">@PointDisplay(Score.OppPts, Score.UserPts, Score.DeuceCount, Score.TieBreak, false)</span>
+                <span class="score-point-value">@PointDisplay(Score.OppPts, Score.UserPts, Score.DeuceCount, Score.TieBreak)</span>
                 <span class="score-serve-indicator" style="visibility: @(!Score.IsUserServing ? "visible" : "hidden");">🎾</span>
             </div>
         </div>
@@ -72,11 +69,11 @@
 
 @code {
     [Parameter, EditorRequired] public GameState Score { get; set; } = default!;
-    [Parameter] public SavedMatch? ActiveMatch { get; set; }
-    [Parameter] public Court? SelectedCourt { get; set; }
-    [Parameter] public CompetitionFixture? ActiveFixture { get; set; }
+    [Parameter] public ScoreboardActiveMatchDto? ActiveMatch { get; set; }
+    [Parameter] public ScoreboardCourtDto? SelectedCourt { get; set; }
+    [Parameter] public ScoreboardFixtureDto? ActiveFixture { get; set; }
 
-    private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak, bool isUser)
+    private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak)
     {
         if (tieBreak)
             return myPts.ToString();
@@ -91,7 +88,7 @@
         return myPts switch { 0 => "0", 1 => "15", 2 => "30", _ => "40" };
     }
 
-    private static string PlayerLabel(SavedMatch m)
+    private static string PlayerLabel(ScoreboardActiveMatchDto m)
     {
         if (!string.IsNullOrWhiteSpace(m.Player3) && !string.IsNullOrWhiteSpace(m.Player4))
             return $"{m.Player1} & {m.Player2}  vs  {m.Player3} & {m.Player4}";
