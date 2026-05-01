@@ -330,6 +330,205 @@ public sealed class WebCompetitionService(
         }
     }
 
+    public async Task<FixtureRubberContextDto?> GetFixtureRubberContextAsync(int fixtureId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fx = await db.CompetitionFixtures
+            .AsSplitQuery()
+            .AsNoTracking()
+            .Include(f => f.Competition)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .Include(f => f.Rubbers).ThenInclude(r => r.HomePlayer1)
+            .Include(f => f.Rubbers).ThenInclude(r => r.HomePlayer2)
+            .Include(f => f.Rubbers).ThenInclude(r => r.AwayPlayer1)
+            .Include(f => f.Rubbers).ThenInclude(r => r.AwayPlayer2)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return null;
+
+        var comp = fx.Competition;
+        var rubbers = fx.Rubbers
+            .OrderBy(r => r.Order)
+            .Select(r => new RubberDialogDto(
+                r.RubberId, r.Order, r.Name, r.CourtNumber,
+                r.HomePlayer1Id, r.HomePlayer1?.DisplayName,
+                r.HomePlayer2Id, r.HomePlayer2?.DisplayName,
+                r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
+                r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
+                r.IsComplete, r.SavedMatchId,
+                r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList()))
+            .ToList();
+
+        return new FixtureRubberContextDto(
+            fx.CompetitionFixtureId,
+            fx.CompetitionId,
+            comp?.CompetitionName,
+            fx.FixtureLabel,
+            fx.HomeTeamId,
+            fx.AwayTeamId,
+            fx.HomeTeam?.Name ?? "Home",
+            fx.AwayTeam?.Name ?? "Away",
+            (DropShot.Shared.MatchFormatType)(comp?.MatchFormat ?? DropShot.Models.MatchFormatType.BestOf),
+            comp?.BestOf ?? 3,
+            comp?.NumberOfSets ?? 3,
+            comp?.GamesPerSet ?? 6,
+            (DropShot.Shared.SetWinMode)(comp?.SetWinMode ?? DropShot.Models.SetWinMode.WinBy2),
+            comp?.RequireVerification ?? false,
+            fx.Status == DropShot.Models.FixtureStatus.AwaitingVerification
+                || fx.Status == DropShot.Models.FixtureStatus.Completed,
+            rubbers);
+    }
+
+    public async Task SubmitRubberScoresAsync(
+        int fixtureId, SubmitRubberScoresRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var rubIds = request.Scores.Select(s => s.RubberId).ToList();
+        var dbRubbers = await db.Rubbers
+            .Include(r => r.Fixture)
+            .Where(r => r.CompetitionFixtureId == fixtureId && rubIds.Contains(r.RubberId))
+            .ToListAsync(ct);
+
+        if (dbRubbers.Count != request.Scores.Count)
+            throw new KeyNotFoundException("One or more rubbers were not found on this fixture.");
+
+        foreach (var entry in request.Scores)
+        {
+            var rub = dbRubbers.First(x => x.RubberId == entry.RubberId);
+            rub.IsComplete = true;
+            rub.HomeSetsWon = entry.HomeSetsWon;
+            rub.AwaySetsWon = entry.AwaySetsWon;
+            rub.HomeGamesTotal = entry.HomeGamesTotal;
+            rub.AwayGamesTotal = entry.AwayGamesTotal;
+            rub.HomeGames = entry.LastSetHomeGames;
+            rub.AwayGames = entry.LastSetAwayGames;
+            rub.WinnerTeamId = entry.HomeSetsWon > entry.AwaySetsWon ? rub.Fixture.HomeTeamId
+                             : entry.AwaySetsWon > entry.HomeSetsWon ? rub.Fixture.AwayTeamId
+                             : (int?)null;
+            rub.SavedMatchId = null;
+            rub.SetScoresJson = System.Text.Json.JsonSerializer.Serialize(
+                entry.SetScores.Select(s => new[] { s.Home, s.Away }).ToList());
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        // Finalisation cascade — same flow used by RubberScoreDialog.SubmitAsync
+        // and BulkRubberScoreDialog.SubmitAsync before the move into this service.
+        var allRubbers = await db.Rubbers
+            .Include(r => r.HomePlayer1).Include(r => r.HomePlayer2)
+            .Include(r => r.AwayPlayer1).Include(r => r.AwayPlayer2)
+            .Where(r => r.CompetitionFixtureId == fixtureId)
+            .ToListAsync(ct);
+
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Division)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Division)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return;
+
+        if (fx.HomeTeamId.HasValue && fx.AwayTeamId.HasValue
+            && RubberResolutionService.AllComplete(allRubbers))
+        {
+            var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
+                allRubbers, fx.HomeTeamId.Value, fx.AwayTeamId.Value);
+
+            bool alreadyFinalised = fx.Status == DropShot.Models.FixtureStatus.AwaitingVerification
+                || fx.Status == DropShot.Models.FixtureStatus.Completed;
+
+            fx.ResultSummary = $"{homeScore}-{awayScore}";
+            int? winner = homeScore > awayScore ? fx.HomeTeamId
+                        : awayScore > homeScore ? fx.AwayTeamId
+                        : null;
+
+            if (!winner.HasValue && homeScore == awayScore)
+            {
+                var mode = fx.Competition?.RubberTieBreak ?? DropShot.Shared.RubberTieBreakMode.AdminDecides;
+                winner = await RubberResolutionService.ResolveTieBreakAsync(db, fx, allRubbers, mode);
+            }
+            fx.WinnerTeamId = winner;
+
+            if (request.AdminOverride && alreadyFinalised)
+            {
+                // Admin correcting an already-finalised fixture — update aggregates
+                // in place. Don't regenerate the verification token (the outstanding
+                // admin link must keep working) and don't resend emails.
+                await db.SaveChangesAsync(ct);
+                return;
+            }
+
+            fx.CompletedAt = DateTime.UtcNow;
+            bool requireVerification = !request.AdminOverride
+                && (fx.Competition?.RequireVerification ?? false);
+
+            if (requireVerification)
+            {
+                fx.Status = DropShot.Models.FixtureStatus.AwaitingVerification;
+                fx.VerificationToken = Guid.NewGuid();
+                await db.SaveChangesAsync(ct);
+
+                var compId = fx.CompetitionId;
+                var savedFixtureId = fx.CompetitionFixtureId;
+                backgroundTasks.Run("team-match-verification-emails", async sp =>
+                {
+                    var svc = sp.GetRequiredService<ResultVerificationService>();
+                    var dbf = sp.GetRequiredService<IDbContextFactory<MyDbContext>>();
+                    await using var bgDb = dbf.CreateDbContext();
+                    var fxBg = await bgDb.CompetitionFixtures
+                        .Include(f => f.Competition)
+                        .Include(f => f.HomeTeam).Include(f => f.AwayTeam)
+                        .FirstOrDefaultAsync(f => f.CompetitionFixtureId == savedFixtureId);
+                    if (fxBg is null) return;
+                    var rubsBg = await bgDb.Rubbers
+                        .Include(r => r.HomePlayer1).Include(r => r.HomePlayer2)
+                        .Include(r => r.AwayPlayer1).Include(r => r.AwayPlayer2)
+                        .Where(r => r.CompetitionFixtureId == savedFixtureId)
+                        .ToListAsync();
+                    var adminEmails = await svc.GetAdminEmailsForCompetitionAsync(compId, bgDb);
+                    await svc.SendAdminVerificationEmailsForTeamMatchAsync(fxBg, rubsBg, adminEmails);
+                });
+            }
+            else
+            {
+                fx.Status = DropShot.Models.FixtureStatus.Completed;
+                await db.SaveChangesAsync(ct);
+
+                var savedFixtureId = fx.CompetitionFixtureId;
+                backgroundTasks.Run("team-match-result-notification", async sp =>
+                {
+                    var svc = sp.GetRequiredService<ResultVerificationService>();
+                    var dbf = sp.GetRequiredService<IDbContextFactory<MyDbContext>>();
+                    await using var bgDb = dbf.CreateDbContext();
+                    var fxBg = await bgDb.CompetitionFixtures
+                        .Include(f => f.Competition)
+                        .Include(f => f.HomeTeam).Include(f => f.AwayTeam)
+                        .FirstOrDefaultAsync(f => f.CompetitionFixtureId == savedFixtureId);
+                    if (fxBg is null) return;
+                    var rubsBg = await bgDb.Rubbers
+                        .Include(r => r.HomePlayer1).Include(r => r.HomePlayer2)
+                        .Include(r => r.AwayPlayer1).Include(r => r.AwayPlayer2)
+                        .Where(r => r.CompetitionFixtureId == savedFixtureId)
+                        .ToListAsync();
+                    await svc.SendResultNotificationForTeamMatchAsync(fxBg, rubsBg);
+                });
+
+                await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+            }
+        }
+        else
+        {
+            // Rubbers are in progress but not all done yet — flip Scheduled →
+            // InProgress now that the first score has been recorded. EnsureRubbersAsync
+            // deliberately leaves Scheduled until an actual score lands.
+            if (fx.Status == DropShot.Models.FixtureStatus.Scheduled)
+            {
+                fx.Status = DropShot.Models.FixtureStatus.InProgress;
+                await db.SaveChangesAsync(ct);
+            }
+        }
+    }
+
     private static CompetitionDto ToDto(Competition c) => new(
         c.CompetitionID, c.CompetitionName,
         (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,

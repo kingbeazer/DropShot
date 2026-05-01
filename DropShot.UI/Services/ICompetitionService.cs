@@ -80,4 +80,25 @@ public interface ICompetitionService
     /// message when any of them fail.
     /// </summary>
     Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Loads the rubber-scoring context for a team-match fixture: per-rubber
+    /// player names + existing set scores, plus the fixture's match-config
+    /// knobs (BestOf, GamesPerSet, SetWinMode, MatchFormat, RequireVerification).
+    /// Backs RubberScoreDialog and BulkRubberScoreDialog (phase 7).
+    /// </summary>
+    Task<FixtureRubberContextDto?> GetFixtureRubberContextAsync(int fixtureId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Submit one or many rubber scores for a fixture in a single call. The
+    /// single-rubber dialog sends one entry; the "enter all" dialog sends
+    /// every rubber. Server persists each rubber, then if every rubber is
+    /// complete runs the same finalisation cascade as the live-scoring path:
+    /// score / tie-break resolution, notification or verification emails,
+    /// and bracket progression. <c>AdminOverride = true</c> bypasses
+    /// RequireVerification and (for an already-finalised fixture) updates
+    /// aggregates in place without resetting verification tokens or resending
+    /// emails.
+    /// </summary>
+    Task SubmitRubberScoresAsync(int fixtureId, SubmitRubberScoresRequest request, CancellationToken ct = default);
 }

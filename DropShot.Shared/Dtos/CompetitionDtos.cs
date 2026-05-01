@@ -360,3 +360,72 @@ public record SetCompetitionRubberTemplateKeyRequest(string? TemplateKey);
 public record SetTeamCaptainRequest(int CaptainPlayerId);
 
 public record TeamValidationResultDto(bool IsValid, List<string> Errors);
+
+/// <summary>
+/// Bundle returned to the rubber-scoring dialogs (single + bulk). Carries the
+/// fixture's match-config knobs so the dialog can render set inputs and run
+/// per-set validation client-side without a separate competition fetch.
+/// <c>IsAlreadyFinalised</c> tells admin-edit flows whether the fixture is
+/// AwaitingVerification/Completed (in which case re-submitting an admin score
+/// updates aggregates in place rather than regenerating verification tokens).
+/// </summary>
+public record FixtureRubberContextDto(
+    int CompetitionFixtureId,
+    int CompetitionId,
+    string? CompetitionName,
+    string? FixtureLabel,
+    int? HomeTeamId,
+    int? AwayTeamId,
+    string HomeTeamName,
+    string AwayTeamName,
+    MatchFormatType MatchFormat,
+    int BestOf,
+    int NumberOfSets,
+    int GamesPerSet,
+    SetWinMode SetWinMode,
+    bool RequireVerification,
+    bool IsAlreadyFinalised,
+    IReadOnlyList<RubberDialogDto> Rubbers);
+
+public record RubberDialogDto(
+    int RubberId,
+    int Order,
+    string Name,
+    int CourtNumber,
+    int? HomePlayer1Id,
+    string? HomePlayer1Name,
+    int? HomePlayer2Id,
+    string? HomePlayer2Name,
+    int? AwayPlayer1Id,
+    string? AwayPlayer1Name,
+    int? AwayPlayer2Id,
+    string? AwayPlayer2Name,
+    bool IsComplete,
+    int? SavedMatchId,
+    IReadOnlyList<RubberSetScoreDto> ExistingSetScores);
+
+public record RubberSetScoreDto(int Home, int Away);
+
+/// <summary>
+/// Bulk-submit rubber scores for a fixture. The single-rubber dialog sends
+/// one entry; the "enter all scores" dialog sends every rubber. Server runs
+/// the same fixture-finalisation cascade either way: persists the rubber
+/// rows, then if every rubber is complete runs the score / tie-break
+/// resolution + notification or verification email pipeline + bracket
+/// progression. <c>AdminOverride = true</c> bypasses RequireVerification
+/// and updates aggregates in place when the fixture is already finalised
+/// (no verification-token regeneration, no resent emails).
+/// </summary>
+public record SubmitRubberScoresRequest(
+    bool AdminOverride,
+    IReadOnlyList<RubberScoreEntry> Scores);
+
+public record RubberScoreEntry(
+    int RubberId,
+    int HomeSetsWon,
+    int AwaySetsWon,
+    int HomeGamesTotal,
+    int AwayGamesTotal,
+    int? LastSetHomeGames,
+    int? LastSetAwayGames,
+    IReadOnlyList<RubberSetScoreDto> SetScores);
