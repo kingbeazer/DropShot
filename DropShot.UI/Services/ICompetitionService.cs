@@ -34,4 +34,14 @@ public interface ICompetitionService
     /// becomes authoritative. Marks Completed + runs CompetitionProgressionService.
     /// </summary>
     Task ApproveFixtureResultAsync(int fixtureId, ApproveFixtureResultRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Submit a fixture score for the first time (or override an existing one
+    /// when the caller is an admin). Server enforces RequireVerification
+    /// (sets Status = AwaitingVerification + a VerificationToken when needed)
+    /// and runs CompetitionProgressionService.TryAdvanceAsync when the
+    /// result is final. Notification / verification emails fire in the
+    /// background so the caller returns immediately.
+    /// </summary>
+    Task SubmitFixtureScoreAsync(int fixtureId, SubmitFixtureScoreRequest request, CancellationToken ct = default);
 }

@@ -444,10 +444,21 @@
         var isAdmin = await AuthzService.CanEditCompetitionAsync(
             authState.User, fixture.Competition?.HostClubId, fixture.CompetitionId);
 
+        var dto = ToFixtureDto(fixture);
+        var comp = fixture.Competition;
+        var maxSets = comp?.MatchFormat == MatchFormatType.FixedSets
+            ? Math.Max(1, comp.NumberOfSets)
+            : Math.Max(1, comp?.BestOf ?? 3);
+
         var parameters = new DialogParameters<SubmitScoreDialog>
         {
-            { x => x.Fixture, fixture },
-            { x => x.AdminOverride, isAdmin }
+            { x => x.Fixture, dto },
+            { x => x.AdminOverride, isAdmin },
+            { x => x.CompetitionName, comp?.CompetitionName },
+            { x => x.MaxSets, maxSets },
+            { x => x.GamesPerSet, comp?.GamesPerSet ?? 6 },
+            { x => x.SetWinMode, (DropShot.Shared.SetWinMode)(comp?.SetWinMode ?? SetWinMode.WinBy2) },
+            { x => x.MatchFormat, (DropShot.Shared.MatchFormatType)(comp?.MatchFormat ?? MatchFormatType.BestOf) }
         };
         var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
         var result = await dialog.Result;

@@ -159,6 +159,23 @@ public record FixtureScoreOverride(
     int AwayGamesTotal);
 
 /// <summary>
+/// Submit a fixture score for the first time. Used by SubmitScoreDialog.
+/// The dialog validates set scores client-side; the request carries the
+/// already-validated, summarised result. <c>WinnerPlayerId</c> may be null
+/// in fixed-set mode when the match was tied. <c>AdminOverride</c> bypasses
+/// "RequireVerification" — admin submissions go straight to Completed and
+/// preserve any prior result for audit.
+/// </summary>
+public record SubmitFixtureScoreRequest(
+    string ResultSummary,
+    int? WinnerPlayerId,
+    int HomeSetsWon,
+    int AwaySetsWon,
+    int HomeGamesTotal,
+    int AwayGamesTotal,
+    bool AdminOverride);
+
+/// <summary>
 /// Response body returned with HTTP 409 when an admin action would violate a
 /// competition's eligibility rules (sex / age / allow-list / mixed-doubles
 /// pairing / MTT composition). The admin UI shows these as a confirmation

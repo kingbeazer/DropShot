@@ -40,4 +40,11 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
             $"api/competitions/fixtures/{fixtureId}/approve-result", request, ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task SubmitFixtureScoreAsync(int fixtureId, SubmitFixtureScoreRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/fixtures/{fixtureId}/submit-score", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }
