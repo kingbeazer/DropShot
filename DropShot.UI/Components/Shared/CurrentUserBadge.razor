@@ -1,0 +1,27 @@
+@implements IDisposable
+@inject ICurrentUser CurrentUser
+
+@if (CurrentUser.IsAuthenticated)
+{
+    <span class="current-user-badge" style="display:inline-flex;align-items:center;gap:0.5rem;">
+        <span>@CurrentUser.UserName</span>
+        @if (!string.IsNullOrEmpty(CurrentUser.ActiveRole))
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ma-0">@CurrentUser.ActiveRole</MudChip>
+        }
+    </span>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        CurrentUser.Changed += OnChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        CurrentUser.Changed -= OnChanged;
+    }
+}

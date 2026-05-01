@@ -2,6 +2,7 @@ using Bunit;
 using DropShot.Data;
 using DropShot.Models;
 using DropShot.Services;
+using DropShot.UI.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -111,6 +112,18 @@ public class DropShotTestContext : BunitContext
         Services.AddScoped<FixtureSimulationService>();
         Services.AddScoped<CompetitionSchedulerService>();
         Services.AddScoped<FuzzySearchService>();
+
+        // DropShot.UI service abstractions (phase 3) — register Web impls so
+        // bUnit can render any RCL page that injects these.
+        Services.AddScoped<IPlayerService, WebPlayerService>();
+        Services.AddScoped<IClubService, WebClubService>();
+        Services.AddScoped<IEventService, WebEventService>();
+        Services.AddScoped<ICompetitionService, WebCompetitionService>();
+        Services.AddScoped<IRulesSetService, WebRulesSetService>();
+        Services.AddScoped<ISiteSettingsService, WebSiteSettingsService>();
+        Services.AddScoped<IInvitationService, WebInvitationService>();
+        Services.AddScoped<IMatchService, WebMatchService>();
+        Services.AddScoped<IScoreboardService, WebScoreboardService>();
 
         // Logging
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));

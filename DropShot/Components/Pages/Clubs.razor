@@ -705,7 +705,7 @@
             return;
         }
 
-        var confirmed = await DialogService.ShowMessageBox(
+        var confirmed = await DialogService.ShowMessageBoxAsync(
             $"Request to link with {club.Name}?",
             $"This will send a request to the administrators of {club.Name}. " +
             "If they approve it, you will be added as a player on their roster. " +
@@ -744,7 +744,7 @@
     {
         if (string.IsNullOrEmpty(_currentUserId)) return;
 
-        var confirmed = await DialogService.ShowMessageBox(
+        var confirmed = await DialogService.ShowMessageBoxAsync(
             $"Cancel link request to {club.Name}?",
             "Your pending request will be deleted. You can submit a new one later if you change your mind.",
             yesText: "Delete request", cancelText: "Keep request");

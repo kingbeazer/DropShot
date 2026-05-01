@@ -35,3 +35,16 @@ public record UpdatePlayerRequest(
     PlayerSex? Sex,
     string? ContactPreferences,
     string? MobileNumber);
+
+/// <summary>
+/// Row in the global league table aggregated from <c>SavedMatch</c>. Position is
+/// implied by list order. PlayerName is resolved from current display name when
+/// the saved match has a PlayerId; otherwise it falls back to the historical
+/// name string captured at match time.
+/// </summary>
+public record GlobalLeagueTableEntryDto(
+    string PlayerName,
+    int Played,
+    int Won,
+    int Lost,
+    int Points);

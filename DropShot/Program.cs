@@ -4,6 +4,8 @@ using DropShot.Data;
 using DropShot.Hubs;
 using DropShot.Models;
 using DropShot.Services;
+using DropShot.UI.Services;
+using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -42,6 +44,7 @@ builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<ActiveRoleService>();
 builder.Services.AddScoped<AuthenticationStateProvider, ActiveRoleAuthenticationStateProvider>();
+builder.Services.AddScoped<ICurrentUser, WebCurrentUser>();
 
 builder.Services.AddAuthentication(options =>
     {
@@ -117,6 +120,17 @@ builder.Services.AddSingleton<SiteSettingsService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddSingleton<EmailTemplateService>();
+builder.Services.AddScoped<IEmailService, WebEmailService>();
+// ── DropShot.UI service abstractions (phase 3) ───────────────────────────
+builder.Services.AddScoped<IPlayerService, WebPlayerService>();
+builder.Services.AddScoped<IClubService, WebClubService>();
+builder.Services.AddScoped<IEventService, WebEventService>();
+builder.Services.AddScoped<ICompetitionService, WebCompetitionService>();
+builder.Services.AddScoped<IRulesSetService, WebRulesSetService>();
+builder.Services.AddScoped<ISiteSettingsService, WebSiteSettingsService>();
+builder.Services.AddScoped<IInvitationService, WebInvitationService>();
+builder.Services.AddScoped<IMatchService, WebMatchService>();
+builder.Services.AddScoped<IScoreboardService, WebScoreboardService>();
 builder.Services.AddSingleton<BackgroundTaskQueue>();
 builder.Services.AddScoped<ResultVerificationService>();
 builder.Services.AddScoped<AdminEmailService>();
@@ -186,7 +200,9 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapControllers();
-app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(typeof(DropShot.UI.Services.Auth.ICurrentUser).Assembly);
 app.MapAdditionalIdentityEndpoints();
 app.MapHub<ChatHub>("/chathub");
 app.MapHub<QrAuthHub>("/qrauthub");

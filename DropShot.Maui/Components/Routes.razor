@@ -1,5 +1,6 @@
 <CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(MauiProgram).Assembly">
+    <Router AppAssembly="@typeof(MauiProgram).Assembly"
+            AdditionalAssemblies="@(new[] { typeof(DropShot.UI.Services.Auth.ICurrentUser).Assembly })">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
                 <NotAuthorized>

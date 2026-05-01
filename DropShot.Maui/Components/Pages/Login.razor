@@ -77,7 +77,7 @@
         if (ok)
             Nav.NavigateTo("/", replace: true);
         else
-            _error = "Invalid email or password.";
+            _error = Auth.LastError ?? "Invalid email or password.";
     }
 
     private class LoginModel
