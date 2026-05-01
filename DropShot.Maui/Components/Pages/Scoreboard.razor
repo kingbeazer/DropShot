@@ -1,8 +1,5 @@
 @page "/score"
-@rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin,SuperAdmin,ClubAdmin")]
 @using Microsoft.AspNetCore.Authorization
-
-<MudProviders />
 
 <DropShot.UI.Components.Pages.Scoreboard />

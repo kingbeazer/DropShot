@@ -1,0 +1,592 @@
+@inject NavigationManager Navigation
+@inject IScoreboardService ScoreboardService
+@inject IScoreboardHubFactory HubFactory
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.SignalR.Client
+@using Newtonsoft.Json
+@implements IAsyncDisposable
+
+@* Routing + auth + MudProviders supplied by host shims. *@
+
+<div class="scoreboard-page">
+    <MudIconButton Icon="@(_isFullscreen ? Icons.Material.Filled.FullscreenExit : Icons.Material.Filled.Fullscreen)"
+                   aria-label="@(_isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen")"
+                   OnClick="ToggleFullscreenAsync"
+                   Class="scoreboard-fullscreen-toggle"
+                   Size="Size.Large" />
+
+    @if (!_isFullscreen)
+    {
+        <div class="scoreboard-toolbar">
+            @for (int i = 0; i < _slots.Count; i++)
+            {
+                var idx = i;
+                var slot = _slots[idx];
+                <div class="toolbar-court-group">
+                    <MudSelect T="int?" Value="slot.CourtId"
+                               ValueChanged="@(c => OnSlotCourtChangedAsync(idx, c))"
+                               Label="@($"Court {idx + 1}")"
+                               Variant="Variant.Outlined"
+                               Style="min-width: 220px; max-width: min(320px, 45vw);"
+                               Clearable="true">
+                        @foreach (var court in AvailableCourtsForSlot(idx))
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.ClubName — @court.CourtName</MudSelectItem>
+                        }
+                    </MudSelect>
+                    @if (_slots.Count > 1)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                       aria-label="Remove court"
+                                       OnClick="@(() => RemoveSlotAsync(idx))"
+                                       Size="Size.Small" />
+                    }
+                </div>
+            }
+            @if (_slots.Count < MaxSlots)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.AddCircle"
+                               aria-label="Add court"
+                               Color="Color.Primary"
+                               OnClick="AddSlot"
+                               Size="Size.Large" />
+            }
+            <div class="toolbar-layout">
+                <MudSelect T="string" Value="_selectedLayout" ValueChanged="OnLayoutChanged"
+                           Label="Layout" Variant="Variant.Outlined"
+                           Style="min-width: 160px; max-width: min(200px, 30vw);">
+                    <MudSelectItem T="string" Value=@("default")>Default</MudSelectItem>
+                    <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
+                </MudSelect>
+            </div>
+        </div>
+    }
+
+    @{
+        var activeSlots = _slots.Where(s => s.CourtId.HasValue).ToList();
+        var gridClass = activeSlots.Count > 0 ? $"scoreboard-grid count-{Math.Min(activeSlots.Count, MaxSlots)}" : "";
+    }
+    <div class="scoreboard-content @gridClass">
+        @if (activeSlots.Count == 0)
+        {
+            <div class="scoreboard-empty-hint">Select a court to display its scoreboard.</div>
+        }
+        else
+        {
+            @foreach (var slot in activeSlots)
+            {
+                var court = _allCourts.FirstOrDefault(c => c.CourtId == slot.CourtId);
+                <div class="scoreboard-cell">
+                    @if (slot.StreamEnabled && !string.IsNullOrWhiteSpace(slot.StreamEmbedUrl))
+                    {
+                        <div class="stream-container">
+                            <iframe src="@slot.StreamEmbedUrl" style="position: relative; z-index: 1; width: 100%; height: 100%; border: none;"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    allowfullscreen></iframe>
+
+                            @if (slot.ActiveMatch != null)
+                            {
+                                <div class="tv-overlay">
+                                    <div class="tv-row @(slot.CurrentScore.IsUserServing ? "tv-serving" : "")">
+                                        <span class="tv-serve">@(slot.CurrentScore.IsUserServing ? "●" : "")</span>
+                                        <span class="tv-name">@(OverlayName(string.IsNullOrWhiteSpace(slot.CurrentScore.UserName) ? slot.ActiveMatch.Player1 : slot.CurrentScore.UserName))</span>
+                                        @foreach (var set in slot.CurrentScore.SetScores ?? Enumerable.Empty<SetScore>())
+                                        {
+                                            <span class="tv-set">@set.UserGames</span>
+                                        }
+                                        @if (!slot.CurrentScore.isComplete)
+                                        {
+                                            <span class="tv-game">@slot.CurrentScore.UserG</span>
+                                            <span class="tv-pts">@PointDisplay(slot.CurrentScore.UserPts, slot.CurrentScore.OppPts, slot.CurrentScore.DeuceCount, slot.CurrentScore.TieBreak)</span>
+                                        }
+                                    </div>
+                                    <div class="tv-row @(!slot.CurrentScore.IsUserServing ? "tv-serving" : "")">
+                                        <span class="tv-serve">@(!slot.CurrentScore.IsUserServing ? "●" : "")</span>
+                                        <span class="tv-name">@(OverlayName(string.IsNullOrWhiteSpace(slot.CurrentScore.OpponentName) ? slot.ActiveMatch.Player2 : slot.CurrentScore.OpponentName))</span>
+                                        @foreach (var set in slot.CurrentScore.SetScores ?? Enumerable.Empty<SetScore>())
+                                        {
+                                            <span class="tv-set">@set.OpponentGames</span>
+                                        }
+                                        @if (!slot.CurrentScore.isComplete)
+                                        {
+                                            <span class="tv-game">@slot.CurrentScore.OppG</span>
+                                            <span class="tv-pts">@PointDisplay(slot.CurrentScore.OppPts, slot.CurrentScore.UserPts, slot.CurrentScore.DeuceCount, slot.CurrentScore.TieBreak)</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if (_selectedLayout == "wimbledon")
+                    {
+                        <WimbledonScoreboard Score="slot.CurrentScore" ActiveMatch="slot.ActiveMatch" SelectedCourt="court" ActiveFixture="slot.ActiveFixture" />
+                    }
+                    else
+                    {
+                        <DefaultScoreboard Score="slot.CurrentScore" ActiveMatch="slot.ActiveMatch" SelectedCourt="court" ActiveFixture="slot.ActiveFixture" />
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private const int MaxSlots = 12;
+
+    private HubConnection? hubConnection;
+    private List<ScoreboardCourtDto> _allCourts = [];
+    private List<ScoreboardSlot> _slots = new() { new ScoreboardSlot() };
+    private string _selectedLayout = "default";
+
+    private bool _isFullscreen;
+    private DotNetObjectReference<Scoreboard>? _dotNetRef;
+    private IJSObjectReference? _jsModule;
+
+    private sealed class ScoreboardSlot
+    {
+        public int? CourtId { get; set; }
+        public GameState CurrentScore { get; set; } = EmptyScore();
+        public ScoreboardActiveMatchDto? ActiveMatch { get; set; }
+        public ScoreboardFixtureDto? ActiveFixture { get; set; }
+        public bool StreamEnabled { get; set; }
+        public string StreamUrl { get; set; } = "";
+        public string StreamEmbedUrl { get; set; } = "";
+    }
+
+    private static GameState EmptyScore() =>
+        new(0, 0, 0, 0, 0, 0, false, 0, true, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allCourts = await ScoreboardService.GetAdminCourtsAsync();
+
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+
+        if (query["layout"] is string layout && (layout == "default" || layout == "wimbledon"))
+            _selectedLayout = layout;
+
+        var queryCourtIds = ParseCourtIds(query["courts"] ?? query["court"]);
+        if (queryCourtIds.Count > 0)
+        {
+            _slots = queryCourtIds.Take(MaxSlots)
+                .Select(id => new ScoreboardSlot { CourtId = id })
+                .ToList();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        bool hasQueryParams = query["fullscreen"] != null
+            || query["court"] != null
+            || query["courts"] != null
+            || query["layout"] != null;
+
+        if (!hasQueryParams)
+        {
+            var savedLayout = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-layout");
+            if (!string.IsNullOrEmpty(savedLayout))
+                _selectedLayout = savedLayout;
+
+            var savedCourts = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-courts");
+            List<int> restored;
+            if (!string.IsNullOrEmpty(savedCourts))
+            {
+                restored = ParseCourtIds(savedCourts);
+            }
+            else
+            {
+                var savedCourt = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-court");
+                restored = int.TryParse(savedCourt, out int one) ? new List<int> { one } : new List<int>();
+            }
+
+            if (restored.Count > 0)
+            {
+                _slots = restored.Take(MaxSlots)
+                    .Select(id => new ScoreboardSlot { CourtId = id })
+                    .ToList();
+            }
+        }
+
+        _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/scoreboard.js");
+        _dotNetRef = DotNetObjectReference.Create(this);
+        await _jsModule.InvokeVoidAsync("registerEscHandler", _dotNetRef);
+        await _jsModule.InvokeVoidAsync("setScoreboardActive", true);
+
+        hubConnection = HubFactory.Create();
+        hubConnection.On<string, string>("ReceiveMessage", OnReceiveMatchMessageAsync);
+        hubConnection.On<int, string, string>("ReceiveDisplayCommand", OnReceiveDisplayCommandAsync);
+
+        hubConnection.Reconnected += async _ =>
+        {
+            foreach (var slot in _slots.Where(s => s.CourtId.HasValue))
+                await hubConnection!.SendAsync("JoinCourtGroup", slot.CourtId!.Value);
+        };
+
+        await hubConnection.StartAsync();
+
+        foreach (var slot in _slots.Where(s => s.CourtId.HasValue).ToList())
+        {
+            await LoadSlotDataAsync(slot);
+            await hubConnection.SendAsync("JoinCourtGroup", slot.CourtId!.Value);
+        }
+
+        StateHasChanged();
+
+        if (query["fullscreen"] == "true")
+            await EnterFullscreenAsync();
+    }
+
+    private async Task OnReceiveMatchMessageAsync(string user, string message)
+    {
+        try
+        {
+            if (!int.TryParse(message, out int msgCourtId)) return;
+            var slot = _slots.FirstOrDefault(s => s.CourtId == msgCourtId);
+            if (slot == null) return;
+
+            GameState? gameState;
+            try { gameState = JsonConvert.DeserializeObject<GameState>(user); }
+            catch (JsonException) { return; }
+            if (gameState != null)
+                slot.CurrentScore = gameState;
+
+            // Reload the cached match whenever the incoming scoreboard names
+            // don't match what we have — otherwise a new match on the same
+            // court keeps displaying the previous pairing's names.
+            if (slot.ActiveMatch == null || IsCachedMatchStale(slot.ActiveMatch, gameState))
+            {
+                await ReloadCourtFromServer(slot);
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception)
+        {
+            // Component may be disposed or state inconsistent
+        }
+    }
+
+    private static bool IsCachedMatchStale(ScoreboardActiveMatchDto cached, GameState? incoming)
+    {
+        if (incoming is null) return false;
+        if (string.IsNullOrWhiteSpace(incoming.UserName) && string.IsNullOrWhiteSpace(incoming.OpponentName))
+            return false;
+
+        var cachedUser = !string.IsNullOrWhiteSpace(cached.Player3)
+            ? $"{cached.Player1} & {cached.Player2}"
+            : cached.Player1;
+        var cachedOpp = !string.IsNullOrWhiteSpace(cached.Player3)
+            ? $"{cached.Player3} & {cached.Player4}"
+            : cached.Player2;
+
+        if (!string.IsNullOrWhiteSpace(incoming.UserName)
+            && !string.Equals(cachedUser, incoming.UserName, StringComparison.Ordinal))
+            return true;
+        if (!string.IsNullOrWhiteSpace(incoming.OpponentName)
+            && !string.Equals(cachedOpp, incoming.OpponentName, StringComparison.Ordinal))
+            return true;
+        return false;
+    }
+
+    private async Task OnReceiveDisplayCommandAsync(int courtId, string command, string value)
+    {
+        try
+        {
+            var slot = _slots.FirstOrDefault(s => s.CourtId == courtId);
+            switch (command)
+            {
+                case "setFullscreen":
+                    if (value == "true")
+                        await EnterFullscreenAsync(broadcast: false);
+                    else
+                        await ExitFullscreenAsync(broadcast: false);
+                    break;
+                case "setLayout":
+                    _selectedLayout = value;
+                    await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", value);
+                    break;
+                case "setStreamUrl":
+                    if (slot != null)
+                    {
+                        slot.StreamUrl = value ?? "";
+                        slot.StreamEmbedUrl = BuildYouTubeEmbedUrl(slot.StreamUrl);
+                    }
+                    break;
+                case "setStreamEnabled":
+                    if (slot != null)
+                        slot.StreamEnabled = value == "true";
+                    break;
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception)
+        {
+            // Component may be disposed or state inconsistent
+        }
+    }
+
+    private IEnumerable<ScoreboardCourtDto> AvailableCourtsForSlot(int slotIndex)
+    {
+        var used = _slots
+            .Where((s, i) => i != slotIndex && s.CourtId.HasValue)
+            .Select(s => s.CourtId!.Value)
+            .ToHashSet();
+        return _allCourts.Where(c => !used.Contains(c.CourtId));
+    }
+
+    private async Task OnSlotCourtChangedAsync(int slotIndex, int? courtId)
+    {
+        if (slotIndex < 0 || slotIndex >= _slots.Count) return;
+        var slot = _slots[slotIndex];
+
+        if (courtId.HasValue)
+        {
+            if (!_allCourts.Any(c => c.CourtId == courtId.Value)) return;
+            if (_slots.Where((s, i) => i != slotIndex).Any(s => s.CourtId == courtId.Value)) return;
+        }
+
+        if (slot.CourtId.HasValue
+            && hubConnection?.State == HubConnectionState.Connected
+            && _slots.Count(s => s.CourtId == slot.CourtId.Value) == 1)
+        {
+            await hubConnection.SendAsync("LeaveCourtGroup", slot.CourtId.Value);
+        }
+
+        slot.CourtId = courtId;
+        slot.CurrentScore = EmptyScore();
+        slot.ActiveMatch = null;
+        slot.ActiveFixture = null;
+        slot.StreamUrl = "";
+        slot.StreamEmbedUrl = "";
+        slot.StreamEnabled = false;
+
+        if (courtId.HasValue)
+        {
+            await LoadSlotDataAsync(slot);
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.SendAsync("JoinCourtGroup", courtId.Value);
+        }
+
+        await SaveSelectedCourtsAsync();
+    }
+
+    private async Task LoadSlotDataAsync(ScoreboardSlot slot)
+    {
+        if (!slot.CourtId.HasValue) return;
+        var state = await ScoreboardService.GetCourtStateAsync(slot.CourtId.Value);
+
+        slot.StreamUrl = state.DisplaySetting.LiveStreamUrl ?? "";
+        slot.StreamEmbedUrl = BuildYouTubeEmbedUrl(slot.StreamUrl);
+        slot.StreamEnabled = state.DisplaySetting.ShowLiveStream;
+        slot.ActiveMatch = state.ActiveMatch;
+        slot.ActiveFixture = state.ActiveFixture;
+        slot.CurrentScore = state.CurrentScore;
+    }
+
+    private async Task ReloadCourtFromServer(ScoreboardSlot slot)
+    {
+        if (!slot.CourtId.HasValue) return;
+        var state = await ScoreboardService.GetCourtStateAsync(slot.CourtId.Value);
+        slot.ActiveMatch = state.ActiveMatch;
+        slot.ActiveFixture = state.ActiveFixture;
+    }
+
+    private void AddSlot()
+    {
+        if (_slots.Count >= MaxSlots) return;
+        _slots.Add(new ScoreboardSlot());
+    }
+
+    private async Task RemoveSlotAsync(int slotIndex)
+    {
+        if (slotIndex < 0 || slotIndex >= _slots.Count) return;
+        if (_slots.Count <= 1) return;
+
+        var slot = _slots[slotIndex];
+        if (slot.CourtId.HasValue
+            && hubConnection?.State == HubConnectionState.Connected
+            && _slots.Count(s => s.CourtId == slot.CourtId.Value) == 1)
+        {
+            await hubConnection.SendAsync("LeaveCourtGroup", slot.CourtId.Value);
+        }
+
+        _slots.RemoveAt(slotIndex);
+        await SaveSelectedCourtsAsync();
+    }
+
+    private async Task SaveSelectedCourtsAsync()
+    {
+        var ids = _slots.Where(s => s.CourtId.HasValue).Select(s => s.CourtId!.Value).ToList();
+        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-courts", string.Join(",", ids));
+        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-court",
+            ids.FirstOrDefault().ToString());
+    }
+
+    private async Task OnLayoutChanged(string layout)
+    {
+        _selectedLayout = layout;
+        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-layout", layout);
+
+        foreach (var slot in _slots.Where(s => s.CourtId.HasValue))
+        {
+            await ScoreboardService.UpdateDisplaySettingAsync(slot.CourtId!.Value,
+                new UpdateDisplaySettingRequest(Layout: layout));
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.SendAsync("SendDisplayCommand", slot.CourtId!.Value, "setLayout", layout);
+        }
+    }
+
+    private Task ToggleFullscreenAsync() =>
+        _isFullscreen ? ExitFullscreenAsync() : EnterFullscreenAsync();
+
+    private async Task EnterFullscreenAsync(bool broadcast = true)
+    {
+        _isFullscreen = true;
+        if (_jsModule is not null)
+            await _jsModule.InvokeVoidAsync("setFullscreen", true);
+
+        if (!broadcast) return;
+        foreach (var slot in _slots.Where(s => s.CourtId.HasValue))
+        {
+            await ScoreboardService.UpdateDisplaySettingAsync(slot.CourtId!.Value,
+                new UpdateDisplaySettingRequest(Fullscreen: true));
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.SendAsync("SendDisplayCommand", slot.CourtId!.Value, "setFullscreen", "true");
+        }
+    }
+
+    private async Task ExitFullscreenAsync(bool broadcast = true)
+    {
+        _isFullscreen = false;
+        if (_jsModule is not null)
+            await _jsModule.InvokeVoidAsync("setFullscreen", false);
+
+        if (!broadcast) return;
+        foreach (var slot in _slots.Where(s => s.CourtId.HasValue))
+        {
+            await ScoreboardService.UpdateDisplaySettingAsync(slot.CourtId!.Value,
+                new UpdateDisplaySettingRequest(Fullscreen: false));
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.SendAsync("SendDisplayCommand", slot.CourtId!.Value, "setFullscreen", "false");
+        }
+    }
+
+    [JSInvokable]
+    public async Task ExitFullscreenFromJs()
+    {
+        if (_isFullscreen)
+        {
+            await ExitFullscreenAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static List<int> ParseCourtIds(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return [];
+        return raw
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => int.TryParse(s, out var i) ? i : (int?)null)
+            .Where(i => i.HasValue)
+            .Select(i => i!.Value)
+            .Distinct()
+            .ToList();
+    }
+
+    private static string OverlayName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? "" : name.Replace(" & ", " / ");
+
+    private static string PointDisplay(int myPts, int oppPts, int deuceCount, bool tieBreak)
+    {
+        if (tieBreak)
+            return myPts.ToString();
+
+        if (deuceCount > 0)
+        {
+            if (myPts > oppPts) return "Ad";
+            if (myPts < oppPts) return "";
+            return "40";
+        }
+
+        return myPts switch { 0 => "0", 1 => "15", 2 => "30", _ => "40" };
+    }
+
+    private static string BuildYouTubeEmbedUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return "";
+
+        url = url.Trim();
+
+        if (url.Contains("youtube.com/embed/"))
+            return url;
+
+        string? videoId = null;
+
+        if (url.Contains("youtube.com/watch"))
+        {
+            var uri = new Uri(url);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            videoId = query["v"];
+        }
+        else if (url.Contains("youtu.be/"))
+        {
+            var uri = new Uri(url);
+            videoId = uri.AbsolutePath.TrimStart('/');
+        }
+        else if (url.Contains("youtube.com/live/"))
+        {
+            var uri = new Uri(url);
+            var segments = uri.AbsolutePath.Split('/');
+            var liveIdx = Array.IndexOf(segments, "live");
+            if (liveIdx >= 0 && liveIdx + 1 < segments.Length)
+                videoId = segments[liveIdx + 1];
+        }
+        else if (url.Contains("studio.youtube.com/video/"))
+        {
+            var uri = new Uri(url);
+            var segments = uri.AbsolutePath.Split('/');
+            var videoIdx = Array.IndexOf(segments, "video");
+            if (videoIdx >= 0 && videoIdx + 1 < segments.Length)
+                videoId = segments[videoIdx + 1];
+        }
+
+        if (!string.IsNullOrEmpty(videoId))
+            return $"https://www.youtube.com/embed/{videoId}?autoplay=1";
+
+        return "";
+    }
+
+    public bool IsConnected =>
+        hubConnection?.State == HubConnectionState.Connected;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule is not null)
+        {
+            try
+            {
+                if (_isFullscreen)
+                    await _jsModule.InvokeVoidAsync("setFullscreen", false);
+                await _jsModule.InvokeVoidAsync("setScoreboardActive", false);
+                await _jsModule.InvokeVoidAsync("unregisterEscHandler");
+                await _jsModule.DisposeAsync();
+            }
+            catch { }
+        }
+
+        _dotNetRef?.Dispose();
+
+        if (hubConnection is not null)
+        {
+            try { await hubConnection.DisposeAsync(); }
+            catch { }
+        }
+    }
+}
