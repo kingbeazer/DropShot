@@ -58,6 +58,7 @@ public static class MauiProgram
         builder.Services.AddScoped<IMatchService, HttpMatchService>();
         builder.Services.AddScoped<IScoreboardService, HttpScoreboardService>();
         builder.Services.AddScoped<IUserService, HttpUserService>();
+        builder.Services.AddScoped<IScoreboardHubFactory, HttpScoreboardHubFactory>();
 
         // Required for [Authorize] attributes and <AuthorizeView>
         builder.Services.AddAuthorizationCore();

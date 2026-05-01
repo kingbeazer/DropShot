@@ -69,6 +69,7 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.8" />
         <PackageReference Include="MudBlazor" Version="9.2.0" />
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.4.0" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
     </ItemGroup>
 
     <ItemGroup>
