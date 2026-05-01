@@ -1,9 +1,6 @@
 @page "/competition/{Id:int}/view"
-@rendermode InteractiveServer
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
-
-<MudProviders />
 
 <DropShot.UI.Components.Pages.ViewCompetition Id="@Id" />
 
