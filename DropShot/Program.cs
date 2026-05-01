@@ -131,6 +131,7 @@ builder.Services.AddScoped<ISiteSettingsService, WebSiteSettingsService>();
 builder.Services.AddScoped<IInvitationService, WebInvitationService>();
 builder.Services.AddScoped<IMatchService, WebMatchService>();
 builder.Services.AddScoped<IScoreboardService, WebScoreboardService>();
+builder.Services.AddScoped<IUserService, WebUserService>();
 builder.Services.AddSingleton<BackgroundTaskQueue>();
 builder.Services.AddScoped<ResultVerificationService>();
 builder.Services.AddScoped<AdminEmailService>();
