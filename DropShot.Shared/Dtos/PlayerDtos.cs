@@ -73,6 +73,61 @@ public record UpdateLightPlayerRequest(
     PlayerSex? Sex);
 
 /// <summary>
+/// Row in the My Players grid. Combines light players owned by the current
+/// user and verified players the user has bookmarked. <c>HasMatchHistory</c>
+/// is computed server-side so the page can hide the delete button on light
+/// players whose matches need migrating first.
+/// </summary>
+public record MyPlayerRowDto(
+    int PlayerId,
+    string DisplayName,
+    string? FirstName,
+    string? LastName,
+    bool IsLight,
+    string? Email,
+    string? MobileNumber,
+    PlayerSex? Sex,
+    string? ProfileImagePath,
+    bool HasMatchHistory);
+
+public record CreateMyLightPlayerRequest(
+    string DisplayName,
+    string? FirstName,
+    string? LastName,
+    string? Email,
+    string? MobileNumber,
+    PlayerSex? Sex);
+
+public record UpdateMyLightPlayerRequest(
+    string DisplayName,
+    string? FirstName,
+    string? LastName,
+    string? Email,
+    string? MobileNumber,
+    PlayerSex? Sex);
+
+/// <summary>
+/// Suggested "similar" verified player surfaced while typing a display name.
+/// Web ranks via <c>FuzzySearchService</c>; MAUI hits the same endpoint.
+/// </summary>
+public record SimilarPlayerDto(
+    int PlayerId,
+    string DisplayName,
+    string? FirstName,
+    string? LastName);
+
+/// <summary>
+/// Light-player invitation handle returned by
+/// <c>IInvitationService.CreateOrReuseLightPlayerInvitationAsync</c>.
+/// The full URL is built server-side so MAUI doesn't need to know the host.
+/// </summary>
+public record LightPlayerInvitationDto(
+    Guid Token,
+    string InviteUrl);
+
+public record SendInvitationEmailRequest(string Email);
+
+/// <summary>
 /// Row in the SuperAdmin Players grid. Joins each player with the linked
 /// ASP.NET account user-name (when present) and the names of the clubs they
 /// belong to.

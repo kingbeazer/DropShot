@@ -1,0 +1,546 @@
+@inject IPlayerService PlayerService
+@inject IInvitationService InvitationService
+@inject ICurrentUser CurrentUser
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+
+@* Routing + auth + MudProviders supplied by host shims. Fuzzy-ranked
+   suggestions previously used the JS-backed FuzzySearchService; the cross-host
+   port substitutes a server-side LIKE search via ICurrentUser →
+   IPlayerService.SearchSimilarVerifiedPlayersAsync. Fuzzy ranking can return
+   in a later phase as a server-side port. *@
+
+<MudText Typo="Typo.h4" Class="mb-4">My Players</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+           OnClick="OpenCreateDialog" Class="mb-4">
+    Add Player
+</MudButton>
+
+<MudTextField @bind-Value="_searchText" Placeholder="Search my players..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+          Filter="@(row => FilterPlayers(row))">
+    <HeaderContent>
+        <MudTh>Player</MudTh>
+        <MudTh>First Name</MudTh>
+        <MudTh>Last Name</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Player">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                @if (!context.IsLight)
+                {
+                    @if (!string.IsNullOrEmpty(context.ProfileImagePath))
+                    {
+                        <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                            <MudImage Src="@context.ProfileImagePath" />
+                        </MudAvatar>
+                    }
+                    else
+                    {
+                        <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                            <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                        </MudAvatar>
+                    }
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Color="Color.Default" Size="Size.Small" />
+                }
+                <MudText>@context.DisplayName</MudText>
+            </MudStack>
+        </MudTd>
+        <MudTd DataLabel="First Name">@(context.FirstName ?? "—")</MudTd>
+        <MudTd DataLabel="Last Name">@(context.LastName ?? "—")</MudTd>
+        <MudTd DataLabel="Actions">
+            @if (context.IsLight)
+            {
+                <MudTooltip Text="Edit">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context))" />
+                </MudTooltip>
+                <MudTooltip Text="Invite to join">
+                    <MudIconButton Icon="@Icons.Material.Filled.PersonAddAlt1" Size="Size.Small" Color="Color.Info"
+                                   OnClick="@(() => OpenInviteDialog(context))" />
+                </MudTooltip>
+                @if (context.HasMatchHistory)
+                {
+                    <MudTooltip Text="Has match history — link to a verified player to transfer records">
+                        <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Warning"
+                                       OnClick="@(() => OpenLinkDialog(context))" />
+                    </MudTooltip>
+                }
+                else
+                {
+                    <MudTooltip Text="Delete">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => DeleteLightPlayer(context))" />
+                    </MudTooltip>
+                }
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No players yet. Add a player to get started.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+<MudDialog @bind-Visible="_showPlayerDialog">
+    <TitleContent>@(_editingPlayerId.HasValue ? "Edit Player" : "Add Player")</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.DisplayName" Label="Display Name" Variant="Variant.Outlined"
+                              Required="true" Immediate="true" TextChanged="OnDisplayNameChanged" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.FirstName" Label="First Name" Variant="Variant.Outlined"
+                              Immediate="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_form.LastName" Label="Last Name" Variant="Variant.Outlined"
+                              Immediate="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Email" Label="Email address" Variant="Variant.Outlined"
+                              InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile number" Variant="Variant.Outlined"
+                              InputType="InputType.Telephone" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.body2" Class="mb-1">Competition category</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Determines which events they're eligible to enter</MudText>
+                <MudRadioGroup T="PlayerSex?" @bind-Value="_form.CompetitionCategory">
+                    <MudRadio T="PlayerSex?" Value="@PlayerSex.Male" Color="Color.Primary">Male events</MudRadio>
+                    <MudRadio T="PlayerSex?" Value="@PlayerSex.Female" Color="Color.Primary">Female events</MudRadio>
+                </MudRadioGroup>
+            </MudItem>
+        </MudGrid>
+
+        @if (_suggestions.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Similar verified players:</MudText>
+            <MudList T="SimilarPlayerDto" Dense="true">
+                @foreach (var s in _suggestions)
+                {
+                    <MudListItem T="SimilarPlayerDto">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                                <MudText>@s.DisplayName</MudText>
+                                @if (!string.IsNullOrEmpty(s.FirstName) || !string.IsNullOrEmpty(s.LastName))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        (@(string.Join(" ", new[] { s.FirstName, s.LastName }.Where(x => !string.IsNullOrEmpty(x)))))
+                                    </MudText>
+                                }
+                            </MudStack>
+                            @if (_editingPlayerId.HasValue)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Info"
+                                           OnClick="@(() => LinkToVerified(s))">
+                                    Link
+                                </MudButton>
+                            }
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showPlayerDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_form.DisplayName)"
+                   OnClick="SaveLightPlayer">
+            @(_editingPlayerId.HasValue ? "Save" : "Add")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showLinkDialog">
+    <TitleContent>Link "@_linkingPlayer?.DisplayName" to a Verified Player</TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Linking will transfer match history to the verified player and remove the light player record.
+        </MudText>
+
+        <MudTextField @bind-Value="_linkSearch" Label="Search verified players" Variant="Variant.Outlined"
+                      Immediate="true" TextChanged="OnLinkSearchChanged"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-2" />
+
+        @if (_linkSuggestions.Count > 0)
+        {
+            <MudList T="SimilarPlayerDto" Dense="true">
+                @foreach (var s in _linkSuggestions)
+                {
+                    <MudListItem T="SimilarPlayerDto" OnClick="@(() => _selectedLinkPlayer = s)"
+                                 Class="@(_selectedLinkPlayer?.PlayerId == s.PlayerId ? "mud-selected-item" : "")">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Success" Size="Size.Small" />
+                            <MudText>@s.DisplayName</MudText>
+                            @if (!string.IsNullOrEmpty(s.FirstName) || !string.IsNullOrEmpty(s.LastName))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    (@(string.Join(" ", new[] { s.FirstName, s.LastName }.Where(x => !string.IsNullOrEmpty(x)))))
+                                </MudText>
+                            }
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        else if (!string.IsNullOrWhiteSpace(_linkSearch))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary">No matching verified players found.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showLinkDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Info"
+                   Disabled="@(_selectedLinkPlayer == null)"
+                   OnClick="ConfirmLink">Link</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showInviteDialog">
+    <TitleContent>Invite "@_invitingPlayer?.DisplayName" to join</TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Send an invite link. When they register, their new account will be linked to this player
+            and any existing match history will be transferred.
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(_inviteLink))
+        {
+            <MudTextField Value="@_inviteLink" Label="Invite link" Variant="Variant.Outlined"
+                          ReadOnly="true" Class="mb-3" />
+
+            <MudStack Row="true" Spacing="2" Class="mb-4">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           OnClick="CopyInviteLink">Copy link</MudButton>
+            </MudStack>
+
+            <MudDivider Class="mb-3" />
+
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Or email the link</MudText>
+            <MudTextField @bind-Value="_inviteEmail" Label="Recipient email" Variant="Variant.Outlined"
+                          InputType="InputType.Email" Immediate="true" Class="mb-2" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showInviteDialog = false)">Close</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Email"
+                   Disabled="@(_sendingInvite || string.IsNullOrWhiteSpace(_inviteEmail))"
+                   OnClick="SendInviteEmail">
+            @(_sendingInvite ? "Sending…" : "Send email")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private List<MyPlayerRowDto> _players = [];
+    private string _searchText = "";
+
+    private bool _showPlayerDialog;
+    private int? _editingPlayerId;
+    private LightPlayerForm _form = new();
+    private bool _firstNamePreFilled;
+    private bool _lastNamePreFilled;
+    private List<SimilarPlayerDto> _suggestions = [];
+    private CancellationTokenSource? _debounce;
+
+    private bool _showLinkDialog;
+    private MyPlayerRowDto? _linkingPlayer;
+    private string _linkSearch = "";
+    private List<SimilarPlayerDto> _linkSuggestions = [];
+    private SimilarPlayerDto? _selectedLinkPlayer;
+    private CancellationTokenSource? _linkDebounce;
+
+    private bool _showInviteDialog;
+    private MyPlayerRowDto? _invitingPlayer;
+    private string _inviteLink = "";
+    private Guid _inviteToken;
+    private string _inviteEmail = "";
+    private bool _sendingInvite;
+
+    private sealed class LightPlayerForm
+    {
+        public string DisplayName { get; set; } = "";
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Email { get; set; }
+        public string? MobileNumber { get; set; }
+        public PlayerSex? CompetitionCategory { get; set; }
+    }
+
+    private bool FilterPlayers(MyPlayerRowDto row) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        row.DisplayName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.FirstName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.LastName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync() => await LoadPlayers();
+
+    private async Task LoadPlayers()
+    {
+        _loading = true;
+        _players = await PlayerService.GetMyPlayersAsync();
+        _loading = false;
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingPlayerId = null;
+        _form = new LightPlayerForm();
+        _firstNamePreFilled = false;
+        _lastNamePreFilled = false;
+        _suggestions = [];
+        _showPlayerDialog = true;
+    }
+
+    private void OpenEditDialog(MyPlayerRowDto player)
+    {
+        _editingPlayerId = player.PlayerId;
+        _form = new LightPlayerForm
+        {
+            DisplayName = player.DisplayName,
+            FirstName = player.FirstName,
+            LastName = player.LastName,
+            Email = player.Email,
+            MobileNumber = player.MobileNumber,
+            CompetitionCategory = player.Sex
+        };
+        _firstNamePreFilled = !string.IsNullOrEmpty(player.FirstName);
+        _lastNamePreFilled = !string.IsNullOrEmpty(player.LastName);
+        _suggestions = [];
+        _showPlayerDialog = true;
+    }
+
+    private async Task OnDisplayNameChanged(string value)
+    {
+        _form.DisplayName = value;
+        AutoFillNames(value);
+
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, _debounce.Token);
+            _suggestions = string.IsNullOrWhiteSpace(value)
+                ? []
+                : await PlayerService.SearchSimilarVerifiedPlayersAsync(value, 5);
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void AutoFillNames(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName)) return;
+
+        var words = displayName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length >= 1 && !_firstNamePreFilled)
+            _form.FirstName = words[0];
+        if (words.Length >= 2 && !_lastNamePreFilled)
+            _form.LastName = string.Join(" ", words.Skip(1));
+    }
+
+    private async Task SaveLightPlayer()
+    {
+        if (string.IsNullOrWhiteSpace(_form.DisplayName)) return;
+
+        try
+        {
+            if (_editingPlayerId.HasValue)
+            {
+                await PlayerService.UpdateMyLightPlayerAsync(_editingPlayerId.Value,
+                    new UpdateMyLightPlayerRequest(
+                        _form.DisplayName.Trim(), _form.FirstName, _form.LastName,
+                        _form.Email, _form.MobileNumber, _form.CompetitionCategory));
+                Snackbar.Add("Player updated.", Severity.Success);
+            }
+            else
+            {
+                await PlayerService.CreateMyLightPlayerAsync(
+                    new CreateMyLightPlayerRequest(
+                        _form.DisplayName.Trim(), _form.FirstName, _form.LastName,
+                        _form.Email, _form.MobileNumber, _form.CompetitionCategory));
+                Snackbar.Add("Player added.", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            return;
+        }
+
+        _showPlayerDialog = false;
+        await LoadPlayers();
+    }
+
+    private async Task DeleteLightPlayer(MyPlayerRowDto player)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Player?",
+            $"Are you sure you want to delete \"{player.DisplayName}\"? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await PlayerService.DeleteMyLightPlayerAsync(player.PlayerId);
+            Snackbar.Add("Player deleted.", Severity.Warning);
+            await LoadPlayers();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task OpenLinkDialog(MyPlayerRowDto player)
+    {
+        _linkingPlayer = player;
+        _linkSearch = player.DisplayName;
+        _selectedLinkPlayer = null;
+        _showLinkDialog = true;
+        _linkSuggestions = await PlayerService.SearchSimilarVerifiedPlayersAsync(player.DisplayName, 10);
+        StateHasChanged();
+    }
+
+    private async Task OnLinkSearchChanged(string value)
+    {
+        _linkSearch = value;
+        _selectedLinkPlayer = null;
+
+        _linkDebounce?.Cancel();
+        _linkDebounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, _linkDebounce.Token);
+            _linkSuggestions = string.IsNullOrWhiteSpace(value)
+                ? []
+                : await PlayerService.SearchSimilarVerifiedPlayersAsync(value, 10);
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task ConfirmLink()
+    {
+        if (_linkingPlayer == null || _selectedLinkPlayer == null) return;
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Link Player?",
+            $"Match history for \"{_linkingPlayer.DisplayName}\" will be transferred to \"{_selectedLinkPlayer.DisplayName}\" (verified).",
+            yesText: "Link", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await PlayerService.LinkLightToVerifiedAsync(_linkingPlayer.PlayerId, _selectedLinkPlayer.PlayerId);
+            Snackbar.Add($"Linked to \"{_selectedLinkPlayer.DisplayName}\". Match history transferred.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            return;
+        }
+
+        _showLinkDialog = false;
+        await LoadPlayers();
+    }
+
+    private async Task LinkToVerified(SimilarPlayerDto verified)
+    {
+        if (_editingPlayerId == null) return;
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Link Player?",
+            $"Match history will be transferred to \"{verified.DisplayName}\" (verified).",
+            yesText: "Link", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await PlayerService.LinkLightToVerifiedAsync(_editingPlayerId.Value, verified.PlayerId);
+            Snackbar.Add($"Linked to \"{verified.DisplayName}\". Match history transferred.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            return;
+        }
+
+        _showPlayerDialog = false;
+        await LoadPlayers();
+    }
+
+    private async Task OpenInviteDialog(MyPlayerRowDto player)
+    {
+        _invitingPlayer = player;
+        _inviteEmail = player.Email ?? "";
+        _sendingInvite = false;
+
+        try
+        {
+            var dto = await InvitationService.CreateOrReuseLightPlayerInvitationAsync(player.PlayerId);
+            _inviteToken = dto.Token;
+            _inviteLink = dto.InviteUrl;
+            _showInviteDialog = true;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CopyInviteLink()
+    {
+        if (string.IsNullOrEmpty(_inviteLink)) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _inviteLink);
+            Snackbar.Add("Invite link copied to clipboard.", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Couldn't copy automatically — please copy the link manually.", Severity.Warning);
+        }
+    }
+
+    private async Task SendInviteEmail()
+    {
+        if (_invitingPlayer is null || string.IsNullOrWhiteSpace(_inviteEmail)) return;
+
+        _sendingInvite = true;
+        try
+        {
+            await InvitationService.SendInvitationEmailAsync(_inviteToken, _inviteEmail.Trim());
+            Snackbar.Add($"Invite sent to {_inviteEmail.Trim()}.", Severity.Success);
+            _showInviteDialog = false;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to send email: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _sendingInvite = false;
+        }
+    }
+}

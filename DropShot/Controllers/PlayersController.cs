@@ -123,6 +123,74 @@ public class PlayersController(
         return NoContent();
     }
 
+    /// <summary>The current user's "my players" — light players they own + bookmarked verified players.</summary>
+    [HttpGet("mine")]
+    public async Task<ActionResult<List<MyPlayerRowDto>>> GetMine(CancellationToken ct)
+    {
+        return await playerService.GetMyPlayersAsync(ct);
+    }
+
+    [HttpPost("mine")]
+    public async Task<ActionResult<PlayerDto>> CreateMine(
+        [FromBody] CreateMyLightPlayerRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.DisplayName))
+            return BadRequest(new { message = "DisplayName is required." });
+        try
+        {
+            var dto = await playerService.CreateMyLightPlayerAsync(req, ct);
+            return CreatedAtAction(nameof(Get), new { id = dto.PlayerId }, dto);
+        }
+        catch (InvalidOperationException) { return Forbid(); }
+    }
+
+    [HttpPut("mine/{id:int}")]
+    public async Task<ActionResult<PlayerDto>> UpdateMine(
+        int id, [FromBody] UpdateMyLightPlayerRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.DisplayName))
+            return BadRequest(new { message = "DisplayName is required." });
+        try
+        {
+            return await playerService.UpdateMyLightPlayerAsync(id, req, ct);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException) { return Forbid(); }
+    }
+
+    [HttpDelete("mine/{id:int}")]
+    public async Task<IActionResult> DeleteMine(int id, CancellationToken ct)
+    {
+        try
+        {
+            await playerService.DeleteMyLightPlayerAsync(id, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("mine/{lightId:int}/link-to/{verifiedId:int}")]
+    public async Task<IActionResult> LinkLightToVerified(int lightId, int verifiedId, CancellationToken ct)
+    {
+        try
+        {
+            await playerService.LinkLightToVerifiedAsync(lightId, verifiedId, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException) { return Forbid(); }
+    }
+
+    [HttpGet("search-similar")]
+    public async Task<ActionResult<List<SimilarPlayerDto>>> SearchSimilar(
+        [FromQuery] string term, [FromQuery] int max = 5, CancellationToken ct = default)
+    {
+        return await playerService.SearchSimilarVerifiedPlayersAsync(term, max, ct);
+    }
+
     private static PlayerDto ToDto(Player p) => new(
         p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.Email,
         p.DateOfBirth, (DropShot.Shared.PlayerSex?)p.Sex,

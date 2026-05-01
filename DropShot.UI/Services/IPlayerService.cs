@@ -49,4 +49,30 @@ public interface IPlayerService
 
     /// <summary>Add an existing (non-light) player to the club's roster.</summary>
     Task LinkExistingPlayerToClubAsync(int clubId, int playerId, CancellationToken ct = default);
+
+    // ── My Players (phase 5 — user-owned light players + bookmarked verified) ──
+
+    /// <summary>Light players the current user created plus verified players they've bookmarked.</summary>
+    Task<List<MyPlayerRowDto>> GetMyPlayersAsync(CancellationToken ct = default);
+
+    Task<PlayerDto> CreateMyLightPlayerAsync(CreateMyLightPlayerRequest request, CancellationToken ct = default);
+
+    /// <summary>Update a light player owned by the current user. Throws if not owned.</summary>
+    Task<PlayerDto> UpdateMyLightPlayerAsync(int playerId, UpdateMyLightPlayerRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Delete a light player owned by the current user. Throws if the player has
+    /// match history (callers should use <c>LinkLightToVerifiedAsync</c> first).
+    /// </summary>
+    Task DeleteMyLightPlayerAsync(int playerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Migrate match history from a user-owned light player to a verified player,
+    /// delete the light record, and bookmark the verified player. The whole
+    /// operation runs server-side so MAUI gets the same atomic semantics.
+    /// </summary>
+    Task LinkLightToVerifiedAsync(int lightPlayerId, int verifiedPlayerId, CancellationToken ct = default);
+
+    /// <summary>Fuzzy-rank verified players by display-name similarity, capped to <paramref name="max"/>.</summary>
+    Task<List<SimilarPlayerDto>> SearchSimilarVerifiedPlayersAsync(string term, int max, CancellationToken ct = default);
 }
