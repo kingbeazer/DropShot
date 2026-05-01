@@ -468,7 +468,7 @@
 
     private async Task DeleteLightPlayer(PlayerRow player)
     {
-        var confirmed = await DialogService.ShowMessageBox(
+        var confirmed = await DialogService.ShowMessageBoxAsync(
             "Delete Player?",
             $"Are you sure you want to delete \"{player.DisplayName}\"? This cannot be undone.",
             yesText: "Delete", cancelText: "Cancel");
@@ -540,7 +540,7 @@
     {
         if (_linkingPlayer == null || _selectedLinkPlayer == null) return;
 
-        var confirmed = await DialogService.ShowMessageBox(
+        var confirmed = await DialogService.ShowMessageBoxAsync(
             "Link Player?",
             $"Match history for \"{_linkingPlayer.DisplayName}\" will be transferred to \"{_selectedLinkPlayer.DisplayName}\" (verified).",
             yesText: "Link", cancelText: "Cancel");
@@ -594,7 +594,7 @@
     {
         if (_editingPlayerId == null) return;
 
-        var confirmed = await DialogService.ShowMessageBox(
+        var confirmed = await DialogService.ShowMessageBoxAsync(
             "Link Player?",
             $"Match history will be transferred to \"{fullPlayer.DisplayName}\" (verified).",
             yesText: "Link", cancelText: "Cancel");

@@ -1,0 +1,40 @@
+@inject IPlayerService PlayerService
+
+<h3>League Table</h3>
+
+<MudTextField @bind-Value="_searchText" Placeholder="Search players..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" LoadingProgressColor="Color.Info"
+          Filter="@(row => string.IsNullOrWhiteSpace(_searchText) || row.PlayerName.Contains(_searchText, StringComparison.OrdinalIgnoreCase))">
+    <HeaderContent>
+        <MudTh>Player</MudTh>
+        <MudTh>Played</MudTh>
+        <MudTh>Won</MudTh>
+        <MudTh>Lost</MudTh>
+        <MudTh>Points</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Player">@context.PlayerName</MudTd>
+        <MudTd DataLabel="Played">@context.Played</MudTd>
+        <MudTd DataLabel="Won">@context.Won</MudTd>
+        <MudTd DataLabel="Lost">@context.Lost</MudTd>
+        <MudTd DataLabel="Points">@context.Points</MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No completed matches yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private bool _loading = true;
+    private string _searchText = "";
+    private List<GlobalLeagueTableEntryDto> _rows = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _rows = await PlayerService.GetGlobalLeagueTableAsync();
+        _loading = false;
+    }
+}

@@ -1,4 +1,6 @@
 using DropShot.Maui.Services;
+using DropShot.UI.Services;
+using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
@@ -41,7 +43,20 @@ public static class MauiProgram
         builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
             sp.GetRequiredService<AuthService>());
+        builder.Services.AddScoped<ICurrentUser, MauiCurrentUser>();
+        builder.Services.AddScoped<IEmailService, HttpEmailService>();
         builder.Services.AddScoped<ApiService>();
+
+        // ── DropShot.UI service abstractions (phase 3) ───────────────────
+        builder.Services.AddScoped<IPlayerService, HttpPlayerService>();
+        builder.Services.AddScoped<IClubService, HttpClubService>();
+        builder.Services.AddScoped<IEventService, HttpEventService>();
+        builder.Services.AddScoped<ICompetitionService, HttpCompetitionService>();
+        builder.Services.AddScoped<IRulesSetService, HttpRulesSetService>();
+        builder.Services.AddScoped<ISiteSettingsService, HttpSiteSettingsService>();
+        builder.Services.AddScoped<IInvitationService, HttpInvitationService>();
+        builder.Services.AddScoped<IMatchService, HttpMatchService>();
+        builder.Services.AddScoped<IScoreboardService, HttpScoreboardService>();
 
         // Required for [Authorize] attributes and <AuthorizeView>
         builder.Services.AddAuthorizationCore();

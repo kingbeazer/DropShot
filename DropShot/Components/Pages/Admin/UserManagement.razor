@@ -387,7 +387,7 @@
 
     private async Task DeleteUserAsync(UserRow row)
     {
-        var confirmed = await Dialog.ShowMessageBox(
+        var confirmed = await Dialog.ShowMessageBoxAsync(
             "Delete User",
             $"Are you sure you want to delete '{row.User.UserName}'? This cannot be undone.",
             yesText: "Delete", cancelText: "Cancel");

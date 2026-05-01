@@ -1,6 +1,7 @@
 using DropShot.Data;
 using DropShot.Models;
 using DropShot.Shared.Dtos;
+using DropShot.UI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,9 @@ namespace DropShot.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(AuthenticationSchemes = "Bearer")]
-public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : ControllerBase
+public class PlayersController(
+    IDbContextFactory<MyDbContext> dbFactory,
+    IPlayerService playerService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<PlayerDto>>> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 50)
@@ -22,6 +25,16 @@ public class PlayersController(IDbContextFactory<MyDbContext> dbFactory) : Contr
             .Take(Math.Min(take, 200))
             .ToListAsync();
         return players.Select(ToDto).ToList();
+    }
+
+    /// <summary>
+    /// Global cross-club league table aggregated from <c>SavedMatch</c>.
+    /// Backs the LeagueTable page on MAUI (phase 4).
+    /// </summary>
+    [HttpGet("league-table")]
+    public async Task<ActionResult<List<GlobalLeagueTableEntryDto>>> GetLeagueTable(CancellationToken ct)
+    {
+        return await playerService.GetGlobalLeagueTableAsync(ct);
     }
 
     [HttpGet("{id:int}")]

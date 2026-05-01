@@ -767,7 +767,7 @@
 
         try
         {
-            var stillPlaying = await DialogService.ShowMessageBox(
+            var stillPlaying = await DialogService.ShowMessageBoxAsync(
                 title: "Are you still playing?",
                 message: "Another user is trying to claim this court. Are you still playing the match?",
                 yesText: "Yes, still playing",
@@ -1628,7 +1628,7 @@
             var active = await CourtClaim.GetUserActiveMatchAsync(userId, excluding);
             if (active is not null)
             {
-                var choice = await DialogService.ShowMessageBox(new MessageBoxOptions
+                var choice = await DialogService.ShowMessageBoxAsync(new MessageBoxOptions
                 {
                     Title = "Match already in progress",
                     Message = $"You're already scoring {ActiveMatchLabel(active)}. What would you like to do?",

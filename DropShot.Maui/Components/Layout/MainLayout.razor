@@ -1,5 +1,8 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject AuthService Auth
+@inject ICurrentUser CurrentUser
+@inject ISnackbar Snackbar
 @inject NavigationManager Nav
 
 <MudThemeProvider />
@@ -15,9 +18,22 @@
         <MudSpacer />
         <AuthorizeView>
             <Authorized>
-                <MudText Typo="Typo.body2" Class="mr-2">@context.User.Identity?.Name</MudText>
+                <CurrentUserBadge />
+                @if (CurrentUser.GrantedRoles.Count > 1)
+                {
+                    <MudMenu Icon="@Icons.Material.Filled.SwapHoriz" Color="Color.Inherit"
+                             Class="ml-1" Dense="true" aria-label="Switch role">
+                        @foreach (var role in CurrentUser.GrantedRoles)
+                        {
+                            <MudMenuItem OnClick="@(() => SwitchRoleAsync(role))"
+                                         Disabled="@(role == CurrentUser.ActiveRole)">
+                                @role
+                            </MudMenuItem>
+                        }
+                    </MudMenu>
+                }
                 <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"
-                               OnClick="LogoutAsync" aria-label="Logout" />
+                               OnClick="LogoutAsync" aria-label="Logout" Class="ml-2" />
             </Authorized>
         </AuthorizeView>
     </MudAppBar>
@@ -36,11 +52,31 @@
 @code {
     private bool _drawerOpen = true;
 
+    protected override void OnInitialized()
+    {
+        CurrentUser.Changed += OnCurrentUserChanged;
+    }
+
+    private void OnCurrentUserChanged() => InvokeAsync(StateHasChanged);
+
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private async Task SwitchRoleAsync(string role)
+    {
+        var ok = await Auth.SwitchRoleAsync(role);
+        Snackbar.Add(
+            ok ? $"Switched to {role}." : $"Failed to switch to {role}.",
+            ok ? Severity.Success : Severity.Error);
+    }
 
     private async Task LogoutAsync()
     {
         await Auth.LogoutAsync();
         Nav.NavigateTo("/login", replace: true);
+    }
+
+    public void Dispose()
+    {
+        CurrentUser.Changed -= OnCurrentUserChanged;
     }
 }

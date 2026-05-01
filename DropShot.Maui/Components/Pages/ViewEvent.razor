@@ -1,0 +1,7 @@
+@page "/event/{Id:int}/view"
+
+<DropShot.UI.Components.Pages.ViewEvent Id="@Id" />
+
+@code {
+    [Parameter] public int Id { get; set; }
+}
