@@ -1,0 +1,308 @@
+@inject IUserService UserService
+@inject IClubService ClubService
+@inject ICurrentUser CurrentUser
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+@* Routing + auth + MudProviders supplied by host shims. *@
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<MudText Typo="Typo.h4" Class="mb-4">User Management</MudText>
+
+<MudTextField @bind-Value="_searchText" Placeholder="Search users..."
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" Class="mb-4" />
+
+<MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Dense="true"
+          Filter="@(row => FilterUsers(row))">
+    <HeaderContent>
+        <MudTh>Username</MudTh>
+        <MudTh>Email</MudTh>
+        @if (_isSuperAdmin)
+        {
+            <MudTh Style="text-align:center">Super Admin</MudTh>
+            <MudTh Style="text-align:center">Admin</MudTh>
+            <MudTh Style="text-align:center">Premium</MudTh>
+        }
+        <MudTh>Club Admin Assignments</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Username">@context.UserName</MudTd>
+        <MudTd DataLabel="Email">@context.Email</MudTd>
+
+        @if (_isSuperAdmin)
+        {
+            <MudTd DataLabel="Super Admin" Style="text-align:center">
+                <MudSwitch T="bool"
+                           Value="@context.IsSuperAdmin"
+                           ValueChanged="@(v => ToggleSuperAdmin(context, v))"
+                           Disabled="@(context.Id == CurrentUser.UserId)"
+                           Color="Color.Error" />
+            </MudTd>
+            <MudTd DataLabel="Admin" Style="text-align:center">
+                <MudSwitch T="bool"
+                           Value="@context.IsAdmin"
+                           ValueChanged="@(v => ToggleAdmin(context, v))"
+                           Disabled="@(context.IsSuperAdmin)"
+                           Color="Color.Primary" />
+            </MudTd>
+            <MudTd DataLabel="Premium" Style="text-align:center">
+                <MudSwitch T="bool"
+                           Value="@context.IsSubscribed"
+                           ValueChanged="@(v => TogglePremium(context, v))"
+                           Color="Color.Warning" />
+            </MudTd>
+        }
+
+        <MudTd DataLabel="Club Admin">
+            <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Spacing="1">
+                @foreach (var ca in context.ClubAssignments)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info"
+                             OnClose="@(() => RemoveClubAdmin(context, ca.ClubId))"
+                             CloseIcon="@Icons.Material.Filled.Close">
+                        @ca.ClubName
+                    </MudChip>
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline"
+                               Size="Size.Small" Color="Color.Success"
+                               aria-label="Add club admin assignment"
+                               OnClick="@(() => OpenAddClubDialog(context))" />
+            </MudStack>
+        </MudTd>
+
+        <MudTd>
+            @if (_isSuperAdmin || (!context.IsAdmin && !context.IsSuperAdmin))
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               Disabled="@(context.Id == CurrentUser.UserId && context.IsSuperAdmin)"
+                               OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                               Color="Color.Error"
+                               Disabled="@(context.Id == CurrentUser.UserId)"
+                               OnClick="@(() => DeleteUserAsync(context))" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No users found.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+<MudDialog @bind-Visible="_showAddClubDialog">
+    <TitleContent>Assign Club Admin – @(_targetRow?.UserName)</TitleContent>
+    <DialogContent>
+        <MudSelect @bind-Value="_selectedClubId" Label="Select Club" Variant="Variant.Outlined">
+            @foreach (var club in AvailableClubs)
+            {
+                <MudSelectItem T="int?" Value="@((int?)club.ClubId)">@club.Name</MudSelectItem>
+            }
+        </MudSelect>
+        @if (!AvailableClubs.Any())
+        {
+            <MudText Typo="Typo.caption" Class="mt-2" Style="color:grey">
+                This user is already an admin of all clubs.
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAddClubDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_selectedClubId == null)"
+                   OnClick="SaveClubAdmin">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showEditDialog">
+    <TitleContent>Edit User – @(_editRow?.UserName)</TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_editUsername" Label="Username" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_editEmail" Label="Email" Variant="Variant.Outlined"
+                              InputType="InputType.Email" Required="true" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showEditDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveEditAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private List<UserManagementRowDto> _rows = [];
+    private string _searchText = "";
+    private List<ClubDto> _allClubs = [];
+    private bool _isSuperAdmin;
+
+    private bool FilterUsers(UserManagementRowDto row) =>
+        string.IsNullOrWhiteSpace(_searchText) ||
+        (row.UserName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+        (row.Email ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+
+    private bool _showAddClubDialog;
+    private UserManagementRowDto? _targetRow;
+    private int? _selectedClubId;
+
+    private bool _showEditDialog;
+    private UserManagementRowDto? _editRow;
+    private string _editUsername = "";
+    private string _editEmail = "";
+
+    private IEnumerable<ClubDto> AvailableClubs =>
+        _targetRow is null
+            ? []
+            : _allClubs.Where(c => _targetRow.ClubAssignments.All(a => a.ClubId != c.ClubId));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _isSuperAdmin = CurrentUser.HasRole("SuperAdmin");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load user management: {ex.Message}";
+            _loading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _allClubs = await ClubService.GetClubsAsync();
+            _rows = await UserService.GetAllAsync();
+            _loading = false;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load users: {ex.Message}";
+            _loading = false;
+        }
+    }
+
+    private async Task ToggleSuperAdmin(UserManagementRowDto row, bool make)
+    {
+        try
+        {
+            await UserService.SetRoleAsync(row.Id, "SuperAdmin", make);
+            await LoadAsync();
+            Snackbar.Add(
+                $"{row.UserName} {(make ? "granted" : "removed from")} Super Admin role.",
+                make ? Severity.Success : Severity.Warning);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ToggleAdmin(UserManagementRowDto row, bool make)
+    {
+        try
+        {
+            await UserService.SetRoleAsync(row.Id, "Admin", make);
+            await LoadAsync();
+            Snackbar.Add(
+                $"{row.UserName} {(make ? "granted" : "removed from")} Admin role.",
+                make ? Severity.Success : Severity.Warning);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task TogglePremium(UserManagementRowDto row, bool make)
+    {
+        try
+        {
+            await UserService.SetPremiumAsync(row.Id, make);
+            await LoadAsync();
+            Snackbar.Add(
+                $"{row.UserName} premium {(make ? "enabled" : "disabled")}.",
+                make ? Severity.Success : Severity.Warning);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private void OpenAddClubDialog(UserManagementRowDto row)
+    {
+        _targetRow = row;
+        _selectedClubId = null;
+        _showAddClubDialog = true;
+    }
+
+    private async Task SaveClubAdmin()
+    {
+        if (_targetRow is null || _selectedClubId is null) return;
+        try
+        {
+            await UserService.AddClubAdminAsync(_targetRow.Id, _selectedClubId.Value);
+            var clubName = _allClubs.First(c => c.ClubId == _selectedClubId.Value).Name;
+            Snackbar.Add($"{_targetRow.UserName} is now a Club Admin for {clubName}.", Severity.Success);
+            _showAddClubDialog = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private void OpenEditDialog(UserManagementRowDto row)
+    {
+        _editRow = row;
+        _editUsername = row.UserName ?? "";
+        _editEmail = row.Email ?? "";
+        _showEditDialog = true;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (_editRow is null) return;
+        try
+        {
+            await UserService.UpdateAsync(_editRow.Id, new UpdateUserRequest(_editUsername, _editEmail));
+            Snackbar.Add("User updated successfully.", Severity.Success);
+            _showEditDialog = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DeleteUserAsync(UserManagementRowDto row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "Delete User",
+            $"Are you sure you want to delete '{row.UserName}'? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await UserService.DeleteAsync(row.Id);
+            _rows.Remove(row);
+            Snackbar.Add($"User '{row.UserName}' deleted.", Severity.Warning);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task RemoveClubAdmin(UserManagementRowDto row, int clubId)
+    {
+        try
+        {
+            await UserService.RemoveClubAdminAsync(row.Id, clubId);
+            var clubName = _allClubs.FirstOrDefault(c => c.ClubId == clubId)?.Name ?? clubId.ToString();
+            Snackbar.Add($"Removed {row.UserName} as Club Admin for {clubName}.", Severity.Warning);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+}
