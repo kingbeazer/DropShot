@@ -2,6 +2,7 @@ using System.Security.Claims;
 using DropShot.Data;
 using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +19,7 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
     private readonly AuthenticationStateProvider _authState;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IDbContextFactory<MyDbContext> _dbFactory;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     private string? _userId;
     private string? _userName;
@@ -32,11 +34,13 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
     public WebCurrentUser(
         AuthenticationStateProvider authState,
         UserManager<ApplicationUser> userManager,
-        IDbContextFactory<MyDbContext> dbFactory)
+        IDbContextFactory<MyDbContext> dbFactory,
+        IHttpContextAccessor httpContextAccessor)
     {
         _authState = authState;
         _userManager = userManager;
         _dbFactory = dbFactory;
+        _httpContextAccessor = httpContextAccessor;
         _authState.AuthenticationStateChanged += OnAuthStateChanged;
         _ = RefreshAsync();
     }
@@ -99,6 +103,21 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
     public string? ActiveRole => _activeRole;
     public IReadOnlyCollection<string> GrantedRoles => _grantedRoles;
     public IReadOnlyCollection<int> AdminClubIds => _adminClubIds;
+
+    public int? ActiveClubId
+    {
+        get
+        {
+            if (_adminClubIds.Count == 0) return null;
+            if (int.TryParse(_httpContextAccessor.HttpContext?.Request.Cookies["ActiveClubId"], out var cookieClubId)
+                && _adminClubIds.Contains(cookieClubId))
+            {
+                return cookieClubId;
+            }
+            return _adminClubIds[0];
+        }
+    }
+
     public bool IsAuthenticated => _isAuthenticated;
     public bool IsAdmin => _activeRole is "Admin" or "SuperAdmin";
     public bool IsClubAdmin => _activeRole == "ClubAdmin";
