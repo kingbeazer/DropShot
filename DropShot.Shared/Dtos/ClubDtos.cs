@@ -82,3 +82,14 @@ public record SaveClubRequest(
 
 public record AddCourtRequest(string Name, CourtSurface Surface, bool IsIndoor);
 public record UpdateCourtRequest(string Name, CourtSurface Surface, bool IsIndoor);
+
+/// <summary>
+/// Three flat sets describing the caller's relationship to every club: the
+/// clubs they administer, the clubs they're linked to as a player, and the
+/// clubs they have a pending link request for. Backs the link-status column
+/// on the public Clubs page.
+/// </summary>
+public record UserClubLinksDto(
+    IReadOnlyList<int> AdminClubIds,
+    IReadOnlyList<int> LinkedClubIds,
+    IReadOnlyList<int> PendingClubIds);

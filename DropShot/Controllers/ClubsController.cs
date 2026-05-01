@@ -3,6 +3,7 @@ using DropShot.Data;
 using DropShot.Models;
 using DropShot.Services;
 using DropShot.Shared.Dtos;
+using DropShot.UI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,8 +18,32 @@ public class ClubsController(
     IDbContextFactory<MyDbContext> dbFactory,
     ClubAuthorizationService authzService,
     UserManager<ApplicationUser> userManager,
-    AdminEmailService adminEmailService) : ControllerBase
+    AdminEmailService adminEmailService,
+    IClubService clubService) : ControllerBase
 {
+    /// <summary>
+    /// Aggregate of which clubs the caller administers, has linked to as a
+    /// player, or has a pending link request for. Backs the link-status column
+    /// on the Clubs page (phase 4 batch B.4).
+    /// </summary>
+    [HttpGet("my-links")]
+    public async Task<ActionResult<UserClubLinksDto>> GetMyClubLinks(CancellationToken ct)
+    {
+        return await clubService.GetMyClubLinksAsync(ct);
+    }
+
+    /// <summary>
+    /// Cancel the caller's pending link request to this club. Idempotent —
+    /// returns 204 even if no pending request exists. Used by the Clubs page
+    /// "delete pending request" affordance.
+    /// </summary>
+    [HttpDelete("{id:int}/link-requests/mine")]
+    public async Task<IActionResult> CancelMyLinkRequest(int id, CancellationToken ct)
+    {
+        await clubService.CancelMyClubLinkRequestAsync(id, ct);
+        return NoContent();
+    }
+
     // ── Clubs directory ───────────────────────────────────────────────────────
 
     [HttpGet]
