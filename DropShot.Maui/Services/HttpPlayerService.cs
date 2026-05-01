@@ -75,4 +75,38 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
         var resp = await http.PostAsync($"api/clubs/{clubId}/players/{playerId}/link", null, ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task<List<MyPlayerRowDto>> GetMyPlayersAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<MyPlayerRowDto>>("api/players/mine", ct) ?? [];
+
+    public async Task<PlayerDto> CreateMyLightPlayerAsync(CreateMyLightPlayerRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync("api/players/mine", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<PlayerDto> UpdateMyLightPlayerAsync(int playerId, UpdateMyLightPlayerRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync($"api/players/mine/{playerId}", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken: ct))!;
+    }
+
+    public async Task DeleteMyLightPlayerAsync(int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/players/mine/{playerId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task LinkLightToVerifiedAsync(int lightPlayerId, int verifiedPlayerId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/players/mine/{lightPlayerId}/link-to/{verifiedPlayerId}", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<SimilarPlayerDto>> SearchSimilarVerifiedPlayersAsync(string term, int max, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<SimilarPlayerDto>>(
+            $"api/players/search-similar?term={Uri.EscapeDataString(term)}&max={max}", ct) ?? [];
 }
