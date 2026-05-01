@@ -748,9 +748,9 @@
         }
 
         // Broadcast initial state so the scoreboard shows player names and serve indicator immediately.
-        var initialState = new GameState(
+        var initialState = new DropShot.Shared.GameState(
             0, 0, 0, 0, 0, 0, false, 0, _state.IsUserServing,
-            0, 0, new List<SetScore>(), DateTime.Now, false,
+            0, 0, new List<DropShot.Shared.SetScore>(), DateTime.Now, false,
             GetUserDisplayName(), GetOpponentDisplayName()
         );
         if (hubConnection is not null)
@@ -806,7 +806,7 @@
     {
         if (CurrentMatch == null) return;
         var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
-        var initialState = new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, false, GetUserDisplayName(), GetOpponentDisplayName());
+        var initialState = new DropShot.Shared.GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, false, GetUserDisplayName(), GetOpponentDisplayName());
         history.Push(initialState);
         CurrentMatch.History = history;
         CurrentMatch.HistoryList = history.ToList();
@@ -980,7 +980,7 @@
             if (savedMatch != null && !string.IsNullOrEmpty(savedMatch.MatchJson))
             {
                 CurrentMatch = JsonConvert.DeserializeObject<Match>(savedMatch.MatchJson) ?? new Match();
-                history = new Stack<GameState>(CurrentMatch.HistoryList.AsEnumerable().Reverse());
+                history = new Stack<DropShot.Shared.GameState>(CurrentMatch.HistoryList.AsEnumerable().Reverse());
                 if (history.Any())
                     ScoreService.RestoreFromGameState(_state, history.Peek());
                 _state.GameScoring = CurrentMatch.GameScoring;
@@ -1188,7 +1188,7 @@
         await SetImmersive(_isImmersive);
     }
 
-    private Stack<GameState> history = new(new[] { new GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<SetScore>(), DateTime.Now, false, "", "") });
+    private Stack<DropShot.Shared.GameState> history = new(new[] { new DropShot.Shared.GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<DropShot.Shared.SetScore>(), DateTime.Now, false, "", "") });
 
 
 
@@ -1388,7 +1388,7 @@
     {
         var snapshotList = _state.SetScores.Select(s => s.Clone()).ToList();
 
-        history.Push(new GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, _state.IsMatchEnded, GetUserDisplayName(), GetOpponentDisplayName()));
+        history.Push(new DropShot.Shared.GameState(_state.UserPoints, _state.OppPoints, _state.UserGames, _state.OppGames, _state.UserSets, _state.OppSets, _state.IsTieBreak, _state.DeuceCount, _state.IsUserServing, _state.UserGames, _state.OppGames, snapshotList, DateTime.Now, _state.IsMatchEnded, GetUserDisplayName(), GetOpponentDisplayName()));
 
         await PersistAndBroadcast();
     }
@@ -1607,13 +1607,13 @@
         return $"{side1} vs {side2}";
     }
 
-    private static Color FixtureStatusColor(FixtureStatus s) => s switch
+    private static Color FixtureStatusColor(DropShot.Models.FixtureStatus s) => s switch
     {
-        FixtureStatus.Scheduled => Color.Default,
-        FixtureStatus.InProgress => Color.Warning,
-        FixtureStatus.Completed => Color.Success,
-        FixtureStatus.Cancelled => Color.Error,
-        FixtureStatus.Walkover => Color.Info,
+        DropShot.Models.FixtureStatus.Scheduled => Color.Default,
+        DropShot.Models.FixtureStatus.InProgress => Color.Warning,
+        DropShot.Models.FixtureStatus.Completed => Color.Success,
+        DropShot.Models.FixtureStatus.Cancelled => Color.Error,
+        DropShot.Models.FixtureStatus.Walkover => Color.Info,
         _ => Color.Default
     };
 

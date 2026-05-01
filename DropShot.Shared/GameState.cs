@@ -1,4 +1,4 @@
-namespace DropShot.Models;
+namespace DropShot.Shared;
 
 public record GameState(
     int UserPts,
