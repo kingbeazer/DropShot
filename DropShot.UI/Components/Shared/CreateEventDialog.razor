@@ -1,4 +1,5 @@
-@using DropShot.Models
+@using DropShot.Shared
+@using DropShot.Shared.Dtos
 
 <MudDialog>
     <TitleContent>Create Event</TitleContent>
@@ -128,7 +129,7 @@
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-    [Parameter] public List<Club> Clubs { get; set; } = [];
+    [Parameter] public List<ClubDto> Clubs { get; set; } = [];
 
     private MudForm? _form;
     private bool _isValid;

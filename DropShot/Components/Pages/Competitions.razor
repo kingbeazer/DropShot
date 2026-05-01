@@ -743,7 +743,11 @@
     private async Task OpenCreateEventDialogAsync()
     {
         await using var db = DbFactory.CreateDbContext();
-        var clubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
+        var clubEntities = await db.Clubs.Include(c => c.Courts).OrderBy(c => c.Name).ToListAsync();
+        var clubs = clubEntities.Select(c => new ClubDto(
+            c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
+            c.Town, c.Postcode, c.Phone, c.Email, c.Website,
+            c.Courts.Count)).ToList();
 
         var parameters = new DialogParameters<CreateEventDialog> { { x => x.Clubs, clubs } };
         var dialog = await DialogService.ShowAsync<CreateEventDialog>("Create Event", parameters,
@@ -772,8 +776,8 @@
             var comp = new Competition
             {
                 CompetitionName = c.Name,
-                CompetitionFormat = c.Format,
-                EligibleSex = c.EligibleSex,
+                CompetitionFormat = (DropShot.Models.CompetitionFormat)c.Format,
+                EligibleSex = (DropShot.Models.PlayerSex?)c.EligibleSex,
                 MaxAge = c.MaxAge,
                 MinAge = c.MinAge,
                 TeamSize = c.TeamSize,
