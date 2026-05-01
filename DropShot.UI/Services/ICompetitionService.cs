@@ -62,6 +62,23 @@ public interface ICompetitionService
     Task<List<CompetitionFixtureDto>> GetPendingVerificationFixturesAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Upcoming fixtures (Scheduled or InProgress) the current user is in,
+    /// either as a singles/doubles player or via a team they're a member of.
+    /// Returns an empty list when no user is signed in or the user has no
+    /// Player profile. Each fixture carries its <c>CompetitionName</c>.
+    /// </summary>
+    Task<List<CompetitionFixtureDto>> GetMyUpcomingFixturesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Most-recently completed fixtures (with a <c>ResultSummary</c>) the
+    /// current user participated in, either directly or via a team. Returns
+    /// an empty list when no user is signed in or the user has no Player
+    /// profile. Each fixture carries its <c>CompetitionName</c>.
+    /// </summary>
+    Task<List<CompetitionFixtureDto>> GetMyRecentCompletedFixturesAsync(
+        int limit = 6, CancellationToken ct = default);
+
+    /// <summary>
     /// Toggle the IsArchived flag on a competition. Caller must be able to
     /// edit the competition; the server performs the final auth check.
     /// </summary>

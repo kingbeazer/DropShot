@@ -622,6 +622,93 @@ public sealed class WebCompetitionService(
         return fixtures.Select(f => ToFixtureDto(f) with { CompetitionName = f.Competition?.CompetitionName }).ToList();
     }
 
+    public async Task<List<CompetitionFixtureDto>> GetMyUpcomingFixturesAsync(CancellationToken ct = default)
+    {
+        var (db, pid, myTeamIds) = await ResolveCurrentPlayerAsync(ct);
+        if (db is null || pid is null) return [];
+        await using (db)
+        {
+            var fixtures = await db.CompetitionFixtures
+                .Include(f => f.Competition)
+                .Include(f => f.Stage)
+                .Include(f => f.Player1).Include(f => f.Player2)
+                .Include(f => f.Player3).Include(f => f.Player4)
+                .Include(f => f.HomeTeam).Include(f => f.AwayTeam)
+                .Where(f => (f.Player1Id == pid || f.Player2Id == pid
+                             || f.Player3Id == pid || f.Player4Id == pid
+                             || (f.HomeTeamId.HasValue && myTeamIds.Contains(f.HomeTeamId.Value))
+                             || (f.AwayTeamId.HasValue && myTeamIds.Contains(f.AwayTeamId.Value)))
+                         && (f.Status == DropShot.Models.FixtureStatus.Scheduled
+                             || f.Status == DropShot.Models.FixtureStatus.InProgress))
+                .OrderBy(f => f.ScheduledAt)
+                .ToListAsync(ct);
+
+            return fixtures
+                .Select(f => ToFixtureDto(f) with { CompetitionName = f.Competition?.CompetitionName })
+                .ToList();
+        }
+    }
+
+    public async Task<List<CompetitionFixtureDto>> GetMyRecentCompletedFixturesAsync(
+        int limit = 6, CancellationToken ct = default)
+    {
+        var safeLimit = Math.Clamp(limit, 1, 50);
+        var (db, pid, myTeamIds) = await ResolveCurrentPlayerAsync(ct);
+        if (db is null || pid is null) return [];
+        await using (db)
+        {
+            var fixtures = await db.CompetitionFixtures
+                .Include(f => f.Competition)
+                .Include(f => f.Player1).Include(f => f.Player2)
+                .Include(f => f.Player3).Include(f => f.Player4)
+                .Include(f => f.HomeTeam).Include(f => f.AwayTeam)
+                .Where(f => (f.Player1Id == pid || f.Player2Id == pid
+                             || f.Player3Id == pid || f.Player4Id == pid
+                             || (f.HomeTeamId.HasValue && myTeamIds.Contains(f.HomeTeamId.Value))
+                             || (f.AwayTeamId.HasValue && myTeamIds.Contains(f.AwayTeamId.Value)))
+                         && f.Status == DropShot.Models.FixtureStatus.Completed
+                         && f.ResultSummary != null)
+                .OrderByDescending(f => f.CompletedAt ?? f.ScheduledAt)
+                .Take(safeLimit)
+                .ToListAsync(ct);
+
+            return fixtures
+                .Select(f => ToFixtureDto(f) with { CompetitionName = f.Competition?.CompetitionName })
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Loads the current user's player ID and the teams they're a member of.
+    /// Returns (null, null, []) when there's no signed-in user or no Player
+    /// row maps to the UserId — callers short-circuit to an empty result.
+    /// The DbContext is returned so the caller can keep using it (saves the
+    /// second CreateDbContextAsync round-trip).
+    /// </summary>
+    private async Task<(MyDbContext? Db, int? PlayerId, List<int> MyTeamIds)>
+        ResolveCurrentPlayerAsync(CancellationToken ct)
+    {
+        var userId = currentUser.UserId;
+        if (string.IsNullOrEmpty(userId)) return (null, null, []);
+
+        var db = await dbFactory.CreateDbContextAsync(ct);
+        var pid = await db.Players
+            .Where(p => p.UserId == userId)
+            .Select(p => (int?)p.PlayerId)
+            .FirstOrDefaultAsync(ct);
+        if (pid is null)
+        {
+            await db.DisposeAsync();
+            return (null, null, []);
+        }
+
+        var teamIds = await db.CompetitionParticipants
+            .Where(cp => cp.PlayerId == pid && cp.TeamId != null)
+            .Select(cp => cp.TeamId!.Value)
+            .ToListAsync(ct);
+        return (db, pid, teamIds);
+    }
+
     public async Task ToggleArchiveAsync(int competitionId, CancellationToken ct = default)
     {
         var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();

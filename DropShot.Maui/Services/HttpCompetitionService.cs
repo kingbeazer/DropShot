@@ -55,6 +55,15 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
     public async Task<List<CompetitionFixtureDto>> GetPendingVerificationFixturesAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<CompetitionFixtureDto>>("api/competitions/pending-verification", ct) ?? [];
 
+    public async Task<List<CompetitionFixtureDto>> GetMyUpcomingFixturesAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<CompetitionFixtureDto>>(
+            "api/competitions/mine/upcoming-fixtures", ct) ?? [];
+
+    public async Task<List<CompetitionFixtureDto>> GetMyRecentCompletedFixturesAsync(
+        int limit = 6, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<CompetitionFixtureDto>>(
+            $"api/competitions/mine/recent-fixtures?limit={limit}", ct) ?? [];
+
     public async Task ToggleArchiveAsync(int competitionId, CancellationToken ct = default)
     {
         var resp = await http.PostAsync($"api/competitions/{competitionId}/toggle-archive", null, ct);

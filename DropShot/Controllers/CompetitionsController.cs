@@ -543,6 +543,17 @@ public class CompetitionsController(
     public async Task<ActionResult<List<CompetitionFixtureDto>>> GetPendingVerificationFixtures(CancellationToken ct)
         => await competitionService.GetPendingVerificationFixturesAsync(ct);
 
+    /// <summary>Upcoming fixtures the current user is in (player or team).</summary>
+    [HttpGet("mine/upcoming-fixtures")]
+    public async Task<ActionResult<List<CompetitionFixtureDto>>> GetMyUpcomingFixtures(CancellationToken ct)
+        => await competitionService.GetMyUpcomingFixturesAsync(ct);
+
+    /// <summary>Recently completed fixtures the current user participated in.</summary>
+    [HttpGet("mine/recent-fixtures")]
+    public async Task<ActionResult<List<CompetitionFixtureDto>>> GetMyRecentCompletedFixtures(
+        [FromQuery] int limit = 6, CancellationToken ct = default)
+        => await competitionService.GetMyRecentCompletedFixturesAsync(limit, ct);
+
     [HttpPost("{id:int}/toggle-archive")]
     public async Task<IActionResult> ToggleArchive(int id, CancellationToken ct)
     {
