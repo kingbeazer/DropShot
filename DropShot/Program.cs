@@ -116,6 +116,7 @@ builder.Services.AddScoped<UserState>();
 builder.Services.AddScoped<TennisScoreService>();
 builder.Services.AddScoped<ClubAuthorizationService>();
 builder.Services.AddSingleton<CourtClaimService>();
+builder.Services.AddSingleton<ICourtClaimService>(sp => sp.GetRequiredService<CourtClaimService>());
 builder.Services.AddSingleton<SiteSettingsService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<EmailService>();

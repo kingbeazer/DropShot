@@ -104,7 +104,9 @@ public class DropShotTestContext : BunitContext
 
         Services.AddScoped(_ => Substitute.For<JwtTokenService>(config, userManager));
 
-        Services.AddScoped(_ => new CourtClaimService(DbFactory));
+        var courtClaim = new CourtClaimService(DbFactory);
+        Services.AddScoped(_ => courtClaim);
+        Services.AddScoped<ICourtClaimService>(_ => courtClaim);
 
         Services.AddSingleton<QrLoginService>();
         Services.AddSingleton<BackgroundTaskQueue>();

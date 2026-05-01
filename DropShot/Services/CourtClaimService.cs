@@ -1,5 +1,6 @@
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.UI.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace DropShot.Services;
@@ -10,7 +11,7 @@ namespace DropShot.Services;
 /// <see cref="AbandonAfter"/> are treated as abandoned and auto-closed
 /// so the next user can claim the court without interaction.
 /// </summary>
-public sealed class CourtClaimService
+public sealed class CourtClaimService : ICourtClaimService
 {
     public static readonly TimeSpan AbandonAfter = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan GraceAfterYes = TimeSpan.FromMinutes(15);

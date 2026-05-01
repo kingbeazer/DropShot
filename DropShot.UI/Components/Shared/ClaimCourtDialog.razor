@@ -1,7 +1,6 @@
-@using DropShot.Services
 @using Microsoft.AspNetCore.SignalR.Client
-@inject NavigationManager Navigation
-@inject CourtClaimService CourtClaim
+@inject ICourtClaimService CourtClaim
+@inject IScoreboardHubFactory HubFactory
 @implements IAsyncDisposable
 
 <MudDialog>
@@ -37,10 +36,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _hub = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-            .Build();
-
+        _hub = HubFactory.Create();
         _hub.On<int, int, bool>("CourtChallengeResponse", OnResponse);
 
         await _hub.StartAsync();
