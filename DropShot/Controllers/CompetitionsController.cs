@@ -395,6 +395,50 @@ public class CompetitionsController(
         catch (KeyNotFoundException) { return NotFound(); }
     }
 
+    /// <summary>
+    /// Submit a fixture score (or admin-override an existing one). Backs
+    /// SubmitScoreDialog (phase 7). Server enforces that only competition
+    /// admins can submit with <c>AdminOverride = true</c>; non-admin requests
+    /// silently coerce <c>AdminOverride</c> back to false.
+    /// </summary>
+    [HttpPost("fixtures/{fixtureId:int}/submit-score")]
+    public async Task<IActionResult> SubmitFixtureScore(
+        int fixtureId, [FromBody] SubmitFixtureScoreRequest req, CancellationToken ct)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return NotFound();
+
+        var canEdit = await authzService.CanEditCompetitionAsync(User, fx.Competition?.HostClubId, fx.CompetitionId);
+        if (req.AdminOverride && !canEdit) return Forbid();
+
+        // Non-admin: must be a participant in this fixture.
+        if (!canEdit)
+        {
+            var userId = userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId)) return Forbid();
+            var myPlayerId = await db.Players
+                .Where(p => p.UserId == userId)
+                .Select(p => (int?)p.PlayerId)
+                .FirstOrDefaultAsync(ct);
+            if (myPlayerId is null) return Forbid();
+            var isParticipant = fx.Player1Id == myPlayerId || fx.Player2Id == myPlayerId
+                || fx.Player3Id == myPlayerId || fx.Player4Id == myPlayerId;
+            if (!isParticipant) return Forbid();
+        }
+
+        var safeReq = req with { AdminOverride = canEdit && req.AdminOverride };
+
+        try
+        {
+            await competitionService.SubmitFixtureScoreAsync(fixtureId, safeReq, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
     [HttpDelete("{id:int}/participants/{playerId:int}")]
     public async Task<IActionResult> RemoveParticipant(int id, int playerId)
     {

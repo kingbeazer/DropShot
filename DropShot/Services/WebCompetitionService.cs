@@ -19,7 +19,8 @@ public sealed class WebCompetitionService(
     IDbContextFactory<MyDbContext> dbFactory,
     ClubAuthorizationService authzService,
     IHttpContextAccessor httpContextAccessor,
-    ICurrentUser currentUser) : ICompetitionService
+    ICurrentUser currentUser,
+    BackgroundTaskQueue backgroundTasks) : ICompetitionService
 {
     public async Task<List<CompetitionDto>> GetCompetitionsAsync(bool includeArchived = false, CancellationToken ct = default)
     {
@@ -239,6 +240,94 @@ public sealed class WebCompetitionService(
 
         await db.SaveChangesAsync(ct);
         await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+    }
+
+    public async Task SubmitFixtureScoreAsync(
+        int fixtureId, SubmitFixtureScoreRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct)
+            ?? throw new KeyNotFoundException($"Fixture {fixtureId} not found.");
+
+        if (request.AdminOverride && fx.ResultSummary != null)
+        {
+            fx.OriginalResultSummary = fx.ResultSummary;
+            fx.OriginalWinnerPlayerId = fx.WinnerPlayerId;
+            fx.ResultModifiedByAdmin = true;
+        }
+
+        fx.ResultSummary = request.ResultSummary;
+        fx.WinnerPlayerId = request.WinnerPlayerId;
+        fx.HomeSetsWon = request.HomeSetsWon;
+        fx.AwaySetsWon = request.AwaySetsWon;
+        fx.HomeGamesTotal = request.HomeGamesTotal;
+        fx.AwayGamesTotal = request.AwayGamesTotal;
+
+        bool requireVerification = !request.AdminOverride && (fx.Competition?.RequireVerification ?? false);
+        if (requireVerification)
+        {
+            fx.Status = DropShot.Models.FixtureStatus.AwaitingVerification;
+            fx.VerificationToken = Guid.NewGuid();
+        }
+        else
+        {
+            fx.Status = DropShot.Models.FixtureStatus.Completed;
+            fx.VerificationToken = null;
+        }
+        fx.CompletedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+
+        var competitionId = fx.CompetitionId;
+        var savedFixtureId = fx.CompetitionFixtureId;
+
+        if (requireVerification)
+        {
+            backgroundTasks.Run("fixture-verification-emails", async sp =>
+            {
+                var svc = sp.GetRequiredService<ResultVerificationService>();
+                var dbf = sp.GetRequiredService<IDbContextFactory<MyDbContext>>();
+                await using var bgDb = dbf.CreateDbContext();
+                var fxBg = await bgDb.CompetitionFixtures
+                    .Include(f => f.Competition)
+                    .Include(f => f.Player1)
+                    .Include(f => f.Player2)
+                    .Include(f => f.Player3)
+                    .Include(f => f.Player4)
+                    .FirstOrDefaultAsync(f => f.CompetitionFixtureId == savedFixtureId);
+                if (fxBg is null) return;
+                var adminEmails = await svc.GetAdminEmailsForCompetitionAsync(competitionId, bgDb);
+                await Task.WhenAll(
+                    svc.SendResultNotificationAsync(fxBg),
+                    svc.SendAdminVerificationEmailsAsync(fxBg, adminEmails));
+            });
+        }
+        else
+        {
+            backgroundTasks.Run("fixture-result-notification", async sp =>
+            {
+                var svc = sp.GetRequiredService<ResultVerificationService>();
+                var dbf = sp.GetRequiredService<IDbContextFactory<MyDbContext>>();
+                await using var bgDb = dbf.CreateDbContext();
+                var fxBg = await bgDb.CompetitionFixtures
+                    .Include(f => f.Competition)
+                    .Include(f => f.Player1)
+                    .Include(f => f.Player2)
+                    .Include(f => f.Player3)
+                    .Include(f => f.Player4)
+                    .FirstOrDefaultAsync(f => f.CompetitionFixtureId == savedFixtureId);
+                if (fxBg is null) return;
+                await svc.SendResultNotificationAsync(fxBg);
+            });
+
+            await CompetitionProgressionService.TryAdvanceAsync(db, competitionId, savedFixtureId);
+        }
     }
 
     private static CompetitionDto ToDto(Competition c) => new(

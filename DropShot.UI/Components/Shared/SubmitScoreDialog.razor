@@ -1,11 +1,4 @@
-@using DropShot.Data
-@using DropShot.Models
-@using DropShot.Services
-@using Microsoft.EntityFrameworkCore
-
-@inject IDbContextFactory<MyDbContext> DbFactory
-@inject ResultVerificationService ResultVerificationService
-@inject BackgroundTaskQueue BackgroundTasks
+@inject ICompetitionService CompetitionService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -17,13 +10,13 @@
             <MudText Typo="Typo.body1">
                 <strong>@_side1</strong> vs <strong>@_side2</strong>
             </MudText>
-            @if (!string.IsNullOrEmpty(Fixture.Competition?.CompetitionName))
+            @if (!string.IsNullOrEmpty(CompetitionName))
             {
                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    @Fixture.Competition.CompetitionName@(Fixture.FixtureLabel != null ? $" — {Fixture.FixtureLabel}" : "")
-                    &nbsp;·&nbsp;@(Fixture.Competition?.MatchFormat == MatchFormatType.FixedSets ? $"{_bestOf} sets" : $"Best of {_bestOf}")
-                    &nbsp;·&nbsp;@_gamesPerSet games/set
-                    &nbsp;·&nbsp;@(_setWinMode == SetWinMode.WinBy2 ? "Win by 2" : "First to")
+                    @CompetitionName@(Fixture.FixtureLabel != null ? $" — {Fixture.FixtureLabel}" : "")
+                    &nbsp;·&nbsp;@(MatchFormat == MatchFormatType.FixedSets ? $"{_bestOf} sets" : $"Best of {_bestOf}")
+                    &nbsp;·&nbsp;@GamesPerSet games/set
+                    &nbsp;·&nbsp;@(SetWinMode == SetWinMode.WinBy2 ? "Win by 2" : "First to")
                 </MudText>
             }
 
@@ -98,14 +91,23 @@
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public CompetitionFixture Fixture { get; set; } = default!;
+    [Parameter, EditorRequired] public CompetitionFixtureDto Fixture { get; set; } = default!;
     [Parameter] public bool AdminOverride { get; set; }
+    [Parameter] public string? CompetitionName { get; set; }
+
+    /// <summary>
+    /// Number of set fields to render. Caller computes from the competition's
+    /// MatchFormat / BestOf / NumberOfSets — defaults to 3 if not provided.
+    /// </summary>
+    [Parameter] public int MaxSets { get; set; } = 3;
+
+    [Parameter] public int GamesPerSet { get; set; } = 6;
+    [Parameter] public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
+    [Parameter] public MatchFormatType MatchFormat { get; set; } = MatchFormatType.BestOf;
 
     private static readonly Dictionary<string, object> _numericAttrs = new() { { "pattern", "[0-9]*" } };
 
     private int _bestOf = 3;
-    private int _gamesPerSet = 6;
-    private SetWinMode _setWinMode = SetWinMode.WinBy2;
     private int?[] _score1 = new int?[3];
     private int?[] _score2 = new int?[3];
     private MudTextField<int?>[] _f1 = new MudTextField<int?>[3];
@@ -134,17 +136,12 @@
 
     protected override void OnParametersSet()
     {
-        var comp = Fixture.Competition;
-        int newBestOf = comp?.MatchFormat == MatchFormatType.FixedSets
-            ? Math.Max(1, comp.NumberOfSets)
-            : Math.Max(1, comp?.BestOf ?? 3);
-        _gamesPerSet = comp?.GamesPerSet ?? 6;
-        _setWinMode = comp?.SetWinMode ?? SetWinMode.WinBy2;
+        int newBestOf = Math.Max(1, MaxSets);
 
-        var s1Parts = new[] { Fixture.Player1?.DisplayName, Fixture.Player3?.DisplayName }
-            .Where(n => n != null).ToList();
-        var s2Parts = new[] { Fixture.Player2?.DisplayName, Fixture.Player4?.DisplayName }
-            .Where(n => n != null).ToList();
+        var s1Parts = new[] { Fixture.Player1Name, Fixture.Player3Name }
+            .Where(n => !string.IsNullOrEmpty(n)).ToList();
+        var s2Parts = new[] { Fixture.Player2Name, Fixture.Player4Name }
+            .Where(n => !string.IsNullOrEmpty(n)).ToList();
 
         _side1 = s1Parts.Any() ? string.Join(" & ", s1Parts) : "Player 1";
         _side2 = s2Parts.Any() ? string.Join(" & ", s2Parts) : "Player 2";
@@ -181,21 +178,19 @@
         // Auto-fill the winning score for the other side
         if (v.HasValue && v.Value >= 0 && !otherScores[idx].HasValue)
         {
-            if (_setWinMode == SetWinMode.FirstTo)
+            if (SetWinMode == SetWinMode.FirstTo)
             {
-                // FirstTo: winner always reaches exactly GamesPerSet
-                if (v.Value < _gamesPerSet)
-                    otherScores[idx] = _gamesPerSet;
+                if (v.Value < GamesPerSet)
+                    otherScores[idx] = GamesPerSet;
             }
             else
             {
-                // WinBy2: determine the minimum winning score
-                if (v.Value < _gamesPerSet - 1)
-                    otherScores[idx] = _gamesPerSet;                // e.g. 4 → 6
-                else if (v.Value == _gamesPerSet - 1)
-                    otherScores[idx] = _gamesPerSet + 1;            // e.g. 5 → 7 (win by 2)
-                else if (v.Value >= _gamesPerSet)
-                    otherScores[idx] = v.Value + 1;                 // e.g. 6 → 7 (tie-break)
+                if (v.Value < GamesPerSet - 1)
+                    otherScores[idx] = GamesPerSet;
+                else if (v.Value == GamesPerSet - 1)
+                    otherScores[idx] = GamesPerSet + 1;
+                else if (v.Value >= GamesPerSet)
+                    otherScores[idx] = v.Value + 1;
             }
         }
 
@@ -259,41 +254,41 @@
                 int winner = Math.Max(s1, s2);
                 int loser = Math.Min(s1, s2);
 
-                if (_setWinMode == SetWinMode.FirstTo)
+                if (SetWinMode == SetWinMode.FirstTo)
                 {
-                    if (winner != _gamesPerSet)
+                    if (winner != GamesPerSet)
                     {
-                        _error = $"Set {i + 1}: winner must reach exactly {_gamesPerSet} games (First to mode).";
+                        _error = $"Set {i + 1}: winner must reach exactly {GamesPerSet} games (First to mode).";
                         return;
                     }
-                    if (loser >= _gamesPerSet)
+                    if (loser >= GamesPerSet)
                     {
-                        _error = $"Set {i + 1}: loser cannot have {loser} games when target is {_gamesPerSet}.";
+                        _error = $"Set {i + 1}: loser cannot have {loser} games when target is {GamesPerSet}.";
                         return;
                     }
                 }
                 else
                 {
-                    if (winner < _gamesPerSet)
+                    if (winner < GamesPerSet)
                     {
-                        _error = $"Set {i + 1}: winner must have at least {_gamesPerSet} games.";
+                        _error = $"Set {i + 1}: winner must have at least {GamesPerSet} games.";
                         return;
                     }
-                    if (winner == _gamesPerSet && loser > _gamesPerSet - 2)
+                    if (winner == GamesPerSet && loser > GamesPerSet - 2)
                     {
-                        _error = $"Set {i + 1}: at {_gamesPerSet} games, opponent can have at most {_gamesPerSet - 2} (Win by 2 mode). Use {_gamesPerSet + 1}-{_gamesPerSet} for a tie-break.";
+                        _error = $"Set {i + 1}: at {GamesPerSet} games, opponent can have at most {GamesPerSet - 2} (Win by 2 mode). Use {GamesPerSet + 1}-{GamesPerSet} for a tie-break.";
                         return;
                     }
-                    if (winner > _gamesPerSet && Math.Abs(s1 - s2) != 1 && Math.Abs(s1 - s2) != 2)
+                    if (winner > GamesPerSet && Math.Abs(s1 - s2) != 1 && Math.Abs(s1 - s2) != 2)
                     {
-                        _error = $"Set {i + 1}: above {_gamesPerSet}-all, the margin must be 1 (tie-break) or 2 (extended).";
+                        _error = $"Set {i + 1}: above {GamesPerSet}-all, the margin must be 1 (tie-break) or 2 (extended).";
                         return;
                     }
                 }
             }
         }
 
-        bool isFixedSets = Fixture.Competition?.MatchFormat == MatchFormatType.FixedSets;
+        bool isFixedSets = MatchFormat == MatchFormatType.FixedSets;
         int side1Sets = 0, side2Sets = 0;
         for (int i = 0; i < _bestOf; i++)
         {
@@ -320,84 +315,15 @@
         try
         {
             var resultSummary = string.Join(" ", enteredSets);
+            int homeGames = Enumerable.Range(0, _bestOf).Sum(i => _score1[i] ?? 0);
+            int awayGames = Enumerable.Range(0, _bestOf).Sum(i => _score2[i] ?? 0);
 
-            await using var db = DbFactory.CreateDbContext();
-            var fx = await db.CompetitionFixtures.FindAsync(Fixture.CompetitionFixtureId);
-            if (fx != null)
-            {
-                // If admin is overriding an existing result, preserve the original for audit
-                if (AdminOverride && fx.ResultSummary != null)
-                {
-                    fx.OriginalResultSummary = fx.ResultSummary;
-                    fx.OriginalWinnerPlayerId = fx.WinnerPlayerId;
-                    fx.ResultModifiedByAdmin = true;
-                }
-
-                fx.ResultSummary  = resultSummary;
-                fx.WinnerPlayerId = _winnerPlayerId;
-                fx.HomeSetsWon    = side1Sets;
-                fx.AwaySetsWon    = side2Sets;
-                fx.HomeGamesTotal = Enumerable.Range(0, _bestOf).Sum(i => _score1[i] ?? 0);
-                fx.AwayGamesTotal = Enumerable.Range(0, _bestOf).Sum(i => _score2[i] ?? 0);
-
-                bool requireVerification = !AdminOverride && (Fixture.Competition?.RequireVerification ?? false);
-                if (requireVerification)
-                {
-                    fx.Status            = FixtureStatus.AwaitingVerification;
-                    fx.VerificationToken = Guid.NewGuid();
-                }
-                else
-                {
-                    fx.Status            = FixtureStatus.Completed;
-                    fx.VerificationToken = null;
-                }
-                fx.CompletedAt = DateTime.UtcNow;
-
-                await db.SaveChangesAsync();
-
-                fx.Competition  = Fixture.Competition!;
-                fx.Player1      = Fixture.Player1;
-                fx.Player2      = Fixture.Player2;
-                fx.Player3      = Fixture.Player3;
-                fx.Player4      = Fixture.Player4;
-                fx.FixtureLabel = Fixture.FixtureLabel;
-
-                // Fire notification + verification emails in the background so the
-                // dialog closes immediately — SMTP latency was blocking the UI.
-                // Bracket progression (in the non-verification path) stays awaited
-                // because the caller's view depends on the advanced state.
-                var competitionId = Fixture.CompetitionId;
-                var fixtureId = Fixture.CompetitionFixtureId;
-                if (requireVerification)
-                {
-                    BackgroundTasks.Run("fixture-verification-emails", async sp =>
-                    {
-                        var svc = sp.GetRequiredService<ResultVerificationService>();
-                        var dbf = sp.GetRequiredService<IDbContextFactory<MyDbContext>>();
-                        await using var bgDb = dbf.CreateDbContext();
-                        var adminEmails = await svc.GetAdminEmailsForCompetitionAsync(competitionId, bgDb);
-                        await Task.WhenAll(
-                            svc.SendResultNotificationAsync(fx),
-                            svc.SendAdminVerificationEmailsAsync(fx, adminEmails));
-                    });
-                }
-                else
-                {
-                    BackgroundTasks.Run("fixture-result-notification", async sp =>
-                    {
-                        var svc = sp.GetRequiredService<ResultVerificationService>();
-                        await svc.SendResultNotificationAsync(fx);
-                    });
-                    try
-                    {
-                        await CompetitionProgressionService.TryAdvanceAsync(db, Fixture.CompetitionId, Fixture.CompetitionFixtureId);
-                    }
-                    catch (Exception)
-                    {
-                        Snackbar.Add("Score saved, but bracket progression failed. An admin may need to follow up.", Severity.Warning);
-                    }
-                }
-            }
+            await CompetitionService.SubmitFixtureScoreAsync(
+                Fixture.CompetitionFixtureId,
+                new SubmitFixtureScoreRequest(
+                    resultSummary, _winnerPlayerId,
+                    side1Sets, side2Sets, homeGames, awayGames,
+                    AdminOverride));
 
             MudDialog.Close(DialogResult.Ok(true));
         }
