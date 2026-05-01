@@ -133,11 +133,17 @@
                     }
                     else if (_selectedLayout == "wimbledon")
                     {
-                        <WimbledonScoreboard Score="slot.CurrentScore" ActiveMatch="slot.ActiveMatch" SelectedCourt="court" ActiveFixture="slot.ActiveFixture" />
+                        <WimbledonScoreboard Score="slot.CurrentScore"
+                                             ActiveMatch="@ToActiveMatchDto(slot.ActiveMatch)"
+                                             SelectedCourt="@ToCourtDto(court)"
+                                             ActiveFixture="@ToFixtureDto(slot.ActiveFixture)" />
                     }
                     else
                     {
-                        <DefaultScoreboard Score="slot.CurrentScore" ActiveMatch="slot.ActiveMatch" SelectedCourt="court" ActiveFixture="slot.ActiveFixture" />
+                        <DefaultScoreboard Score="slot.CurrentScore"
+                                           ActiveMatch="@ToActiveMatchDto(slot.ActiveMatch)"
+                                           SelectedCourt="@ToCourtDto(court)"
+                                           ActiveFixture="@ToFixtureDto(slot.ActiveFixture)" />
                     }
                 </div>
             }
@@ -560,6 +566,15 @@
             .Distinct()
             .ToList();
     }
+
+    private static DropShot.Shared.Dtos.ScoreboardCourtDto? ToCourtDto(Court? c) =>
+        c is null ? null : new(c.CourtId, c.Club?.Name ?? "", c.Name);
+
+    private static DropShot.Shared.Dtos.ScoreboardActiveMatchDto? ToActiveMatchDto(SavedMatch? m) =>
+        m is null ? null : new(m.Player1, m.Player2, m.Player3, m.Player4, m.CreatedAt);
+
+    private static DropShot.Shared.Dtos.ScoreboardFixtureDto? ToFixtureDto(CompetitionFixture? f) =>
+        f is null ? null : new(f.Competition?.CompetitionName, f.FixtureLabel);
 
     private static string OverlayName(string? name) =>
         string.IsNullOrWhiteSpace(name) ? "" : name.Replace(" & ", " / ");
