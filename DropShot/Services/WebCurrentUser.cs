@@ -28,6 +28,7 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
     private List<string> _grantedRoles = new();
     private List<int> _adminClubIds = new();
     private bool _isAuthenticated;
+    private bool _isSubscribed;
 
     public event Action? Changed;
 
@@ -74,6 +75,7 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
             _activeRole = null;
             _grantedRoles = new();
             _adminClubIds = new();
+            _isSubscribed = false;
             return;
         }
 
@@ -88,6 +90,11 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
         {
             _email = appUser.Email;
             _grantedRoles = (await _userManager.GetRolesAsync(appUser)).ToList();
+            _isSubscribed = appUser.IsSubscribed;
+        }
+        else
+        {
+            _isSubscribed = false;
         }
 
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -121,6 +128,7 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
     public bool IsAuthenticated => _isAuthenticated;
     public bool IsAdmin => _activeRole is "Admin" or "SuperAdmin";
     public bool IsClubAdmin => _activeRole == "ClubAdmin";
+    public bool IsSubscribed => _isSubscribed;
 
     public bool HasRole(string role) =>
         _grantedRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
@@ -130,6 +138,18 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
 
     public bool CanEditCompetition(int? hostClubId) =>
         IsAdmin || (hostClubId.HasValue && _adminClubIds.Contains(hostClubId.Value));
+
+    public bool CanCreateUserCompetition
+    {
+        get
+        {
+            if (HasRole("SuperAdmin") || HasRole("Admin")) return true;
+            // Plain User mode AND subscribed
+            return _grantedRoles.Count == 1
+                && _grantedRoles[0].Equals("User", StringComparison.OrdinalIgnoreCase)
+                && _isSubscribed;
+        }
+    }
 
     public void Dispose()
     {

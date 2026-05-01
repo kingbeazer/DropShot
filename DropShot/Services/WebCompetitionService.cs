@@ -337,5 +337,159 @@ public sealed class WebCompetitionService(
         (DropShot.Shared.PlayerSex?)c.EligibleSex,
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
         c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted,
-        c.CreatorUserId, c.IsRestricted);
+        c.CreatorUserId, c.IsRestricted, c.RegisterByDate);
+
+    public async Task<MyCompetitionsViewDto> GetMyCompetitionsViewAsync(CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(currentUser.UserId))
+            return new MyCompetitionsViewDto(false, [], []);
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var player = await db.Players
+            .FirstOrDefaultAsync(p => p.UserId == currentUser.UserId && !p.IsLight, ct);
+        if (player is null) return new MyCompetitionsViewDto(false, [], []);
+
+        var enteredIds = await db.CompetitionParticipants
+            .Where(cp => cp.PlayerId == player.PlayerId)
+            .Select(cp => cp.CompetitionId)
+            .ToListAsync(ct);
+
+        var enteredEntities = await db.Competition
+            .Include(c => c.HostClub)
+            .Include(c => c.Event)
+            .Where(c => enteredIds.Contains(c.CompetitionID))
+            .OrderBy(c => c.StartDate).ThenBy(c => c.CompetitionName)
+            .ToListAsync(ct);
+
+        var today = DateTime.UtcNow.Date;
+        var candidates = await db.Competition
+            .Include(c => c.HostClub)
+            .Include(c => c.Event)
+            .Include(c => c.AllowedPlayers)
+            .Where(c => !enteredIds.Contains(c.CompetitionID) && !c.IsArchived && !c.IsStarted)
+            .Where(c => !c.StartDate.HasValue || c.StartDate.Value >= today)
+            .Where(c => !c.RegisterByDate.HasValue || c.RegisterByDate.Value >= today)
+            .OrderBy(c => c.StartDate).ThenBy(c => c.CompetitionName)
+            .ToListAsync(ct);
+
+        var available = candidates
+            .Where(c => EligibilityEvaluator.Evaluate(c, player).Count == 0)
+            .Select(ToDto).ToList();
+        return new MyCompetitionsViewDto(true, enteredEntities.Select(ToDto).ToList(), available);
+    }
+
+    public async Task<List<CompetitionFixtureDto>> GetPendingVerificationFixturesAsync(CancellationToken ct = default)
+    {
+        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        var isAdmin = await authzService.IsAdminAsync(user);
+        var editableClubIds = new HashSet<int>(await authzService.GetAdminClubIdsAsync(user));
+        var competitionAdminIds = await authzService.GetEditableCompetitionIdsAsync(user);
+
+        if (!isAdmin && editableClubIds.Count == 0 && competitionAdminIds.Count == 0)
+            return [];
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fixtures = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .Include(f => f.Player1).Include(f => f.Player2)
+            .Include(f => f.Player3).Include(f => f.Player4)
+            .Include(f => f.HomeTeam).Include(f => f.AwayTeam)
+            .Where(f => f.Status == DropShot.Models.FixtureStatus.AwaitingVerification
+                && (isAdmin
+                    || (f.Competition.HostClubId.HasValue && editableClubIds.Contains(f.Competition.HostClubId.Value))
+                    || competitionAdminIds.Contains(f.CompetitionId)))
+            .OrderBy(f => f.Competition.CompetitionName)
+            .ThenBy(f => f.ScheduledAt)
+            .ToListAsync(ct);
+
+        return fixtures.Select(f => ToFixtureDto(f) with { CompetitionName = f.Competition?.CompetitionName }).ToList();
+    }
+
+    public async Task ToggleArchiveAsync(int competitionId, CancellationToken ct = default)
+    {
+        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var entity = await db.Competition.FindAsync(new object?[] { competitionId }, ct)
+            ?? throw new KeyNotFoundException($"Competition {competitionId} not found.");
+        if (!await authzService.CanEditCompetitionAsync(user, entity.HostClubId, entity.CompetitionID))
+            throw new UnauthorizedAccessException("You can't edit this competition.");
+
+        entity.IsArchived = !entity.IsArchived;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task DeleteCompetitionAsync(int competitionId, CancellationToken ct = default)
+    {
+        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var entity = await db.Competition.FindAsync(new object?[] { competitionId }, ct)
+            ?? throw new KeyNotFoundException($"Competition {competitionId} not found.");
+        if (!await authzService.CanEditCompetitionAsync(user, entity.HostClubId, entity.CompetitionID))
+            throw new UnauthorizedAccessException("You can't edit this competition.");
+        if (!entity.IsArchived)
+            throw new InvalidOperationException("Competition must be archived before it can be deleted.");
+
+        var rubbers = await db.Rubbers
+            .Where(r => r.Fixture.CompetitionId == competitionId)
+            .ToListAsync(ct);
+        db.Rubbers.RemoveRange(rubbers);
+
+        var fixtures = await db.CompetitionFixtures
+            .Where(f => f.CompetitionId == competitionId)
+            .ToListAsync(ct);
+        db.CompetitionFixtures.RemoveRange(fixtures);
+
+        db.Competition.Remove(entity);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(currentUser.UserId))
+            throw new InvalidOperationException("Not authenticated.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var player = await db.Players
+            .FirstOrDefaultAsync(p => p.UserId == currentUser.UserId && !p.IsLight, ct)
+            ?? throw new InvalidOperationException("You need a player profile before entering competitions.");
+
+        var comp = await db.Competition
+            .Include(c => c.AllowedPlayers)
+            .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
+            ?? throw new KeyNotFoundException($"Competition {competitionId} not found.");
+
+        var today = DateTime.UtcNow.Date;
+        if (comp.IsStarted)
+            throw new InvalidOperationException("This competition has already started.");
+        if (comp.StartDate.HasValue && comp.StartDate.Value < today)
+            throw new InvalidOperationException("This competition has already started.");
+        if (comp.RegisterByDate.HasValue && comp.RegisterByDate.Value < today)
+            throw new InvalidOperationException("Registration for this competition has closed.");
+
+        var violations = EligibilityEvaluator.Evaluate(comp, player);
+        if (violations.Count > 0)
+            throw new InvalidOperationException($"You're not eligible for this competition: {violations[0].Message}");
+
+        if (comp.MaxParticipants.HasValue)
+        {
+            var currentCount = await db.CompetitionParticipants
+                .CountAsync(cp => cp.CompetitionId == competitionId, ct);
+            if (currentCount >= comp.MaxParticipants.Value)
+                throw new InvalidOperationException("This competition is full.");
+        }
+
+        var alreadyEntered = await db.CompetitionParticipants
+            .AnyAsync(cp => cp.CompetitionId == competitionId && cp.PlayerId == player.PlayerId, ct);
+        if (alreadyEntered)
+            throw new InvalidOperationException("You're already entered in this competition.");
+
+        db.CompetitionParticipants.Add(new CompetitionParticipant
+        {
+            CompetitionId = competitionId,
+            PlayerId = player.PlayerId,
+            RegisteredAt = DateTime.UtcNow,
+            Status = DropShot.Models.ParticipantStatus.Registered
+        });
+        await db.SaveChangesAsync(ct);
+    }
 }

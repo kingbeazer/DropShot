@@ -439,6 +439,42 @@ public class CompetitionsController(
         catch (KeyNotFoundException) { return NotFound(); }
     }
 
+    /// <summary>
+    /// User-view payload for the "/competitions" page (entered + available).
+    /// </summary>
+    [HttpGet("my-view")]
+    public async Task<ActionResult<MyCompetitionsViewDto>> GetMyCompetitionsView(CancellationToken ct)
+        => await competitionService.GetMyCompetitionsViewAsync(ct);
+
+    /// <summary>Awaiting-verification fixtures the caller is allowed to review.</summary>
+    [HttpGet("pending-verification")]
+    public async Task<ActionResult<List<CompetitionFixtureDto>>> GetPendingVerificationFixtures(CancellationToken ct)
+        => await competitionService.GetPendingVerificationFixturesAsync(ct);
+
+    [HttpPost("{id:int}/toggle-archive")]
+    public async Task<IActionResult> ToggleArchive(int id, CancellationToken ct)
+    {
+        try
+        {
+            await competitionService.ToggleArchiveAsync(id, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
+    [HttpPost("{id:int}/enter")]
+    public async Task<IActionResult> EnterCompetition(int id, CancellationToken ct)
+    {
+        try
+        {
+            await competitionService.EnterCompetitionAsync(id, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpDelete("{id:int}/participants/{playerId:int}")]
     public async Task<IActionResult> RemoveParticipant(int id, int playerId)
     {
@@ -1115,7 +1151,7 @@ public class CompetitionsController(
         (DropShot.Shared.PlayerSex?)c.EligibleSex,
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
         c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted,
-        c.CreatorUserId, c.IsRestricted);
+        c.CreatorUserId, c.IsRestricted, c.RegisterByDate);
 
     private static CompetitionFixtureDto ToFixtureDto(CompetitionFixture f) => new(
         f.CompetitionFixtureId, f.CompetitionId,

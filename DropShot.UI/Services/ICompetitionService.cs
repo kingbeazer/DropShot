@@ -44,4 +44,40 @@ public interface ICompetitionService
     /// background so the caller returns immediately.
     /// </summary>
     Task SubmitFixtureScoreAsync(int fixtureId, SubmitFixtureScoreRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the user-view payload for the "/competitions" page: the list of
+    /// competitions the authenticated user has entered, plus the eligible
+    /// not-yet-entered competitions still open for registration. Server applies
+    /// the same eligibility/date/restriction guard <see cref="EnterCompetitionAsync"/>
+    /// uses on submit.
+    /// </summary>
+    Task<MyCompetitionsViewDto> GetMyCompetitionsViewAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns awaiting-verification fixtures the caller is allowed to review
+    /// (system admin → all, club admin → host-club's, competition admin → owned).
+    /// Each fixture carries its <c>CompetitionName</c> for grouping in the UI.
+    /// </summary>
+    Task<List<CompetitionFixtureDto>> GetPendingVerificationFixturesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Toggle the IsArchived flag on a competition. Caller must be able to
+    /// edit the competition; the server performs the final auth check.
+    /// </summary>
+    Task ToggleArchiveAsync(int competitionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Permanently delete a competition and its child rows (rubbers, fixtures).
+    /// Caller must be able to edit the competition.
+    /// </summary>
+    Task DeleteCompetitionAsync(int competitionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Self-enter the authenticated user's player into the competition.
+    /// Server enforces date/eligibility/capacity/duplicate-entry guards and
+    /// throws <see cref="InvalidOperationException"/> with a user-facing
+    /// message when any of them fail.
+    /// </summary>
+    Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default);
 }

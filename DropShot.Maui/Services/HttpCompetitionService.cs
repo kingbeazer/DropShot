@@ -47,4 +47,33 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
             $"api/competitions/fixtures/{fixtureId}/submit-score", request, ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task<MyCompetitionsViewDto> GetMyCompetitionsViewAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<MyCompetitionsViewDto>("api/competitions/my-view", ct)
+            ?? new MyCompetitionsViewDto(false, [], []);
+
+    public async Task<List<CompetitionFixtureDto>> GetPendingVerificationFixturesAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<CompetitionFixtureDto>>("api/competitions/pending-verification", ct) ?? [];
+
+    public async Task ToggleArchiveAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/competitions/{competitionId}/toggle-archive", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteCompetitionAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/competitions/{competitionId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/competitions/{competitionId}/enter", null, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to enter." : body);
+        }
+    }
 }

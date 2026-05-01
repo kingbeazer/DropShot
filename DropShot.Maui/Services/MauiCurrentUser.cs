@@ -61,12 +61,19 @@ public sealed class MauiCurrentUser : ICurrentUser, IDisposable
     public bool IsAdmin => _auth.IsAdmin;
     public bool IsClubAdmin => _auth.IsClubAdmin;
 
+    // The login DTO doesn't carry the subscription bit yet, so on MAUI we
+    // conservatively report false. The "user competition" creation path is a
+    // web-only feature until that plumbing lands.
+    public bool IsSubscribed => false;
+
     public bool HasRole(string role) =>
         _auth.GrantedRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
 
     public bool CanEditClub(int clubId) => _auth.CanEditClub(clubId);
 
     public bool CanEditCompetition(int? hostClubId) => _auth.CanEditCompetition(hostClubId);
+
+    public bool CanCreateUserCompetition => IsAdmin;
 
     public void Dispose()
     {
