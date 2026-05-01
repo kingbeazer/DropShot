@@ -76,4 +76,16 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
             throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to enter." : body);
         }
     }
+
+    public Task<FixtureRubberContextDto?> GetFixtureRubberContextAsync(int fixtureId, CancellationToken ct = default) =>
+        http.GetFromJsonAsync<FixtureRubberContextDto>(
+            $"api/competitions/fixtures/{fixtureId}/rubber-context", ct);
+
+    public async Task SubmitRubberScoresAsync(
+        int fixtureId, SubmitRubberScoresRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/fixtures/{fixtureId}/submit-rubber-scores", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }

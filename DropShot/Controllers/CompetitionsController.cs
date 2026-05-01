@@ -446,6 +446,74 @@ public class CompetitionsController(
     public async Task<ActionResult<MyCompetitionsViewDto>> GetMyCompetitionsView(CancellationToken ct)
         => await competitionService.GetMyCompetitionsViewAsync(ct);
 
+    /// <summary>
+    /// Loads the rubber-scoring context for a team-match fixture. Backs
+    /// RubberScoreDialog and BulkRubberScoreDialog (phase 7). Caller must be
+    /// able to view the competition.
+    /// </summary>
+    [HttpGet("fixtures/{fixtureId:int}/rubber-context")]
+    public async Task<ActionResult<FixtureRubberContextDto>> GetFixtureRubberContext(
+        int fixtureId, CancellationToken ct)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures
+            .Select(f => new { f.CompetitionFixtureId, f.CompetitionId })
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return NotFound();
+        if (!await authzService.CanViewCompetitionAsync(User, fx.CompetitionId)) return Forbid();
+
+        var dto = await competitionService.GetFixtureRubberContextAsync(fixtureId, ct);
+        return dto is null ? NotFound() : dto;
+    }
+
+    /// <summary>
+    /// Submit one or many rubber scores for a fixture (single dialog or bulk
+    /// dialog). Backs phase 7 RubberScoreDialog/BulkRubberScoreDialog. Server
+    /// enforces that <c>AdminOverride</c> is honoured only for competition
+    /// admins; non-admin requests must come from a participant of one of the
+    /// fixture's teams.
+    /// </summary>
+    [HttpPost("fixtures/{fixtureId:int}/submit-rubber-scores")]
+    public async Task<IActionResult> SubmitRubberScores(
+        int fixtureId, [FromBody] SubmitRubberScoresRequest req, CancellationToken ct)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return NotFound();
+
+        var canEdit = await authzService.CanEditCompetitionAsync(User, fx.Competition?.HostClubId, fx.CompetitionId);
+        if (req.AdminOverride && !canEdit) return Forbid();
+
+        if (!canEdit)
+        {
+            // Non-admin: must be on one of the fixture's teams.
+            var userId = userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId)) return Forbid();
+            var myPlayerId = await db.Players
+                .Where(p => p.UserId == userId)
+                .Select(p => (int?)p.PlayerId)
+                .FirstOrDefaultAsync(ct);
+            if (myPlayerId is null) return Forbid();
+            var onATeam = await db.CompetitionParticipants
+                .AnyAsync(cp => cp.CompetitionId == fx.CompetitionId
+                    && cp.PlayerId == myPlayerId
+                    && cp.TeamId.HasValue
+                    && (cp.TeamId == fx.HomeTeamId || cp.TeamId == fx.AwayTeamId), ct);
+            if (!onATeam) return Forbid();
+        }
+
+        var safeReq = req with { AdminOverride = canEdit && req.AdminOverride };
+
+        try
+        {
+            await competitionService.SubmitRubberScoresAsync(fixtureId, safeReq, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
     /// <summary>Awaiting-verification fixtures the caller is allowed to review.</summary>
     [HttpGet("pending-verification")]
     public async Task<ActionResult<List<CompetitionFixtureDto>>> GetPendingVerificationFixtures(CancellationToken ct)
