@@ -246,7 +246,8 @@ else
     {
         var parameters = new DialogParameters<RubberScoreDialog>
         {
-            { x => x.Rubber, rubber },
+            { x => x.FixtureId, FixtureId },
+            { x => x.RubberId, rubber.RubberId },
             { x => x.AdminOverride, _isCompetitionAdmin }
         };
         var dialog = await DialogService.ShowAsync<RubberScoreDialog>("Enter rubber score", parameters);

@@ -344,7 +344,8 @@
         if (_fixture == null) return;
         var parameters = new DialogParameters<RubberScoreDialog>
         {
-            { x => x.Rubber, rubber },
+            { x => x.FixtureId, _fixture.CompetitionFixtureId },
+            { x => x.RubberId, rubber.RubberId },
             { x => x.AdminOverride, true }
         };
         var dlg = await DialogService.ShowAsync<RubberScoreDialog>("Edit rubber score", parameters);
