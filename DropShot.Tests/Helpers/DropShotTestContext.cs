@@ -128,6 +128,7 @@ public class DropShotTestContext : BunitContext
         Services.AddScoped<IScoreboardService, WebScoreboardService>();
         Services.AddScoped<IUserService, WebUserService>();
         Services.AddScoped<IScoreboardHubFactory, WebScoreboardHubFactory>();
+        Services.AddScoped<IPaymentService, WebPaymentService>();
 
         // Logging
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
