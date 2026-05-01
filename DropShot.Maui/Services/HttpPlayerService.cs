@@ -109,4 +109,15 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
     public async Task<List<SimilarPlayerDto>> SearchSimilarVerifiedPlayersAsync(string term, int max, CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<SimilarPlayerDto>>(
             $"api/players/search-similar?term={Uri.EscapeDataString(term)}&max={max}", ct) ?? [];
+
+    public async Task<List<ApplicationUserDto>> GetUsersForLinkingAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<ApplicationUserDto>>("api/users/for-linking", ct) ?? [];
+
+    public async Task LinkPlayerAccountAsync(int playerId, string? userId, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/players/{playerId}/account",
+            new LinkPlayerAccountRequest(userId), ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }

@@ -107,6 +107,17 @@ public record UpdateMyLightPlayerRequest(
     PlayerSex? Sex);
 
 /// <summary>
+/// Minimal projection of an <c>ApplicationUser</c>. Used by the SuperAdmin
+/// Players page's "Link account" dropdown and (later) Admin/UserManagement.
+/// </summary>
+public record ApplicationUserDto(
+    string Id,
+    string? UserName,
+    string? Email);
+
+public record LinkPlayerAccountRequest(string? UserId);
+
+/// <summary>
 /// Suggested "similar" verified player surfaced while typing a display name.
 /// Web ranks via <c>FuzzySearchService</c>; MAUI hits the same endpoint.
 /// </summary>

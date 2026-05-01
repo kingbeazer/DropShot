@@ -191,6 +191,23 @@ public class PlayersController(
         return await playerService.SearchSimilarVerifiedPlayersAsync(term, max, ct);
     }
 
+    /// <summary>
+    /// Set or clear <c>Player.UserId</c>. SuperAdmin only — exposed only for
+    /// the SuperAdmin Players page's "Link account" affordance.
+    /// </summary>
+    [HttpPut("{id:int}/account")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<IActionResult> LinkAccount(
+        int id, [FromBody] LinkPlayerAccountRequest req, CancellationToken ct)
+    {
+        try
+        {
+            await playerService.LinkPlayerAccountAsync(id, req.UserId, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
     private static PlayerDto ToDto(Player p) => new(
         p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.Email,
         p.DateOfBirth, (DropShot.Shared.PlayerSex?)p.Sex,

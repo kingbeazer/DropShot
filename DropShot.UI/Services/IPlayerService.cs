@@ -75,4 +75,12 @@ public interface IPlayerService
 
     /// <summary>Fuzzy-rank verified players by display-name similarity, capped to <paramref name="max"/>.</summary>
     Task<List<SimilarPlayerDto>> SearchSimilarVerifiedPlayersAsync(string term, int max, CancellationToken ct = default);
+
+    // ── SuperAdmin account linking (phase 5 — backs Players "Link account") ────
+
+    /// <summary>List ASP.NET Identity users for the SuperAdmin Players "Link account" dropdown.</summary>
+    Task<List<ApplicationUserDto>> GetUsersForLinkingAsync(CancellationToken ct = default);
+
+    /// <summary>Set or clear <c>Player.UserId</c>. Pass <c>null</c> to unlink.</summary>
+    Task LinkPlayerAccountAsync(int playerId, string? userId, CancellationToken ct = default);
 }
