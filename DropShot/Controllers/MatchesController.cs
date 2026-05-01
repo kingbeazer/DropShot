@@ -26,4 +26,15 @@ public class MatchesController(IMatchService matches) : ControllerBase
     {
         return await matches.GetMyActiveMatchesAsync(deviceToken, ct);
     }
+
+    /// <summary>
+    /// Recently completed casual matches the caller participated in.
+    /// SavedMatch rows already linked to a CompetitionFixture are excluded.
+    /// </summary>
+    [HttpGet("casual/recent")]
+    public async Task<ActionResult<List<RecentCasualMatchDto>>> GetRecentCasual(
+        [FromQuery] int limit = 6, CancellationToken ct = default)
+    {
+        return await matches.GetMyRecentCasualMatchesAsync(limit, ct);
+    }
 }
