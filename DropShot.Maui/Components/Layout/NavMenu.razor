@@ -2,9 +2,6 @@
     <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">
         Home
     </MudNavLink>
-    <MudNavLink Href="/players" Icon="@Icons.Material.Filled.People">
-        Players
-    </MudNavLink>
     <MudNavLink Href="/competitions" Icon="@Icons.Material.Filled.EmojiEvents">
         Competitions
     </MudNavLink>
@@ -14,4 +11,9 @@
     <MudNavLink Href="/rulessets" Icon="@Icons.Material.Filled.Gavel">
         Rules Sets
     </MudNavLink>
+    <AuthorizeView Roles="SuperAdmin">
+        <MudNavLink Href="/players" Icon="@Icons.Material.Filled.People">
+            Players
+        </MudNavLink>
+    </AuthorizeView>
 </MudNavMenu>

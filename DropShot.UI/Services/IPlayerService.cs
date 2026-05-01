@@ -17,4 +17,15 @@ public interface IPlayerService
     /// Used by the LeagueTable page (phase 4 move).
     /// </summary>
     Task<List<GlobalLeagueTableEntryDto>> GetGlobalLeagueTableAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Players list with joined linked-account user name and club membership names.
+    /// Backs the SuperAdmin Players page (phase 4 batch B move). Authorization is
+    /// enforced at the page (web shim) and the API endpoint level.
+    /// </summary>
+    Task<List<PlayerWithClubsDto>> GetPlayersWithClubsAsync(CancellationToken ct = default);
+
+    Task<PlayerDto> CreatePlayerAsync(CreatePlayerRequest request, CancellationToken ct = default);
+    Task<PlayerDto> UpdatePlayerAsync(int playerId, UpdatePlayerRequest request, CancellationToken ct = default);
+    Task DeletePlayerAsync(int playerId, CancellationToken ct = default);
 }
