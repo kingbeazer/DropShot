@@ -13,6 +13,15 @@ public interface ICourtClaimService
     /// <summary>True when the SavedMatch hasn't seen activity for the abandon threshold.</summary>
     Task<bool> IsStaleAsync(int savedMatchId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Extend the grace window after the occupant says "yes, I'm still playing"
+    /// in response to a court-challenge. Pushes <c>ClaimGraceUntilUtc</c>
+    /// forward and refreshes <c>LastActivityAt</c> so the abandon timer
+    /// resets. PR 7b's TennisScore move calls this from the CourtChallenge
+    /// SignalR handler.
+    /// </summary>
+    Task ExtendGraceAsync(int savedMatchId, CancellationToken ct = default);
+
     /// <summary>Mark the SavedMatch complete and clear the grace window.</summary>
     Task EndMatchAsync(int savedMatchId, CancellationToken ct = default);
 }
