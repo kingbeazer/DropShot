@@ -45,6 +45,8 @@ public sealed class WebCompetitionService(
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var c = await db.Competition
+            .AsSplitQuery()
+            .AsNoTracking()
             .Include(x => x.HostClub)
             .Include(x => x.Rules)
             .Include(x => x.Event)
@@ -54,6 +56,21 @@ public sealed class WebCompetitionService(
             .Include(x => x.Participants).ThenInclude(p => p.Division)
             .Include(x => x.Divisions)
             .Include(x => x.AllowedPlayers)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Stage)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Court)
+            .Include(x => x.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
+            .Include(x => x.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Player1)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Player2)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Player3)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Player4)
+            .Include(x => x.Fixtures).ThenInclude(f => f.HomeTeam)
+            .Include(x => x.Fixtures).ThenInclude(f => f.AwayTeam)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.HomePlayer1)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.HomePlayer2)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.AwayPlayer1)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.AwayPlayer2)
+            .Include(x => x.Teams).ThenInclude(t => t.Captain)
             .FirstOrDefaultAsync(x => x.CompetitionID == id, ct);
 
         if (c is null) return null;
@@ -61,6 +78,14 @@ public sealed class WebCompetitionService(
         var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
         if (!await authzService.CanViewCompetitionAsync(user, id))
             return null;
+
+        var courtPairs = await db.CourtPairs
+            .AsNoTracking()
+            .Where(cp => cp.CompetitionId == id)
+            .Include(cp => cp.Court1)
+            .Include(cp => cp.Court2)
+            .OrderBy(cp => cp.Name)
+            .ToListAsync(ct);
 
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
@@ -89,8 +114,49 @@ public sealed class WebCompetitionService(
             c.HasDivisions,
             c.Divisions.OrderBy(d => d.Rank)
                 .Select(d => new CompetitionDivisionDto(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name))
-                .ToList());
+                .ToList(),
+            c.Fixtures
+                .OrderBy(f => f.RoundNumber).ThenBy(f => f.ScheduledAt)
+                .Select(ToFixtureDto)
+                .ToList(),
+            c.Teams
+                .Select(t => new CompetitionTeamDto(
+                    t.CompetitionTeamId, t.CompetitionId, t.Name,
+                    t.CaptainPlayerId, t.Captain?.DisplayName))
+                .ToList(),
+            courtPairs.Select(cp => new CourtPairDto(
+                cp.CourtPairId, cp.CompetitionId,
+                cp.Court1Id, cp.Court1.Name,
+                cp.Court2Id, cp.Court2.Name,
+                cp.Name)).ToList());
     }
+
+    private static CompetitionFixtureDto ToFixtureDto(DropShot.Models.CompetitionFixture f) => new(
+        f.CompetitionFixtureId, f.CompetitionId,
+        f.CompetitionStageId, f.Stage?.Name,
+        f.CourtId, f.Court?.Name,
+        f.ScheduledAt, (DropShot.Shared.FixtureStatus)f.Status,
+        f.FixtureLabel, f.RoundNumber,
+        f.Player1Id, f.Player1?.DisplayName,
+        f.Player2Id, f.Player2?.DisplayName,
+        f.Player3Id, f.Player3?.DisplayName,
+        f.Player4Id, f.Player4?.DisplayName,
+        f.ResultSummary, f.WinnerPlayerId,
+        f.HomeTeamId, f.HomeTeam?.Name,
+        f.AwayTeamId, f.AwayTeam?.Name,
+        f.WinnerTeamId, f.CourtPairId, f.CourtPair?.Name,
+        f.Rubbers
+            .OrderBy(r => r.Order)
+            .Select(r => new RubberDto(
+                r.RubberId, r.CompetitionFixtureId, r.Order, r.Name, r.CourtNumber,
+                r.HomeRoles, r.AwayRoles,
+                r.HomePlayer1Id, r.HomePlayer1?.DisplayName,
+                r.HomePlayer2Id, r.HomePlayer2?.DisplayName,
+                r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
+                r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
+                r.HomeGames, r.AwayGames, r.WinnerTeamId,
+                r.IsComplete, r.SavedMatchId))
+            .ToList());
 
     private static CompetitionDto ToDto(Competition c) => new(
         c.CompetitionID, c.CompetitionName,

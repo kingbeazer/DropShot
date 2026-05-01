@@ -13,6 +13,14 @@ public interface ICurrentUser
     string? ActiveRole { get; }
     IReadOnlyCollection<string> GrantedRoles { get; }
     IReadOnlyCollection<int> AdminClubIds { get; }
+
+    /// <summary>
+    /// The club the user is currently "acting as administrator" for.
+    /// Web: reads the ActiveClubId cookie; MAUI: the sole admin club if exactly one exists.
+    /// Null when the user administrates no clubs, or (on MAUI) administrates more than one.
+    /// </summary>
+    int? ActiveClubId { get; }
+
     bool IsAuthenticated { get; }
     bool IsAdmin { get; }
     bool IsClubAdmin { get; }

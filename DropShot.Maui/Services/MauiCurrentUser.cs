@@ -53,6 +53,10 @@ public sealed class MauiCurrentUser : ICurrentUser, IDisposable
     public string? ActiveRole => _auth.Session is null ? null : _auth.ActiveRole;
     public IReadOnlyCollection<string> GrantedRoles => _auth.GrantedRoles;
     public IReadOnlyCollection<int> AdminClubIds => _auth.AdminClubIds;
+
+    public int? ActiveClubId =>
+        _auth.AdminClubIds.Count == 1 ? _auth.AdminClubIds.First() : null;
+
     public bool IsAuthenticated => _auth.Session is not null;
     public bool IsAdmin => _auth.IsAdmin;
     public bool IsClubAdmin => _auth.IsClubAdmin;

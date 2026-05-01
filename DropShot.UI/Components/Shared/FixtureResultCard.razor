@@ -1,0 +1,126 @@
+@* DTO-typed counterpart to DropShot/Components/ResultCard.razor. The web file stays
+   for Home.razor's casual-match overload (phase 7); shared pages use this one. *@
+
+<div class="@CardClass">
+    @if (!Compact && Fixture is not null)
+    {
+        <div class="rc-header">
+            @if (!string.IsNullOrEmpty(Fixture.FixtureLabel))
+            {
+                <span class="rc-label">@Fixture.FixtureLabel</span>
+            }
+            @if (Fixture.ScheduledAt.HasValue)
+            {
+                <span class="rc-date">@Fixture.ScheduledAt.Value.ToString("dd MMM yyyy")</span>
+            }
+        </div>
+    }
+
+    <div class="rc-player-row @(_p1Winner ? "rc-winner" : "")">
+        <div class="rc-name">@Player1Name</div>
+        <div class="rc-sets">
+            @foreach (var set in _sets)
+            {
+                <span class="rc-set-score">@set.P1</span>
+            }
+        </div>
+    </div>
+
+    @if (!Compact)
+    {
+        <div class="rc-separator">v</div>
+    }
+
+    <div class="rc-player-row @(_p2Winner ? "rc-winner" : "")">
+        <div class="rc-name">@Player2Name</div>
+        <div class="rc-sets">
+            @foreach (var set in _sets)
+            {
+                <span class="rc-set-score">@set.P2</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public CompetitionFixtureDto? Fixture { get; set; }
+    [Parameter] public bool Compact { get; set; }
+
+    private string CardClass => Compact ? "result-card result-card-compact" : "result-card";
+
+    private List<(string P1, string P2)> _sets = [];
+    private bool _p1Winner;
+    private bool _p2Winner;
+
+    private bool IsTeamMatch => Fixture is not null
+        && (Fixture.HomeTeamId.HasValue || Fixture.AwayTeamId.HasValue);
+
+    private string Player1Name
+    {
+        get
+        {
+            if (Fixture is null) return "TBD";
+            if (IsTeamMatch) return Fixture.HomeTeamName ?? "TBD";
+            return Fixture.Player3Id is not null
+                ? $"{Fixture.Player1Name ?? "TBD"} & {Fixture.Player3Name ?? "TBD"}"
+                : Fixture.Player1Name ?? "TBD";
+        }
+    }
+
+    private string Player2Name
+    {
+        get
+        {
+            if (Fixture is null) return "TBD";
+            if (IsTeamMatch) return Fixture.AwayTeamName ?? "TBD";
+            return Fixture.Player4Id is not null
+                ? $"{Fixture.Player2Name ?? "TBD"} & {Fixture.Player4Name ?? "TBD"}"
+                : Fixture.Player2Name ?? "TBD";
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Fixture is null)
+        {
+            _sets = [];
+            _p1Winner = _p2Winner = false;
+            return;
+        }
+
+        _sets = ParseResultSummary(Fixture.ResultSummary);
+        _p1Winner = Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player1Id;
+        _p2Winner = Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player2Id;
+        if (!_p1Winner && !_p2Winner)
+            (_p1Winner, _p2Winner) = DeriveWinnerFromSets(_sets);
+    }
+
+    private static (bool p1, bool p2) DeriveWinnerFromSets(List<(string P1, string P2)> sets)
+    {
+        int p1Sets = 0, p2Sets = 0;
+        foreach (var s in sets)
+        {
+            if (int.TryParse(s.P1, out var a) && int.TryParse(s.P2, out var b))
+            {
+                if (a > b) p1Sets++;
+                else if (b > a) p2Sets++;
+            }
+        }
+        if (p1Sets > p2Sets) return (true, false);
+        if (p2Sets > p1Sets) return (false, true);
+        return (false, false);
+    }
+
+    private static List<(string P1, string P2)> ParseResultSummary(string? summary)
+    {
+        if (string.IsNullOrWhiteSpace(summary)) return [];
+        var result = new List<(string, string)>();
+        foreach (var part in summary.Split(',', StringSplitOptions.TrimEntries))
+        {
+            var scores = part.Split(['-', '–'], 2);
+            if (scores.Length == 2)
+                result.Add((scores[0].Trim(), scores[1].Trim()));
+        }
+        return result;
+    }
+}

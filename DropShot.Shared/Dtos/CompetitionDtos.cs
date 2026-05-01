@@ -45,7 +45,10 @@ public record CompetitionDetailDto(
     bool IsRestricted = false,
     List<int>? AllowedPlayerIds = null,
     bool HasDivisions = false,
-    List<CompetitionDivisionDto>? Divisions = null);
+    List<CompetitionDivisionDto>? Divisions = null,
+    List<CompetitionFixtureDto>? Fixtures = null,
+    List<CompetitionTeamDto>? Teams = null,
+    List<CourtPairDto>? CourtPairs = null);
 
 public record CompetitionStageDto(
     int CompetitionStageId,
@@ -93,7 +96,8 @@ public record CompetitionFixtureDto(
     string? AwayTeamName = null,
     int? WinnerTeamId = null,
     int? CourtPairId = null,
-    string? CourtPairName = null);
+    string? CourtPairName = null,
+    IReadOnlyList<RubberDto>? Rubbers = null);
 
 public record CompetitionTeamDto(
     int CompetitionTeamId,
