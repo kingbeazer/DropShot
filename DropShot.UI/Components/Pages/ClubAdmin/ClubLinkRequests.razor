@@ -1,0 +1,92 @@
+@inject IClubService ClubService
+@inject ICurrentUser CurrentUser
+@inject ISnackbar Snackbar
+
+@* Routing + auth + MudProviders supplied by host shims. *@
+
+<MudText Typo="Typo.h4" Class="mb-4">Club Link Requests</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (!CurrentUser.IsAdmin && CurrentUser.AdminClubIds.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">
+        You don't administer any clubs, so there are no link requests to review.
+    </MudAlert>
+}
+else if (_requests.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No pending link requests.</MudAlert>
+}
+else
+{
+    <MudTable Items="@_requests" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Club</MudTh>
+            <MudTh>User</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Requested</MudTh>
+            <MudTh Style="width:200px"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Club">@context.ClubName</MudTd>
+            <MudTd DataLabel="User">@(string.IsNullOrEmpty(context.UserDisplayName) ? context.UserName : context.UserDisplayName)</MudTd>
+            <MudTd DataLabel="Email">@(context.UserEmail ?? "—")</MudTd>
+            <MudTd DataLabel="Requested">@context.RequestedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</MudTd>
+            <MudTd>
+                <MudStack Row="true" Spacing="1">
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                               OnClick="@(() => Approve(context))">Approve</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                               OnClick="@(() => Reject(context))">Reject</MudButton>
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private bool _loading = true;
+    private List<ClubLinkRequestDto> _requests = [];
+
+    protected override async Task OnInitializedAsync() => await LoadRequests();
+
+    private async Task LoadRequests()
+    {
+        _loading = true;
+        _requests = await ClubService.GetPendingLinkRequestsForAdminAsync();
+        _loading = false;
+    }
+
+    private async Task Approve(ClubLinkRequestDto request)
+    {
+        try
+        {
+            await ClubService.ApproveLinkRequestAsync(request.ClubLinkRequestId);
+            _requests.Remove(request);
+            var who = string.IsNullOrEmpty(request.UserDisplayName) ? request.UserName : request.UserDisplayName;
+            Snackbar.Add($"Approved {who} → {request.ClubName}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task Reject(ClubLinkRequestDto request)
+    {
+        try
+        {
+            await ClubService.RejectLinkRequestAsync(request.ClubLinkRequestId);
+            _requests.Remove(request);
+            var who = string.IsNullOrEmpty(request.UserDisplayName) ? request.UserName : request.UserDisplayName;
+            Snackbar.Add($"Rejected {who}.", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

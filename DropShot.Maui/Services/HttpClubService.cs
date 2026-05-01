@@ -72,4 +72,20 @@ public sealed class HttpClubService(HttpClient http) : IClubService
         var resp = await http.DeleteAsync($"api/clubs/{clubId}/link-requests/mine", ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task<List<ClubLinkRequestDto>> GetPendingLinkRequestsForAdminAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<ClubLinkRequestDto>>(
+            "api/clubadmin/link-requests", ct) ?? [];
+
+    public async Task ApproveLinkRequestAsync(int requestId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/clubadmin/link-requests/{requestId}/approve", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task RejectLinkRequestAsync(int requestId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/clubadmin/link-requests/{requestId}/reject", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }
