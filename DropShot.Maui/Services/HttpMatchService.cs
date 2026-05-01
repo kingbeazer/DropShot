@@ -19,4 +19,9 @@ public sealed class HttpMatchService(HttpClient http) : IMatchService
         return await http.GetFromJsonAsync<List<ActiveMatchDto>>(
             $"api/matches/mine{qs}", ct) ?? [];
     }
+
+    public async Task<List<RecentCasualMatchDto>> GetMyRecentCasualMatchesAsync(
+        int limit = 6, CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<RecentCasualMatchDto>>(
+            $"api/matches/casual/recent?limit={limit}", ct) ?? [];
 }

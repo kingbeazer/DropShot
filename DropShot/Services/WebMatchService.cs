@@ -1,8 +1,10 @@
 using DropShot.Data;
+using DropShot.Models;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 
 namespace DropShot.Services;
 
@@ -50,5 +52,83 @@ public sealed class WebMatchService(
             m.CourtId,
             m.CourtId.HasValue && courtNames.TryGetValue(m.CourtId.Value, out var n) ? n : null,
             m.CreatedAt)).ToList();
+    }
+
+    public async Task<List<RecentCasualMatchDto>> GetMyRecentCasualMatchesAsync(
+        int limit = 6, CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId;
+        if (string.IsNullOrEmpty(userId)) return [];
+
+        var safeLimit = Math.Clamp(limit, 1, 50);
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var pid = await db.Players
+            .Where(p => p.UserId == userId)
+            .Select(p => (int?)p.PlayerId)
+            .FirstOrDefaultAsync(ct);
+        if (pid is null) return [];
+
+        // SavedMatch rows linked to a fixture render as fixture results, not casual.
+        var linkedSavedMatchIds = db.CompetitionFixtures
+            .Where(f => f.SavedMatchId != null)
+            .Select(f => f.SavedMatchId!.Value);
+
+        var rows = await db.SavedMatch
+            .Where(m => m.Complete
+                     && (m.Player1Id == pid || m.Player2Id == pid
+                         || m.Player3Id == pid || m.Player4Id == pid)
+                     && !linkedSavedMatchIds.Contains(m.SavedMatchId))
+            .OrderByDescending(m => m.CompletedAt ?? m.CreatedAt)
+            .Take(safeLimit)
+            .ToListAsync(ct);
+
+        return rows.Select(m => new RecentCasualMatchDto(
+            m.SavedMatchId,
+            m.Player1, m.Player2, m.Player3, m.Player4,
+            m.Player1Id, m.Player2Id, m.Player3Id, m.Player4Id,
+            m.WinnerName, m.WinnerPlayerId,
+            m.CreatedAt, m.CompletedAt,
+            ParseSets(m.MatchJson))).ToList();
+    }
+
+    /// <summary>
+    /// Mirrors <c>ResultCard.razor</c>'s ParseCasualSets: pulls the latest
+    /// GameState snapshot from MatchJson and emits per-set game counts. Falls
+    /// back to a single (UserG, OppG) pseudo-set for game-only scored matches
+    /// that never recorded a per-set breakdown. PR 6 will move ResultCard into
+    /// DropShot.UI and consume this DTO directly, retiring the original parser.
+    /// </summary>
+    private static IReadOnlyList<CasualSetScoreDto> ParseSets(string? matchJson)
+    {
+        if (string.IsNullOrWhiteSpace(matchJson)) return Array.Empty<CasualSetScoreDto>();
+        try
+        {
+            var match = JsonConvert.DeserializeObject<Match>(matchJson);
+            // HistoryList is serialized from a Stack, so index 0 is the most
+            // recent state. Fall back to History (the actual Stack) for older
+            // records that don't have HistoryList populated.
+            var latest = match?.HistoryList?.FirstOrDefault()
+                ?? match?.History?.FirstOrDefault();
+            if (latest is null) return Array.Empty<CasualSetScoreDto>();
+
+            if (latest.SetScores is { Count: > 0 } setScores)
+            {
+                return setScores
+                    .OrderBy(s => s.SetNumber)
+                    .Select(s => new CasualSetScoreDto(s.SetNumber, s.UserGames, s.OpponentGames))
+                    .ToList();
+            }
+
+            if (latest.UserG > 0 || latest.OppG > 0)
+                return new[] { new CasualSetScoreDto(1, latest.UserG, latest.OppG) };
+
+            return Array.Empty<CasualSetScoreDto>();
+        }
+        catch
+        {
+            return Array.Empty<CasualSetScoreDto>();
+        }
     }
 }
