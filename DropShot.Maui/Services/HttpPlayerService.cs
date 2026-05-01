@@ -19,4 +19,27 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
 
     public async Task<List<GlobalLeagueTableEntryDto>> GetGlobalLeagueTableAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<GlobalLeagueTableEntryDto>>("api/players/league-table", ct) ?? [];
+
+    public async Task<List<PlayerWithClubsDto>> GetPlayersWithClubsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<PlayerWithClubsDto>>("api/players/with-clubs", ct) ?? [];
+
+    public async Task<PlayerDto> CreatePlayerAsync(CreatePlayerRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync("api/players", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<PlayerDto> UpdatePlayerAsync(int playerId, UpdatePlayerRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync($"api/players/{playerId}", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken: ct))!;
+    }
+
+    public async Task DeletePlayerAsync(int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/players/{playerId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }

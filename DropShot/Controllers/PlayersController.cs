@@ -37,6 +37,17 @@ public class PlayersController(
         return await playerService.GetGlobalLeagueTableAsync(ct);
     }
 
+    /// <summary>
+    /// Players with their linked accounts and club memberships joined in.
+    /// Backs the SuperAdmin Players page on MAUI (phase 4 batch B).
+    /// </summary>
+    [HttpGet("with-clubs")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<ActionResult<List<PlayerWithClubsDto>>> GetWithClubs(CancellationToken ct)
+    {
+        return await playerService.GetPlayersWithClubsAsync(ct);
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<PlayerDto>> Get(int id)
     {
