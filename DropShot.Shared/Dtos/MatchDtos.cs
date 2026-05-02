@@ -174,3 +174,48 @@ public record FinaliseLiveFixtureRequest(
     int AwaySetsWon,
     int HomeGamesTotal,
     int AwayGamesTotal);
+
+// ── Phase 7 PR 7e: IMatchSetupService surface (MatchSetupWizard move) ──
+
+/// <summary>
+/// One-shot bootstrap payload for the MatchSetupWizard. Returns the current
+/// user's Player profile (PlayerId/DisplayName/AvatarPath via linked
+/// account), the user's light-player roster, the user's bookmarked verified
+/// players (excluding self), every club for the club autocomplete, and the
+/// fuzzy-index seed (light + bookmarked + every other full player so the
+/// "Did you mean?" nudge can suggest verified replacements).
+/// </summary>
+public record MatchSetupBootstrapDto(
+    WizardSelfPlayerDto? Me,
+    IReadOnlyList<WizardPlayerDto> MyLightPlayers,
+    IReadOnlyList<WizardPlayerDto> MyBookmarkedPlayers,
+    IReadOnlyList<WizardClubDto> AllClubs,
+    IReadOnlyList<WizardFuzzyItemDto> FuzzyIndex);
+
+public record WizardSelfPlayerDto(
+    int PlayerId,
+    string DisplayName,
+    string? AvatarPath);
+
+public record WizardPlayerDto(
+    int PlayerId,
+    string DisplayName,
+    bool IsLight,
+    string? AvatarPath);
+
+public record WizardClubDto(int ClubId, string Name);
+
+public record WizardFuzzyItemDto(
+    int PlayerId,
+    string DisplayName,
+    string? FirstName,
+    string? LastName,
+    bool IsLight);
+
+/// <summary>
+/// Court list filtered to a single club, ordered by name. Backs the
+/// MatchSetupWizard's club → court drilldown.
+/// </summary>
+public record WizardCourtDto(int CourtId, string Name);
+
+public record AutoBookmarkPlayersRequest(IReadOnlyList<int> PlayerIds);

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 
@@ -41,4 +42,9 @@ public sealed class HttpCourtClaimService(HttpClient http) : ICourtClaimService
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<ActiveMatchDto>(cancellationToken: ct);
     }
+
+    public async Task<CourtClaimResult> EvaluateAsync(int courtId, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<CourtClaimResult>(
+            $"api/court-claim/courts/{courtId}/evaluate", ct)
+        ?? CourtClaimResult.Free();
 }

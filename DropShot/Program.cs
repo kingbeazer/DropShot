@@ -132,6 +132,7 @@ builder.Services.AddScoped<ISiteSettingsService, WebSiteSettingsService>();
 builder.Services.AddScoped<IInvitationService, WebInvitationService>();
 builder.Services.AddScoped<IMatchService, WebMatchService>();
 builder.Services.AddScoped<IMatchScoringService, WebMatchScoringService>();
+builder.Services.AddScoped<IMatchSetupService, WebMatchSetupService>();
 builder.Services.AddScoped<IScoreboardService, WebScoreboardService>();
 builder.Services.AddScoped<IUserService, WebUserService>();
 builder.Services.AddScoped<IScoreboardHubFactory, WebScoreboardHubFactory>();
