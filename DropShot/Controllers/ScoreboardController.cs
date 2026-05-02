@@ -34,4 +34,8 @@ public class ScoreboardController(IScoreboardService scoreboard) : ControllerBas
         await scoreboard.UpdateDisplaySettingAsync(courtId, req, ct);
         return NoContent();
     }
+
+    [HttpGet("courts/display-settings")]
+    public Task<List<AdminCourtDisplaySettingDto>> GetCourtDisplaySettings(CancellationToken ct)
+        => scoreboard.GetAdminCourtDisplaySettingsAsync(ct);
 }
