@@ -53,6 +53,7 @@ public static class MauiProgram
         builder.Services.AddScoped<IClubService, HttpClubService>();
         builder.Services.AddScoped<IEventService, HttpEventService>();
         builder.Services.AddScoped<ICompetitionService, HttpCompetitionService>();
+        builder.Services.AddScoped<ICompetitionAdminService, HttpCompetitionAdminService>();
         builder.Services.AddScoped<IRulesSetService, HttpRulesSetService>();
         builder.Services.AddScoped<ISiteSettingsService, HttpSiteSettingsService>();
         builder.Services.AddScoped<IInvitationService, HttpInvitationService>();

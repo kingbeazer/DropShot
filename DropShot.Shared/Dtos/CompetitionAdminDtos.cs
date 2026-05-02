@@ -58,7 +58,7 @@ public record CompetitionEditDto(
     IReadOnlyList<CompetitionMatchWindowDto> MatchWindows,
     IReadOnlyList<CourtPairDto> CourtPairs,
     IReadOnlyList<CompetitionAdminRowDto> Admins,
-    RubberTemplateDto? RubberTemplate,
+    RubberTemplateStateDto? RubberTemplate,
     IReadOnlyList<CompetitionSeedSourceDto> SeedSourceCandidates,
     IReadOnlyList<ClubSchedulingTemplateDto> ClubTemplates,
     IReadOnlyList<CompetitionTemplateDto> CompetitionTemplates,
