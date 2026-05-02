@@ -1,16 +1,13 @@
-@using System.Security.Claims
-@using DropShot.Data
-@using DropShot.Models
 @using DropShot.Shared
-@using DropShot.Services
-@using Microsoft.EntityFrameworkCore
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Services
 
-@inject IDbContextFactory<MyDbContext> DbFactory
-@inject AuthenticationStateProvider AuthStateProvider
+@inject IMatchSetupService SetupService
+@inject IPlayerService PlayerService
+@inject ICourtClaimService CourtClaim
 @inject FuzzySearchService FuzzySearch
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
-@inject CourtClaimService CourtClaim
 
 <MudStack Spacing="3">
 
@@ -261,7 +258,7 @@
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
             <MudText Typo="Typo.h6" Class="mb-3">Court Selection</MudText>
 
-            <MudAutocomplete T="Club" Label="Search for a club"
+            <MudAutocomplete T="WizardClubDto" Label="Search for a club"
                              Value="_selectedClub"
                              ValueChanged="OnClubChanged"
                              SearchFunc="SearchClubs"
@@ -512,10 +509,10 @@
     private bool _showPlayerValidation;
 
     // Court
-    private Club? _selectedClub;
+    private WizardClubDto? _selectedClub;
     private int? _selectedCourtId;
-    private List<Club> _allClubs = [];
-    private List<Court> _filteredCourts = [];
+    private List<WizardClubDto> _allClubs = [];
+    private List<WizardCourtDto> _filteredCourts = [];
 
     // Settings
     private bool _gameScoring = true;
@@ -528,11 +525,12 @@
     private SetWinMode _setWinMode = SetWinMode.WinBy2;
 
     // Auth / players
-    private Player? _myPlayer;
-    private string? _userId;
+    private WizardSelfPlayerDto? _myPlayer;
+    private bool _hasCurrentUser;
     private List<PlayerSelection> _searchablePlayers = [];
     private Dictionary<int, string?> _playerAvatars = [];
     private bool _fuzzyInitialized;
+    private List<WizardFuzzyItemDto> _fuzzySeed = [];
 
     // Inline light player creation
     private bool _showInlineCreate;
@@ -567,26 +565,19 @@
     {
         if (PresetIsDoubles.HasValue) _isDoubles = PresetIsDoubles.Value;
 
-        await using var db = DbFactory.CreateDbContext();
+        var bootstrap = await SetupService.GetBootstrapAsync();
 
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _myPlayer = bootstrap.Me;
+        _hasCurrentUser = bootstrap.Me is not null;
 
-        if (_userId != null)
+        if (_myPlayer is not null)
         {
-            _myPlayer = await db.Players.FirstOrDefaultAsync(p => p.UserId == _userId);
-        }
-
-        // Add logged-in user as first player
-        if (_myPlayer != null)
-        {
-            var myUser = await db.Users.FindAsync(_myPlayer.UserId);
             _players.Add(new PlayerSelection
             {
                 PlayerId = _myPlayer.PlayerId,
                 DisplayName = _myPlayer.DisplayName,
                 IsLight = false,
-                ProfileImagePath = myUser?.ProfileImagePath ?? _myPlayer.ProfileImagePath
+                ProfileImagePath = _myPlayer.AvatarPath
             });
         }
         else if (!string.IsNullOrWhiteSpace(PresetPlayer1))
@@ -594,7 +585,6 @@
             _players.Add(new PlayerSelection { DisplayName = PresetPlayer1 });
         }
 
-        // Add any preset players
         if (!string.IsNullOrWhiteSpace(PresetPlayer2))
             _players.Add(new PlayerSelection { DisplayName = PresetPlayer2 });
         if (!string.IsNullOrWhiteSpace(PresetPlayer3))
@@ -602,46 +592,24 @@
         if (!string.IsNullOrWhiteSpace(PresetPlayer4))
             _players.Add(new PlayerSelection { DisplayName = PresetPlayer4 });
 
-        // Build searchable player list: my light players + my bookmarked verified players, excluding myself
-        var myLightPlayers = await db.Players
-            .Where(p => p.IsLight && p.CreatedByUserId == _userId)
-            .OrderBy(p => p.DisplayName)
-            .Select(p => new { p.PlayerId, p.DisplayName, p.IsLight, p.ProfileImagePath })
-            .ToListAsync();
-
-        var bookmarkedIds = _userId != null
-            ? await db.UserPlayers
-                .Where(up => up.UserId == _userId)
-                .Select(up => up.PlayerId)
-                .ToListAsync()
-            : [];
-
-        var bookmarkedPlayers = bookmarkedIds.Count > 0
-            ? await db.Players
-                .Where(p => bookmarkedIds.Contains(p.PlayerId) && p.UserId != _userId)
-                .OrderBy(p => p.DisplayName)
-                .Select(p => new { p.PlayerId, p.DisplayName, p.IsLight, ProfileImagePath = p.User != null ? p.User.ProfileImagePath : p.ProfileImagePath })
-                .ToListAsync()
-            : [];
-
-        _searchablePlayers = myLightPlayers
-            .Concat(bookmarkedPlayers)
+        _searchablePlayers = bootstrap.MyLightPlayers
+            .Concat(bootstrap.MyBookmarkedPlayers)
             .OrderBy(p => p.DisplayName)
             .Select(p => new PlayerSelection
             {
                 PlayerId = p.PlayerId,
                 DisplayName = p.DisplayName,
                 IsLight = p.IsLight,
-                ProfileImagePath = p.ProfileImagePath
+                ProfileImagePath = p.AvatarPath
             })
             .ToList();
 
-        // Build avatar lookup for fuzzy search results
         _playerAvatars = _searchablePlayers
             .Where(p => p.PlayerId.HasValue)
             .ToDictionary(p => p.PlayerId!.Value, p => p.ProfileImagePath);
 
-        _allClubs = await db.Clubs.OrderBy(c => c.Name).ToListAsync();
+        _allClubs = bootstrap.AllClubs.ToList();
+        _fuzzySeed = bootstrap.FuzzyIndex.ToList();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -655,40 +623,10 @@
 
     private async Task InitFuzzyIndex()
     {
-        await using var db = DbFactory.CreateDbContext();
-
-        // Index my light players
-        var lightItems = await db.Players
-            .Where(p => p.IsLight && p.CreatedByUserId == _userId)
-            .OrderBy(p => p.DisplayName)
-            .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, true))
-            .ToListAsync();
-
-        // Index my bookmarked verified players, excluding myself
-        var bookmarkedIds = _userId != null
-            ? await db.UserPlayers.Where(up => up.UserId == _userId).Select(up => up.PlayerId).ToListAsync()
-            : new List<int>();
-
-        var verifiedItems = bookmarkedIds.Count > 0
-            ? await db.Players
-                .Where(p => bookmarkedIds.Contains(p.PlayerId) && p.UserId != _userId)
-                .OrderBy(p => p.DisplayName)
-                .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false))
-                .ToListAsync()
-            : new List<FuzzyPlayerItem>();
-
-        // Also index ALL full players for the "Create Player" dialog suggestions (so we can suggest verified players even if not bookmarked)
-        var allFullPlayers = await db.Players
-            .Where(p => !p.IsLight && p.UserId != _userId)
-            .OrderBy(p => p.DisplayName)
-            .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, false))
-            .ToListAsync();
-
-        // Merge: my players first, then remaining full players for suggestions
-        var myPlayerIds = lightItems.Select(i => i.PlayerId).Concat(verifiedItems.Select(i => i.PlayerId)).ToHashSet();
-        var additionalFull = allFullPlayers.Where(p => !myPlayerIds.Contains(p.PlayerId)).ToList();
-
-        await FuzzySearch.InitializeAsync(lightItems.Concat(verifiedItems).Concat(additionalFull));
+        var items = _fuzzySeed
+            .Select(i => new FuzzyPlayerItem(i.PlayerId, i.DisplayName, i.FirstName, i.LastName, i.IsLight))
+            .ToList();
+        await FuzzySearch.InitializeAsync(items);
     }
 
     // ── Navigation ──────────────────────────────────────────
@@ -1004,36 +942,30 @@
 
     private async Task SaveInlineLightPlayer()
     {
-        if (string.IsNullOrWhiteSpace(_inlineForm.DisplayName) || _userId == null) return;
+        if (string.IsNullOrWhiteSpace(_inlineForm.DisplayName) || !_hasCurrentUser) return;
 
-        await using var db = DbFactory.CreateDbContext();
-        var player = new Player
-        {
-            DisplayName = _inlineForm.DisplayName.Trim(),
-            FirstName = string.IsNullOrWhiteSpace(_inlineForm.FirstName) ? null : _inlineForm.FirstName.Trim(),
-            LastName = string.IsNullOrWhiteSpace(_inlineForm.LastName) ? null : _inlineForm.LastName.Trim(),
-            IsLight = true,
-            CreatedByUserId = _userId
-        };
-        db.Players.Add(player);
-        await db.SaveChangesAsync();
+        var dto = await PlayerService.CreateMyLightPlayerAsync(new CreateMyLightPlayerRequest(
+            _inlineForm.DisplayName.Trim(),
+            string.IsNullOrWhiteSpace(_inlineForm.FirstName) ? null : _inlineForm.FirstName.Trim(),
+            string.IsNullOrWhiteSpace(_inlineForm.LastName) ? null : _inlineForm.LastName.Trim(),
+            null,
+            null,
+            null));
 
-        // Add to player list
         var sel = new PlayerSelection
         {
-            PlayerId = player.PlayerId,
-            DisplayName = player.DisplayName,
+            PlayerId = dto.PlayerId,
+            DisplayName = dto.DisplayName,
             IsLight = true
         };
         _players.Add(sel);
-
-        // Update searchable list and fuzzy index
         _searchablePlayers.Add(sel);
-        var items = await db.Players
-            .Where(p => !p.IsLight || p.CreatedByUserId == _userId)
-            .OrderBy(p => p.DisplayName)
-            .Select(p => new FuzzyPlayerItem(p.PlayerId, p.DisplayName, p.FirstName, p.LastName, p.IsLight))
-            .ToListAsync();
+
+        // Append the new light player to the fuzzy index in-place.
+        _fuzzySeed.Add(new WizardFuzzyItemDto(dto.PlayerId, dto.DisplayName, dto.FirstName, dto.LastName, true));
+        var items = _fuzzySeed
+            .Select(i => new FuzzyPlayerItem(i.PlayerId, i.DisplayName, i.FirstName, i.LastName, i.IsLight))
+            .ToList();
         await FuzzySearch.UpdateCollectionAsync(items);
 
         _showInlineCreate = false;
@@ -1042,14 +974,14 @@
 
     // ── Court ───────────────────────────────────────────────
 
-    private Task<IEnumerable<Club>> SearchClubs(string value, CancellationToken ct)
+    private Task<IEnumerable<WizardClubDto>> SearchClubs(string value, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(value))
             return Task.FromResult(_allClubs.AsEnumerable());
         return Task.FromResult(_allClubs.Where(c => c.Name.Contains(value, StringComparison.OrdinalIgnoreCase)));
     }
 
-    private async Task OnClubChanged(Club? club)
+    private async Task OnClubChanged(WizardClubDto? club)
     {
         _selectedClub = club;
         _selectedCourtId = null;
@@ -1057,11 +989,7 @@
 
         if (club != null)
         {
-            await using var db = DbFactory.CreateDbContext();
-            _filteredCourts = await db.Courts
-                .Where(c => c.ClubId == club.ClubId)
-                .OrderBy(c => c.Name)
-                .ToListAsync();
+            _filteredCourts = await SetupService.GetCourtsByClubAsync(club.ClubId);
         }
     }
 
@@ -1082,28 +1010,15 @@
         try
         {
         // Auto-bookmark any verified players to "My Players"
-        if (_userId != null)
+        if (_hasCurrentUser)
         {
-            await using var db = DbFactory.CreateDbContext();
-            var selections = _players
+            var ids = _players
                 .Skip(1) // skip self
                 .Where(s => s is { PlayerId: not null, IsLight: false })
+                .Select(s => s.PlayerId!.Value)
                 .ToList();
-
-            foreach (var sel in selections)
-            {
-                var exists = await db.UserPlayers
-                    .AnyAsync(up => up.UserId == _userId && up.PlayerId == sel.PlayerId!.Value);
-                if (!exists)
-                {
-                    db.UserPlayers.Add(new UserPlayer
-                    {
-                        UserId = _userId,
-                        PlayerId = sel.PlayerId!.Value
-                    });
-                }
-            }
-            await db.SaveChangesAsync();
+            if (ids.Count > 0)
+                await SetupService.AutoBookmarkPlayersAsync(new AutoBookmarkPlayersRequest(ids));
         }
 
         await OnSetupComplete.InvokeAsync(new MatchSetupResult

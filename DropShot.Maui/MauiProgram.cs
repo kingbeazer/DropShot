@@ -57,7 +57,9 @@ public static class MauiProgram
         builder.Services.AddScoped<IInvitationService, HttpInvitationService>();
         builder.Services.AddScoped<IMatchService, HttpMatchService>();
         builder.Services.AddScoped<IMatchScoringService, HttpMatchScoringService>();
+        builder.Services.AddScoped<IMatchSetupService, HttpMatchSetupService>();
         builder.Services.AddScoped<ICourtClaimService, HttpCourtClaimService>();
+        builder.Services.AddScoped<FuzzySearchService>();
         builder.Services.AddScoped<IScoreboardService, HttpScoreboardService>();
         builder.Services.AddScoped<IUserService, HttpUserService>();
         builder.Services.AddScoped<IScoreboardHubFactory, HttpScoreboardHubFactory>();

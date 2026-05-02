@@ -1,10 +1,16 @@
 using Microsoft.JSInterop;
 
-namespace DropShot.Services;
+namespace DropShot.UI.Services;
 
 public record FuzzyPlayerItem(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight);
 public record FuzzySearchResult(int PlayerId, string DisplayName, string? FirstName, string? LastName, bool IsLight, double Score);
 
+/// <summary>
+/// JS-interop wrapper around the in-page <c>FuzzySearch</c> object. Lives in
+/// DropShot.UI so both web and MAUI hosts can use it directly (no
+/// host-specific implementation needed — the call surface is pure browser
+/// JS-runtime calls).
+/// </summary>
 public class FuzzySearchService(IJSRuntime js)
 {
     public async Task InitializeAsync(IEnumerable<FuzzyPlayerItem> players)

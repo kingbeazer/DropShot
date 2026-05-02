@@ -1,3 +1,4 @@
+using DropShot.Shared;
 using DropShot.Shared.Dtos;
 
 namespace DropShot.UI.Services;
@@ -37,4 +38,13 @@ public interface ICourtClaimService
     /// </summary>
     Task<ActiveMatchDto?> GetUserActiveMatchAsync(
         string userId, int? excludingSavedMatchId = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Decide whether <paramref name="courtId"/> is free, stale (auto-closed
+    /// here), in a grace window after the scorer said "still playing", or
+    /// actively in use. Drives the MatchSetupWizard's "advance from court"
+    /// step. The auto-close side-effect for stale matches mutates persistent
+    /// state on web; MAUI's HTTP impl wraps the same endpoint.
+    /// </summary>
+    Task<CourtClaimResult> EvaluateAsync(int courtId, CancellationToken ct = default);
 }
