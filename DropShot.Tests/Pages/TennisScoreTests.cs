@@ -1,7 +1,7 @@
 using Bunit;
+using DropShot.Components.Pages;
 using DropShot.Models;
 using DropShot.Tests.Helpers;
-using DropShot.UI.Components.Pages;
 using Xunit;
 
 namespace DropShot.Tests.Pages;
