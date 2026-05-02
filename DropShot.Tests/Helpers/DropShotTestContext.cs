@@ -2,6 +2,7 @@ using Bunit;
 using DropShot.Data;
 using DropShot.Models;
 using DropShot.Services;
+using DropShot.Shared;
 using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Components.Authorization;

@@ -1,4 +1,4 @@
-﻿namespace DropShot.Models
+﻿namespace DropShot.Shared
 {
     public static class StringExtensions
     {

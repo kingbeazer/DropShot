@@ -1,4 +1,5 @@
 using DropShot.Maui.Services;
+using DropShot.Shared;
 using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -60,6 +61,8 @@ public static class MauiProgram
         builder.Services.AddScoped<IMatchSetupService, HttpMatchSetupService>();
         builder.Services.AddScoped<ICourtClaimService, HttpCourtClaimService>();
         builder.Services.AddScoped<FuzzySearchService>();
+        builder.Services.AddScoped<TennisScoreService>();
+        builder.Services.AddScoped<UserState>();
         builder.Services.AddScoped<IScoreboardService, HttpScoreboardService>();
         builder.Services.AddScoped<IUserService, HttpUserService>();
         builder.Services.AddScoped<IScoreboardHubFactory, HttpScoreboardHubFactory>();
