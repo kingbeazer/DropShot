@@ -27,4 +27,18 @@ public sealed class HttpInvitationService(HttpClient http) : IInvitationService
             new SendInvitationEmailRequest(email), ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task<InvitationViewDto> GetInvitationViewAsync(Guid token, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<InvitationViewDto>($"api/invitations/{token}/view", ct)
+        ?? new InvitationViewDto(InvitationViewStatus.Invalid,
+            "Failed to load invitation.", null, 0, null);
+
+    public async Task<AcceptInvitationResultDto> AcceptInvitationAsync(Guid token, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/invitations/{token}/accept", null, ct);
+        if (!resp.IsSuccessStatusCode)
+            return new AcceptInvitationResultDto(false, "Failed to accept invitation.");
+        return (await resp.Content.ReadFromJsonAsync<AcceptInvitationResultDto>(cancellationToken: ct))
+            ?? new AcceptInvitationResultDto(false, "Failed to accept invitation.");
+    }
 }
