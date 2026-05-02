@@ -12,11 +12,8 @@
 @using Newtonsoft.Json
 @using MudBlazor
 @using System.Threading
-@using System.Security.Claims
-@using Microsoft.AspNetCore.Components.Authorization
 
-@page "/tennisscore"
-@page "/match/{MatchId:int}"
+@* Routing + render mode + MudProviders supplied by host shims. *@
 
 @inject NavigationManager Navigation
 @inject UserState State
@@ -31,8 +28,6 @@
 @inject IJSRuntime JS
 
 @* FixtureId is passed as a query param when starting a match from a competition fixture *@
-
-<MudProviders />
 
 @if (_showServerSelect)
 {

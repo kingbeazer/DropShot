@@ -1,0 +1,11 @@
+@page "/tennisscore"
+@page "/match/{MatchId:int}"
+@rendermode InteractiveServer
+
+<MudProviders />
+
+<DropShot.UI.Components.Pages.TennisScore MatchId="@MatchId" />
+
+@code {
+    [Parameter] public int MatchId { get; set; }
+}
