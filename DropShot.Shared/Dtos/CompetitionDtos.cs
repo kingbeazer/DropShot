@@ -214,7 +214,10 @@ public record SaveFixtureRequest(
     FixtureStatus Status,
     string? ResultSummary = null,
     int? WinnerPlayerId = null,
-    bool Force = false);
+    bool Force = false,
+    int? HomeTeamId = null,
+    int? AwayTeamId = null,
+    int? CourtPairId = null);
 
 public record SaveTeamRequest(string Name);
 

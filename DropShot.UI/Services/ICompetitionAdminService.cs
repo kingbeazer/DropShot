@@ -135,4 +135,197 @@ public interface ICompetitionAdminService
     /// <summary>Send the configured email to every participant of the competition.</summary>
     Task SendCompetitionEmailAsync(
         int competitionId, SendCompetitionEmailRequest request, CancellationToken ct = default);
+
+    // ── Participants ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Search the player pool for the add-participant flow. When the
+    /// competition has a host club, results are restricted to that club's
+    /// roster; otherwise the global player set is searched. Excludes players
+    /// already enrolled in this competition. Honours competition gender / age
+    /// restrictions.
+    /// </summary>
+    Task<List<PlayerSearchResultDto>> SearchPlayersAsync(
+        int competitionId, SearchPlayersForAddRequest request, CancellationToken ct = default);
+
+    Task AddParticipantAsync(int competitionId, AddParticipantRequest request, CancellationToken ct = default);
+    Task RemoveParticipantAsync(int competitionId, int playerId, CancellationToken ct = default);
+
+    Task UpdateParticipantStatusAsync(
+        int competitionId, int playerId, UpdateParticipantStatusRequest request, CancellationToken ct = default);
+
+    Task AssignParticipantTeamAsync(
+        int competitionId, int playerId, AssignParticipantTeamRequest request, CancellationToken ct = default);
+
+    Task AssignParticipantRoleAsync(
+        int competitionId, int playerId, SetParticipantRoleRequest request, CancellationToken ct = default);
+
+    Task AssignParticipantDivisionAsync(
+        int competitionId, int playerId, SetParticipantDivisionRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Create a "light" Player (no user account) and immediately enrol them as
+    /// a participant. Returns the new playerId. <see cref="CreateLightPlayerForCompetitionRequest.HostClubId"/>
+    /// is required because light players are scoped to a club.
+    /// </summary>
+    Task<int> CreateLightPlayerAsync(
+        int competitionId, CreateLightPlayerForCompetitionRequest request, CancellationToken ct = default);
+
+    /// <summary>Update an existing light player's profile fields.</summary>
+    Task SaveLightPlayerAsync(
+        int competitionId, int playerId, SaveLightPlayerRequest request, CancellationToken ct = default);
+
+    // ── Divisions ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Create or update a division. Returns the saved division's id. Also
+    /// flips the competition's <c>HasDivisions</c> flag on first insert.
+    /// </summary>
+    Task<int> SaveDivisionAsync(
+        int competitionId, int? divisionId, SaveDivisionRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Delete a division. Nullifies the division reference on participants and
+    /// teams, deletes any division-scoped match windows, and removes the
+    /// division row.
+    /// </summary>
+    Task DeleteDivisionAsync(int competitionId, int divisionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Seed divisions from a previously-completed competition: copy division
+    /// rows, then assign participants by their previous-competition rank.
+    /// When <c>ApplyPromotion</c> is true, also promote the top
+    /// <c>PromoteCount</c> finishers up one division and demote the bottom
+    /// <c>DemoteCount</c> down one.
+    /// </summary>
+    Task RunSeedDivisionsAsync(
+        int competitionId, SeedDivisionsFromPreviousRequest request, CancellationToken ct = default);
+
+    Task AssignTeamDivisionAsync(
+        int competitionId, int teamId, AssignTeamDivisionRequest request, CancellationToken ct = default);
+
+    // ── Teams ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Create or update a team's name. Captain and division are managed via
+    /// dedicated methods (<see cref="AssignCaptainAsync"/> /
+    /// <see cref="AssignTeamDivisionAsync"/>).
+    /// </summary>
+    Task<int> SaveTeamAsync(
+        int competitionId, int? teamId, SaveTeamRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Delete a team. Nullifies <c>TeamId</c> on its participants (FK is
+    /// no-action) and removes the team row.
+    /// </summary>
+    Task DeleteTeamAsync(int competitionId, int teamId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Delete every team in the competition. Nullifies all
+    /// participant/fixture team refs and deletes any rubbers attached to
+    /// fixtures that lose both teams.
+    /// </summary>
+    Task DeleteAllTeamsAsync(int competitionId, CancellationToken ct = default);
+
+    Task AssignCaptainAsync(
+        int competitionId, AssignCaptainRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// For every captain-less team, pick a random <c>FullPlayer</c> participant
+    /// on that team and assign them as captain. Returns the number of teams
+    /// updated.
+    /// </summary>
+    Task<int> AutoAssignCaptainsAsync(int competitionId, CancellationToken ct = default);
+
+    Task<GenerateTeamsResultDto> GenerateTeamsPreviewAsync(
+        int competitionId, GenerateTeamsRequest request, CancellationToken ct = default);
+
+    Task ConfirmGenerateTeamsAsync(
+        int competitionId, ConfirmGenerateTeamsRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Validate a team's role assignments: every required role from the
+    /// competition's rubber template must be filled, with no duplicates and no
+    /// blanks. Pure read — no mutations.
+    /// </summary>
+    Task<ValidateTeamResultDto> ValidateTeamAsync(
+        int competitionId, int teamId, CancellationToken ct = default);
+
+    // ── Fixtures ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Create or update a fixture. Caller is responsible for validation —
+    /// call <see cref="ConfirmFixtureAssignmentAsync"/> first when the user
+    /// has changed the assignment.
+    /// </summary>
+    Task<int> SaveFixtureAsync(
+        int competitionId, int? fixtureId, SaveFixtureRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Delete a fixture. Cascades into its rubbers and saved-match rows. If
+    /// the fixture has a recorded result, downstream knockout fixtures that
+    /// inherited a winner from it are reset.
+    /// </summary>
+    Task DeleteFixtureAsync(int competitionId, int fixtureId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Delete every fixture in the competition. Cascades into rubbers and
+    /// saved matches.
+    /// </summary>
+    Task DeleteAllFixturesAsync(int competitionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Load a single fixture for the edit dialog. Returns null when the
+    /// fixture doesn't exist or doesn't belong to this competition.
+    /// </summary>
+    Task<CompetitionFixtureDto?> LoadFixtureForDialogAsync(
+        int competitionId, int fixtureId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Validate a proposed fixture assignment without persisting. Returns
+    /// <c>IsValid=true</c> when no eligibility / pairing rules are violated;
+    /// otherwise the violation list explains why so the caller can prompt
+    /// the user to override.
+    /// </summary>
+    Task<ConfirmFixtureAssignmentResultDto> ConfirmFixtureAssignmentAsync(
+        int competitionId, ConfirmFixtureAssignmentRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Auto-schedule fixtures for the competition. Wraps
+    /// <c>CompetitionSchedulerService</c>; the request's <c>DeleteExistingUnscheduled</c>
+    /// flag maps to the scheduler's <c>UnscheduledOnly</c> delete mode.
+    /// </summary>
+    Task<ScheduleFixturesResultDto> ScheduleFixturesAsync(
+        int competitionId, ScheduleFixturesAdminRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Generate plausible random results for every incomplete round-robin
+    /// fixture. Super-admin only — wraps <c>FixtureSimulationService</c>.
+    /// </summary>
+    Task<SimulateRoundRobinResultDto> SimulateRoundRobinAsync(int competitionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Populate the first round of the knockout stage by ranking participants
+    /// by their round-robin standings (or registration order when no RR
+    /// results exist). Pairs top seeds against bottom seeds in bracket order.
+    /// </summary>
+    Task<SeedKnockoutFromStandingsResultDto> SeedKnockoutFromStandingsAsync(
+        int competitionId, CancellationToken ct = default);
+
+    // ── Match windows ────────────────────────────────────────────────────────
+
+    Task<int> AddMatchWindowAsync(
+        int competitionId, SaveMatchWindowRequest request, CancellationToken ct = default);
+
+    Task DeleteMatchWindowAsync(int competitionId, int matchWindowId, CancellationToken ct = default);
+
+    Task<int> AddDivisionMatchWindowAsync(
+        int competitionId, int divisionId, SaveMatchWindowRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Append windows from a club scheduling template, skipping any (day,
+    /// start, end) tuple already present. Returns the number of windows added.
+    /// </summary>
+    Task<int> ImportMatchWindowsFromTemplateAsync(
+        int competitionId, ImportMatchWindowsFromTemplateRequest request, CancellationToken ct = default);
 }
