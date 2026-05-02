@@ -1,10 +1,12 @@
-﻿    @using System.ComponentModel.DataAnnotations
-@using DropShot.Models;
-@using DropShot.Shared;
-@using DropShot.Data;
+﻿@using System.ComponentModel.DataAnnotations
+@using DropShot.Shared
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Components.Shared
+@using DropShot.UI.Services
+@using DropShot.UI.Services.Auth
 @using Microsoft.AspNetCore.SignalR.Client
-@using Microsoft.EntityFrameworkCore
-@using System;
+@using TennisMatch = DropShot.Shared.Match
+@using System
 @using System.Collections.Generic
 @using System.Text.Json
 @using Newtonsoft.Json
@@ -15,18 +17,17 @@
 
 @page "/tennisscore"
 @page "/match/{MatchId:int}"
-@rendermode InteractiveServer
 
-@using DropShot.Services
 @inject NavigationManager Navigation
 @inject UserState State
 @inject IDialogService DialogService
 @inject TennisScoreService ScoreService
-@inject CourtClaimService CourtClaim
+@inject ICourtClaimService CourtClaim
+@inject IMatchScoringService Scoring
+@inject ICompetitionService Competitions
+@inject IScoreboardHubFactory ScoreboardHubFactory
+@inject ICurrentUser CurrentUser
 @inject ISnackbar Snackbar
-@inject ResultVerificationService ResultVerificationService
-@inject BackgroundTaskQueue BackgroundTasks
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
 
 @* FixtureId is passed as a query param when starting a match from a competition fixture *@
@@ -37,8 +38,8 @@
 {
     <ServerSelectScreen UserLabel="@GetUserDisplayName()"
                         OpponentLabel="@GetOpponentDisplayName()"
-                        UserTeamName="@(_rubber?.Fixture?.HomeTeam?.Name)"
-                        OpponentTeamName="@(_rubber?.Fixture?.AwayTeam?.Name)"
+                        UserTeamName="@(_rubber?.HomeTeamName)"
+                        OpponentTeamName="@(_rubber?.AwayTeamName)"
                         BackLabel="@(_rubber != null ? "Back to team match" : "Back to setup")"
                         OnServerSelected="HandleServerSelected"
                         OnBack="HandleServerSelectBack" />
@@ -97,7 +98,7 @@
                         <RowTemplate>
                             <MudTd DataLabel="Date / Time">@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
                             <MudTd DataLabel="Competition">
-                                <MudText Typo="Typo.body2" Style="font-weight:500">@(context.Competition?.CompetitionName ?? "—")</MudText>
+                                <MudText Typo="Typo.body2" Style="font-weight:500">@(context.CompetitionName ?? "—")</MudText>
                                 @if (!string.IsNullOrEmpty(context.FixtureLabel))
                                 {
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">@context.FixtureLabel</MudText>
@@ -142,7 +143,7 @@
                 <MudSelect T="int?" @bind-Value="_selectedCourtId" Label="Court (optional)" Variant="Variant.Outlined" Clearable="true">
                     @foreach (var court in _courts)
                     {
-                        <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.Club.Name — @court.Name</MudSelectItem>
+                        <MudSelectItem T="int?" Value="@((int?)court.CourtId)">@court.ClubName — @court.Name</MudSelectItem>
                     }
                 </MudSelect>
                 <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" Color="Color.Info" Size="Size.Small" OnClick="@SaveSettings">Save</MudButton>
@@ -155,10 +156,10 @@
                 var _headerCourt = _courts.FirstOrDefault(c => c.CourtId == _selectedCourtId);
             }
             <div class="match-header">
-                @if (_competitionFixture?.Competition != null)
+                @if (_competitionFixture is not null && !string.IsNullOrEmpty(_competitionFixture.CompetitionName))
                 {
                     <div class="match-header-competition">
-                        @_competitionFixture.Competition.CompetitionName
+                        @_competitionFixture.CompetitionName
                         @if (!string.IsNullOrEmpty(_competitionFixture.FixtureLabel))
                         {
                             <span> — @_competitionFixture.FixtureLabel</span>
@@ -168,16 +169,16 @@
                 @if (_headerCourt != null)
                 {
                     <div class="match-header-court">
-                        @_headerCourt.Club.Name — @_headerCourt.Name
+                        @_headerCourt.ClubName — @_headerCourt.Name
                     </div>
                 }
-                @if (_rubber?.Fixture != null)
+                @if (_rubber is not null)
                 {
                     @* Rubber scoring: show team names in bold above the player pair *@
                     <div class="match-header-teams">
-                        @(_rubber.Fixture.HomeTeam?.Name ?? "Home")
+                        @(_rubber.HomeTeamName ?? "Home")
                         <span class="match-header-vs">vs</span>
-                        @(_rubber.Fixture.AwayTeam?.Name ?? "Away")
+                        @(_rubber.AwayTeamName ?? "Away")
                     </div>
                     <div class="match-header-players match-header-players--rubber">
                         @GetUserDisplayName() <span class="match-header-vs">vs</span> @GetOpponentDisplayName()
@@ -364,7 +365,7 @@
             <div class="match-complete-countdown">
                 @if (_competitionFixture != null)
                 {
-                    <span>Returning to @(_competitionFixture.Competition?.CompetitionName ?? "competition") in @_countdownSeconds…</span>
+                    <span>Returning to @(_competitionFixture.CompetitionName ?? "competition") in @_countdownSeconds…</span>
                 }
                 else
                 {
@@ -430,18 +431,12 @@
         _expanded = false;
         if (_currentUserId != null)
         {
-            using var dbc = DbFactory.CreateDbContext();
-            var player = await dbc.Players.FirstOrDefaultAsync(p => p.UserId == _currentUserId);
-            if (player != null)
-            {
-                player.DefaultGameScoring = _state.GameScoring;
-                await dbc.SaveChangesAsync();
-                Snackbar.Add("Scoring preference saved.", Severity.Success);
-            }
+            await Scoring.SavePreferredGameScoringAsync(_state.GameScoring);
+            Snackbar.Add("Scoring preference saved.", Severity.Success);
         }
     }
 
-    private async Task CheckAndOfferFriendRequest(string displayName)
+    private void CheckAndOfferFriendRequest(string displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName)) return;
         if (_myPlayerId == null) return;
@@ -449,12 +444,9 @@
         if (selectedId == _myPlayerId.Value) return;
         if (_friendPlayerIds.Contains(selectedId)) return;
 
-        using var dbc = DbFactory.CreateDbContext();
-        var alreadyExists = await dbc.PlayerFriends.AnyAsync(pf =>
-            (pf.PlayerId == _myPlayerId.Value && pf.FriendPlayerId == selectedId) ||
-            (pf.PlayerId == selectedId && pf.FriendPlayerId == _myPlayerId.Value));
-        if (alreadyExists) return;
-
+        // Server-side SendFriendRequestAsync is idempotent (skips if a request
+        // already exists in either direction), so it's safe to offer the
+        // snackbar based on the in-memory accepted-friend set alone.
         Snackbar.Add(
             $"Add {displayName} as a friend?",
             Severity.Info,
@@ -470,13 +462,7 @@
     private async Task SendFriendRequest(int targetPlayerId, string displayName)
     {
         if (_myPlayerId == null) return;
-        using var dbc = DbFactory.CreateDbContext();
-        dbc.PlayerFriends.Add(new PlayerFriend
-        {
-            PlayerId = _myPlayerId.Value,
-            FriendPlayerId = targetPlayerId
-        });
-        await dbc.SaveChangesAsync();
+        await Scoring.SendFriendRequestAsync(targetPlayerId);
         Snackbar.Add($"Friend request sent to {displayName}.", Severity.Success);
     }
 
@@ -549,7 +535,7 @@
     private bool _coinAnimating;
     private bool _coinTossUserServes;
     private string _coinTossWinnerName = string.Empty;
-    private Match? _pendingMatch;
+    private TennisMatch? _pendingMatch;
 
     private Task HandleSetupComplete(MatchSetupWizard.MatchSetupResult result)
     {
@@ -628,7 +614,7 @@
             }
         }
 
-        _pendingMatch = new Match
+        _pendingMatch = new TennisMatch
         {
             History = history,
             Player1 = _value,
@@ -785,9 +771,7 @@
             if (answer)
             {
                 await CourtClaim.ExtendGraceAsync(savedMatchId);
-                Snackbar.Add(
-                    $"Court held for {CourtClaimService.GraceAfterYes.TotalMinutes:0} more minutes.",
-                    Severity.Info);
+                Snackbar.Add("Court held for a few more minutes.", Severity.Info);
             }
             else
             {
@@ -812,41 +796,23 @@
         CurrentMatch.History = history;
         CurrentMatch.HistoryList = history.ToList();
 
-        using var dbc = DbFactory.CreateDbContext();
-        var matchToSave = new SavedMatch
-        {
-            MatchJson = JsonConvert.SerializeObject(CurrentMatch),
-            Complete = false,
-            Player1 = CurrentMatch.Player1,
-            Player2 = CurrentMatch.Player2,
-            Player3 = CurrentMatch.Player3,
-            Player4 = CurrentMatch.Player4,
-            Player1Id = _player1Id,
-            Player2Id = _player2Id,
-            Player3Id = _player3Id,
-            Player4Id = _player4Id,
-            CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null,
-            CreatedAt = DateTime.UtcNow,
-            LastActivityAt = DateTime.UtcNow,
-            UserId = _currentUserId,
-            DeviceToken = _currentUserId == null ? _deviceToken : null
-        };
-        dbc.SavedMatch.Add(matchToSave);
-        await dbc.SaveChangesAsync();
-        _savedMatchId = matchToSave.SavedMatchId;
-
-        // Link to competition fixture and mark it as in progress
-        if (_competitionFixture != null)
-        {
-            using var dbc2 = DbFactory.CreateDbContext();
-            var fx = await dbc2.CompetitionFixtures.FindAsync(_competitionFixture.CompetitionFixtureId);
-            if (fx != null)
-            {
-                fx.SavedMatchId = _savedMatchId;
-                fx.Status = FixtureStatus.InProgress;
-                await dbc2.SaveChangesAsync();
-            }
-        }
+        _savedMatchId = await Scoring.UpsertLiveMatchAsync(new UpsertLiveMatchRequest(
+            SavedMatchId: null,
+            MatchJson: JsonConvert.SerializeObject(CurrentMatch),
+            Complete: false,
+            Player1: CurrentMatch.Player1,
+            Player2: CurrentMatch.Player2,
+            Player3: CurrentMatch.Player3,
+            Player4: CurrentMatch.Player4,
+            Player1Id: _player1Id,
+            Player2Id: _player2Id,
+            Player3Id: _player3Id,
+            Player4Id: _player4Id,
+            WinnerName: null,
+            WinnerPlayerId: null,
+            CourtId: (_selectedCourtId is > 0) ? _selectedCourtId : null,
+            DeviceToken: _currentUserId == null ? _deviceToken : null,
+            LinkedFixtureId: _competitionFixture?.CompetitionFixtureId));
     }
 
     [Parameter] public int MatchId { get; set; }
@@ -856,12 +822,12 @@
     [SupplyParameterFromQuery] public int? BestOfOverride { get; set; }
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
     private int _savedMatchId;
-    private CompetitionFixture? _competitionFixture;
-    private Rubber? _rubber;
-    private List<CompetitionFixture> _upcomingFixtures = [];
+    private TennisScoreFixtureContextDto? _competitionFixture;
+    private TennisScoreRubberContextDto? _rubber;
+    private List<CompetitionFixtureDto> _upcomingFixtures = [];
 
     private List<string> _states = [];
-    private List<Court> _courts = [];
+    private List<ScoringCourtDto> _courts = [];
     private int? _selectedCourtId;
 
     private async Task<IEnumerable<string>> Search(string value, CancellationToken token)
@@ -889,12 +855,11 @@
     private int? _player3Id;
     private int? _player4Id;
     private TennisMatchState _state = new();
-    private List<Score> scores = new();
     private HubConnection? hubConnection;
     private bool loaded = false;
 
-    private Match? _currentMatch;
-    public Match? CurrentMatch
+    private TennisMatch? _currentMatch;
+    public TennisMatch? CurrentMatch
     {
         get => _currentMatch;
         set
@@ -907,67 +872,32 @@
 
     protected override async Task OnInitializedAsync()
     {
-        using var DbContext = DbFactory.CreateDbContext();
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _currentUserId = CurrentUser.UserId;
 
-        if (_currentUserId != null)
-        {
-            var player = await DbContext.Players.FirstOrDefaultAsync(p => p.UserId == _currentUserId);
-            if (player?.DefaultGameScoring != null)
-                _state.GameScoring = player.DefaultGameScoring.Value;
-        }
-        else
-        {
-            _state.GameScoring = false;
-        }
+        var bootstrap = await Scoring.GetBootstrapAsync();
+        _state.GameScoring = bootstrap.PreferredGameScoring ?? false;
+        _myPlayerId = bootstrap.MyPlayerId;
 
-        var allPlayers = await DbContext.Players
-            .Include(p => p.User)
-            .OrderBy(p => p.DisplayName)
-            .Select(p => new { p.PlayerId, p.DisplayName, AvatarPath = p.User != null ? p.User.ProfileImagePath : null })
-            .ToListAsync();
-
-        _playerIdByName = allPlayers
+        _playerIdByName = bootstrap.Players
             .GroupBy(p => p.DisplayName)
             .ToDictionary(g => g.Key, g => g.First().PlayerId);
-        _avatarByName = allPlayers
+        _avatarByName = bootstrap.Players
             .Where(p => !string.IsNullOrEmpty(p.AvatarPath))
             .ToDictionary(p => p.DisplayName, p => p.AvatarPath!);
-
-        if (_currentUserId != null)
-        {
-            var myPlayerRecord = await DbContext.Players.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.UserId == _currentUserId);
-            _myPlayerId = myPlayerRecord?.PlayerId;
-
-            if (_myPlayerId.HasValue)
-            {
-                var pid = _myPlayerId.Value;
-                _friendPlayerIds = (await DbContext.PlayerFriends
-                    .Where(pf => (pf.PlayerId == pid || pf.FriendPlayerId == pid)
-                                 && pf.Status == FriendStatus.Accepted)
-                    .Select(pf => pf.PlayerId == pid ? pf.FriendPlayerId : pf.PlayerId)
-                    .ToListAsync()).ToHashSet();
-            }
-        }
+        _friendPlayerIds = bootstrap.FriendPlayerIds.ToHashSet();
 
         // Load upcoming fixtures for the logged-in player
         if (_myPlayerId.HasValue)
         {
-            var pid = _myPlayerId.Value;
-            _upcomingFixtures = await DbContext.CompetitionFixtures
-                .Include(f => f.Competition)
-                .Include(f => f.Player1).Include(f => f.Player2)
-                .Include(f => f.Player3).Include(f => f.Player4)
-                .Where(f => (f.Player1Id == pid || f.Player2Id == pid || f.Player3Id == pid || f.Player4Id == pid)
-                         && (f.Status == FixtureStatus.Scheduled || f.Status == FixtureStatus.InProgress))
+            var upcoming = await Competitions.GetMyUpcomingFixturesAsync();
+            _upcomingFixtures = upcoming
+                .Where(f => f.Status == FixtureStatus.Scheduled || f.Status == FixtureStatus.InProgress)
                 .OrderBy(f => f.ScheduledAt)
-                .ToListAsync();
+                .ToList();
         }
 
         // Friends appear first in the autocomplete list
-        _states = allPlayers
+        _states = bootstrap.Players
             .OrderBy(p => _friendPlayerIds.Contains(p.PlayerId) ? 0 : 1)
             .ThenBy(p => p.DisplayName)
             .Select(p => p.DisplayName)
@@ -975,12 +905,10 @@
 
         if (MatchId > 0)
         {
-            var savedMatch = await DbContext.SavedMatch
-                .FirstOrDefaultAsync(m => m.SavedMatchId == MatchId && !m.Complete);
-
-            if (savedMatch != null && !string.IsNullOrEmpty(savedMatch.MatchJson))
+            var resume = await Scoring.GetSavedMatchForResumeAsync(MatchId);
+            if (resume is not null && !string.IsNullOrEmpty(resume.MatchJson))
             {
-                CurrentMatch = JsonConvert.DeserializeObject<Match>(savedMatch.MatchJson) ?? new Match();
+                CurrentMatch = JsonConvert.DeserializeObject<TennisMatch>(resume.MatchJson) ?? new TennisMatch();
                 history = new Stack<DropShot.Shared.GameState>(CurrentMatch.HistoryList.AsEnumerable().Reverse());
                 if (history.Any())
                     ScoreService.RestoreFromGameState(_state, history.Peek());
@@ -993,12 +921,12 @@
                 _state.DeuceLimit = CurrentMatch.DeuceLimit;
                 _state.SetWinMode = CurrentMatch.SetWinMode;
                 Label_Switch1 = !string.IsNullOrEmpty(CurrentMatch.Player3);
-                _savedMatchId = savedMatch.SavedMatchId;
-                _selectedCourtId = savedMatch.CourtId;
-                _player1Id = savedMatch.Player1Id;
-                _player2Id = savedMatch.Player2Id;
-                _player3Id = savedMatch.Player3Id;
-                _player4Id = savedMatch.Player4Id;
+                _savedMatchId = resume.SavedMatchId;
+                _selectedCourtId = resume.CourtId;
+                _player1Id = resume.Player1Id;
+                _player2Id = resume.Player2Id;
+                _player3Id = resume.Player3Id;
+                _player4Id = resume.Player4Id;
                 _restoreFullscreen = true;
 
                 // Already in progress — hide the tap hint
@@ -1007,63 +935,38 @@
                 // #7 — Resume timer from original start time
                 if (!_state.IsMatchEnded)
                 {
-                    _matchStartUtc = savedMatch.CreatedAt;
+                    _matchStartUtc = resume.CreatedAt;
                     _timerHandle = new System.Threading.Timer(TimerTick, null, 0, 1000);
                 }
 
-                // Load linked competition fixture if any
-                _competitionFixture = await DbContext.CompetitionFixtures
-                    .Include(f => f.Competition)
-                    .Include(f => f.Stage)
-                    .Include(f => f.Player1)
-                    .Include(f => f.Player2)
-                    .Include(f => f.Player3)
-                    .Include(f => f.Player4)
-                    .FirstOrDefaultAsync(f => f.SavedMatchId == savedMatch.SavedMatchId);
+                _competitionFixture = resume.LinkedFixture;
             }
         }
 
         // Load fixture from query param (starting a new match from a competition fixture)
         if (FixtureId > 0 && _competitionFixture == null)
         {
-            _competitionFixture = await DbContext.CompetitionFixtures
-                .Include(f => f.Competition)
-                .Include(f => f.Stage)
-                .Include(f => f.Player1)
-                .Include(f => f.Player2)
-                .Include(f => f.Player3)
-                .Include(f => f.Player4)
-                .FirstOrDefaultAsync(f => f.CompetitionFixtureId == FixtureId);
-
+            _competitionFixture = await Scoring.GetFixtureContextAsync(FixtureId.Value);
             if (_competitionFixture != null)
             {
-                _value  = _competitionFixture.Player1?.DisplayName ?? "";
-                _value2 = _competitionFixture.Player2?.DisplayName ?? "";
-                _value3 = _competitionFixture.Player3?.DisplayName ?? "";
-                _value4 = _competitionFixture.Player4?.DisplayName ?? "";
-                Label_Switch1 = _competitionFixture.Player3 != null;
+                _value  = _competitionFixture.Player1Name ?? "";
+                _value2 = _competitionFixture.Player2Name ?? "";
+                _value3 = _competitionFixture.Player3Name ?? "";
+                _value4 = _competitionFixture.Player4Name ?? "";
+                Label_Switch1 = _competitionFixture.Player3Id is not null;
             }
         }
 
         // Load Rubber from query param (starting a rubber from a team match page)
         if (RubberId > 0 && _rubber == null)
         {
-            _rubber = await DbContext.Rubbers
-                .Include(r => r.Fixture).ThenInclude(f => f.Competition)
-                .Include(r => r.Fixture).ThenInclude(f => f.HomeTeam)
-                .Include(r => r.Fixture).ThenInclude(f => f.AwayTeam)
-                .Include(r => r.HomePlayer1)
-                .Include(r => r.HomePlayer2)
-                .Include(r => r.AwayPlayer1)
-                .Include(r => r.AwayPlayer2)
-                .FirstOrDefaultAsync(r => r.RubberId == RubberId);
-
+            _rubber = await Scoring.GetRubberContextAsync(RubberId.Value);
             if (_rubber != null)
             {
-                _value  = _rubber.HomePlayer1?.DisplayName ?? "";
-                _value2 = _rubber.AwayPlayer1?.DisplayName ?? "";
-                _value3 = _rubber.HomePlayer2?.DisplayName ?? "";
-                _value4 = _rubber.AwayPlayer2?.DisplayName ?? "";
+                _value  = _rubber.HomePlayer1Name ?? "";
+                _value2 = _rubber.AwayPlayer1Name ?? "";
+                _value3 = _rubber.HomePlayer2Name ?? "";
+                _value4 = _rubber.AwayPlayer2Name ?? "";
                 Label_Switch1 = true; // always doubles
             }
         }
@@ -1074,14 +977,22 @@
         if (AutoStart == true && (_competitionFixture != null || _rubber != null)
             && !string.IsNullOrEmpty(_value) && !string.IsNullOrEmpty(_value2))
         {
-            var comp = _competitionFixture?.Competition ?? _rubber?.Fixture?.Competition;
-            _state.BestOf = BestOfOverride ?? comp?.BestOf ?? 3;
-            _state.IsFixedSets = comp?.MatchFormat == MatchFormatType.FixedSets;
-            _state.FixedSetCount = comp?.NumberOfSets ?? 3;
+            // Rubber and fixture context DTOs both expose the same flat
+            // BestOf/MatchFormat/NumberOfSets/GamesPerSet/SetWinMode quartet
+            // copied from the parent competition.
+            int compBestOf = _competitionFixture?.BestOf ?? _rubber?.BestOf ?? 3;
+            MatchFormatType compFormat = _competitionFixture?.MatchFormat ?? _rubber?.MatchFormat ?? MatchFormatType.BestOf;
+            int compNumSets = _competitionFixture?.NumberOfSets ?? _rubber?.NumberOfSets ?? 3;
+            int compGamesPerSet = _competitionFixture?.GamesPerSet ?? _rubber?.GamesPerSet ?? 6;
+            SetWinMode compSetWinMode = _competitionFixture?.SetWinMode ?? _rubber?.SetWinMode ?? SetWinMode.WinBy2;
+
+            _state.BestOf = BestOfOverride ?? compBestOf;
+            _state.IsFixedSets = compFormat == MatchFormatType.FixedSets;
+            _state.FixedSetCount = compNumSets;
             _state.GameScoring = true;
             _state.UnlimitedDeuce = true;
-            _state.GamesFirstTo = comp?.GamesPerSet ?? 6;
-            _state.SetWinMode = comp?.SetWinMode ?? SetWinMode.WinBy2;
+            _state.GamesFirstTo = compGamesPerSet;
+            _state.SetWinMode = compSetWinMode;
 
             if (_rubber != null)
             {
@@ -1102,17 +1013,12 @@
             _showServerSelect = true;
         }
 
-        _courts = await DbContext.Courts
-            .Include(c => c.Club)
-            .Where(c => c.CourtId == _selectedCourtId
-                        || !DbContext.SavedMatch.Any(m => !m.Complete && m.CourtId == c.CourtId))
-            .OrderBy(c => c.Club.Name).ThenBy(c => c.Name)
-            .ToListAsync();
+        _courts = await Scoring.GetAvailableCourtsAsync(_selectedCourtId);
 
-        // Mark as loaded after DB queries so content renders immediately.
-        // The hub connection is deferred to OnAfterRenderAsync so it only
-        // runs in the browser — never during SSR pre-rendering, which would
-        // throw because WebSockets aren't available server-side.
+        // Mark as loaded after the service round-trips so content renders
+        // immediately. The hub connection is deferred to OnAfterRenderAsync
+        // so it only runs in the browser — never during SSR pre-rendering,
+        // which would throw because WebSockets aren't available server-side.
         loaded = true;
     }
 
@@ -1132,9 +1038,7 @@
 
             if (hubConnection is null)
             {
-                hubConnection = new HubConnectionBuilder()
-                    .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-                    .Build();
+                hubConnection = ScoreboardHubFactory.Create();
 
                 hubConnection.On<int, int, string>("CourtChallenge", HandleCourtChallengeAsync);
 
@@ -1191,57 +1095,39 @@
 
     private Stack<DropShot.Shared.GameState> history = new(new[] { new DropShot.Shared.GameState(0, 0, 0, 0, 0, 0, false, 0, false, 0, 0, new List<DropShot.Shared.SetScore>(), DateTime.Now, false, "", "") });
 
-
-
-
-    [Inject] private IDbContextFactory<MyDbContext> DbFactory { get; set; } = default!;
-
     private async Task PersistAndBroadcast()
     {
         if (CurrentMatch == null) return;
         CurrentMatch.History = history;
         CurrentMatch.HistoryList = history.ToList();
 
-        using var dbc = DbFactory.CreateDbContext();
-
-        var matchToSave = _savedMatchId > 0
-            ? await dbc.SavedMatch.FirstOrDefaultAsync(m => m.SavedMatchId == _savedMatchId)
-            : null;
-        if (matchToSave == null)
-        {
-            matchToSave = new SavedMatch();
-            dbc.SavedMatch.Add(matchToSave);
-        }
-
-        matchToSave.MatchJson = JsonConvert.SerializeObject(CurrentMatch);
-        bool wasComplete = matchToSave.Complete;
-        matchToSave.Complete = CurrentMatch.Complete;
-        if (matchToSave.Complete && !wasComplete)
-            matchToSave.CompletedAt = DateTime.UtcNow;
-        else if (!matchToSave.Complete)
-            matchToSave.CompletedAt = null;
-        matchToSave.LastActivityAt = DateTime.UtcNow;
-        matchToSave.Player1 = CurrentMatch.Player1;
-        matchToSave.Player2 = CurrentMatch.Player2;
-        matchToSave.Player3 = CurrentMatch.Player3;
-        matchToSave.Player4 = CurrentMatch.Player4;
-        matchToSave.Player1Id = _player1Id;
-        matchToSave.Player2Id = _player2Id;
-        matchToSave.Player3Id = _player3Id;
-        matchToSave.Player4Id = _player4Id;
-        matchToSave.WinnerName = _state.IsMatchEnded ? _winner : null;
+        int? winnerPlayerId = null;
         if (_state.IsMatchEnded)
         {
             // Determine winner from the match state — _winner is a localised
             // "Congratulations ..." string and can include doubles team names,
             // so we can't look it up in _playerIdByName reliably.
             bool userSideWon = _state.UserSets > _state.OppSets;
-            matchToSave.WinnerPlayerId = userSideWon ? _player1Id : _player2Id;
+            winnerPlayerId = userSideWon ? _player1Id : _player2Id;
         }
-        matchToSave.CourtId = (_selectedCourtId is > 0) ? _selectedCourtId : null;
-        if (matchToSave.CreatedAt == default) matchToSave.CreatedAt = DateTime.UtcNow;
-        await dbc.SaveChangesAsync();
-        _savedMatchId = matchToSave.SavedMatchId;
+
+        _savedMatchId = await Scoring.UpsertLiveMatchAsync(new UpsertLiveMatchRequest(
+            SavedMatchId: _savedMatchId > 0 ? _savedMatchId : null,
+            MatchJson: JsonConvert.SerializeObject(CurrentMatch),
+            Complete: CurrentMatch.Complete,
+            Player1: CurrentMatch.Player1,
+            Player2: CurrentMatch.Player2,
+            Player3: CurrentMatch.Player3,
+            Player4: CurrentMatch.Player4,
+            Player1Id: _player1Id,
+            Player2Id: _player2Id,
+            Player3Id: _player3Id,
+            Player4Id: _player4Id,
+            WinnerName: _state.IsMatchEnded ? _winner : null,
+            WinnerPlayerId: winnerPlayerId,
+            CourtId: (_selectedCourtId is > 0) ? _selectedCourtId : null,
+            DeviceToken: _currentUserId == null ? _deviceToken : null,
+            LinkedFixtureId: null));
 
         if (hubConnection is not null && history.Any())
         {
@@ -1251,137 +1137,51 @@
         }
 
         // When match ends, record the result on the linked competition fixture
-        if (_state.IsMatchEnded && _competitionFixture != null)
+        // (singles/doubles path — preserves the inline behaviour: always
+        // Status=Completed, no AwaitingVerification + email cascade).
+        if (_state.IsMatchEnded && _competitionFixture != null
+            && _competitionFixture.Status != FixtureStatus.Completed)
         {
-            using var dbc3 = DbFactory.CreateDbContext();
-            var fx = await dbc3.CompetitionFixtures.FindAsync(_competitionFixture.CompetitionFixtureId);
-            if (fx != null && fx.Status != FixtureStatus.Completed)
-            {
-                fx.Status = FixtureStatus.Completed;
-                fx.CompletedAt = DateTime.UtcNow;
-                fx.SavedMatchId = _savedMatchId;
-                bool userSideWon = _state.UserSets > _state.OppSets;
-                fx.WinnerPlayerId = userSideWon ? _competitionFixture.Player1Id : _competitionFixture.Player2Id;
-                fx.ResultSummary = string.Join(", ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}"));
-                fx.HomeSetsWon = _state.UserSets;
-                fx.AwaySetsWon = _state.OppSets;
-                fx.HomeGamesTotal = _state.SetScores.Sum(s => s.UserGames);
-                fx.AwayGamesTotal = _state.SetScores.Sum(s => s.OpponentGames);
-                await dbc3.SaveChangesAsync();
-
-                // Auto-advance the next round if all matches in this round are now complete
-                await CompetitionProgressionService.TryAdvanceAsync(dbc3, _competitionFixture.CompetitionId, fx.CompetitionFixtureId);
-            }
+            bool userSideWon = _state.UserSets > _state.OppSets;
+            await Scoring.FinaliseLiveFixtureAsync(
+                _competitionFixture.CompetitionFixtureId,
+                new FinaliseLiveFixtureRequest(
+                    SavedMatchId: _savedMatchId,
+                    WinnerPlayerId: userSideWon ? _competitionFixture.Player1Id : _competitionFixture.Player2Id,
+                    ResultSummary: string.Join(", ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}")),
+                    HomeSetsWon: _state.UserSets,
+                    AwaySetsWon: _state.OppSets,
+                    HomeGamesTotal: _state.SetScores.Sum(s => s.UserGames),
+                    AwayGamesTotal: _state.SetScores.Sum(s => s.OpponentGames)));
         }
 
-        // When a rubber ends, record the result and check if all rubbers are done
+        // When a rubber ends, persist the rubber and let SubmitRubberScoresAsync
+        // run the full finalisation cascade server-side: score/tie-break
+        // resolution, notification or verification emails, bracket progression,
+        // and the fixture Status flip to InProgress when this is the first
+        // rubber scored.
         if (_state.IsMatchEnded && _rubber != null)
         {
-            using var dbc4 = DbFactory.CreateDbContext();
-            var rub = await dbc4.Rubbers
-                .Include(r => r.Fixture)
-                .FirstOrDefaultAsync(r => r.RubberId == _rubber.RubberId);
-            if (rub != null && !rub.IsComplete)
-            {
-                rub.IsComplete = true;
-                rub.SavedMatchId = _savedMatchId;
-
-                rub.HomeSetsWon = _state.UserSets;
-                rub.AwaySetsWon = _state.OppSets;
-
-                // Last-set games for quick display; sets-won is the authoritative
-                // rubber score. Games-total sums every set and drives league-table
-                // aggregation when the competition uses per-game league scoring.
-                var lastSet = _state.SetScores.LastOrDefault();
-                if (lastSet != null)
-                {
-                    rub.HomeGames = lastSet.UserGames;
-                    rub.AwayGames = lastSet.OpponentGames;
-                }
-                rub.HomeGamesTotal = _state.SetScores.Sum(s => s.UserGames);
-                rub.AwayGamesTotal = _state.SetScores.Sum(s => s.OpponentGames);
-
-                bool homeSideWon = (_state.UserSets > _state.OppSets);
-                rub.WinnerTeamId = homeSideWon ? rub.Fixture.HomeTeamId : rub.Fixture.AwayTeamId;
-                await dbc4.SaveChangesAsync();
-
-                // Check if all rubbers for the parent fixture are now complete
-                var allRubbers = await dbc4.Rubbers
-                    .Include(r => r.HomePlayer1).Include(r => r.HomePlayer2)
-                    .Include(r => r.AwayPlayer1).Include(r => r.AwayPlayer2)
-                    .Where(r => r.CompetitionFixtureId == rub.CompetitionFixtureId)
-                    .ToListAsync();
-
-                if (RubberResolutionService.AllComplete(allRubbers) && rub.Fixture.HomeTeamId.HasValue && rub.Fixture.AwayTeamId.HasValue)
-                {
-                    var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
-                        allRubbers, rub.Fixture.HomeTeamId.Value, rub.Fixture.AwayTeamId.Value);
-                    var fx = await dbc4.CompetitionFixtures
-                        .Include(f => f.Competition)
-                        .Include(f => f.HomeTeam).ThenInclude(t => t.Division)
-                        .Include(f => f.AwayTeam).ThenInclude(t => t.Division)
-                        .FirstOrDefaultAsync(f => f.CompetitionFixtureId == rub.CompetitionFixtureId);
-                    if (fx != null)
+            var setScores = _state.SetScores
+                .Select(s => new RubberSetScoreDto(s.UserGames, s.OpponentGames))
+                .ToList();
+            var lastSet = _state.SetScores.LastOrDefault();
+            await Competitions.SubmitRubberScoresAsync(
+                _rubber.CompetitionFixtureId,
+                new SubmitRubberScoresRequest(
+                    AdminOverride: false,
+                    Scores: new[]
                     {
-                        fx.ResultSummary = $"{homeScore}-{awayScore}";
-                        fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
-                                        : awayScore > homeScore ? fx.AwayTeamId
-                                        : null; // draw
-                        // Roll up the rubber aggregates so the league-table endpoint
-                        // can use the fixture row directly (mirrors the singles/doubles path).
-                        fx.HomeSetsWon = allRubbers.Sum(r => r.HomeSetsWon ?? 0);
-                        fx.AwaySetsWon = allRubbers.Sum(r => r.AwaySetsWon ?? 0);
-                        fx.HomeGamesTotal = allRubbers.Sum(r => r.HomeGamesTotal ?? 0);
-                        fx.AwayGamesTotal = allRubbers.Sum(r => r.AwayGamesTotal ?? 0);
-                        fx.CompletedAt = DateTime.UtcNow;
-
-                        bool requireVerification = fx.Competition?.RequireVerification ?? false;
-                        // Fire emails in the background so the scorer isn't left
-                        // staring at SMTP latency after the last rubber. Bracket
-                        // progression stays awaited — it drives the UI.
-                        if (requireVerification)
-                        {
-                            fx.Status = FixtureStatus.AwaitingVerification;
-                            fx.VerificationToken = Guid.NewGuid();
-                            await dbc4.SaveChangesAsync();
-
-                            var compId = fx.CompetitionId;
-                            BackgroundTasks.Run("team-match-verification-emails", async sp =>
-                            {
-                                var svc = sp.GetRequiredService<ResultVerificationService>();
-                                var dbf = sp.GetRequiredService<IDbContextFactory<MyDbContext>>();
-                                await using var bgDb = dbf.CreateDbContext();
-                                var adminEmails = await svc.GetAdminEmailsForCompetitionAsync(compId, bgDb);
-                                await svc.SendAdminVerificationEmailsForTeamMatchAsync(fx, allRubbers, adminEmails);
-                            });
-                        }
-                        else
-                        {
-                            fx.Status = FixtureStatus.Completed;
-                            await dbc4.SaveChangesAsync();
-                            BackgroundTasks.Run("team-match-result-notification", async sp =>
-                            {
-                                var svc = sp.GetRequiredService<ResultVerificationService>();
-                                await svc.SendResultNotificationForTeamMatchAsync(fx, allRubbers);
-                            });
-                            await CompetitionProgressionService.TryAdvanceAsync(dbc4, fx.CompetitionId, fx.CompetitionFixtureId);
-                        }
-                    }
-                }
-                else
-                {
-                    // Rubbers are in progress but not all done — mark fixture InProgress
-                    // now that the first rubber has been scored. Status is deliberately
-                    // NOT set in EnsureRubbersAsync (which runs on page load) so the
-                    // fixture stays Scheduled until an actual score is recorded.
-                    var fx = await dbc4.CompetitionFixtures.FindAsync(rub.CompetitionFixtureId);
-                    if (fx != null && fx.Status == FixtureStatus.Scheduled)
-                    {
-                        fx.Status = FixtureStatus.InProgress;
-                        await dbc4.SaveChangesAsync();
-                    }
-                }
-            }
+                        new RubberScoreEntry(
+                            RubberId: _rubber.RubberId,
+                            HomeSetsWon: _state.UserSets,
+                            AwaySetsWon: _state.OppSets,
+                            HomeGamesTotal: _state.SetScores.Sum(s => s.UserGames),
+                            AwayGamesTotal: _state.SetScores.Sum(s => s.OpponentGames),
+                            LastSetHomeGames: lastSet?.UserGames,
+                            LastSetAwayGames: lastSet?.OpponentGames,
+                            SetScores: setScores)
+                    }));
         }
     }
 
@@ -1500,42 +1300,11 @@
     {
         if (_savedMatchId > 0)
         {
-            using var dbc = DbFactory.CreateDbContext();
-            var match = await dbc.SavedMatch.FindAsync(_savedMatchId);
-            if (match != null)
-            {
-                // Reset any linked competition fixture back to scheduled
-                if (_competitionFixture != null)
-                {
-                    var fx = await dbc.CompetitionFixtures.FindAsync(_competitionFixture.CompetitionFixtureId);
-                    if (fx != null)
-                    {
-                        fx.Status = FixtureStatus.Scheduled;
-                        fx.CompletedAt = null;
-                        fx.SavedMatchId = null;
-                        fx.WinnerPlayerId = null;
-                        fx.WinnerTeamId = null;
-                        fx.ResultSummary = null;
-                    }
-                }
-
-                // Reset any linked rubber
-                if (_rubber != null)
-                {
-                    var rub = await dbc.Rubbers.FindAsync(_rubber.RubberId);
-                    if (rub != null)
-                    {
-                        rub.IsComplete = false;
-                        rub.SavedMatchId = null;
-                        rub.HomeGames = null;
-                        rub.AwayGames = null;
-                        rub.WinnerTeamId = null;
-                    }
-                }
-
-                dbc.SavedMatch.Remove(match);
-                await dbc.SaveChangesAsync();
-            }
+            // The service-side discard resets any linked fixture (Status →
+            // Scheduled, clear winner/summary/SavedMatchId) and rubber
+            // (IsComplete=false, clear winner/games/SavedMatchId) before
+            // deleting the SavedMatch row. Idempotent when nothing is linked.
+            await Scoring.DiscardLiveMatchAsync(_savedMatchId, _deviceToken);
         }
     }
 
@@ -1599,11 +1368,11 @@
     private void OpenSettings() { }
 
     // ── Upcoming fixtures helpers ───────────────────────────────
-    private static string FixtureOpponents(CompetitionFixture f)
+    private static string FixtureOpponents(CompetitionFixtureDto f)
     {
-        var side1 = new[] { f.Player1?.DisplayName, f.Player3?.DisplayName }
+        var side1 = new[] { f.Player1Name, f.Player3Name }
             .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
-        var side2 = new[] { f.Player2?.DisplayName, f.Player4?.DisplayName }
+        var side2 = new[] { f.Player2Name, f.Player4Name }
             .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
         return $"{side1} vs {side2}";
     }
@@ -1618,11 +1387,10 @@
         _ => Color.Default
     };
 
-    private async Task StartFixtureMatchAsync(CompetitionFixture fixture)
+    private async Task StartFixtureMatchAsync(CompetitionFixtureDto fixture)
     {
         var targetUrl = $"/match/0?fixtureId={fixture.CompetitionFixtureId}&autoStart=true";
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = CurrentUser.UserId;
         int? excluding = _savedMatchId > 0 ? _savedMatchId : null;
         if (!string.IsNullOrEmpty(userId))
         {
