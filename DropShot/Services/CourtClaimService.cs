@@ -1,5 +1,6 @@
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -69,11 +70,7 @@ public sealed class CourtClaimService : ICourtClaimService
         return DateTime.UtcNow - lastSeen >= AbandonAfter;
     }
 
-    /// <summary>
-    /// Finds the most recent incomplete SavedMatch owned by this user so the
-    /// "Play" buttons can offer to resume or end it before starting a new one.
-    /// </summary>
-    public async Task<SavedMatch?> GetUserActiveMatchAsync(
+    public async Task<ActiveMatchDto?> GetUserActiveMatchAsync(
         string userId, int? excludingSavedMatchId = null, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(userId)) return null;
@@ -81,7 +78,21 @@ public sealed class CourtClaimService : ICourtClaimService
         var q = db.SavedMatch.Where(m => m.UserId == userId && !m.Complete);
         if (excludingSavedMatchId.HasValue)
             q = q.Where(m => m.SavedMatchId != excludingSavedMatchId.Value);
-        return await q.OrderByDescending(m => m.CreatedAt).FirstOrDefaultAsync(ct);
+        var match = await q.OrderByDescending(m => m.CreatedAt).FirstOrDefaultAsync(ct);
+        if (match is null) return null;
+
+        string? courtName = null;
+        if (match.CourtId is int cid)
+        {
+            courtName = await db.Courts
+                .Where(c => c.CourtId == cid)
+                .Select(c => $"{c.Club.Name} — {c.Name}")
+                .FirstOrDefaultAsync(ct);
+        }
+        return new ActiveMatchDto(
+            match.SavedMatchId,
+            match.Player1, match.Player2, match.Player3, match.Player4,
+            match.CourtId, courtName, match.CreatedAt);
     }
 
     private static DateTime AsUtc(DateTime value) =>

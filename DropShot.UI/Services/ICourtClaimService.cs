@@ -1,3 +1,5 @@
+using DropShot.Shared.Dtos;
+
 namespace DropShot.UI.Services;
 
 /// <summary>
@@ -24,4 +26,15 @@ public interface ICourtClaimService
 
     /// <summary>Mark the SavedMatch complete and clear the grace window.</summary>
     Task EndMatchAsync(int savedMatchId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Most recent incomplete <c>SavedMatch</c> owned by <paramref name="userId"/>
+    /// so the "Play" buttons on Home and TennisScore can offer to resume or end
+    /// it before starting a new one. Pass <paramref name="excludingSavedMatchId"/>
+    /// to ignore a known-current match (e.g. the one being scored on the page
+    /// that's calling). Returns <c>null</c> when no active match exists or the
+    /// caller is anonymous.
+    /// </summary>
+    Task<ActiveMatchDto?> GetUserActiveMatchAsync(
+        string userId, int? excludingSavedMatchId = null, CancellationToken ct = default);
 }
