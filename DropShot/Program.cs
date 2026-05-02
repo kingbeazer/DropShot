@@ -128,6 +128,7 @@ builder.Services.AddScoped<IPlayerService, WebPlayerService>();
 builder.Services.AddScoped<IClubService, WebClubService>();
 builder.Services.AddScoped<IEventService, WebEventService>();
 builder.Services.AddScoped<ICompetitionService, WebCompetitionService>();
+builder.Services.AddScoped<ICompetitionAdminService, WebCompetitionAdminService>();
 builder.Services.AddScoped<IRulesSetService, WebRulesSetService>();
 builder.Services.AddScoped<ISiteSettingsService, WebSiteSettingsService>();
 builder.Services.AddScoped<IInvitationService, WebInvitationService>();

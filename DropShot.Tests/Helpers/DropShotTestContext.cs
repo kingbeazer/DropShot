@@ -124,6 +124,7 @@ public class DropShotTestContext : BunitContext
         Services.AddScoped<IClubService, WebClubService>();
         Services.AddScoped<IEventService, WebEventService>();
         Services.AddScoped<ICompetitionService, WebCompetitionService>();
+        Services.AddScoped<ICompetitionAdminService, WebCompetitionAdminService>();
         Services.AddScoped<IRulesSetService, WebRulesSetService>();
         Services.AddScoped<ISiteSettingsService, WebSiteSettingsService>();
         Services.AddScoped<IInvitationService, WebInvitationService>();
