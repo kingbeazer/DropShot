@@ -289,3 +289,62 @@ public record SearchPlayersForAddRequest(
     string Query,
     int? HostClubId,
     int? MaxResults = 20);
+
+// ── Phase 7O additions: roster / divisions / teams / fixtures / match windows ──
+//
+// Several admin requests reuse DTOs already defined in CompetitionDtos.cs
+// (AddParticipantRequest, UpdateParticipantStatusRequest, AssignParticipantTeamRequest,
+// SetParticipantRoleRequest, SetParticipantDivisionRequest, SaveDivisionRequest,
+// SaveTeamRequest, SaveFixtureRequest, SeedDivisionsFromPreviousRequest,
+// SeedDivisionsResultDto). The records below are admin-only types not present in
+// the player-facing surface.
+
+/// <summary>
+/// One row in the player-search results returned by
+/// <c>ICompetitionAdminService.SearchPlayersAsync</c>. Tight subset of the Player
+/// row — just enough for the add-participant search list.
+/// </summary>
+public record PlayerSearchResultDto(
+    int PlayerId,
+    string DisplayName,
+    PlayerSex? Sex,
+    DateTime? DateOfBirth,
+    string? ClubName,
+    bool IsLight);
+
+/// <summary>
+/// Set the division a team belongs to (or unassign with null). Distinct from
+/// <see cref="SetParticipantDivisionRequest"/>, which sets a participant's
+/// division — same shape, different semantics, kept as separate types so the
+/// route surface reads naturally.
+/// </summary>
+public record AssignTeamDivisionRequest(int? CompetitionDivisionId);
+
+/// <summary>
+/// Assign (or unassign with <c>PlayerId == null</c>) a captain on a team.
+/// Distinct from <c>SetTeamCaptainRequest</c> which only supports setting.
+/// </summary>
+public record AssignCaptainRequest(int CompetitionTeamId, int? PlayerId);
+
+public record ValidateTeamResultDto(
+    IReadOnlyList<string> Errors,
+    IReadOnlyList<string> Warnings);
+
+/// <summary>
+/// Pure-validator request: ask the service "would this assignment violate
+/// eligibility rules?" without persisting. Lets the caller decide whether to
+/// show a confirm dialog before saving.
+/// </summary>
+public record ConfirmFixtureAssignmentRequest(
+    int? Player1Id,
+    int? Player2Id,
+    int? Player3Id,
+    int? Player4Id,
+    int? HomeTeamId,
+    int? AwayTeamId);
+
+public record ConfirmFixtureAssignmentResultDto(
+    bool IsValid,
+    IReadOnlyList<string> Violations);
+
+

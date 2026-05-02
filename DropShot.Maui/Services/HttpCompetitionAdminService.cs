@@ -182,4 +182,313 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
             $"api/competitions/admin/{competitionId}/email/competition", request, ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    // ── Participants ─────────────────────────────────────────────────────────
+
+    public async Task<List<PlayerSearchResultDto>> SearchPlayersAsync(
+        int competitionId, SearchPlayersForAddRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/search", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<List<PlayerSearchResultDto>>(cancellationToken: ct) ?? [];
+    }
+
+    public async Task AddParticipantAsync(int competitionId, AddParticipantRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to add participant." : body);
+        }
+    }
+
+    public async Task RemoveParticipantAsync(int competitionId, int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/competitions/admin/{competitionId}/participants/{playerId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateParticipantStatusAsync(
+        int competitionId, int playerId, UpdateParticipantStatusRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/status", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task AssignParticipantTeamAsync(
+        int competitionId, int playerId, AssignParticipantTeamRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/team", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task AssignParticipantRoleAsync(
+        int competitionId, int playerId, SetParticipantRoleRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/role", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task AssignParticipantDivisionAsync(
+        int competitionId, int playerId, SetParticipantDivisionRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/division", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<int> CreateLightPlayerAsync(
+        int competitionId, CreateLightPlayerForCompetitionRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/light-players", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to create light player." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task SaveLightPlayerAsync(
+        int competitionId, int playerId, SaveLightPlayerRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/light-players/{playerId}", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    // ── Divisions ────────────────────────────────────────────────────────────
+
+    public async Task<int> SaveDivisionAsync(
+        int competitionId, int? divisionId, SaveDivisionRequest request, CancellationToken ct = default)
+    {
+        var resp = divisionId.HasValue
+            ? await http.PutAsJsonAsync($"api/competitions/admin/{competitionId}/divisions/{divisionId.Value}", request, ct)
+            : await http.PostAsJsonAsync($"api/competitions/admin/{competitionId}/divisions", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to save division." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task DeleteDivisionAsync(int competitionId, int divisionId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync(
+            $"api/competitions/admin/{competitionId}/divisions/{divisionId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task RunSeedDivisionsAsync(
+        int competitionId, SeedDivisionsFromPreviousRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/divisions/seed", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to seed divisions." : body);
+        }
+    }
+
+    public async Task AssignTeamDivisionAsync(
+        int competitionId, int teamId, AssignTeamDivisionRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/teams/{teamId}/division", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    // ── Teams ────────────────────────────────────────────────────────────────
+
+    public async Task<int> SaveTeamAsync(
+        int competitionId, int? teamId, SaveTeamRequest request, CancellationToken ct = default)
+    {
+        var resp = teamId.HasValue
+            ? await http.PutAsJsonAsync($"api/competitions/admin/{competitionId}/teams/{teamId.Value}", request, ct)
+            : await http.PostAsJsonAsync($"api/competitions/admin/{competitionId}/teams", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to save team." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task DeleteTeamAsync(int competitionId, int teamId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/competitions/admin/{competitionId}/teams/{teamId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAllTeamsAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/competitions/admin/{competitionId}/teams", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task AssignCaptainAsync(
+        int competitionId, AssignCaptainRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/teams/captain", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<int> AutoAssignCaptainsAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/competitions/admin/{competitionId}/teams/auto-captain", null, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task<GenerateTeamsResultDto> GenerateTeamsPreviewAsync(
+        int competitionId, GenerateTeamsRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/teams/generate-preview", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<GenerateTeamsResultDto>(cancellationToken: ct))!;
+    }
+
+    public async Task ConfirmGenerateTeamsAsync(
+        int competitionId, ConfirmGenerateTeamsRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/teams/generate-confirm", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ValidateTeamResultDto> ValidateTeamAsync(
+        int competitionId, int teamId, CancellationToken ct = default)
+        => (await http.GetFromJsonAsync<ValidateTeamResultDto>(
+            $"api/competitions/admin/{competitionId}/teams/{teamId}/validate", ct))!;
+
+    // ── Fixtures ─────────────────────────────────────────────────────────────
+
+    public async Task<int> SaveFixtureAsync(
+        int competitionId, int? fixtureId, SaveFixtureRequest request, CancellationToken ct = default)
+    {
+        var resp = fixtureId.HasValue
+            ? await http.PutAsJsonAsync($"api/competitions/admin/{competitionId}/fixtures/{fixtureId.Value}", request, ct)
+            : await http.PostAsJsonAsync($"api/competitions/admin/{competitionId}/fixtures", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to save fixture." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task DeleteFixtureAsync(int competitionId, int fixtureId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/competitions/admin/{competitionId}/fixtures/{fixtureId}", ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to delete fixture." : body);
+        }
+    }
+
+    public async Task DeleteAllFixturesAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/competitions/admin/{competitionId}/fixtures", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<CompetitionFixtureDto?> LoadFixtureForDialogAsync(
+        int competitionId, int fixtureId, CancellationToken ct = default)
+    {
+        var resp = await http.GetAsync($"api/competitions/admin/{competitionId}/fixtures/{fixtureId}/dialog", ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CompetitionFixtureDto>(cancellationToken: ct);
+    }
+
+    public async Task<ConfirmFixtureAssignmentResultDto> ConfirmFixtureAssignmentAsync(
+        int competitionId, ConfirmFixtureAssignmentRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/fixtures/confirm-assignment", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ConfirmFixtureAssignmentResultDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<ScheduleFixturesResultDto> ScheduleFixturesAsync(
+        int competitionId, ScheduleFixturesAdminRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/fixtures/schedule", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ScheduleFixturesResultDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<SimulateRoundRobinResultDto> SimulateRoundRobinAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/fixtures/simulate-rr", null, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<SimulateRoundRobinResultDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<SeedKnockoutFromStandingsResultDto> SeedKnockoutFromStandingsAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/fixtures/seed-knockout", null, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<SeedKnockoutFromStandingsResultDto>(cancellationToken: ct))!;
+    }
+
+    // ── Match windows ────────────────────────────────────────────────────────
+
+    public async Task<int> AddMatchWindowAsync(
+        int competitionId, SaveMatchWindowRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/match-windows", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to add window." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task DeleteMatchWindowAsync(int competitionId, int matchWindowId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync(
+            $"api/competitions/admin/{competitionId}/match-windows/{matchWindowId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<int> AddDivisionMatchWindowAsync(
+        int competitionId, int divisionId, SaveMatchWindowRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/divisions/{divisionId}/match-windows", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to add division window." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task<int> ImportMatchWindowsFromTemplateAsync(
+        int competitionId, ImportMatchWindowsFromTemplateRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/match-windows/import-from-template", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
 }
