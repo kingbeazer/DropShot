@@ -1649,7 +1649,7 @@
         Navigation.NavigateTo(targetUrl, forceLoad: true);
     }
 
-    private static string ActiveMatchLabel(SavedMatch m)
+    private static string ActiveMatchLabel(DropShot.Shared.Dtos.ActiveMatchDto m)
     {
         var a = !string.IsNullOrWhiteSpace(m.Player3) ? $"{m.Player1} & {m.Player2}" : m.Player1 ?? "";
         var b = !string.IsNullOrWhiteSpace(m.Player3) ? $"{m.Player3} & {m.Player4}" : m.Player2 ?? "";

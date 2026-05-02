@@ -527,7 +527,7 @@
         Navigation.NavigateTo(targetUrl);
     }
 
-    private static string OccupantLabel(SavedMatch m)
+    private static string OccupantLabel(DropShot.Shared.Dtos.ActiveMatchDto m)
     {
         var a = !string.IsNullOrWhiteSpace(m.Player3)
             ? $"{m.Player1} & {m.Player2}"
