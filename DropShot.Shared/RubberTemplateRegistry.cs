@@ -1,7 +1,4 @@
-using DropShot.Models;
-using DropShot.Shared;
-
-namespace DropShot.Services;
+namespace DropShot.Shared;
 
 public record RubberDef(
     int Order,
@@ -12,8 +9,8 @@ public record RubberDef(
 
 /// <summary>
 /// Code-default rubber templates. A competition can override these by attaching a
-/// <see cref="CompetitionRubberTemplate"/> row or by selecting a non-default preset
-/// via <c>Competition.RubberTemplateKey</c>.
+/// custom rubber template row or by selecting a non-default preset via
+/// <c>Competition.RubberTemplateKey</c>.
 /// </summary>
 public static class RubberTemplateRegistry
 {
