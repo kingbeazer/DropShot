@@ -1,5 +1,6 @@
-@* DTO-typed counterpart to DropShot/Components/ResultCard.razor. The web file stays
-   for Home.razor's casual-match overload (phase 7); shared pages use this one. *@
+@* DTO-typed card for a competition fixture's result. Sibling to
+   CasualMatchResultCard.razor — together they replace the entity-typed
+   ResultCard.razor that previously lived in the web project. *@
 
 <div class="@CardClass">
     @if (!Compact && Fixture is not null)

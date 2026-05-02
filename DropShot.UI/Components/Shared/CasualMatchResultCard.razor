@@ -1,0 +1,110 @@
+@* DTO-typed card for a recently completed casual match (SavedMatch row not
+   linked to a CompetitionFixture). Sibling to FixtureResultCard.razor —
+   together they replace the entity-typed ResultCard.razor that lived in
+   the web project. Sets are pre-parsed server-side so the RCL never sees
+   the Match graph. *@
+
+<div class="@CardClass">
+    @if (!Compact && CasualMatch is not null)
+    {
+        <div class="rc-header">
+            <span class="rc-comp">Casual Match</span>
+            @{
+                var resultDate = CasualMatch.CompletedAt ?? CasualMatch.CreatedAt;
+            }
+            <span class="rc-date">@resultDate.ToString("dd MMM yyyy")</span>
+        </div>
+    }
+
+    <div class="rc-player-row @(_p1Winner ? "rc-winner" : "")">
+        <div class="rc-name">@Player1Name</div>
+        <div class="rc-sets">
+            @foreach (var s in _sets)
+            {
+                <span class="rc-set-score">@s.Player1Games</span>
+            }
+        </div>
+    </div>
+
+    @if (!Compact)
+    {
+        <div class="rc-separator">v</div>
+    }
+
+    <div class="rc-player-row @(_p2Winner ? "rc-winner" : "")">
+        <div class="rc-name">@Player2Name</div>
+        <div class="rc-sets">
+            @foreach (var s in _sets)
+            {
+                <span class="rc-set-score">@s.Player2Games</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public RecentCasualMatchDto? CasualMatch { get; set; }
+    [Parameter] public bool Compact { get; set; }
+
+    private string CardClass => Compact ? "result-card result-card-compact" : "result-card";
+
+    private IReadOnlyList<CasualSetScoreDto> _sets = [];
+    private bool _p1Winner;
+    private bool _p2Winner;
+
+    private string Player1Name
+    {
+        get
+        {
+            if (CasualMatch is null) return "TBD";
+            return !string.IsNullOrWhiteSpace(CasualMatch.Player3)
+                ? $"{CasualMatch.Player1 ?? "TBD"} & {CasualMatch.Player3}"
+                : (CasualMatch.Player1 ?? "TBD");
+        }
+    }
+
+    private string Player2Name
+    {
+        get
+        {
+            if (CasualMatch is null) return "TBD";
+            return !string.IsNullOrWhiteSpace(CasualMatch.Player4)
+                ? $"{CasualMatch.Player2 ?? "TBD"} & {CasualMatch.Player4}"
+                : (CasualMatch.Player2 ?? "TBD");
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (CasualMatch is null)
+        {
+            _sets = [];
+            _p1Winner = _p2Winner = false;
+            return;
+        }
+
+        _sets = CasualMatch.Sets;
+        _p1Winner = CasualMatch.WinnerPlayerId.HasValue
+            && (CasualMatch.WinnerPlayerId == CasualMatch.Player1Id
+                || CasualMatch.WinnerPlayerId == CasualMatch.Player3Id);
+        _p2Winner = CasualMatch.WinnerPlayerId.HasValue
+            && (CasualMatch.WinnerPlayerId == CasualMatch.Player2Id
+                || CasualMatch.WinnerPlayerId == CasualMatch.Player4Id);
+
+        if (!_p1Winner && !_p2Winner)
+            (_p1Winner, _p2Winner) = DeriveWinnerFromSets(_sets);
+    }
+
+    private static (bool p1, bool p2) DeriveWinnerFromSets(IReadOnlyList<CasualSetScoreDto> sets)
+    {
+        int p1Sets = 0, p2Sets = 0;
+        foreach (var s in sets)
+        {
+            if (s.Player1Games > s.Player2Games) p1Sets++;
+            else if (s.Player2Games > s.Player1Games) p2Sets++;
+        }
+        if (p1Sets > p2Sets) return (true, false);
+        if (p2Sets > p1Sets) return (false, true);
+        return (false, false);
+    }
+}
