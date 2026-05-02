@@ -1,5 +1,6 @@
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;

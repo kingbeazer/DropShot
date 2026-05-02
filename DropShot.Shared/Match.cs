@@ -1,7 +1,10 @@
-using DropShot.Shared;
+namespace DropShot.Shared;
 
-namespace DropShot.Models;
-
+/// <summary>
+/// In-memory match state persisted as JSON inside <c>SavedMatch.MatchJson</c>.
+/// Lives in the shared assembly so the live-scoring page (TennisScore) can
+/// move into <c>DropShot.UI</c> without dragging the EF model graph.
+/// </summary>
 public class Match
 {
     public Stack<GameState> History { get; set; } = new Stack<GameState>();
