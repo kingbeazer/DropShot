@@ -44,4 +44,13 @@ public class InvitationsController(IInvitationService invitations) : ControllerB
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [AllowAnonymous]
+    [HttpGet("{token:guid}/view")]
+    public Task<InvitationViewDto> GetView(Guid token, CancellationToken ct)
+        => invitations.GetInvitationViewAsync(token, ct);
+
+    [HttpPost("{token:guid}/accept")]
+    public Task<AcceptInvitationResultDto> Accept(Guid token, CancellationToken ct)
+        => invitations.AcceptInvitationAsync(token, ct);
 }

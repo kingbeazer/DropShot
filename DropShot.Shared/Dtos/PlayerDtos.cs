@@ -139,6 +139,32 @@ public record LightPlayerInvitationDto(
 public record SendInvitationEmailRequest(string Email);
 
 /// <summary>
+/// Result of <c>IInvitationService.GetInvitationViewAsync</c>. Maps to the
+/// state the /invite/{token} page renders: auth-choice, confirm, already-
+/// accepted, error, or invalid. The caller still owns the
+/// <see cref="Status"/> → UI mapping.
+/// </summary>
+public enum InvitationViewStatus
+{
+    Invalid,
+    AlreadyAccepted,
+    NeedsAuth,
+    SelfInvited,
+    Confirm
+}
+
+public record InvitationViewDto(
+    InvitationViewStatus Status,
+    string? ErrorMessage,
+    string? LightPlayerName,
+    int LightPlayerId,
+    string? CurrentPlayerName);
+
+public record AcceptInvitationResultDto(
+    bool Success,
+    string? ErrorMessage);
+
+/// <summary>
 /// Row in the SuperAdmin Players grid. Joins each player with the linked
 /// ASP.NET account user-name (when present) and the names of the clubs they
 /// belong to.

@@ -1,0 +1,123 @@
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Services
+@using DropShot.UI.Services.Auth
+
+@inject IInvitationService Invitations
+@inject ICurrentUser CurrentUser
+@inject NavigationManager NavigationManager
+
+@* Routing + render mode + MudProviders supplied by host shims. *@
+
+<HeadContent>
+    <meta name="robots" content="noindex" />
+</HeadContent>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    @if (_loading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3">@_errorMessage</MudAlert>
+        <MudButton Href="/" Variant="Variant.Outlined">Back home</MudButton>
+    }
+    else if (_merged)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-3">
+            Invitation accepted. Match history for "@_lightPlayerName" has been merged into your player record.
+        </MudAlert>
+        <MudButton Href="/players/mine" Variant="Variant.Filled" Color="Color.Primary">
+            Go to My Players
+        </MudButton>
+    }
+    else if (_needsAuthChoice)
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">You've been invited to DropShot</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">
+            Accept this invitation to claim the player record for <b>@_lightPlayerName</b>.
+            Any existing match history will be transferred to your account.
+        </MudText>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Href="@_registerUrl" Variant="Variant.Filled" Color="Color.Primary">
+                Create account
+            </MudButton>
+            <MudButton Href="@_loginUrl" Variant="Variant.Outlined" Color="Color.Primary">
+                Log in to existing account
+            </MudButton>
+        </MudStack>
+    }
+    else if (_needsConfirm)
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">Accept invitation?</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">
+            Match history for <b>@_lightPlayerName</b> will be merged into your player record
+            (<b>@_currentPlayerName</b>). The @_lightPlayerName record will be removed.
+        </MudText>
+        <MudStack Row="true" Spacing="2">
+            <MudButton OnClick="AcceptInvite" Variant="Variant.Filled" Color="Color.Primary"
+                       Disabled="@_accepting">
+                @(_accepting ? "Accepting…" : "Accept invitation")
+            </MudButton>
+            <MudButton Href="/" Variant="Variant.Outlined" Disabled="@_accepting">Cancel</MudButton>
+        </MudStack>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public Guid Token { get; set; }
+
+    private bool _loading = true;
+    private string? _errorMessage;
+    private bool _merged;
+    private bool _needsAuthChoice;
+    private bool _needsConfirm;
+    private bool _accepting;
+    private string _lightPlayerName = "";
+    private string _currentPlayerName = "";
+    private string _registerUrl = "";
+    private string _loginUrl = "";
+    private int _lightPlayerId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var view = await Invitations.GetInvitationViewAsync(Token);
+
+        _lightPlayerName = view.LightPlayerName ?? "";
+        _lightPlayerId = view.LightPlayerId;
+        _currentPlayerName = view.CurrentPlayerName ?? "";
+        _errorMessage = view.ErrorMessage;
+
+        switch (view.Status)
+        {
+            case InvitationViewStatus.NeedsAuth:
+                _registerUrl = $"/Account/Register?inviteToken={Token}";
+                _loginUrl = $"/Account/Login?ReturnUrl={Uri.EscapeDataString($"/invite/{Token}")}";
+                _needsAuthChoice = true;
+                break;
+            case InvitationViewStatus.Confirm:
+                _needsConfirm = true;
+                break;
+            // Invalid / AlreadyAccepted / SelfInvited render via _errorMessage.
+        }
+
+        _loading = false;
+    }
+
+    private async Task AcceptInvite()
+    {
+        _accepting = true;
+        var result = await Invitations.AcceptInvitationAsync(Token);
+        if (result.Success)
+        {
+            _merged = true;
+            _needsConfirm = false;
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage ?? "Failed to accept invitation.";
+            _needsConfirm = false;
+        }
+        _accepting = false;
+    }
+}

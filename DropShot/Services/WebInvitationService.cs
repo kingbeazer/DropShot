@@ -92,4 +92,117 @@ public sealed class WebInvitationService(
 
         await emailService.SendEmailAsync(email.Trim(), subject, html, isHtml: true);
     }
+
+    public async Task<InvitationViewDto> GetInvitationViewAsync(Guid token, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var invite = await db.PlayerInvitations
+            .Include(i => i.LightPlayer)
+            .FirstOrDefaultAsync(i => i.Token == token, ct);
+
+        if (invite is null)
+            return new InvitationViewDto(InvitationViewStatus.Invalid,
+                "This invitation link isn't valid.", null, 0, null);
+
+        if (invite.AcceptedAt is not null)
+            return new InvitationViewDto(InvitationViewStatus.AlreadyAccepted,
+                "This invitation has already been accepted.", null, 0, null);
+
+        if (invite.LightPlayer is null || !invite.LightPlayer.IsLight)
+            return new InvitationViewDto(InvitationViewStatus.Invalid,
+                "This invitation is no longer valid — the player record has changed.",
+                null, 0, null);
+
+        var lightName = invite.LightPlayer.DisplayName;
+        var lightId = invite.LightPlayerId;
+
+        var userId = currentUser.UserId;
+        if (string.IsNullOrEmpty(userId))
+            return new InvitationViewDto(InvitationViewStatus.NeedsAuth,
+                null, lightName, lightId, null);
+
+        if (invite.CreatedByUserId == userId)
+            return new InvitationViewDto(InvitationViewStatus.SelfInvited,
+                "You can't accept an invitation that you sent yourself.",
+                lightName, lightId, null);
+
+        var currentPlayer = await db.Players
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == userId && !p.IsLight, ct);
+
+        if (currentPlayer is null)
+            return new InvitationViewDto(InvitationViewStatus.Invalid,
+                "Your account isn't linked to a player record. Please contact support.",
+                lightName, lightId, null);
+
+        if (currentPlayer.PlayerId == lightId)
+            return new InvitationViewDto(InvitationViewStatus.Invalid,
+                "You can't accept an invitation for your own player record.",
+                lightName, lightId, null);
+
+        return new InvitationViewDto(InvitationViewStatus.Confirm,
+            null, lightName, lightId, currentPlayer.DisplayName);
+    }
+
+    public async Task<AcceptInvitationResultDto> AcceptInvitationAsync(Guid token, CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId;
+        if (string.IsNullOrEmpty(userId))
+            return new AcceptInvitationResultDto(false, "You must be signed in to accept an invitation.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var invite = await db.PlayerInvitations
+            .FirstOrDefaultAsync(i => i.Token == token && i.AcceptedAt == null, ct);
+        if (invite is null)
+            return new AcceptInvitationResultDto(false, "Invitation is no longer valid.");
+
+        if (invite.CreatedByUserId == userId)
+            return new AcceptInvitationResultDto(false, "You can't accept an invitation that you sent yourself.");
+
+        var lightPlayer = await db.Players.FindAsync([invite.LightPlayerId], ct);
+        if (lightPlayer is not { IsLight: true })
+            return new AcceptInvitationResultDto(false, "The invited player record is no longer available.");
+
+        var currentPlayer = await db.Players
+            .FirstOrDefaultAsync(p => p.UserId == userId && !p.IsLight, ct);
+        if (currentPlayer is null)
+            return new AcceptInvitationResultDto(false, "Your account isn't linked to a player record.");
+
+        var lightId = lightPlayer.PlayerId;
+        var verifiedId = currentPlayer.PlayerId;
+
+        var affected = await db.SavedMatch
+            .Where(m => m.Player1Id == lightId || m.Player2Id == lightId
+                     || m.Player3Id == lightId || m.Player4Id == lightId
+                     || m.WinnerPlayerId == lightId)
+            .ToListAsync(ct);
+        foreach (var m in affected)
+        {
+            if (m.Player1Id == lightId) m.Player1Id = verifiedId;
+            if (m.Player2Id == lightId) m.Player2Id = verifiedId;
+            if (m.Player3Id == lightId) m.Player3Id = verifiedId;
+            if (m.Player4Id == lightId) m.Player4Id = verifiedId;
+            if (m.WinnerPlayerId == lightId) m.WinnerPlayerId = verifiedId;
+        }
+
+        invite.AcceptedAt = DateTime.UtcNow;
+        invite.AcceptedByUserId = userId;
+
+        var inviterAlreadyBookmarked = await db.UserPlayers.AnyAsync(up =>
+            up.UserId == invite.CreatedByUserId && up.PlayerId == verifiedId, ct);
+        if (!inviterAlreadyBookmarked)
+        {
+            db.UserPlayers.Add(new UserPlayer
+            {
+                UserId = invite.CreatedByUserId,
+                PlayerId = verifiedId
+            });
+        }
+
+        db.Players.Remove(lightPlayer);
+        await db.SaveChangesAsync(ct);
+
+        return new AcceptInvitationResultDto(true, null);
+    }
 }
