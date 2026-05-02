@@ -752,10 +752,11 @@ else
             @* ── Teams / Pairings (hidden when HasDivisions — per-division UI in the Divisions section below) *@
             @if (!Model.HasDivisions && EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
             {
-                <DropShot.Components.Competitions.Setup.TeamsSection
-                    Teams="_teams"
-                    Participants="_participants"
-                    Divisions="_divisions"
+                <DropShot.UI.Components.Competitions.Setup.TeamsSection
+                    Teams="@_teams.Select(ToTeamDto).ToList()"
+                    Participants="@_participants.Select(ToParticipantDto).ToList()"
+                    Divisions="@_divisions.Select(d => new DropShot.Shared.Dtos.CompetitionDivisionDto(
+                        d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name)).ToList()"
                     AvailableRoles="_availableRoles"
                     Format="EffectivePersistedFormat()"
                     HasDivisions="Model.HasDivisions"
@@ -767,25 +768,26 @@ else
                     OnOpenGenerateDialog="OpenGenerateDialog"
                     OnAutoAssignCaptains="AutoAssignCaptains"
                     OnDeleteAllTeams="DeleteAllTeams"
-                    OnAssignCaptain="@((args) => AssignCaptain(args.Team, args.PlayerId))"
-                    OnAssignTeamDivision="@((args) => AssignTeamDivision(args.Team, args.DivisionId))"
-                    OnValidateTeam="ValidateTeam"
-                    OnOpenEditDialog="OpenEditTeamDialog"
-                    OnDeleteTeam="DeleteTeam" />
+                    OnAssignCaptain="@((args) => AssignCaptainDto(args.Team, args.PlayerId))"
+                    OnAssignTeamDivision="@((args) => AssignTeamDivisionDto(args.Team, args.DivisionId))"
+                    OnValidateTeam="ValidateTeamDto"
+                    OnOpenEditDialog="OpenEditTeamDialogDto"
+                    OnDeleteTeam="DeleteTeamDto" />
             }
         </MudTabPanel>
 
         <MudTabPanel Text="Fixtures/Results">
             @if (!Model.HasDivisions)
             {
-                <DropShot.Components.Competitions.Setup.FixturesSection
-                    Fixtures="_fixtures"
-                    Stages="_stages"
+                <DropShot.UI.Components.Competitions.Setup.FixturesSection
+                    Fixtures="@_fixtures.Select(ToFixtureDto).ToList()"
+                    Stages="@_stages.Select(s => new DropShot.Shared.Dtos.CompetitionStageDto(
+                        s.CompetitionStageId, s.Name, s.StageOrder, s.StageType)).ToList()"
                     CanEdit="_canEdit"
                     IsSuperAdmin="_isSuperAdmin"
-                    FixturePlayers="FixturePlayers"
-                    FixtureCourtLabel="FixtureCourtLabel"
-                    FixtureResultDisplay="FixtureResultDisplay"
+                    FixturePlayers="FixturePlayersDto"
+                    FixtureCourtLabel="FixtureCourtLabelDto"
+                    FixtureResultDisplay="FixtureResultDisplayDto"
                     StatusColor="StatusColor"
                     ShowScheduleConfirm="_showScheduleConfirm"
                     ShowScheduleConfirmChanged="@(v => _showScheduleConfirm = v)"
@@ -803,11 +805,11 @@ else
                     OnSchedule="ScheduleFixtures"
                     OnDeleteAll="DeleteAllFixtures"
                     OnSimulate="SimulateRoundRobinAsync"
-                    OnSubmitScore="OpenSubmitScoreAsync"
-                    OnOverrideResult="OpenOverrideResultAsync"
-                    OnShowQr="ShowQrCode"
-                    OnOpenEditDialog="OpenEditFixtureDialog"
-                    OnDeleteFixture="DeleteFixture" />
+                    OnSubmitScore="OpenSubmitScoreAsyncDto"
+                    OnOverrideResult="OpenOverrideResultAsyncDto"
+                    OnShowQr="ShowQrCodeDto"
+                    OnOpenEditDialog="OpenEditFixtureDialogDto"
+                    OnDeleteFixture="DeleteFixtureDto" />
             }
             else
             {
@@ -2405,6 +2407,96 @@ else
         await db.SaveChangesAsync();
         _showStageFollowUpDialog = false;
         Snackbar.Add($"{stages.Count} stage(s) added.", Severity.Success);
+    }
+
+    // ── DTO bridges (moved sections call DTO-typed callbacks; bridges look up
+    // the EF entity by id and forward to the existing entity-based handlers,
+    // until 7U lifts the parent into the RCL).
+    private static DropShot.Shared.Dtos.CompetitionTeamDto ToTeamDto(CompetitionTeam t) =>
+        new(t.CompetitionTeamId, t.CompetitionId, t.Name, t.CaptainPlayerId,
+            t.Captain?.DisplayName, t.CompetitionDivisionId);
+
+    private static DropShot.Shared.Dtos.CompetitionParticipantDto ToParticipantDto(CompetitionParticipant p) =>
+        new(p.PlayerId, p.Player?.DisplayName ?? "", p.Status, p.RegisteredAt,
+            p.TeamId, p.Team?.Name, p.Player?.MobileNumber, p.Role, p.Player?.Sex,
+            p.CompetitionDivisionId, p.Division?.Name);
+
+    private async Task AssignCaptainDto(DropShot.Shared.Dtos.CompetitionTeamDto dto, int? playerId)
+    {
+        var team = _teams.FirstOrDefault(t => t.CompetitionTeamId == dto.CompetitionTeamId);
+        if (team is not null) await AssignCaptain(team, playerId);
+    }
+
+    private async Task AssignTeamDivisionDto(DropShot.Shared.Dtos.CompetitionTeamDto dto, int? divisionId)
+    {
+        var team = _teams.FirstOrDefault(t => t.CompetitionTeamId == dto.CompetitionTeamId);
+        if (team is not null) await AssignTeamDivision(team, divisionId);
+    }
+
+    private async Task ValidateTeamDto(DropShot.Shared.Dtos.CompetitionTeamDto dto)
+    {
+        var team = _teams.FirstOrDefault(t => t.CompetitionTeamId == dto.CompetitionTeamId);
+        if (team is not null) await ValidateTeam(team);
+    }
+
+    private void OpenEditTeamDialogDto(DropShot.Shared.Dtos.CompetitionTeamDto dto)
+    {
+        var team = _teams.FirstOrDefault(t => t.CompetitionTeamId == dto.CompetitionTeamId);
+        if (team is not null) OpenEditTeamDialog(team);
+    }
+
+    private async Task DeleteTeamDto(DropShot.Shared.Dtos.CompetitionTeamDto dto)
+    {
+        var team = _teams.FirstOrDefault(t => t.CompetitionTeamId == dto.CompetitionTeamId);
+        if (team is not null) await DeleteTeam(team);
+    }
+
+    private string FixturePlayersDto(DropShot.Shared.Dtos.CompetitionFixtureDto dto)
+    {
+        var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
+        return fx is null ? "" : FixturePlayers(fx);
+    }
+
+    private string FixtureCourtLabelDto(DropShot.Shared.Dtos.CompetitionFixtureDto dto)
+    {
+        var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
+        return fx is null ? "" : FixtureCourtLabel(fx);
+    }
+
+    private string FixtureResultDisplayDto(DropShot.Shared.Dtos.CompetitionFixtureDto dto)
+    {
+        var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
+        return fx is null ? "" : FixtureResultDisplay(fx);
+    }
+
+    private async Task OpenSubmitScoreAsyncDto(DropShot.Shared.Dtos.CompetitionFixtureDto dto)
+    {
+        var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
+        if (fx is not null) await OpenSubmitScoreAsync(fx);
+    }
+
+    private async Task OpenOverrideResultAsyncDto(DropShot.Shared.Dtos.CompetitionFixtureDto dto)
+    {
+        var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
+        if (fx is not null) await OpenOverrideResultAsync(fx);
+    }
+
+    private void ShowQrCodeDto(DropShot.Shared.Dtos.CompetitionFixtureDto dto)
+    {
+        var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
+        if (fx is not null) ShowQrCode(fx);
+    }
+
+    private void OpenEditFixtureDialogDto(DropShot.Shared.Dtos.CompetitionFixtureDto dto)
+    {
+        var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
+        if (fx is not null) OpenEditFixtureDialog(fx);
+    }
+
+    private async Task DeleteFixtureDto(DropShot.Shared.Dtos.CompetitionFixtureDto dto)
+    {
+        var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
+        if (fx is not null) await DeleteFixture(fx);
     }
 
     private async Task DeleteStageDto(DropShot.Shared.Dtos.CompetitionStageDto dto)
