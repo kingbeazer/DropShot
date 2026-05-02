@@ -1,13 +1,35 @@
+@inject AuthService Auth
+
 <CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(MauiProgram).Assembly"
-            AdditionalAssemblies="@(new[] { typeof(DropShot.UI.Services.Auth.ICurrentUser).Assembly })">
-        <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
-                <NotAuthorized>
-                    <RedirectToLogin />
-                </NotAuthorized>
-            </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-        </Found>
-    </Router>
+    @if (!_sessionRestored)
+    {
+        <MudThemeProvider IsDarkMode="true" Theme="DropShot.UI.Theme.DropShotTheme.Default" />
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else
+    {
+        <Router AppAssembly="@typeof(MauiProgram).Assembly"
+                AdditionalAssemblies="@(new[] { typeof(DropShot.UI.Services.Auth.ICurrentUser).Assembly })">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                    <NotAuthorized>
+                        <RedirectToLogin />
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+        </Router>
+    }
 </CascadingAuthenticationState>
+
+@code {
+    private bool _sessionRestored;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.TryRestoreSessionAsync();
+        _sessionRestored = true;
+    }
+}
