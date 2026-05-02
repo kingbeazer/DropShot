@@ -1,5 +1,5 @@
-@using DropShot.Models
 @using DropShot.Shared
+@using DropShot.Shared.Dtos
 
 <MudPaper id="section-fixtures" Class="pa-4 setup-section" Elevation="0"
      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -94,7 +94,7 @@
             <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd>@(!string.IsNullOrEmpty(context.FixtureLabel) ? context.FixtureLabel : context.Stage?.Name ?? "—")</MudTd>
+            <MudTd>@(!string.IsNullOrEmpty(context.FixtureLabel) ? context.FixtureLabel : context.StageName ?? "—")</MudTd>
             <MudTd>@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
             <MudTd>@FixturePlayers(context)</MudTd>
             <MudTd>@FixtureCourtLabel(context)</MudTd>
@@ -160,12 +160,12 @@
 </MudPaper>
 
 @code {
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionFixture> Fixtures { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionStage> Stages { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionFixtureDto> Fixtures { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionStageDto> Stages { get; set; } = [];
     [Parameter] public bool CanEdit { get; set; }
-    [Parameter, EditorRequired] public Func<CompetitionFixture, string> FixturePlayers { get; set; } = _ => "";
-    [Parameter, EditorRequired] public Func<CompetitionFixture, string> FixtureCourtLabel { get; set; } = _ => "";
-    [Parameter, EditorRequired] public Func<CompetitionFixture, string> FixtureResultDisplay { get; set; } = _ => "";
+    [Parameter, EditorRequired] public Func<CompetitionFixtureDto, string> FixturePlayers { get; set; } = _ => "";
+    [Parameter, EditorRequired] public Func<CompetitionFixtureDto, string> FixtureCourtLabel { get; set; } = _ => "";
+    [Parameter, EditorRequired] public Func<CompetitionFixtureDto, string> FixtureResultDisplay { get; set; } = _ => "";
     [Parameter, EditorRequired] public Func<FixtureStatus, Color> StatusColor { get; set; } = _ => Color.Default;
 
     [Parameter] public bool ShowScheduleConfirm { get; set; }
@@ -186,9 +186,9 @@
     [Parameter] public EventCallback OnSchedule { get; set; }
     [Parameter] public EventCallback OnDeleteAll { get; set; }
     [Parameter] public EventCallback OnSimulate { get; set; }
-    [Parameter] public EventCallback<CompetitionFixture> OnSubmitScore { get; set; }
-    [Parameter] public EventCallback<CompetitionFixture> OnOverrideResult { get; set; }
-    [Parameter] public EventCallback<CompetitionFixture> OnShowQr { get; set; }
-    [Parameter] public EventCallback<CompetitionFixture> OnOpenEditDialog { get; set; }
-    [Parameter] public EventCallback<CompetitionFixture> OnDeleteFixture { get; set; }
+    [Parameter] public EventCallback<CompetitionFixtureDto> OnSubmitScore { get; set; }
+    [Parameter] public EventCallback<CompetitionFixtureDto> OnOverrideResult { get; set; }
+    [Parameter] public EventCallback<CompetitionFixtureDto> OnShowQr { get; set; }
+    [Parameter] public EventCallback<CompetitionFixtureDto> OnOpenEditDialog { get; set; }
+    [Parameter] public EventCallback<CompetitionFixtureDto> OnDeleteFixture { get; set; }
 }

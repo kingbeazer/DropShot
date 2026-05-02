@@ -1,5 +1,5 @@
-@using DropShot.Models
 @using DropShot.Shared
+@using DropShot.Shared.Dtos
 
 @{
     var isDoubles = Format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles;
@@ -88,7 +88,7 @@
                                ValueChanged="@((int? pid) => OnAssignCaptain.InvokeAsync((context, pid)))">
                         @foreach (var p in Participants.Where(p => p.TeamId == context.CompetitionTeamId))
                         {
-                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@(p.Player?.DisplayName ?? "")</MudSelectItem>
+                            <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.DisplayName</MudSelectItem>
                         }
                     </MudSelect>
                 </MudTd>
@@ -98,7 +98,7 @@
                 {
                     @foreach (var p in Participants.Where(p => p.TeamId == context.CompetitionTeamId))
                     {
-                        var label = $"{p.Player?.DisplayName} ({p.Role ?? "—"})";
+                        var label = $"{p.DisplayName} ({p.Role ?? "—"})";
                         <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@label</MudChip>
                     }
                 }
@@ -106,7 +106,7 @@
                 {
                     @string.Join(", ", Participants
                         .Where(p => p.TeamId == context.CompetitionTeamId)
-                        .Select(p => p.Player?.DisplayName ?? ""))
+                        .Select(p => p.DisplayName))
                 }
             </MudTd>
             @if (HasDivisions)
@@ -140,9 +140,9 @@
 </MudPaper>
 
 @code {
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionTeam> Teams { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionParticipant> Participants { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionDivision> Divisions { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionTeamDto> Teams { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionParticipantDto> Participants { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionDivisionDto> Divisions { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<string> AvailableRoles { get; set; } = [];
     [Parameter] public CompetitionFormat? Format { get; set; }
     [Parameter] public bool HasDivisions { get; set; }
@@ -154,9 +154,9 @@
     [Parameter] public EventCallback OnOpenGenerateDialog { get; set; }
     [Parameter] public EventCallback OnAutoAssignCaptains { get; set; }
     [Parameter] public EventCallback OnDeleteAllTeams { get; set; }
-    [Parameter] public EventCallback<(CompetitionTeam Team, int? PlayerId)> OnAssignCaptain { get; set; }
-    [Parameter] public EventCallback<(CompetitionTeam Team, int? DivisionId)> OnAssignTeamDivision { get; set; }
-    [Parameter] public EventCallback<CompetitionTeam> OnValidateTeam { get; set; }
-    [Parameter] public EventCallback<CompetitionTeam> OnOpenEditDialog { get; set; }
-    [Parameter] public EventCallback<CompetitionTeam> OnDeleteTeam { get; set; }
+    [Parameter] public EventCallback<(CompetitionTeamDto Team, int? PlayerId)> OnAssignCaptain { get; set; }
+    [Parameter] public EventCallback<(CompetitionTeamDto Team, int? DivisionId)> OnAssignTeamDivision { get; set; }
+    [Parameter] public EventCallback<CompetitionTeamDto> OnValidateTeam { get; set; }
+    [Parameter] public EventCallback<CompetitionTeamDto> OnOpenEditDialog { get; set; }
+    [Parameter] public EventCallback<CompetitionTeamDto> OnDeleteTeam { get; set; }
 }
