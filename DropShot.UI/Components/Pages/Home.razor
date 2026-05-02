@@ -121,23 +121,26 @@
                     {
                         <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
                             Scan the QR code with your phone to log in, or
-                            <MudLink Href="/Account/Login">use email and password</MudLink>.
+                            <MudLink Href="@LoginUrl">use email and password</MudLink>.
                         </MudText>
                         <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
-                            <MudLink Href="/Account/Login">Log in with email and password</MudLink> to get started.
+                            <MudLink Href="@LoginUrl">Log in with email and password</MudLink> to get started.
                         </MudText>
                     }
                     else
                     {
                         <MudText Typo="Typo.body1" Class="mt-2">
-                            <MudLink Href="/Account/Login">Log in with email and password</MudLink> to get started.
+                            <MudLink Href="@LoginUrl">Log in with email and password</MudLink> to get started.
                         </MudText>
                     }
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-3"
-                               StartIcon="@Icons.Material.Filled.AutoFixHigh"
-                               Href="/Account/LoginMagicLink">
-                        Sign in with magic link
-                    </MudButton>
+                    @if (!string.IsNullOrEmpty(MagicLinkUrl))
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-3"
+                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                   Href="@MagicLinkUrl">
+                            Sign in with magic link
+                        </MudButton>
+                    }
                 </MudItem>
                 @if (AnonymousQrPanel is not null)
                 {
@@ -312,10 +315,23 @@
 
     /// <summary>
     /// Server-only QR-login panel passed by the web host shim. MAUI omits
-    /// the slot (no QR-login flow on mobile, and [Authorize] redirects
-    /// unauthenticated users to login before they could see Home anyway).
+    /// the slot — no QR-login flow on mobile.
     /// </summary>
     [Parameter] public RenderFragment? AnonymousQrPanel { get; set; }
+
+    /// <summary>
+    /// URL the "Log in with email and password" links navigate to. Defaults
+    /// to the web's ASP.NET Identity scaffolded route; MAUI overrides to
+    /// "/login" (its own bearer-token login page).
+    /// </summary>
+    [Parameter] public string LoginUrl { get; set; } = "/Account/Login";
+
+    /// <summary>
+    /// URL for the "Sign in with magic link" button. Defaults to the web's
+    /// scaffolded route. MAUI passes empty/null to hide the button — magic
+    /// link is a web-Identity feature MAUI doesn't have.
+    /// </summary>
+    [Parameter] public string? MagicLinkUrl { get; set; } = "/Account/LoginMagicLink";
 
     private List<CompetitionFixtureDto> _upcomingFixtures = [];
     private List<CompetitionFixtureDto> _pendingReviews = [];

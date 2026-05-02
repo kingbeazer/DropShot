@@ -1,9 +1,8 @@
 @page "/"
-@attribute [Authorize]
 
-@* MAUI shim. No <MudProviders /> (MainLayout owns them) and no
-   AnonymousQrPanel slot — MAUI doesn't have a QR-login flow, and
-   [Authorize] redirects unauthenticated users to login before they
-   could see Home anyway. *@
+@* MAUI shim. Intentionally NOT [Authorize]-gated so the app launches at Home
+   for anonymous users (matching the web). LoginUrl points at MAUI's own
+   bearer-token login page; MagicLinkUrl is empty so the magic-link button is
+   hidden — magic link is a web-Identity feature MAUI doesn't have. *@
 
-<DropShot.UI.Components.Pages.Home />
+<DropShot.UI.Components.Pages.Home LoginUrl="/login" MagicLinkUrl="" />
