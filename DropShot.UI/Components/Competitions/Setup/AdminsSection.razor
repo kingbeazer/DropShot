@@ -1,4 +1,4 @@
-@using DropShot.Components.Pages
+@using DropShot.Shared.Dtos
 
 <MudPaper id="section-admins" Class="pa-4 mb-4 setup-section" Elevation="0"
      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -39,9 +39,9 @@
 </MudPaper>
 
 @code {
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionPage.CompetitionAdminRow> Admins { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionAdminRowDto> Admins { get; set; } = [];
     [Parameter] public string NewAdminEmail { get; set; } = "";
     [Parameter] public EventCallback<string> NewAdminEmailChanged { get; set; }
     [Parameter] public EventCallback OnAddAdmin { get; set; }
-    [Parameter] public EventCallback<CompetitionPage.CompetitionAdminRow> OnRemoveAdmin { get; set; }
+    [Parameter] public EventCallback<CompetitionAdminRowDto> OnRemoveAdmin { get; set; }
 }
