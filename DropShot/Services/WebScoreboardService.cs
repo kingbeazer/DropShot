@@ -103,7 +103,7 @@ public sealed class WebScoreboardService(
         if (string.IsNullOrWhiteSpace(matchJson)) return null;
         try
         {
-            var match = JsonConvert.DeserializeObject<DropShot.Models.Match>(matchJson);
+            var match = JsonConvert.DeserializeObject<Match>(matchJson);
             return match?.HistoryList?.LastOrDefault();
         }
         catch (JsonException) { return null; }

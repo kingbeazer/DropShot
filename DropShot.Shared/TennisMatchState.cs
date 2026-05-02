@@ -1,7 +1,11 @@
-using DropShot.Shared;
+namespace DropShot.Shared;
 
-namespace DropShot.Models;
-
+/// <summary>
+/// Mutable scoring state for the live-scoring page. Score-derivation logic
+/// lives in <c>TennisScoreService</c>; this is the data backing it. Lifted
+/// here from <c>DropShot.Models</c> alongside <see cref="Match"/> so the
+/// shared scoring pipeline can target the RCL.
+/// </summary>
 public class TennisMatchState
 {
     // Scores
