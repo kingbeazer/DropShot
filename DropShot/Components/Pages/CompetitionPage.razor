@@ -417,9 +417,9 @@ else
             @* ── Rubber Template ─────────────────────────────── *@
             @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
             {
-                <DropShot.Components.Competitions.Setup.RubberTemplateSection
+                <DropShot.UI.Components.Competitions.Setup.RubberTemplateSection
                     Defs="_rubberTemplateDefs"
-                    Presets="_rubberPresets"
+                    Presets="@_rubberPresets.Select(p => new DropShot.Shared.Dtos.RubberPresetDto(p.Key, p.Label)).ToList()"
                     AvailableRoles="_availableRoles"
                     Source="_rubberTemplateSource"
                     SelectedPresetKey="@_selectedRubberPresetKey"
