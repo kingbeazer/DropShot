@@ -98,6 +98,41 @@ public sealed class WebScoreboardService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task<List<AdminCourtDisplaySettingDto>> GetAdminCourtDisplaySettingsAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        var isAdmin = await authzService.IsAdminAsync(user);
+
+        var query = db.Courts.Include(c => c.Club).AsQueryable();
+        if (!isAdmin)
+        {
+            var clubIds = currentUser.AdminClubIds.ToList();
+            if (clubIds.Count == 0) return [];
+            query = query.Where(c => clubIds.Contains(c.ClubId));
+        }
+
+        var courts = await query.OrderBy(c => c.Club.Name).ThenBy(c => c.Name).ToListAsync(ct);
+        if (courts.Count == 0) return [];
+
+        var courtIds = courts.Select(c => c.CourtId).ToList();
+        var settings = await db.ScoreboardDisplaySettings
+            .Where(s => courtIds.Contains(s.CourtId))
+            .ToDictionaryAsync(s => s.CourtId, ct);
+
+        return courts.Select(c =>
+        {
+            settings.TryGetValue(c.CourtId, out var s);
+            return new AdminCourtDisplaySettingDto(
+                c.CourtId, c.Club.Name, c.Name,
+                s?.Layout ?? "default",
+                s?.Fullscreen ?? false,
+                s?.LiveStreamUrl,
+                s?.ShowLiveStream ?? false);
+        }).ToList();
+    }
+
     private static GameState? ParseLatestGameState(string? matchJson)
     {
         if (string.IsNullOrWhiteSpace(matchJson)) return null;

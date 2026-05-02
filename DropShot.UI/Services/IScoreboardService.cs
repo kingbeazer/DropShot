@@ -27,4 +27,11 @@ public interface IScoreboardService
 
     /// <summary>Update one or more display settings on a court (layout / fullscreen / live-stream).</summary>
     Task UpdateDisplaySettingAsync(int courtId, UpdateDisplaySettingRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Combined courts + per-court display settings for the Display Control
+    /// admin page. Same admin-scoping as <see cref="GetAdminCourtsAsync"/>;
+    /// returns one row per court with a default row when no setting exists.
+    /// </summary>
+    Task<List<AdminCourtDisplaySettingDto>> GetAdminCourtDisplaySettingsAsync(CancellationToken ct = default);
 }

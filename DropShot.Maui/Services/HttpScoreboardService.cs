@@ -24,4 +24,8 @@ public sealed class HttpScoreboardService(HttpClient http) : IScoreboardService
             $"api/scoreboard/courts/{courtId}/display-setting", request, ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task<List<AdminCourtDisplaySettingDto>> GetAdminCourtDisplaySettingsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<AdminCourtDisplaySettingDto>>(
+            "api/scoreboard/courts/display-settings", ct) ?? [];
 }

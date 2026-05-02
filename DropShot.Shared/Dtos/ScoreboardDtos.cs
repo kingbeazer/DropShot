@@ -48,3 +48,18 @@ public record UpdateDisplaySettingRequest(
     bool? Fullscreen = null,
     string? LiveStreamUrl = null,
     bool? ShowLiveStream = null);
+
+/// <summary>
+/// Combined courts + display-settings payload for the
+/// <c>/score/display-control</c> admin page. Avoids the N+1 round-trips of
+/// fetching courts + per-court state separately. Settings default to
+/// <c>Layout="default"</c>, all switches off, when no row exists yet.
+/// </summary>
+public record AdminCourtDisplaySettingDto(
+    int CourtId,
+    string ClubName,
+    string CourtName,
+    string Layout,
+    bool Fullscreen,
+    string? LiveStreamUrl,
+    bool ShowLiveStream);
