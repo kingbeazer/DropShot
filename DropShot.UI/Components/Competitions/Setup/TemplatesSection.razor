@@ -1,4 +1,4 @@
-@using DropShot.Models
+@using DropShot.Shared.Dtos
 
 <MudPaper id="section-templates" Class="pa-4 mb-4 setup-section" Elevation="0"
      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -17,7 +17,7 @@
 </MudPaper>
 
 @code {
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionTemplate> Templates { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionTemplateDto> Templates { get; set; } = [];
     [Parameter] public int? SelectedTemplateId { get; set; }
     [Parameter] public EventCallback<int?> OnApplyTemplate { get; set; }
 }

@@ -372,7 +372,7 @@ else
         @* ── Competition Admins ───────────────────────────── *@
         @if (IsEdit && _canEdit)
         {
-            <DropShot.Components.Competitions.Setup.AdminsSection
+            <DropShot.UI.Components.Competitions.Setup.AdminsSection
                 Admins="_competitionAdmins"
                 NewAdminEmail="@_newAdminEmail"
                 NewAdminEmailChanged="@(v => _newAdminEmail = v)"
@@ -383,11 +383,11 @@ else
         @* ── Stages ─────────────────────────────────────────── *@
         @if (IsEdit)
         {
-            <DropShot.Components.Competitions.Setup.StagesSection
-                Stages="_stages"
+            <DropShot.UI.Components.Competitions.Setup.StagesSection
+                Stages="@_stages.Select(s => new DropShot.Shared.Dtos.CompetitionStageDto(s.CompetitionStageId, s.Name, s.StageOrder, s.StageType)).ToList()"
                 StageDisplayName="StageDisplayName"
                 OnOpenAddDialog="OpenAddStageDialog"
-                OnDeleteStage="DeleteStage" />
+                OnDeleteStage="DeleteStageDto" />
 
             @* ── Match Windows (hidden when HasDivisions — per-division UI lives in the Divisions section below) *@
             @if (!Model.HasDivisions)
@@ -452,8 +452,11 @@ else
             @* ── Apply Competition Template ───────────────────── *@
             @if (_competitionTemplates.Count > 0)
             {
-                <DropShot.Components.Competitions.Setup.TemplatesSection
-                    Templates="_competitionTemplates"
+                <DropShot.UI.Components.Competitions.Setup.TemplatesSection
+                    Templates="@_competitionTemplates.Select(t => new DropShot.Shared.Dtos.CompetitionTemplateDto(
+                        t.CompetitionTemplateId, t.ClubId, t.Name, t.Format, t.RulesSetId, t.BestOf, t.MaxAge, t.EligibleSex,
+                        t.Windows.Select(w => new DropShot.Shared.Dtos.CompetitionTemplateWindowDto(
+                            w.CompetitionTemplateWindowId, w.DayOfWeek, w.StartTime, w.EndTime)).ToList())).ToList()"
                     SelectedTemplateId="_selectedCompetitionTemplateId"
                     OnApplyTemplate="ApplyCompetitionTemplate" />
             }
@@ -1663,8 +1666,7 @@ else
     private bool _templateWindowsApplied;
 
     // Competition admins
-    public record CompetitionAdminRow(string UserId, string UserEmail, DateTime AssignedAt);
-    private List<CompetitionAdminRow> _competitionAdmins = [];
+    private List<DropShot.Shared.Dtos.CompetitionAdminRowDto> _competitionAdmins = [];
     private string _newAdminEmail = "";
 
     // Send Email
@@ -2397,6 +2399,12 @@ else
         await db.SaveChangesAsync();
         _showStageFollowUpDialog = false;
         Snackbar.Add($"{stages.Count} stage(s) added.", Severity.Success);
+    }
+
+    private async Task DeleteStageDto(DropShot.Shared.Dtos.CompetitionStageDto dto)
+    {
+        var stage = _stages.FirstOrDefault(s => s.CompetitionStageId == dto.CompetitionStageId);
+        if (stage is not null) await DeleteStage(stage);
     }
 
     private async Task DeleteStage(CompetitionStage stage)
@@ -4500,7 +4508,7 @@ else
         _competitionAdmins = await db.CompetitionAdmins
             .Where(ca => ca.CompetitionId == Id)
             .Join(db.Users, ca => ca.UserId, u => u.Id,
-                  (ca, u) => new CompetitionAdminRow(ca.UserId, u.Email ?? "", ca.AssignedAt))
+                  (ca, u) => new DropShot.Shared.Dtos.CompetitionAdminRowDto(ca.UserId, u.Email ?? "", ca.AssignedAt))
             .ToListAsync();
     }
 
@@ -4518,7 +4526,7 @@ else
         Snackbar.Add("Admin added.", Severity.Success);
     }
 
-    private async Task RemoveCompetitionAdmin(CompetitionAdminRow row)
+    private async Task RemoveCompetitionAdmin(DropShot.Shared.Dtos.CompetitionAdminRowDto row)
     {
         await using var db = DbFactory.CreateDbContext();
         var ca = await db.CompetitionAdmins.FindAsync(Id, row.UserId);
