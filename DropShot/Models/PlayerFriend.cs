@@ -1,11 +1,6 @@
-namespace DropShot.Models;
+using DropShot.Shared;
 
-public enum FriendStatus : byte
-{
-    Pending = 1,
-    Accepted = 2,
-    Blocked = 3
-}
+namespace DropShot.Models;
 
 public class PlayerFriend
 {

@@ -1,8 +1,8 @@
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using RubberTieBreakMode = DropShot.Shared.RubberTieBreakMode;
 
 namespace DropShot.Services;
 

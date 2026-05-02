@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.Shared;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 

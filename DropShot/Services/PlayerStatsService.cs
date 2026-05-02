@@ -1,5 +1,6 @@
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace DropShot.Services;

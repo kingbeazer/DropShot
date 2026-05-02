@@ -1,6 +1,7 @@
 using DropShot.Data;
 using DropShot.Models;
 using DropShot.Services;
+using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -77,21 +78,21 @@ public class CompetitionsController(
 
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
-            (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
+            c.CompetitionFormat,
             c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
-            (DropShot.Shared.PlayerSex?)c.EligibleSex,
+            c.EligibleSex,
             c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
             c.EventId, c.Event?.Name,
             c.Stages.Select(s => new CompetitionStageDto(
                 s.CompetitionStageId, s.Name, s.StageOrder,
-                (DropShot.Shared.StageType)s.StageType)).ToList(),
+                s.StageType)).ToList(),
             c.Participants.Select(p => new CompetitionParticipantDto(
                 p.PlayerId, p.Player?.DisplayName ?? "",
-                (DropShot.Shared.ParticipantStatus)p.Status,
+                p.Status,
                 p.RegisteredAt, p.TeamId, p.Team?.Name,
                 p.Player?.MobileNumber,
                 p.Role,
-                (DropShot.Shared.PlayerSex?)p.Player?.Sex,
+                p.Player?.Sex,
                 p.CompetitionDivisionId,
                 p.Division?.Name)).ToList(),
             c.IsArchived,
@@ -227,7 +228,7 @@ public class CompetitionsController(
         if (comp is null) return NotFound();
         if (!await authzService.CanEditCompetitionAsync(User, comp.HostClubId)) return Forbid();
 
-        var modelType = (DropShot.Models.StageType)req.StageType;
+        var modelType = (StageType)req.StageType;
         var nextOrder = await db.CompetitionStages
             .Where(s => s.CompetitionId == id)
             .Select(s => (int?)s.StageOrder).MaxAsync() ?? 0;
@@ -241,7 +242,7 @@ public class CompetitionsController(
         db.CompetitionStages.Add(stage);
         await db.SaveChangesAsync();
         return Ok(new CompetitionStageDto(stage.CompetitionStageId, stage.Name,
-            stage.StageOrder, (DropShot.Shared.StageType)stage.StageType));
+            stage.StageOrder, stage.StageType));
     }
 
     [HttpDelete("{id:int}/stages/{stageId:int}")]
@@ -312,7 +313,7 @@ public class CompetitionsController(
         var cp = new CompetitionParticipant
         {
             CompetitionId = id, PlayerId = req.PlayerId,
-            RegisteredAt = DateTime.UtcNow, Status = DropShot.Models.ParticipantStatus.Registered
+            RegisteredAt = DateTime.UtcNow, Status = ParticipantStatus.Registered
         };
         db.CompetitionParticipants.Add(cp);
         await db.SaveChangesAsync();
@@ -330,7 +331,7 @@ public class CompetitionsController(
 
         var cp = await db.CompetitionParticipants.FindAsync(id, playerId);
         if (cp is null) return NotFound();
-        cp.Status = (DropShot.Models.ParticipantStatus)req.Status;
+        cp.Status = (ParticipantStatus)req.Status;
         await db.SaveChangesAsync();
         return Ok();
     }
@@ -676,7 +677,7 @@ public class CompetitionsController(
 
         var members = await db.CompetitionParticipants
             .Where(cp => cp.CompetitionId == id && cp.TeamId == teamId
-                && cp.Status == DropShot.Models.ParticipantStatus.FullPlayer)
+                && cp.Status == ParticipantStatus.FullPlayer)
             .Include(cp => cp.Player)
             .ToListAsync();
 
@@ -836,7 +837,7 @@ public class CompetitionsController(
 
         var confirmedParticipantIds = await db.CompetitionParticipants
             .Where(cp => cp.CompetitionId == id && playerIds.Contains(cp.PlayerId)
-                && cp.Status == DropShot.Models.ParticipantStatus.FullPlayer)
+                && cp.Status == ParticipantStatus.FullPlayer)
             .Select(cp => cp.PlayerId)
             .ToListAsync();
         var missingParticipant = playerIds.Except(confirmedParticipantIds).ToList();
@@ -854,7 +855,7 @@ public class CompetitionsController(
                 warnings.Add(new EligibilityWarning(v.Code, $"{p.DisplayName}: {v.Message}"));
         }
 
-        if (comp.CompetitionFormat == DropShot.Models.CompetitionFormat.MixedDoubles)
+        if (comp.CompetitionFormat == CompetitionFormat.MixedDoubles)
         {
             AppendMixedDoublesWarnings(warnings, players, req);
         }
@@ -887,10 +888,10 @@ public class CompetitionsController(
         Check(req.Player2Id, req.Player4Id, "Away pair");
     }
 
-    private static string FormatSexPair(DropShot.Models.PlayerSex sex) => sex switch
+    private static string FormatSexPair(PlayerSex sex) => sex switch
     {
-        DropShot.Models.PlayerSex.Male => "two males",
-        DropShot.Models.PlayerSex.Female => "two females",
+        PlayerSex.Male => "two males",
+        PlayerSex.Female => "two females",
         _ => "both the same",
     };
 
@@ -1087,7 +1088,7 @@ public class CompetitionsController(
 
         // Find round-robin stage IDs for this competition
         var rrStageIds = await db.CompetitionStages
-            .Where(s => s.CompetitionId == id && s.StageType == DropShot.Models.StageType.RoundRobin)
+            .Where(s => s.CompetitionId == id && s.StageType == StageType.RoundRobin)
             .Select(s => s.CompetitionStageId)
             .ToListAsync();
 
@@ -1097,7 +1098,7 @@ public class CompetitionsController(
             .Where(f => f.CompetitionId == id
                         && f.CompetitionStageId != null
                         && rrStageIds.Contains(f.CompetitionStageId!.Value)
-                        && f.Status == DropShot.Models.FixtureStatus.Completed
+                        && f.Status == FixtureStatus.Completed
                         && f.WinnerPlayerId != null)
             .Include(f => f.Player1)
             .Include(f => f.Player2)
@@ -1189,13 +1190,13 @@ public class CompetitionsController(
     private static void Apply(Competition c, SaveCompetitionRequest r)
     {
         c.CompetitionName = r.CompetitionName.Trim();
-        c.CompetitionFormat = (DropShot.Models.CompetitionFormat)r.CompetitionFormat;
+        c.CompetitionFormat = (CompetitionFormat)r.CompetitionFormat;
         c.MaxParticipants = r.MaxParticipants;
         c.StartDate = r.StartDate;
         c.EndDate = r.EndDate;
         c.MaxAge = r.MaxAge;
         c.MinAge = r.MinAge;
-        c.EligibleSex = (DropShot.Models.PlayerSex?)r.EligibleSex;
+        c.EligibleSex = (PlayerSex?)r.EligibleSex;
         // HostClubId/CreatorUserId are set explicitly at Create time and are immutable thereafter.
         c.RulesSetId = r.RulesSetId;
         c.EventId = r.EventId;
@@ -1242,16 +1243,16 @@ public class CompetitionsController(
         f.Player2Id = r.Player2Id;
         f.Player3Id = r.Player3Id;
         f.Player4Id = r.Player4Id;
-        f.Status = (DropShot.Models.FixtureStatus)r.Status;
+        f.Status = (FixtureStatus)r.Status;
         if (r.ResultSummary != null) f.ResultSummary = r.ResultSummary;
         if (r.WinnerPlayerId != null) f.WinnerPlayerId = r.WinnerPlayerId;
     }
 
     private static CompetitionDto ToDto(Competition c) => new(
         c.CompetitionID, c.CompetitionName,
-        (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
+        c.CompetitionFormat,
         c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
-        (DropShot.Shared.PlayerSex?)c.EligibleSex,
+        c.EligibleSex,
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
         c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted,
         c.CreatorUserId, c.IsRestricted, c.RegisterByDate);
@@ -1260,7 +1261,7 @@ public class CompetitionsController(
         f.CompetitionFixtureId, f.CompetitionId,
         f.CompetitionStageId, f.Stage?.Name,
         f.CourtId, f.Court?.Name,
-        f.ScheduledAt, (DropShot.Shared.FixtureStatus)f.Status,
+        f.ScheduledAt, f.Status,
         f.FixtureLabel, f.RoundNumber,
         f.Player1Id, f.Player1?.DisplayName,
         f.Player2Id, f.Player2?.DisplayName,
@@ -1320,7 +1321,7 @@ public class CompetitionsController(
 
         var members = await db.CompetitionParticipants
             .Where(cp => cp.CompetitionId == id && cp.TeamId == teamId
-                && cp.Status == DropShot.Models.ParticipantStatus.FullPlayer)
+                && cp.Status == ParticipantStatus.FullPlayer)
             .Include(cp => cp.Player)
             .ToListAsync();
 
@@ -1571,10 +1572,10 @@ public class CompetitionsController(
         await using var db = dbFactory.CreateDbContext();
 
         var comp = await db.Competition.AsNoTracking().FirstOrDefaultAsync(c => c.CompetitionID == id);
-        var scoringMode = comp?.LeagueScoring ?? DropShot.Models.LeagueScoringMode.WinPoints;
+        var scoringMode = comp?.LeagueScoring ?? LeagueScoringMode.WinPoints;
 
         var rrStageIds = await db.CompetitionStages
-            .Where(s => s.CompetitionId == id && s.StageType == DropShot.Models.StageType.RoundRobin)
+            .Where(s => s.CompetitionId == id && s.StageType == StageType.RoundRobin)
             .Select(s => s.CompetitionStageId)
             .ToListAsync();
 
@@ -1590,7 +1591,7 @@ public class CompetitionsController(
             .Where(f => f.CompetitionId == id
                 && f.CompetitionStageId != null
                 && rrStageIds.Contains(f.CompetitionStageId!.Value)
-                && f.Status == DropShot.Models.FixtureStatus.Completed
+                && f.Status == FixtureStatus.Completed
                 && f.HomeTeamId != null && f.AwayTeamId != null
                 && teamIds.Contains(f.HomeTeamId.Value)
                 && teamIds.Contains(f.AwayTeamId.Value))
@@ -1609,8 +1610,8 @@ public class CompetitionsController(
 
         string unitLabel = scoringMode switch
         {
-            DropShot.Models.LeagueScoringMode.SetsWon  => "sets",
-            DropShot.Models.LeagueScoringMode.GamesWon => "games",
+            LeagueScoringMode.SetsWon  => "sets",
+            LeagueScoringMode.GamesWon => "games",
             _                                          => "rubbers",
         };
 
@@ -1637,8 +1638,8 @@ public class CompetitionsController(
 
             (int homeFor, int awayFor) = scoringMode switch
             {
-                DropShot.Models.LeagueScoringMode.SetsWon  => (homeSets, awaySets),
-                DropShot.Models.LeagueScoringMode.GamesWon => (homeGames, awayGames),
+                LeagueScoringMode.SetsWon  => (homeSets, awaySets),
+                LeagueScoringMode.GamesWon => (homeGames, awayGames),
                 _                                          => (homeRubbers, awayRubbers),
             };
             scoringFor[homeId] += homeFor;
@@ -1654,8 +1655,8 @@ public class CompetitionsController(
 
             (int homePts, int awayPts) = scoringMode switch
             {
-                DropShot.Models.LeagueScoringMode.SetsWon  => (homeSets, awaySets),
-                DropShot.Models.LeagueScoringMode.GamesWon => (homeGames, awayGames),
+                LeagueScoringMode.SetsWon  => (homeSets, awaySets),
+                LeagueScoringMode.GamesWon => (homeGames, awayGames),
                 _ => (homeWin ? 3 : (!awayWin ? 1 : 0),
                       awayWin ? 3 : (!homeWin ? 1 : 0)),
             };
@@ -1925,8 +1926,8 @@ public class CompetitionsController(
                     });
                     int points = scoringMode switch
                     {
-                        Models.LeagueScoringMode.SetsWon  => sets,
-                        Models.LeagueScoringMode.GamesWon => games,
+                        LeagueScoringMode.SetsWon  => sets,
+                        LeagueScoringMode.GamesWon => games,
                         _ => won * 3, // approx — this is per-player not per-fixture
                     };
                     return (PlayerId: p.PlayerId, Played: played, Won: won, Points: points);
@@ -1948,13 +1949,13 @@ public class CompetitionsController(
         return result;
     }
 
-    private static string StageDisplayName(Models.StageType type) => type switch
+    private static string StageDisplayName(StageType type) => type switch
     {
-        Models.StageType.RoundRobin   => "Round Robin",
-        Models.StageType.Knockout     => "Knockout",
-        Models.StageType.QuarterFinal => "Quarter-Final",
-        Models.StageType.SemiFinal    => "Semi-Final",
-        Models.StageType.Final        => "Final",
+        StageType.RoundRobin   => "Round Robin",
+        StageType.Knockout     => "Knockout",
+        StageType.QuarterFinal => "Quarter-Final",
+        StageType.SemiFinal    => "Semi-Final",
+        StageType.Final        => "Final",
         _                             => type.ToString()
     };
 }

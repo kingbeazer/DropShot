@@ -2,6 +2,7 @@ using Bunit;
 using DropShot.Components.Pages;
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.Shared;
 using DropShot.Tests.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Xunit;

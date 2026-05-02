@@ -1,13 +1,7 @@
 using DropShot.Data;
+using DropShot.Shared;
 
 namespace DropShot.Models;
-
-public enum PlayerSex : byte
-{
-    Male = 1,
-    Female = 2,
-    Other = 3
-}
 
 public class Player
 {

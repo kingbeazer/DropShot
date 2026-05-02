@@ -1,13 +1,6 @@
-namespace DropShot.Models;
+using DropShot.Shared;
 
-public enum StageType : byte
-{
-    RoundRobin   = 1,
-    Knockout     = 2,   // full auto-bracket (generates all rounds automatically)
-    Final        = 3,
-    QuarterFinal = 4,   // top 8 players — 4 matches
-    SemiFinal    = 5,   // top 4 players (or QF winners) — 2 matches
-}
+namespace DropShot.Models;
 
 public class CompetitionStage
 {

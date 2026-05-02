@@ -1,13 +1,6 @@
-namespace DropShot.Models;
+using DropShot.Shared;
 
-public enum ParticipantStatus : byte
-{
-    Registered   = 1,  // Added by admin but player has not yet confirmed participation
-    FullPlayer   = 2,  // Active full participant (was Confirmed — byte value unchanged)
-    Withdrawn    = 3,
-    Disqualified = 4,
-    Substitute   = 5,  // Available as a substitute, not in a team
-}
+namespace DropShot.Models;
 
 public class CompetitionParticipant
 {

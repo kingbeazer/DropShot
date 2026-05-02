@@ -1,5 +1,6 @@
 using DropShot.Data;
 using DropShot.Models;
+using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
@@ -100,21 +101,21 @@ public sealed class WebCompetitionService(
 
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
-            (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
+            c.CompetitionFormat,
             c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
-            (DropShot.Shared.PlayerSex?)c.EligibleSex,
+            c.EligibleSex,
             c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
             c.EventId, c.Event?.Name,
             c.Stages.Select(s => new CompetitionStageDto(
                 s.CompetitionStageId, s.Name, s.StageOrder,
-                (DropShot.Shared.StageType)s.StageType)).ToList(),
+                s.StageType)).ToList(),
             c.Participants.Select(p => new CompetitionParticipantDto(
                 p.PlayerId, p.Player?.DisplayName ?? "",
-                (DropShot.Shared.ParticipantStatus)p.Status,
+                p.Status,
                 p.RegisteredAt, p.TeamId, p.Team?.Name,
                 p.Player?.MobileNumber,
                 p.Role,
-                (DropShot.Shared.PlayerSex?)p.Player?.Sex,
+                p.Player?.Sex,
                 p.CompetitionDivisionId,
                 p.Division?.Name)).ToList(),
             c.IsArchived,
@@ -141,7 +142,7 @@ public sealed class WebCompetitionService(
                 cp.Court1Id, cp.Court1.Name,
                 cp.Court2Id, cp.Court2.Name,
                 cp.Name)).ToList(),
-            (DropShot.Shared.LeagueScoringMode)c.LeagueScoring,
+            c.LeagueScoring,
             myPlayerId);
     }
 
@@ -149,7 +150,7 @@ public sealed class WebCompetitionService(
         f.CompetitionFixtureId, f.CompetitionId,
         f.CompetitionStageId, f.Stage?.Name,
         f.CourtId, f.Court?.Name,
-        f.ScheduledAt, (DropShot.Shared.FixtureStatus)f.Status,
+        f.ScheduledAt, f.Status,
         f.FixtureLabel, f.RoundNumber,
         f.Player1Id, f.Player1?.DisplayName,
         f.Player2Id, f.Player2?.DisplayName,
@@ -192,7 +193,7 @@ public sealed class WebCompetitionService(
         {
             CompetitionId = competitionId,
             PlayerId = player.PlayerId,
-            Status = (DropShot.Models.ParticipantStatus)status,
+            Status = status,
             RegisteredAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync(ct);
@@ -209,7 +210,7 @@ public sealed class WebCompetitionService(
                 && cp.Player!.UserId == currentUser.UserId, ct)
             ?? throw new KeyNotFoundException("Could not find your participant record.");
 
-        participant.Status = (DropShot.Models.ParticipantStatus)status;
+        participant.Status = status;
         await db.SaveChangesAsync(ct);
     }
 
@@ -235,7 +236,7 @@ public sealed class WebCompetitionService(
             fx.AwayGamesTotal = o.AwayGamesTotal;
         }
 
-        fx.Status = DropShot.Models.FixtureStatus.Completed;
+        fx.Status = FixtureStatus.Completed;
         fx.CompletedAt = DateTime.UtcNow;
         fx.VerificationToken = null;
 
@@ -273,12 +274,12 @@ public sealed class WebCompetitionService(
         bool requireVerification = !request.AdminOverride && (fx.Competition?.RequireVerification ?? false);
         if (requireVerification)
         {
-            fx.Status = DropShot.Models.FixtureStatus.AwaitingVerification;
+            fx.Status = FixtureStatus.AwaitingVerification;
             fx.VerificationToken = Guid.NewGuid();
         }
         else
         {
-            fx.Status = DropShot.Models.FixtureStatus.Completed;
+            fx.Status = FixtureStatus.Completed;
             fx.VerificationToken = null;
         }
         fx.CompletedAt = DateTime.UtcNow;
@@ -371,16 +372,16 @@ public sealed class WebCompetitionService(
             fx.AwayTeamId,
             fx.HomeTeam?.Name ?? "Home",
             fx.AwayTeam?.Name ?? "Away",
-            (DropShot.Shared.MatchFormatType)(comp?.MatchFormat ?? DropShot.Models.MatchFormatType.BestOf),
+            comp?.MatchFormat ?? MatchFormatType.BestOf,
             comp?.BestOf ?? 3,
             comp?.NumberOfSets ?? 3,
             comp?.GamesPerSet ?? 6,
-            (DropShot.Shared.SetWinMode)(comp?.SetWinMode ?? DropShot.Models.SetWinMode.WinBy2),
+            comp?.SetWinMode ?? SetWinMode.WinBy2,
             comp?.RequireVerification ?? false,
-            fx.Status == DropShot.Models.FixtureStatus.AwaitingVerification
-                || fx.Status == DropShot.Models.FixtureStatus.Completed,
+            fx.Status == FixtureStatus.AwaitingVerification
+                || fx.Status == FixtureStatus.Completed,
             rubbers,
-            (DropShot.Shared.LeagueScoringMode)(comp?.LeagueScoring ?? DropShot.Models.LeagueScoringMode.WinPoints),
+            comp?.LeagueScoring ?? LeagueScoringMode.WinPoints,
             comp?.HostClubId);
     }
 
@@ -452,8 +453,8 @@ public sealed class WebCompetitionService(
             var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
                 allRubbers, fx.HomeTeamId.Value, fx.AwayTeamId.Value);
 
-            bool alreadyFinalised = fx.Status == DropShot.Models.FixtureStatus.AwaitingVerification
-                || fx.Status == DropShot.Models.FixtureStatus.Completed;
+            bool alreadyFinalised = fx.Status == FixtureStatus.AwaitingVerification
+                || fx.Status == FixtureStatus.Completed;
 
             fx.ResultSummary = $"{homeScore}-{awayScore}";
             int? winner = homeScore > awayScore ? fx.HomeTeamId
@@ -482,7 +483,7 @@ public sealed class WebCompetitionService(
 
             if (requireVerification)
             {
-                fx.Status = DropShot.Models.FixtureStatus.AwaitingVerification;
+                fx.Status = FixtureStatus.AwaitingVerification;
                 fx.VerificationToken = Guid.NewGuid();
                 await db.SaveChangesAsync(ct);
 
@@ -509,7 +510,7 @@ public sealed class WebCompetitionService(
             }
             else
             {
-                fx.Status = DropShot.Models.FixtureStatus.Completed;
+                fx.Status = FixtureStatus.Completed;
                 await db.SaveChangesAsync(ct);
 
                 var savedFixtureId = fx.CompetitionFixtureId;
@@ -539,9 +540,9 @@ public sealed class WebCompetitionService(
             // Rubbers are in progress but not all done yet — flip Scheduled →
             // InProgress now that the first score has been recorded. EnsureRubbersAsync
             // deliberately leaves Scheduled until an actual score lands.
-            if (fx.Status == DropShot.Models.FixtureStatus.Scheduled)
+            if (fx.Status == FixtureStatus.Scheduled)
             {
-                fx.Status = DropShot.Models.FixtureStatus.InProgress;
+                fx.Status = FixtureStatus.InProgress;
                 await db.SaveChangesAsync(ct);
             }
         }
@@ -549,9 +550,9 @@ public sealed class WebCompetitionService(
 
     private static CompetitionDto ToDto(Competition c) => new(
         c.CompetitionID, c.CompetitionName,
-        (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
+        c.CompetitionFormat,
         c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
-        (DropShot.Shared.PlayerSex?)c.EligibleSex,
+        c.EligibleSex,
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
         c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted,
         c.CreatorUserId, c.IsRestricted, c.RegisterByDate);
@@ -611,7 +612,7 @@ public sealed class WebCompetitionService(
             .Include(f => f.Player1).Include(f => f.Player2)
             .Include(f => f.Player3).Include(f => f.Player4)
             .Include(f => f.HomeTeam).Include(f => f.AwayTeam)
-            .Where(f => f.Status == DropShot.Models.FixtureStatus.AwaitingVerification
+            .Where(f => f.Status == FixtureStatus.AwaitingVerification
                 && (isAdmin
                     || (f.Competition.HostClubId.HasValue && editableClubIds.Contains(f.Competition.HostClubId.Value))
                     || competitionAdminIds.Contains(f.CompetitionId)))
@@ -638,8 +639,8 @@ public sealed class WebCompetitionService(
                              || f.Player3Id == pid || f.Player4Id == pid
                              || (f.HomeTeamId.HasValue && myTeamIds.Contains(f.HomeTeamId.Value))
                              || (f.AwayTeamId.HasValue && myTeamIds.Contains(f.AwayTeamId.Value)))
-                         && (f.Status == DropShot.Models.FixtureStatus.Scheduled
-                             || f.Status == DropShot.Models.FixtureStatus.InProgress))
+                         && (f.Status == FixtureStatus.Scheduled
+                             || f.Status == FixtureStatus.InProgress))
                 .OrderBy(f => f.ScheduledAt)
                 .ToListAsync(ct);
 
@@ -666,7 +667,7 @@ public sealed class WebCompetitionService(
                              || f.Player3Id == pid || f.Player4Id == pid
                              || (f.HomeTeamId.HasValue && myTeamIds.Contains(f.HomeTeamId.Value))
                              || (f.AwayTeamId.HasValue && myTeamIds.Contains(f.AwayTeamId.Value)))
-                         && f.Status == DropShot.Models.FixtureStatus.Completed
+                         && f.Status == FixtureStatus.Completed
                          && f.ResultSummary != null)
                 .OrderByDescending(f => f.CompletedAt ?? f.ScheduledAt)
                 .Take(safeLimit)
@@ -792,7 +793,7 @@ public sealed class WebCompetitionService(
             CompetitionId = competitionId,
             PlayerId = player.PlayerId,
             RegisteredAt = DateTime.UtcNow,
-            Status = DropShot.Models.ParticipantStatus.Registered
+            Status = ParticipantStatus.Registered
         });
         await db.SaveChangesAsync(ct);
     }
