@@ -1,4 +1,6 @@
-@inject ApiService Api
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Services
+@inject IRulesSetService RulesSets
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -59,7 +61,7 @@
         _loading = true;
         try
         {
-            var detail = await Api.GetRulesSetAsync(RulesSetId);
+            var detail = await RulesSets.GetRulesSetAsync(RulesSetId);
             _items = detail?.Items ?? [];
         }
         catch (Exception ex)
@@ -76,11 +78,10 @@
     {
         try
         {
-            await Api.AddRulesSetItemAsync(RulesSetId, _newRule.Trim());
+            var added = await RulesSets.AddRulesSetItemAsync(
+                RulesSetId, new AddRulesSetItemRequest(_newRule.Trim()));
+            _items.Add(added);
             _newRule = "";
-            // Reload to get assigned SortOrder
-            var detail = await Api.GetRulesSetAsync(RulesSetId);
-            _items = detail?.Items ?? [];
             Snackbar.Add("Rule added.", Severity.Success);
         }
         catch (Exception ex)
@@ -93,7 +94,7 @@
     {
         try
         {
-            await Api.DeleteRulesSetItemAsync(RulesSetId, item.RulesSetItemId);
+            await RulesSets.DeleteRulesSetItemAsync(RulesSetId, item.RulesSetItemId);
             _items.Remove(item);
             Snackbar.Add("Rule deleted.", Severity.Success);
         }
