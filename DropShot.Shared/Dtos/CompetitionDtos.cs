@@ -432,6 +432,61 @@ public record SubmitRubberScoresRequest(
     bool AdminOverride,
     IReadOnlyList<RubberScoreEntry> Scores);
 
+// ── Phase 7 PR 7j: VerifyResult.razor surface ──
+
+/// <summary>
+/// One-shot view payload for the <c>/verify-result/{token}</c> page.
+/// Server resolves the fixture by VerificationToken (only matches when
+/// <c>Status == AwaitingVerification</c>); per-set scores for team rubbers
+/// and the side aggregates for league-table use are pre-computed so the
+/// RCL doesn't have to run the resolution logic itself.
+/// </summary>
+public record VerifyFixtureViewDto(
+    int CompetitionFixtureId,
+    int CompetitionId,
+    string? CompetitionName,
+    string? FixtureLabel,
+    bool IsTeamMatch,
+    string Side1,
+    string Side2,
+    int? HomeTeamId,
+    int? AwayTeamId,
+    int? Player1Id,
+    int? Player2Id,
+    int? WinnerPlayerId,
+    int? WinnerTeamId,
+    string? ResultSummary,
+    int BestOf,
+    int AggregateHome,
+    int AggregateAway,
+    string AggregateUnit,
+    string SecondaryAggregate,
+    bool AllRubbersComplete,
+    string RubberTieBreak,
+    IReadOnlyList<VerifyRubberDto> Rubbers);
+
+public record VerifyRubberDto(
+    int RubberId,
+    int Order,
+    string Name,
+    string? HomePair,
+    string? AwayPair,
+    int? HomeSetsWon,
+    int? AwaySetsWon,
+    bool IsComplete,
+    int? WinnerTeamId,
+    IReadOnlyList<RubberSetScoreDto> SetScores);
+
+public record ApproveFixtureByTokenRequest(
+    FixtureScoreOverride? OverrideScores,
+    int? ManualWinnerTeamId);
+
+public record ApproveFixtureByTokenResultDto(
+    bool Success,
+    string? ErrorMessage,
+    int? CompetitionId,
+    bool WasModified);
+
 public record RubberScoreEntry(
     int RubberId,
     int HomeSetsWon,

@@ -1,0 +1,393 @@
+@using DropShot.Shared
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Components.Shared
+@using DropShot.UI.Services
+
+@inject ICompetitionService Competitions
+@inject IDialogService DialogService
+
+@* Routing + render mode + MudProviders supplied by host shims. *@
+
+<HeadContent>
+    <meta name="robots" content="noindex" />
+</HeadContent>
+
+<PageTitle>Verify Result</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudCard>
+        <MudCardContent>
+            @if (_loading)
+            {
+                <MudStack AlignItems="AlignItems.Center" Spacing="3">
+                    <MudProgressCircular Indeterminate="true" />
+                    <MudText>Loading result details…</MudText>
+                </MudStack>
+            }
+            else if (_success)
+            {
+                <MudStack Spacing="3">
+                    <MudAlert Severity="Severity.Success">
+                        Result verified@(_wasModified ? " (score was updated)" : "") — competition updated.
+                    </MudAlert>
+                    @if (_competitionId.HasValue)
+                    {
+                        <MudButton Href="@($"/competition/{_competitionId}/view")" Variant="Variant.Filled" Color="Color.Primary">
+                            View Competition
+                        </MudButton>
+                    }
+                </MudStack>
+            }
+            else if (_fixture != null)
+            {
+                @* Show fixture details for review *@
+                <MudStack Spacing="3">
+                    <MudText Typo="Typo.h6">Review Submitted Result</MudText>
+
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">
+                        @(_fixture.CompetitionName ?? "Competition")
+                    </MudText>
+                    @if (!string.IsNullOrEmpty(_fixture.FixtureLabel))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_fixture.FixtureLabel</MudText>
+                    }
+
+                    <MudDivider />
+
+                    <MudText Typo="Typo.body1">
+                        <strong>@_fixture.Side1</strong> vs <strong>@_fixture.Side2</strong>
+                    </MudText>
+
+                    <MudAlert Severity="Severity.Info" Dense="true" NoIcon="true">
+                        <MudText Typo="Typo.subtitle2">Submitted Score</MudText>
+                        @if (_isTeamMatch)
+                        {
+                            <MudText Typo="Typo.h6">
+                                @_fixture.AggregateHome – @_fixture.AggregateAway @_fixture.AggregateUnit
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @_fixture.SecondaryAggregate
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.h6">@_fixture.ResultSummary</MudText>
+                        }
+                        <MudText Typo="Typo.body2">
+                            Winner: <strong>@WinnerName()</strong>
+                        </MudText>
+                    </MudAlert>
+
+                    @* ── Team match: show rubber-by-rubber breakdown ── *@
+                    @if (_isTeamMatch && _fixture.Rubbers.Count > 0)
+                    {
+                        <MudText Typo="Typo.subtitle2">Rubber Results</MudText>
+                        <MudSimpleTable Dense="true">
+                            <thead>
+                                <tr>
+                                    <th>Rubber</th>
+                                    <th>@_fixture.Side1</th>
+                                    <th>@_fixture.Side2</th>
+                                    <th style="text-align:center">Sets</th>
+                                    <th style="text-align:center">Set scores</th>
+                                    <th>Winner</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in _fixture.Rubbers.OrderBy(r => r.Order))
+                                {
+                                    var rubberScore = r.IsComplete && r.HomeSetsWon.HasValue
+                                        ? $"{r.HomeSetsWon}–{r.AwaySetsWon}"
+                                        : "—";
+                                    var setScores = r.SetScores.Count > 0
+                                        ? string.Join(", ", r.SetScores.Select(s => $"{s.Home}-{s.Away}"))
+                                        : "—";
+                                    var rubberWinner = !r.IsComplete ? "—"
+                                        : r.WinnerTeamId == _fixture.HomeTeamId ? _fixture.Side1
+                                        : r.WinnerTeamId == _fixture.AwayTeamId ? _fixture.Side2
+                                        : "Draw";
+                                    <tr>
+                                        <td>@r.Name</td>
+                                        <td style="font-size:0.8rem">@(r.HomePair ?? "TBD")</td>
+                                        <td style="font-size:0.8rem">@(r.AwayPair ?? "TBD")</td>
+                                        <td style="text-align:center;font-weight:bold">@rubberScore</td>
+                                        <td style="text-align:center;font-size:0.8rem">@setScores</td>
+                                        <td>@rubberWinner</td>
+                                        <td>
+                                            <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit"
+                                                           OnClick="@(() => EditRubberAsync(r))" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            Edit any rubber above before approving. Once approved the result is
+                            locked — further changes must happen on the
+                            <MudLink Href="@($"/team-match/{_fixture.CompetitionFixtureId}?edit=1")">team match page</MudLink>.
+                        </MudAlert>
+
+                        @if (_fixture.AllRubbersComplete && !_fixture.WinnerTeamId.HasValue)
+                        {
+                            <MudAlert Severity="Severity.Warning" Dense="true">
+                                Rubbers are tied and the configured tie-break (@_fixture.RubberTieBreak)
+                                did not pick a winner. Choose which team wins:
+                            </MudAlert>
+                            <MudSelect T="int?" @bind-Value="_manualWinnerTeamId" Label="Winner" Variant="Variant.Outlined" Dense="true">
+                                <MudSelectItem T="int?" Value="@_fixture.HomeTeamId">@_fixture.Side1</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@_fixture.AwayTeamId">@_fixture.Side2</MudSelectItem>
+                            </MudSelect>
+                        }
+                    }
+
+                    @* ── Individual match: allow score editing ── *@
+                    @if (!_isTeamMatch)
+                    {
+                        <MudSwitch @bind-Value="_editing" Label="Modify score" Color="Color.Warning" />
+
+                        @if (_editing)
+                        {
+                            <MudAlert Severity="Severity.Warning" Dense="true">
+                                The original submission will be preserved for audit purposes.
+                            </MudAlert>
+
+                            <MudText Typo="Typo.subtitle2">Updated Set Scores</MudText>
+                            <MudSimpleTable Dense="true" Style="max-width:300px">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50px"></th>
+                                        <th style="text-align:center; font-size:0.8rem">@_fixture.Side1</th>
+                                        <th style="width:20px"></th>
+                                        <th style="text-align:center; font-size:0.8rem">@_fixture.Side2</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < _bestOf; i++)
+                                    {
+                                        int idx = i;
+                                        <tr>
+                                            <td style="color:#888; font-size:0.8rem; padding-right:8px">Set @(idx + 1)</td>
+                                            <td>
+                                                <MudNumericField T="int?" @bind-Value="_score1[idx]"
+                                                                Min="0" Max="13" Variant="Variant.Outlined"
+                                                                Style="width:65px" HideSpinButtons="true" />
+                                            </td>
+                                            <td style="text-align:center; padding:0 4px; font-weight:bold">-</td>
+                                            <td>
+                                                <MudNumericField T="int?" @bind-Value="_score2[idx]"
+                                                                Min="0" Max="13" Variant="Variant.Outlined"
+                                                                Style="width:65px" HideSpinButtons="true" />
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+
+                            <MudSelect T="int?" @bind-Value="_winnerPlayerId" Label="Winner" Variant="Variant.Outlined">
+                                @if (_fixture.Player1Id.HasValue)
+                                {
+                                    <MudSelectItem T="int?" Value="@_fixture.Player1Id">@_fixture.Side1</MudSelectItem>
+                                }
+                                @if (_fixture.Player2Id.HasValue)
+                                {
+                                    <MudSelectItem T="int?" Value="@_fixture.Player2Id">@_fixture.Side2</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+                    }
+
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <MudAlert Severity="Severity.Error">@_error</MudAlert>
+                    }
+
+                    <MudStack Row="true" Spacing="2" Justify="Justify.FlexEnd">
+                        <MudButton Color="Color.Success" Variant="Variant.Filled"
+                                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                                   OnClick="ApproveAsync" Disabled="_saving">
+                            @(_editing ? "Approve with Changes" : "Approve Result")
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">@_message</MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+
+    private bool _loading = true;
+    private bool _success;
+    private bool _wasModified;
+    private string _message = "";
+    private int? _competitionId;
+
+    private VerifyFixtureViewDto? _fixture;
+    private bool _isTeamMatch;
+    private int _bestOf = 3;
+    private int?[] _score1 = new int?[3];
+    private int?[] _score2 = new int?[3];
+    private int? _winnerPlayerId;
+    private bool _editing;
+    private bool _saving;
+    private string? _error;
+    private int? _manualWinnerTeamId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Guid.TryParse(Token, out var token))
+        {
+            _message = "Invalid verification link.";
+            _loading = false;
+            return;
+        }
+
+        _fixture = await Competitions.GetFixtureForVerificationAsync(token);
+        if (_fixture is null)
+        {
+            _message = "This link has already been used or could not be found.";
+            _loading = false;
+            return;
+        }
+
+        _isTeamMatch = _fixture.IsTeamMatch;
+
+        if (!_isTeamMatch)
+        {
+            _bestOf = Math.Max(1, _fixture.BestOf);
+            _score1 = new int?[_bestOf];
+            _score2 = new int?[_bestOf];
+            _winnerPlayerId = _fixture.WinnerPlayerId;
+            ParseResultSummary(_fixture.ResultSummary);
+        }
+
+        _loading = false;
+    }
+
+    private async Task EditRubberAsync(VerifyRubberDto rubber)
+    {
+        if (_fixture is null || !Guid.TryParse(Token, out var token)) return;
+        var parameters = new DialogParameters<RubberScoreDialog>
+        {
+            { x => x.FixtureId, _fixture.CompetitionFixtureId },
+            { x => x.RubberId, rubber.RubberId },
+            { x => x.AdminOverride, true }
+        };
+        var dlg = await DialogService.ShowAsync<RubberScoreDialog>("Edit rubber score", parameters);
+        var res = await dlg.Result;
+        if (res is null || res.Canceled) return;
+
+        // Refresh via the verification service so the aggregate, set scores
+        // and tie-break flag all reflect the edit.
+        var refreshed = await Competitions.GetFixtureForVerificationAsync(token);
+        if (refreshed is not null) _fixture = refreshed;
+        StateHasChanged();
+    }
+
+    private void ParseResultSummary(string? summary)
+    {
+        if (string.IsNullOrEmpty(summary)) return;
+        var sets = summary.Replace(",", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < Math.Min(sets.Length, _bestOf); i++)
+        {
+            var parts = sets[i].Replace("–", "-").Split('-', StringSplitOptions.TrimEntries);
+            if (parts.Length == 2 && int.TryParse(parts[0], out var s1) && int.TryParse(parts[1], out var s2))
+            {
+                _score1[i] = s1;
+                _score2[i] = s2;
+            }
+        }
+    }
+
+    private string WinnerName()
+    {
+        if (_fixture is null) return "Unknown";
+        if (_fixture.WinnerTeamId.HasValue)
+        {
+            if (_fixture.WinnerTeamId == _fixture.HomeTeamId) return _fixture.Side1;
+            if (_fixture.WinnerTeamId == _fixture.AwayTeamId) return _fixture.Side2;
+            return "Draw";
+        }
+        if (_fixture.WinnerPlayerId == _fixture.Player1Id) return _fixture.Side1;
+        if (_fixture.WinnerPlayerId == _fixture.Player2Id) return _fixture.Side2;
+        return "Unknown";
+    }
+
+    private async Task ApproveAsync()
+    {
+        _error = null;
+        if (_fixture is null || !Guid.TryParse(Token, out var token)) return;
+
+        if (!_isTeamMatch && _editing)
+        {
+            var enteredSets = Enumerable.Range(0, _bestOf)
+                .Where(i => _score1[i].HasValue || _score2[i].HasValue)
+                .ToList();
+
+            if (!enteredSets.Any()) { _error = "Please enter at least one set score."; return; }
+            if (_winnerPlayerId == null) { _error = "Please select a winner."; return; }
+        }
+
+        if (_isTeamMatch && _fixture.AllRubbersComplete && !_fixture.WinnerTeamId.HasValue
+            && !_manualWinnerTeamId.HasValue)
+        {
+            _error = "Rubbers are tied — please pick a winner before approving.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            FixtureScoreOverride? overrideScores = null;
+            if (!_isTeamMatch && _editing)
+            {
+                var newSummary = string.Join(" ", Enumerable.Range(0, _bestOf)
+                    .Where(i => _score1[i].HasValue || _score2[i].HasValue)
+                    .Select(i => $"{_score1[i] ?? 0}–{_score2[i] ?? 0}"));
+
+                int homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
+                for (int i = 0; i < _bestOf; i++)
+                {
+                    int s1 = _score1[i] ?? 0;
+                    int s2 = _score2[i] ?? 0;
+                    homeGames += s1;
+                    awayGames += s2;
+                    if (s1 > s2) homeSets++;
+                    else if (s2 > s1) awaySets++;
+                }
+                overrideScores = new FixtureScoreOverride(
+                    newSummary, _winnerPlayerId!.Value,
+                    homeSets, awaySets, homeGames, awayGames);
+            }
+
+            int? manual = _isTeamMatch ? _manualWinnerTeamId : null;
+            var result = await Competitions.ApproveFixtureByTokenAsync(
+                token, new ApproveFixtureByTokenRequest(overrideScores, manual));
+
+            if (!result.Success)
+            {
+                _error = result.ErrorMessage ?? "Failed to save. Please try again.";
+                return;
+            }
+
+            _wasModified = result.WasModified;
+            _competitionId = result.CompetitionId;
+            _fixture = null;
+            _success = true;
+        }
+        catch (Exception)
+        {
+            _error = "Failed to save. Please try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

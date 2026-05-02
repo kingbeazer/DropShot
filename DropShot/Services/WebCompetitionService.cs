@@ -797,4 +797,150 @@ public sealed class WebCompetitionService(
         });
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<VerifyFixtureViewDto?> GetFixtureForVerificationAsync(Guid token, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fx = await db.CompetitionFixtures
+            .AsNoTracking()
+            .Include(f => f.Competition)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .Include(f => f.Player1).Include(f => f.Player2)
+            .Include(f => f.Player3).Include(f => f.Player4)
+            .FirstOrDefaultAsync(f => f.VerificationToken == token
+                                   && f.Status == FixtureStatus.AwaitingVerification, ct);
+        if (fx is null) return null;
+
+        bool isTeamMatch = fx.HomeTeamId.HasValue || fx.AwayTeamId.HasValue;
+        string side1, side2;
+        int bestOf = 3;
+        var rubbers = new List<VerifyRubberDto>();
+        int aggHome = 0, aggAway = 0;
+        string aggUnit = "rubbers";
+        string secondary = "";
+        bool allRubbersComplete = false;
+
+        if (isTeamMatch)
+        {
+            side1 = fx.HomeTeam?.Name ?? "Home";
+            side2 = fx.AwayTeam?.Name ?? "Away";
+
+            var rubberRows = await db.Rubbers
+                .AsNoTracking()
+                .Include(r => r.HomePlayer1).Include(r => r.HomePlayer2)
+                .Include(r => r.AwayPlayer1).Include(r => r.AwayPlayer2)
+                .Where(r => r.CompetitionFixtureId == fx.CompetitionFixtureId)
+                .OrderBy(r => r.Order)
+                .ToListAsync(ct);
+
+            if (fx.HomeTeamId.HasValue && fx.AwayTeamId.HasValue)
+            {
+                var mode = fx.Competition?.LeagueScoring ?? LeagueScoringMode.WinPoints;
+                (aggHome, aggAway, aggUnit) = RubberResolutionService.ComputeLeagueScore(
+                    rubberRows, fx.HomeTeamId.Value, fx.AwayTeamId.Value, mode);
+
+                var completed = rubberRows.Where(r => r.IsComplete).ToList();
+                int rubbersHome = completed.Count(r => r.WinnerTeamId == fx.HomeTeamId);
+                int rubbersAway = completed.Count(r => r.WinnerTeamId == fx.AwayTeamId);
+                int setsHome = completed.Sum(r => r.HomeSetsWon ?? 0);
+                int setsAway = completed.Sum(r => r.AwaySetsWon ?? 0);
+                int gamesHome = completed.Sum(r => r.HomeGamesTotal ?? 0);
+                int gamesAway = completed.Sum(r => r.AwayGamesTotal ?? 0);
+                secondary = mode switch
+                {
+                    LeagueScoringMode.SetsWon  => $"Rubbers: {rubbersHome}–{rubbersAway} · Games: {gamesHome}–{gamesAway}",
+                    LeagueScoringMode.GamesWon => $"Rubbers: {rubbersHome}–{rubbersAway} · Sets: {setsHome}–{setsAway}",
+                    _                          => $"Sets: {setsHome}–{setsAway} · Games: {gamesHome}–{gamesAway}",
+                };
+            }
+            allRubbersComplete = rubberRows.Count > 0 && rubberRows.All(r => r.IsComplete);
+
+            foreach (var r in rubberRows)
+            {
+                var homePair = string.Join(" & ",
+                    new[] { r.HomePlayer1?.DisplayName, r.HomePlayer2?.DisplayName }.Where(n => !string.IsNullOrEmpty(n)));
+                var awayPair = string.Join(" & ",
+                    new[] { r.AwayPlayer1?.DisplayName, r.AwayPlayer2?.DisplayName }.Where(n => !string.IsNullOrEmpty(n)));
+                IReadOnlyList<RubberSetScoreDto> setScores =
+                    r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList();
+                rubbers.Add(new VerifyRubberDto(
+                    r.RubberId, r.Order, r.Name,
+                    string.IsNullOrEmpty(homePair) ? null : homePair,
+                    string.IsNullOrEmpty(awayPair) ? null : awayPair,
+                    r.HomeSetsWon, r.AwaySetsWon, r.IsComplete, r.WinnerTeamId,
+                    setScores));
+            }
+        }
+        else
+        {
+            var comp = fx.Competition;
+            bestOf = comp?.MatchFormat == MatchFormatType.FixedSets
+                ? Math.Max(1, comp.NumberOfSets)
+                : Math.Max(1, comp?.BestOf ?? 3);
+            var s1Parts = new[] { fx.Player1?.DisplayName, fx.Player3?.DisplayName }
+                .Where(n => n != null).ToList();
+            var s2Parts = new[] { fx.Player2?.DisplayName, fx.Player4?.DisplayName }
+                .Where(n => n != null).ToList();
+            side1 = s1Parts.Any() ? string.Join(" & ", s1Parts) : "Player 1";
+            side2 = s2Parts.Any() ? string.Join(" & ", s2Parts) : "Player 2";
+        }
+
+        return new VerifyFixtureViewDto(
+            fx.CompetitionFixtureId,
+            fx.CompetitionId,
+            fx.Competition?.CompetitionName,
+            fx.FixtureLabel,
+            isTeamMatch,
+            side1, side2,
+            fx.HomeTeamId, fx.AwayTeamId,
+            fx.Player1Id, fx.Player2Id,
+            fx.WinnerPlayerId, fx.WinnerTeamId,
+            fx.ResultSummary,
+            bestOf,
+            aggHome, aggAway, aggUnit, secondary,
+            allRubbersComplete,
+            (fx.Competition?.RubberTieBreak ?? DropShot.Shared.RubberTieBreakMode.AdminDecides).ToString(),
+            rubbers);
+    }
+
+    public async Task<ApproveFixtureByTokenResultDto> ApproveFixtureByTokenAsync(
+        Guid token, ApproveFixtureByTokenRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fx = await db.CompetitionFixtures
+            .FirstOrDefaultAsync(f => f.VerificationToken == token
+                                   && f.Status == FixtureStatus.AwaitingVerification, ct);
+        if (fx is null)
+            return new ApproveFixtureByTokenResultDto(false,
+                "This link has already been used or could not be found.", null, false);
+
+        bool wasModified = false;
+
+        if (request.OverrideScores is { } o)
+        {
+            fx.OriginalResultSummary = fx.ResultSummary;
+            fx.OriginalWinnerPlayerId = fx.WinnerPlayerId;
+            fx.ResultModifiedByAdmin = true;
+            fx.ResultSummary = o.ResultSummary;
+            fx.WinnerPlayerId = o.WinnerPlayerId;
+            fx.HomeSetsWon = o.HomeSetsWon;
+            fx.AwaySetsWon = o.AwaySetsWon;
+            fx.HomeGamesTotal = o.HomeGamesTotal;
+            fx.AwayGamesTotal = o.AwayGamesTotal;
+            wasModified = true;
+        }
+
+        if (request.ManualWinnerTeamId.HasValue && !fx.WinnerTeamId.HasValue)
+            fx.WinnerTeamId = request.ManualWinnerTeamId;
+
+        fx.Status = FixtureStatus.Completed;
+        fx.CompletedAt = DateTime.UtcNow;
+        fx.VerificationToken = null;
+        await db.SaveChangesAsync(ct);
+
+        await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
+
+        return new ApproveFixtureByTokenResultDto(true, null, fx.CompetitionId, wasModified);
+    }
 }

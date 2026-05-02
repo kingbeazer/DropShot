@@ -1958,4 +1958,28 @@ public class CompetitionsController(
         StageType.Final        => "Final",
         _                             => type.ToString()
     };
+
+    /// <summary>
+    /// Anonymous lookup for the /verify-result/{token} page. Validity is
+    /// gated by the token + AwaitingVerification status server-side.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("verify/{token:guid}")]
+    public async Task<ActionResult<VerifyFixtureViewDto>> GetFixtureForVerification(
+        Guid token, CancellationToken ct)
+    {
+        var dto = await competitionService.GetFixtureForVerificationAsync(token, ct);
+        return dto is null ? NotFound() : dto;
+    }
+
+    /// <summary>
+    /// Anonymous approval of an awaiting-verification fixture by token.
+    /// Returns the result DTO regardless — the page surfaces the
+    /// success/failure inline rather than via HTTP status.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("verify/{token:guid}/approve")]
+    public Task<ApproveFixtureByTokenResultDto> ApproveFixtureByToken(
+        Guid token, [FromBody] ApproveFixtureByTokenRequest req, CancellationToken ct)
+        => competitionService.ApproveFixtureByTokenAsync(token, req, ct);
 }

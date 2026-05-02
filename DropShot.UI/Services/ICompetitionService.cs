@@ -129,4 +129,25 @@ public interface ICompetitionService
     /// emails.
     /// </summary>
     Task SubmitRubberScoresAsync(int fixtureId, SubmitRubberScoresRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Anonymous lookup for the <c>/verify-result/{token}</c> page.
+    /// Resolves the fixture by VerificationToken only when its Status is
+    /// AwaitingVerification — already-completed or no-longer-awaiting
+    /// tokens return <c>null</c>. Pre-computes the side labels + aggregate
+    /// for team matches and pre-parses set scores per rubber.
+    /// </summary>
+    Task<VerifyFixtureViewDto?> GetFixtureForVerificationAsync(Guid token, CancellationToken ct = default);
+
+    /// <summary>
+    /// Anonymous approval of an awaiting-verification fixture by token.
+    /// Mirrors the inline VerifyResult logic: optional score override
+    /// (singles/doubles, preserves the original for audit) or manual
+    /// tie-break winner (team match). Sets Status=Completed, runs bracket
+    /// progression, returns the competition id so the caller can deep-link
+    /// back. Idempotent — returns <c>Success=false</c> with an explanation
+    /// when the token is no longer valid.
+    /// </summary>
+    Task<ApproveFixtureByTokenResultDto> ApproveFixtureByTokenAsync(
+        Guid token, ApproveFixtureByTokenRequest request, CancellationToken ct = default);
 }

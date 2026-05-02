@@ -109,4 +109,24 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
                 string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to ensure rubbers." : body);
         }
     }
+
+    public async Task<VerifyFixtureViewDto?> GetFixtureForVerificationAsync(Guid token, CancellationToken ct = default)
+    {
+        using var resp = await http.GetAsync($"api/competitions/verify/{token}", ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<VerifyFixtureViewDto>(cancellationToken: ct);
+    }
+
+    public async Task<ApproveFixtureByTokenResultDto> ApproveFixtureByTokenAsync(
+        Guid token, ApproveFixtureByTokenRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/verify/{token}/approve", request, ct);
+        if (!resp.IsSuccessStatusCode)
+            return new ApproveFixtureByTokenResultDto(false,
+                "Failed to approve. Please try again.", null, false);
+        return (await resp.Content.ReadFromJsonAsync<ApproveFixtureByTokenResultDto>(cancellationToken: ct))
+            ?? new ApproveFixtureByTokenResultDto(false, "Failed to approve.", null, false);
+    }
 }
