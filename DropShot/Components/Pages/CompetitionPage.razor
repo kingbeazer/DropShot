@@ -700,13 +700,18 @@ else
             @* -- Divisions -- *@
             @if (Model.HasDivisions)
             {
-                <DropShot.Components.Competitions.Setup.DivisionsSection
-                    Divisions="_divisions"
-                    Teams="_teams"
-                    Participants="_participants"
-                    MatchWindows="_matchWindows"
-                    Courts="_courts"
-                    SeedSourceCandidates="_seedSourceCandidates"
+                <DropShot.UI.Components.Competitions.Setup.DivisionsSection
+                    Divisions="@_divisions.Select(d => new DropShot.Shared.Dtos.CompetitionDivisionDto(
+                        d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name)).ToList()"
+                    Teams="@_teams.Select(ToTeamDto).ToList()"
+                    Participants="@_participants.Select(ToParticipantDto).ToList()"
+                    MatchWindows="@_matchWindows.Select(w => new DropShot.Shared.Dtos.CompetitionMatchWindowDto(
+                        w.CompetitionMatchWindowId, w.CompetitionId, w.CourtId, w.Court?.Name,
+                        w.CompetitionDivisionId, w.Division?.Name, w.DayOfWeek, w.StartTime, w.EndTime)).ToList()"
+                    Courts="@_courts.Select(c => new DropShot.Shared.Dtos.CourtDto(
+                        c.CourtId, c.ClubId, c.Name, (DropShot.Shared.CourtSurface)c.Surface, c.IsIndoor)).ToList()"
+                    SeedSourceCandidates="@_seedSourceCandidates.Select(c => new DropShot.Shared.Dtos.CompetitionSeedSourceDto(
+                        c.CompetitionID, c.CompetitionName, c.EndDate, c.Divisions?.Count ?? 0)).ToList()"
                     Format="EffectivePersistedFormat()"
                     AddingDivision="_addingDivision"
                     AddingDivisionChanged="@(v => _addingDivision = v)"
@@ -731,21 +736,21 @@ else
                     OnStartAddDivision="StartAddDivision"
                     OnCancelAddDivision="CancelAddDivision"
                     OnSaveDivision="SaveDivisionDialog"
-                    OnStartInlineEditDivision="StartInlineEditDivision"
+                    OnStartInlineEditDivision="StartInlineEditDivisionDto"
                     OnCancelInlineEditDivision="CancelInlineEditDivision"
-                    OnDeleteDivision="DeleteDivision"
+                    OnDeleteDivision="DeleteDivisionDto"
                     OnOpenSeedDivisionsDialog="OpenSeedDivisionsDialog"
                     OnRunSeedDivisions="RunSeedDivisions"
                     OnOpenGenerateDialog="OpenGenerateDialog"
                     OnAddDivisionMatchWindow="AddDivisionMatchWindow"
                     OnCancelEditDivisionMatchWindow="CancelEditDivisionMatchWindow"
-                    OnCopyDivisionMatchWindowToForm="CopyDivisionMatchWindowToForm"
-                    OnEditDivisionMatchWindow="EditDivisionMatchWindow"
-                    OnDeleteMatchWindow="DeleteMatchWindow"
-                    OnAssignCaptain="@((args) => AssignCaptain(args.Team, args.PlayerId))"
-                    OnValidateTeam="ValidateTeam"
-                    OnOpenEditTeamDialog="OpenEditTeamDialog"
-                    OnDeleteTeam="DeleteTeam" />
+                    OnCopyDivisionMatchWindowToForm="CopyDivisionMatchWindowToFormDto"
+                    OnEditDivisionMatchWindow="EditDivisionMatchWindowDto"
+                    OnDeleteMatchWindow="DeleteMatchWindowDto"
+                    OnAssignCaptain="@((args) => AssignCaptainDto(args.Team, args.PlayerId))"
+                    OnValidateTeam="ValidateTeamDto"
+                    OnOpenEditTeamDialog="OpenEditTeamDialogDto"
+                    OnDeleteTeam="DeleteTeamDto" />
             }
 
 
@@ -2497,6 +2502,30 @@ else
     {
         var fx = _fixtures.FirstOrDefault(f => f.CompetitionFixtureId == dto.CompetitionFixtureId);
         if (fx is not null) await DeleteFixture(fx);
+    }
+
+    private void StartInlineEditDivisionDto(DropShot.Shared.Dtos.CompetitionDivisionDto dto)
+    {
+        var div = _divisions.FirstOrDefault(d => d.CompetitionDivisionId == dto.CompetitionDivisionId);
+        if (div is not null) StartInlineEditDivision(div);
+    }
+
+    private async Task DeleteDivisionDto(DropShot.Shared.Dtos.CompetitionDivisionDto dto)
+    {
+        var div = _divisions.FirstOrDefault(d => d.CompetitionDivisionId == dto.CompetitionDivisionId);
+        if (div is not null) await DeleteDivision(div);
+    }
+
+    private void CopyDivisionMatchWindowToFormDto(DropShot.Shared.Dtos.CompetitionMatchWindowDto dto)
+    {
+        var w = _matchWindows.FirstOrDefault(x => x.CompetitionMatchWindowId == dto.CompetitionMatchWindowId);
+        if (w is not null) CopyDivisionMatchWindowToForm(w);
+    }
+
+    private void EditDivisionMatchWindowDto(DropShot.Shared.Dtos.CompetitionMatchWindowDto dto)
+    {
+        var w = _matchWindows.FirstOrDefault(x => x.CompetitionMatchWindowId == dto.CompetitionMatchWindowId);
+        if (w is not null) EditDivisionMatchWindow(w);
     }
 
     private async Task DeleteStageDto(DropShot.Shared.Dtos.CompetitionStageDto dto)
@@ -4257,21 +4286,13 @@ else
     }
 
     // ── Per-division match windows ──────────────────────────────────────────
-    public class DivisionWindowForm
-    {
-        public DayOfWeek Day { get; set; } = DayOfWeek.Monday;
-        public int? CourtId { get; set; }
-        public TimeSpan? Start { get; set; }
-        public TimeSpan? End { get; set; }
-        public int? EditingId { get; set; }
-    }
-    private readonly Dictionary<int, DivisionWindowForm> _divisionWindowForms = [];
+    private readonly Dictionary<int, DropShot.Shared.Dtos.DivisionWindowFormDto> _divisionWindowForms = [];
 
-    private DivisionWindowForm GetDivisionWindowForm(int divisionId)
+    private DropShot.Shared.Dtos.DivisionWindowFormDto GetDivisionWindowForm(int divisionId)
     {
         if (!_divisionWindowForms.TryGetValue(divisionId, out var form))
         {
-            form = new DivisionWindowForm();
+            form = new DropShot.Shared.Dtos.DivisionWindowFormDto();
             _divisionWindowForms[divisionId] = form;
         }
         return form;

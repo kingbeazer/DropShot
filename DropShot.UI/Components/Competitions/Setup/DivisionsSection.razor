@@ -1,6 +1,5 @@
-@using DropShot.Components.Pages
-@using DropShot.Models
 @using DropShot.Shared
+@using DropShot.Shared.Dtos
 
 <MudPaper id="section-divisions" Class="pa-4 mb-4 setup-section" Elevation="0"
          Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -133,7 +132,7 @@
                                                        ValueChanged="@((int? pid) => OnAssignCaptain.InvokeAsync((context, pid)))">
                                                 @foreach (var p in Participants.Where(p => p.TeamId == context.CompetitionTeamId))
                                                 {
-                                                    <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@(p.Player?.DisplayName ?? "")</MudSelectItem>
+                                                    <MudSelectItem T="int?" Value="@((int?)p.PlayerId)">@p.DisplayName</MudSelectItem>
                                                 }
                                             </MudSelect>
                                         </MudTd>
@@ -143,7 +142,7 @@
                                         {
                                             @foreach (var p in Participants.Where(p => p.TeamId == context.CompetitionTeamId))
                                             {
-                                                var label = $"{p.Player?.DisplayName} ({p.Role ?? "-"})";
+                                                var label = $"{p.DisplayName} ({p.Role ?? "-"})";
                                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@label</MudChip>
                                             }
                                         }
@@ -151,7 +150,7 @@
                                         {
                                             @string.Join(", ", Participants
                                                 .Where(p => p.TeamId == context.CompetitionTeamId)
-                                                .Select(p => p.Player?.DisplayName ?? ""))
+                                                .Select(p => p.DisplayName))
                                         }
                                     </MudTd>
                                     <MudTd>
@@ -227,7 +226,7 @@
                                     var isEditingWindow = windowForm.EditingId == w.CompetitionMatchWindowId;
                                     <tr style="@(isEditingWindow ? "background-color: rgba(255,193,7,0.15);" : "")">
                                         <td>@w.DayOfWeek</td>
-                                        <td>@(w.Court?.Name ?? "All courts")</td>
+                                        <td>@(w.CourtName ?? "All courts")</td>
                                         <td>@w.StartTime.ToString(@"hh\:mm")</td>
                                         <td>@w.EndTime.ToString(@"hh\:mm")</td>
                                         <td>
@@ -275,8 +274,8 @@
                        ValueChanged="@((int? v) => SeedSourceCompetitionIdChanged.InvokeAsync(v))" Class="mb-2">
                 @foreach (var c in SeedSourceCandidates)
                 {
-                    <MudSelectItem T="int?" Value="@((int?)c.CompetitionID)">
-                        @c.CompetitionName@(c.StartDate.HasValue ? $" ({c.StartDate:dd MMM yyyy})" : "")
+                    <MudSelectItem T="int?" Value="@((int?)c.CompetitionId)">
+                        @c.CompetitionName@(c.EndDate.HasValue ? $" ({c.EndDate:dd MMM yyyy})" : "")
                     </MudSelectItem>
                 }
             </MudSelect>
@@ -316,12 +315,12 @@
 }
 
 @code {
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionDivision> Divisions { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionTeam> Teams { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionParticipant> Participants { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionMatchWindow> MatchWindows { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<Court> Courts { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<Competition> SeedSourceCandidates { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionDivisionDto> Divisions { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionTeamDto> Teams { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionParticipantDto> Participants { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionMatchWindowDto> MatchWindows { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CourtDto> Courts { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionSeedSourceDto> SeedSourceCandidates { get; set; } = [];
     [Parameter] public CompetitionFormat? Format { get; set; }
 
     [Parameter] public bool AddingDivision { get; set; }
@@ -353,24 +352,24 @@
 
     [Parameter] public bool SeedingDivisions { get; set; }
 
-    [Parameter, EditorRequired] public Func<int, CompetitionPage.DivisionWindowForm> GetDivisionWindowForm { get; set; } = _ => new();
+    [Parameter, EditorRequired] public Func<int, DivisionWindowFormDto> GetDivisionWindowForm { get; set; } = _ => new();
 
     [Parameter] public EventCallback OnStartAddDivision { get; set; }
     [Parameter] public EventCallback OnCancelAddDivision { get; set; }
     [Parameter] public EventCallback OnSaveDivision { get; set; }
-    [Parameter] public EventCallback<CompetitionDivision> OnStartInlineEditDivision { get; set; }
+    [Parameter] public EventCallback<CompetitionDivisionDto> OnStartInlineEditDivision { get; set; }
     [Parameter] public EventCallback OnCancelInlineEditDivision { get; set; }
-    [Parameter] public EventCallback<CompetitionDivision> OnDeleteDivision { get; set; }
+    [Parameter] public EventCallback<CompetitionDivisionDto> OnDeleteDivision { get; set; }
     [Parameter] public EventCallback OnOpenSeedDivisionsDialog { get; set; }
     [Parameter] public EventCallback OnRunSeedDivisions { get; set; }
     [Parameter] public EventCallback OnOpenGenerateDialog { get; set; }
     [Parameter] public EventCallback<int> OnAddDivisionMatchWindow { get; set; }
     [Parameter] public EventCallback<int> OnCancelEditDivisionMatchWindow { get; set; }
-    [Parameter] public EventCallback<CompetitionMatchWindow> OnCopyDivisionMatchWindowToForm { get; set; }
-    [Parameter] public EventCallback<CompetitionMatchWindow> OnEditDivisionMatchWindow { get; set; }
-    [Parameter] public EventCallback<CompetitionMatchWindow> OnDeleteMatchWindow { get; set; }
-    [Parameter] public EventCallback<(CompetitionTeam Team, int? PlayerId)> OnAssignCaptain { get; set; }
-    [Parameter] public EventCallback<CompetitionTeam> OnValidateTeam { get; set; }
-    [Parameter] public EventCallback<CompetitionTeam> OnOpenEditTeamDialog { get; set; }
-    [Parameter] public EventCallback<CompetitionTeam> OnDeleteTeam { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindowDto> OnCopyDivisionMatchWindowToForm { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindowDto> OnEditDivisionMatchWindow { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindowDto> OnDeleteMatchWindow { get; set; }
+    [Parameter] public EventCallback<(CompetitionTeamDto Team, int? PlayerId)> OnAssignCaptain { get; set; }
+    [Parameter] public EventCallback<CompetitionTeamDto> OnValidateTeam { get; set; }
+    [Parameter] public EventCallback<CompetitionTeamDto> OnOpenEditTeamDialog { get; set; }
+    [Parameter] public EventCallback<CompetitionTeamDto> OnDeleteTeam { get; set; }
 }
