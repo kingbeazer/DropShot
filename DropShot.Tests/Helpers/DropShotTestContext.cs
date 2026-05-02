@@ -74,7 +74,28 @@ public class DropShotTestContext : BunitContext
         Services.AddSingleton(userManager);
 
         var contextAccessor = Substitute.For<Microsoft.AspNetCore.Http.IHttpContextAccessor>();
-        contextAccessor.HttpContext.Returns(new Microsoft.AspNetCore.Http.DefaultHttpContext());
+        var httpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        if (authenticated)
+        {
+            // Mirror the bUnit AuthorizationContext claims onto the HttpContext so
+            // services that read the user via IHttpContextAccessor (e.g.
+            // WebCompetitionAdminService) see the same identity as components
+            // that inject AuthenticationStateProvider.
+            var claims = new System.Collections.Generic.List<System.Security.Claims.Claim>
+            {
+                new(System.Security.Claims.ClaimTypes.NameIdentifier, userId),
+                new(System.Security.Claims.ClaimTypes.Email, userName),
+                new(System.Security.Claims.ClaimTypes.Name, userName),
+            };
+            if (roles != null)
+            {
+                foreach (var role in roles)
+                    claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, role));
+            }
+            var identity = new System.Security.Claims.ClaimsIdentity(claims, "TestAuth");
+            httpContext.User = new System.Security.Claims.ClaimsPrincipal(identity);
+        }
+        contextAccessor.HttpContext.Returns(httpContext);
         Services.AddSingleton(contextAccessor);
 
         var signInManager = Substitute.For<SignInManager<ApplicationUser>>(
