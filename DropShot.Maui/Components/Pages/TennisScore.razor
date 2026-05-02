@@ -1,0 +1,10 @@
+@page "/tennisscore"
+@page "/match/{MatchId:int}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+<DropShot.UI.Components.Pages.TennisScore MatchId="@MatchId" />
+
+@code {
+    [Parameter] public int MatchId { get; set; }
+}

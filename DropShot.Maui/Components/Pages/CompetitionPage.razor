@@ -1,0 +1,9 @@
+@page "/competition/{Id:int}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+<DropShot.UI.Components.Pages.CompetitionPage Id="@Id" />
+
+@code {
+    [Parameter] public int Id { get; set; }
+}
