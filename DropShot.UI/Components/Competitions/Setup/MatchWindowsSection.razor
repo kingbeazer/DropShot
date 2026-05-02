@@ -1,4 +1,4 @@
-@using DropShot.Models
+@using DropShot.Shared.Dtos
 
 <MudPaper id="section-match-windows" Class="pa-4 mb-4 setup-section" Elevation="0"
      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -68,7 +68,7 @@
                     var isEditing = EditingWindowId == w.CompetitionMatchWindowId;
                     <tr style="@(isEditing ? "background-color: rgba(255,193,7,0.15);" : "")">
                         <td>@w.DayOfWeek</td>
-                        <td>@(w.Court?.Name ?? "All courts")</td>
+                        <td>@(w.CourtName ?? "All courts")</td>
                         <td>@w.StartTime.ToString(@"hh\:mm")</td>
                         <td>@w.EndTime.ToString(@"hh\:mm")</td>
                         <td>
@@ -109,9 +109,9 @@
 </MudPaper>
 
 @code {
-    [Parameter, EditorRequired] public IReadOnlyList<CompetitionMatchWindow> Windows { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<Court> Courts { get; set; } = [];
-    [Parameter, EditorRequired] public IReadOnlyList<ClubSchedulingTemplate> ClubTemplates { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionMatchWindowDto> Windows { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CourtDto> Courts { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<ClubSchedulingTemplateDto> ClubTemplates { get; set; } = [];
     [Parameter] public int? SelectedTemplateId { get; set; }
     [Parameter] public DayOfWeek NewWindowDay { get; set; }
     [Parameter] public EventCallback<DayOfWeek> NewWindowDayChanged { get; set; }
@@ -124,8 +124,8 @@
     [Parameter] public int? EditingWindowId { get; set; }
     [Parameter] public EventCallback OnAdd { get; set; }
     [Parameter] public EventCallback OnCancelEdit { get; set; }
-    [Parameter] public EventCallback<CompetitionMatchWindow> OnCopyToForm { get; set; }
-    [Parameter] public EventCallback<CompetitionMatchWindow> OnEdit { get; set; }
-    [Parameter] public EventCallback<CompetitionMatchWindow> OnDelete { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindowDto> OnCopyToForm { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindowDto> OnEdit { get; set; }
+    [Parameter] public EventCallback<CompetitionMatchWindowDto> OnDelete { get; set; }
     [Parameter] public EventCallback<int?> OnImportFromTemplate { get; set; }
 }

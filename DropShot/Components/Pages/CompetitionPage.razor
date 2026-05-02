@@ -392,10 +392,16 @@ else
             @* ── Match Windows (hidden when HasDivisions — per-division UI lives in the Divisions section below) *@
             @if (!Model.HasDivisions)
             {
-                <DropShot.Components.Competitions.Setup.MatchWindowsSection
-                    Windows="_matchWindows"
-                    Courts="_courts"
-                    ClubTemplates="_clubTemplates"
+                <DropShot.UI.Components.Competitions.Setup.MatchWindowsSection
+                    Windows="@_matchWindows.Select(w => new DropShot.Shared.Dtos.CompetitionMatchWindowDto(
+                        w.CompetitionMatchWindowId, w.CompetitionId, w.CourtId, w.Court?.Name,
+                        w.CompetitionDivisionId, w.Division?.Name, w.DayOfWeek, w.StartTime, w.EndTime)).ToList()"
+                    Courts="@_courts.Select(c => new DropShot.Shared.Dtos.CourtDto(
+                        c.CourtId, c.ClubId, c.Name, (DropShot.Shared.CourtSurface)c.Surface, c.IsIndoor)).ToList()"
+                    ClubTemplates="@_clubTemplates.Select(t => new DropShot.Shared.Dtos.ClubSchedulingTemplateDto(
+                        t.ClubSchedulingTemplateId, t.ClubId, t.Name,
+                        t.Windows.Select(w => new DropShot.Shared.Dtos.ClubSchedulingTemplateWindowDto(
+                            w.ClubSchedulingTemplateWindowId, w.DayOfWeek, w.StartTime, w.EndTime)).ToList())).ToList()"
                     SelectedTemplateId="_selectedTemplateId"
                     NewWindowDay="_newMatchWindowDay"
                     NewWindowDayChanged="@(v => _newMatchWindowDay = v)"
@@ -408,9 +414,9 @@ else
                     EditingWindowId="_editingMatchWindowId"
                     OnAdd="AddMatchWindow"
                     OnCancelEdit="CancelEditMatchWindow"
-                    OnCopyToForm="CopyMatchWindowToForm"
-                    OnEdit="EditMatchWindow"
-                    OnDelete="DeleteMatchWindow"
+                    OnCopyToForm="CopyMatchWindowToFormDto"
+                    OnEdit="EditMatchWindowDto"
+                    OnDelete="DeleteMatchWindowDto"
                     OnImportFromTemplate="ImportFromTemplate" />
             }
 
@@ -4099,6 +4105,24 @@ else
         // Intentionally do NOT clear the form — admins often add multiple similar
         // windows differing in only one field (different day, different court).
         Snackbar.Add("Window added.", Severity.Success);
+    }
+
+    private void CopyMatchWindowToFormDto(DropShot.Shared.Dtos.CompetitionMatchWindowDto dto)
+    {
+        var w = _matchWindows.FirstOrDefault(x => x.CompetitionMatchWindowId == dto.CompetitionMatchWindowId);
+        if (w is not null) CopyMatchWindowToForm(w);
+    }
+
+    private void EditMatchWindowDto(DropShot.Shared.Dtos.CompetitionMatchWindowDto dto)
+    {
+        var w = _matchWindows.FirstOrDefault(x => x.CompetitionMatchWindowId == dto.CompetitionMatchWindowId);
+        if (w is not null) EditMatchWindow(w);
+    }
+
+    private async Task DeleteMatchWindowDto(DropShot.Shared.Dtos.CompetitionMatchWindowDto dto)
+    {
+        var w = _matchWindows.FirstOrDefault(x => x.CompetitionMatchWindowId == dto.CompetitionMatchWindowId);
+        if (w is not null) await DeleteMatchWindow(w);
     }
 
     private void CopyMatchWindowToForm(CompetitionMatchWindow w)
