@@ -109,13 +109,13 @@ public record CompetitionAdminRowDto(
 /// <c>CompetitionPage.DivisionWindowForm</c> type so DivisionsSection (post-RCL
 /// move) can bind to a Shared type instead of a parent-page nested class.
 /// </summary>
-public record DivisionWindowFormDto
+public class DivisionWindowFormDto
 {
-    public DayOfWeek Day { get; init; } = DayOfWeek.Monday;
-    public int? CourtId { get; init; }
-    public TimeSpan? Start { get; init; }
-    public TimeSpan? End { get; init; }
-    public int? EditingId { get; init; }
+    public DayOfWeek Day { get; set; } = DayOfWeek.Monday;
+    public int? CourtId { get; set; }
+    public TimeSpan? Start { get; set; }
+    public TimeSpan? End { get; set; }
+    public int? EditingId { get; set; }
 }
 
 public record ClubSchedulingTemplateDto(
