@@ -50,7 +50,7 @@ public sealed class WebEventService(
             e.HostClubId, e.HostClub?.Name,
             e.Competitions.Select(c => new CompetitionDto(
                 c.CompetitionID, c.CompetitionName,
-                (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
+                c.CompetitionFormat,
                 c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
                 (DropShot.Shared.PlayerSex?)c.EligibleSex,
                 c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
@@ -98,8 +98,8 @@ public sealed class WebEventService(
             var comp = new Competition
             {
                 CompetitionName = t.CompetitionName.Trim(),
-                CompetitionFormat = (DropShot.Models.CompetitionFormat)t.CompetitionFormat,
-                EligibleSex = (DropShot.Models.PlayerSex?)t.EligibleSex,
+                CompetitionFormat = t.CompetitionFormat,
+                EligibleSex = t.EligibleSex,
                 MaxAge = t.MaxAge,
                 MinAge = t.MinAge,
                 EventId = eventId,
@@ -114,7 +114,7 @@ public sealed class WebEventService(
 
         return created.Select(c => new CompetitionDto(
             c.CompetitionID, c.CompetitionName,
-            (DropShot.Shared.CompetitionFormat)c.CompetitionFormat,
+            c.CompetitionFormat,
             c.MaxParticipants, c.StartDate, c.EndDate, c.MaxAge, c.MinAge,
             (DropShot.Shared.PlayerSex?)c.EligibleSex,
             c.HostClubId, null, c.RulesSetId, null,

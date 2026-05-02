@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using DropShot.Data
 @using DropShot.Models
+@using DropShot.Shared
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.EntityFrameworkCore
 @using Newtonsoft.Json
@@ -654,7 +655,7 @@
             f.CompetitionFixtureId, f.CompetitionId,
             f.CompetitionStageId, f.Stage?.Name,
             f.CourtId, f.Court?.Name,
-            f.ScheduledAt, (DropShot.Shared.FixtureStatus)f.Status,
+            f.ScheduledAt, f.Status,
             f.FixtureLabel, f.RoundNumber,
             f.Player1Id, f.Player1?.DisplayName,
             f.Player2Id, f.Player2?.DisplayName,

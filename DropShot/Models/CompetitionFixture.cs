@@ -1,14 +1,6 @@
-namespace DropShot.Models;
+using DropShot.Shared;
 
-public enum FixtureStatus : byte
-{
-    Scheduled = 1,
-    InProgress = 2,
-    Completed = 3,
-    Cancelled = 4,
-    Walkover = 5,
-    AwaitingVerification = 6
-}
+namespace DropShot.Models;
 
 public class CompetitionFixture
 {

@@ -2,14 +2,6 @@ using DropShot.Shared;
 
 namespace DropShot.Models;
 
-public enum SetWinMode : byte
-{
-    /// <summary>Standard tennis — win by 2 games, tie-break at GamesFirstTo all.</summary>
-    WinBy2 = 0,
-    /// <summary>First player to reach GamesFirstTo wins the set (no tie-break).</summary>
-    FirstTo = 1
-}
-
 public class TennisMatchState
 {
     // Scores

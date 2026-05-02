@@ -1,27 +1,7 @@
-﻿namespace DropShot.Models
+﻿using DropShot.Shared;
+
+namespace DropShot.Models
 {
-    public enum MatchFormatType : byte
-    {
-        BestOf = 1,
-        FixedSets = 2
-    }
-
-    public enum LeagueScoringMode : byte
-    {
-        WinPoints = 1,
-        SetsWon = 2,
-        GamesWon = 3
-    }
-
-    public enum CompetitionFormat
-    {
-        Singles = 1,
-        Doubles = 2,
-        Team = 3,
-        MixedDoubles = 4,
-        TeamMatch = 5
-    }
-
     public class Competition
     {
         public int CompetitionID { get; set; }

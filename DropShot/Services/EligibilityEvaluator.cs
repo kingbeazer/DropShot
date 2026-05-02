@@ -1,4 +1,5 @@
 using DropShot.Models;
+using DropShot.Shared;
 
 namespace DropShot.Services;
 

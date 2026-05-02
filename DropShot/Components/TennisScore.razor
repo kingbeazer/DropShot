@@ -1,5 +1,6 @@
 ﻿    @using System.ComponentModel.DataAnnotations
 @using DropShot.Models;
+@using DropShot.Shared;
 @using DropShot.Data;
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.EntityFrameworkCore
@@ -1607,13 +1608,13 @@
         return $"{side1} vs {side2}";
     }
 
-    private static Color FixtureStatusColor(DropShot.Models.FixtureStatus s) => s switch
+    private static Color FixtureStatusColor(FixtureStatus s) => s switch
     {
-        DropShot.Models.FixtureStatus.Scheduled => Color.Default,
-        DropShot.Models.FixtureStatus.InProgress => Color.Warning,
-        DropShot.Models.FixtureStatus.Completed => Color.Success,
-        DropShot.Models.FixtureStatus.Cancelled => Color.Error,
-        DropShot.Models.FixtureStatus.Walkover => Color.Info,
+        FixtureStatus.Scheduled => Color.Default,
+        FixtureStatus.InProgress => Color.Warning,
+        FixtureStatus.Completed => Color.Success,
+        FixtureStatus.Cancelled => Color.Error,
+        FixtureStatus.Walkover => Color.Info,
         _ => Color.Default
     };
 

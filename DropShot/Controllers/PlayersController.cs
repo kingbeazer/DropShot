@@ -75,7 +75,7 @@ public class PlayersController(
             LastName = req.LastName,
             Email = req.Email,
             DateOfBirth = req.DateOfBirth,
-            Sex = (DropShot.Models.PlayerSex?)req.Sex,
+            Sex = req.Sex,
             ContactPreferences = req.ContactPreferences,
             MobileNumber = req.MobileNumber
         };
@@ -104,7 +104,7 @@ public class PlayersController(
         p.LastName = req.LastName;
         p.Email = req.Email;
         p.DateOfBirth = req.DateOfBirth;
-        p.Sex = (DropShot.Models.PlayerSex?)req.Sex;
+        p.Sex = req.Sex;
         p.ContactPreferences = req.ContactPreferences;
         p.MobileNumber = req.MobileNumber;
         await db.SaveChangesAsync();

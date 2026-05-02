@@ -112,7 +112,7 @@ public sealed class WebPlayerService(
             Email = NullIfEmpty(request.Email),
             MobileNumber = NullIfEmpty(request.MobileNumber),
             DateOfBirth = request.DateOfBirth,
-            Sex = (DropShot.Models.PlayerSex?)request.Sex,
+            Sex = request.Sex,
             ContactPreferences = NullIfEmpty(request.ContactPreferences),
             IsLight = request.IsLight,
             CreatedByUserId = currentUser.UserId
@@ -134,7 +134,7 @@ public sealed class WebPlayerService(
         p.Email = NullIfEmpty(request.Email);
         p.MobileNumber = NullIfEmpty(request.MobileNumber);
         p.DateOfBirth = request.DateOfBirth;
-        p.Sex = (DropShot.Models.PlayerSex?)request.Sex;
+        p.Sex = request.Sex;
         p.ContactPreferences = NullIfEmpty(request.ContactPreferences);
         await db.SaveChangesAsync(ct);
         return ToDto(p);
@@ -204,7 +204,7 @@ public sealed class WebPlayerService(
             Email = NullIfEmpty(request.Email),
             MobileNumber = NullIfEmpty(request.MobileNumber),
             DateOfBirth = request.DateOfBirth,
-            Sex = (DropShot.Models.PlayerSex?)request.Sex,
+            Sex = request.Sex,
             IsLight = true,
             CreatedByClubId = clubId,
             CreatedByUserId = currentUser.UserId
@@ -233,7 +233,7 @@ public sealed class WebPlayerService(
         p.Email = NullIfEmpty(request.Email);
         p.MobileNumber = NullIfEmpty(request.MobileNumber);
         p.DateOfBirth = request.DateOfBirth;
-        p.Sex = (DropShot.Models.PlayerSex?)request.Sex;
+        p.Sex = request.Sex;
         await db.SaveChangesAsync(ct);
         return ToDto(p);
     }
@@ -330,7 +330,7 @@ public sealed class WebPlayerService(
             LastName = NullIfEmpty(request.LastName),
             Email = NullIfEmpty(request.Email),
             MobileNumber = NullIfEmpty(request.MobileNumber),
-            Sex = (DropShot.Models.PlayerSex?)request.Sex,
+            Sex = request.Sex,
             IsLight = true,
             CreatedByUserId = currentUser.UserId
         };
@@ -356,7 +356,7 @@ public sealed class WebPlayerService(
         p.LastName = NullIfEmpty(request.LastName);
         p.Email = NullIfEmpty(request.Email);
         p.MobileNumber = NullIfEmpty(request.MobileNumber);
-        p.Sex = (DropShot.Models.PlayerSex?)request.Sex;
+        p.Sex = request.Sex;
         await db.SaveChangesAsync(ct);
         return ToDto(p);
     }

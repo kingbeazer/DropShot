@@ -7,6 +7,7 @@
 @using DropShot.Data
 @using DropShot.Models
 @using DropShot.Services
+@using DropShot.Shared
 @using DropShot.Shared.Extensions
 @using Microsoft.EntityFrameworkCore
 
@@ -3699,7 +3700,7 @@ else
             f.CompetitionFixtureId, f.CompetitionId,
             f.CompetitionStageId, f.Stage?.Name,
             f.CourtId, f.Court?.Name,
-            f.ScheduledAt, (DropShot.Shared.FixtureStatus)f.Status,
+            f.ScheduledAt, f.Status,
             f.FixtureLabel, f.RoundNumber,
             f.Player1Id, f.Player1?.DisplayName,
             f.Player2Id, f.Player2?.DisplayName,
