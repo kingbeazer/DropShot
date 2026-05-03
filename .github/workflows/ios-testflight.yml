@@ -35,8 +35,11 @@ jobs:
         with:
           global-json-file: DropShot.Maui/global.json
 
-      - name: Install MAUI iOS workload
-        run: dotnet workload install maui-ios
+      - name: Pin SDK at repo root
+        run: cp DropShot.Maui/global.json global.json
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui
 
       - name: Compute build number
         id: bn
