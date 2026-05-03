@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using DropShot.Data;
 using DropShot.UI.Services.Auth;
@@ -79,9 +80,16 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
             return;
         }
 
-        _userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        _userName = user.Identity?.Name;
-        _activeRole = user.FindFirstValue(ClaimTypes.Role);
+        // Cookie auth (web) sets NameIdentifier directly. JWT bearer (MAUI) carries
+        // the user id under "sub" — which the modern JsonWebTokenHandler does NOT
+        // auto-map to NameIdentifier — so fall back to the JWT registered names.
+        _userId = user.FindFirstValue(ClaimTypes.NameIdentifier)
+                  ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? user.FindFirstValue("sub");
+        _userName = user.Identity?.Name
+                    ?? user.FindFirstValue(JwtRegisteredClaimNames.UniqueName);
+        _activeRole = user.FindFirstValue(ClaimTypes.Role)
+                      ?? user.FindFirstValue("active_role");
 
         if (_userId is null) return;
 

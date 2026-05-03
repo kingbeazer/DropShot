@@ -5,16 +5,17 @@
 @inject ICurrentUser CurrentUser
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject ThemeState Theme
 
 <MudNavMenu>
     <AuthorizeView>
         <Authorized>
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="px-4 py-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="px-4 py-3" Style="min-width:0;">
                 <MudAvatar Color="Color.Primary" Size="Size.Medium">
                     <MudIcon Icon="@Icons.Material.Filled.Person" />
                 </MudAvatar>
-                <MudStack Spacing="0">
-                    <MudText Typo="Typo.body1" Style="font-weight:600;">@CurrentUser.UserName</MudText>
+                <MudStack Spacing="0" Style="min-width:0; flex:1;">
+                    <MudText Typo="Typo.body2" Style="font-weight:600; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">@CurrentUser.UserName</MudText>
                     @if (!string.IsNullOrEmpty(CurrentUser.ActiveRole))
                     {
                         <MudText Typo="Typo.caption" Color="Color.Secondary">@CurrentUser.ActiveRole</MudText>
@@ -61,6 +62,21 @@
     </AuthorizeView>
 
     <AuthorizeView>
+        <Authorized Context="upgradeCtx">
+            <MudDivider Class="my-2" />
+            <MudNavLink Href="/upgrade" Icon="@Icons.Material.Filled.Star">
+                Upgrade
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    <MudDivider Class="my-2" />
+    <MudNavLink Icon="@(Theme.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                OnClick="@(() => Theme.Toggle())">
+        @(Theme.IsDarkMode ? "Light Mode" : "Dark Mode")
+    </MudNavLink>
+
+    <AuthorizeView>
         <Authorized>
             <MudDivider Class="my-2" />
             @if (CurrentUser.GrantedRoles.Count > 1)
@@ -87,9 +103,12 @@
     protected override void OnInitialized()
     {
         CurrentUser.Changed += OnCurrentUserChanged;
+        Theme.Changed += OnThemeChanged;
     }
 
     private void OnCurrentUserChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
 
     private async Task SwitchRoleAsync(string role)
     {
@@ -108,5 +127,6 @@
     public void Dispose()
     {
         CurrentUser.Changed -= OnCurrentUserChanged;
+        Theme.Changed -= OnThemeChanged;
     }
 }

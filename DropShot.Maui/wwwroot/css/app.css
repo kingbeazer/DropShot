@@ -4,6 +4,35 @@ html, body {
     overflow: hidden;
 }
 
+/* Defensive guard against pages whose content (wide MudTables, fixed-width
+   inline styles, negative margins) reaches past the viewport on phones. The
+   .mud-main-content scroll container should clip horizontally; vertical
+   scrolling is unaffected. */
+.mud-main-content {
+    overflow-x: hidden;
+}
+
+/* Match the web app's black top banner in dark mode (web is black, light
+   mode uses the blue from theme-light.css). theme-light.css overrides
+   .mud-appbar background to #1565c0 via the appbar-background palette
+   variable, so we only need the dark-mode override here. */
+html:not([data-theme="light"]) .mud-appbar {
+    background-color: #000 !important;
+    color: #fff !important;
+}
+
+/* Pill the hamburger icon to match the web's contrast look. */
+.mud-appbar .appbar-hamburger {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-radius: 50%;
+}
+
+.mud-appbar .appbar-logo {
+    height: 2rem;
+    width: auto;
+    margin-right: 0.5rem;
+}
+
 /* MudMainContent owns the scroll viewport so the AppBar and Drawer stay
    pinned while lists (Competitions, Clubs, etc.) scroll inside. Without
    this the body's overflow:hidden clips overflowing content and it
@@ -55,21 +84,26 @@ html, body {
         position: sticky;
         top: 0;
         height: env(safe-area-inset-top);
-        background-color: var(--mud-palette-primary);
+        background-color: #000;
         width: 100%;
         z-index: 1000;
+    }
+
+    [data-theme="light"] .status-bar-safe-area {
+        background-color: #1565c0;
     }
 
     /* Push MudBlazor AppBar and Drawer below the iOS status bar so the
        hamburger menu and logout button aren't hidden under the system
        clock / battery / signal indicators. The .status-bar-safe-area
-       above provides the primary-coloured backdrop. */
+       above provides the black backdrop. */
     .mud-appbar {
         top: env(safe-area-inset-top) !important;
     }
 
     .mud-main-content {
         padding-top: calc(64px + env(safe-area-inset-top)) !important;
+        padding-bottom: max(2rem, env(safe-area-inset-bottom)) !important;
     }
 
     .mud-drawer-fixed {
