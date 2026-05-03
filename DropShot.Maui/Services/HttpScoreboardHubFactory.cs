@@ -16,7 +16,13 @@ public sealed class HttpScoreboardHubFactory(
 {
     public HubConnection Create()
     {
-        var baseUrl = config["App:BaseUrl"]?.TrimEnd('/') ?? "";
+        // Prefer App:BaseUrl from IConfiguration when present (web-style),
+        // but no provider populates that key on MAUI — fall back to the
+        // ApiBaseUrl const that already backs the HttpClient. Building a
+        // relative URL here would throw UriFormatException inside SignalR.
+        var baseUrl = config["App:BaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrEmpty(baseUrl))
+            baseUrl = MauiProgram.ApiBaseUrl.TrimEnd('/');
         var hubUrl = $"{baseUrl}/chathub";
 
         return new HubConnectionBuilder()

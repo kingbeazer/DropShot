@@ -1,5 +1,4 @@
 @page "/upgrade"
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 <DropShot.UI.Components.Pages.Upgrade>
     <CheckoutControls>
@@ -18,7 +17,7 @@
 @code {
     private async Task OpenWebUpgradeAsync()
     {
-        var baseUrl = Configuration["App:BaseUrl"]?.TrimEnd('/') ?? "";
+        var baseUrl = MauiProgram.ApiBaseUrl.TrimEnd('/');
         var url = $"{baseUrl}/upgrade";
         await Browser.Default.OpenAsync(url, BrowserLaunchMode.External);
     }
