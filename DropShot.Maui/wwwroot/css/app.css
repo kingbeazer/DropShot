@@ -4,6 +4,14 @@ html, body {
     overflow: hidden;
 }
 
+/* Defensive guard against pages whose content (wide MudTables, fixed-width
+   inline styles, negative margins) reaches past the viewport on phones. The
+   .mud-main-content scroll container should clip horizontally; vertical
+   scrolling is unaffected. */
+.mud-main-content {
+    overflow-x: hidden;
+}
+
 /* Match the web app's black top banner instead of MudBlazor's primary teal,
    so iOS/Android visual identity tracks the web. */
 .mud-appbar {
