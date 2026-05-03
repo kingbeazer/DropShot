@@ -3,7 +3,6 @@ using DropShot.Shared;
 using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 
@@ -34,16 +33,6 @@ public static class MauiProgram
         builder.Services.AddBlazorWebViewDeveloperTools();
         builder.Logging.AddDebug();
 #endif
-
-        // Expose ApiBaseUrl as IConfiguration["App:BaseUrl"] so any code that
-        // reads that key (HttpScoreboardHubFactory, Upgrade.razor, etc.) gets
-        // the right absolute URL on MAUI. Without this, services that build
-        // SignalR hub URLs from $"{baseUrl}/chathub" produce relative URIs
-        // and SignalR throws System.UriFormatException.
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["App:BaseUrl"] = ApiBaseUrl,
-        });
 
         // ── Shared HttpClient ────────────────────────────────────────────────
         // Both AuthService and ApiService share the same scoped HttpClient so
