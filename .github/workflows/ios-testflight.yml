@@ -43,6 +43,16 @@ jobs:
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
 
+      - name: Install matching iOS Simulator runtime
+        run: |
+          # actool validates the asset catalog against the iphonesimulator SDK
+          # bundled with the selected Xcode (e.g. iOS 18.1 for Xcode 16.1).
+          # macos-15 runner only ships iOS 18.5+/19.x runtimes; download the
+          # matching one for the selected Xcode.
+          sudo xcodebuild -downloadPlatform iOS
+          echo "=== Available simulator runtimes after download ==="
+          xcrun simctl list runtimes | grep -i ios
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
