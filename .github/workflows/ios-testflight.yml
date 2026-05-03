@@ -1,0 +1,106 @@
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: "What to test (shown in TestFlight)"
+        required: false
+        default: "Internal build"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  build-upload:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 16.x
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -n 1)
+          test -n "$XCODE" || { echo "No Xcode 16 found"; exit 1; }
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: DropShot.Maui/global.json
+
+      - name: Install MAUI iOS workload
+        run: dotnet workload install maui-ios
+
+      - name: Compute build number
+        id: bn
+        run: echo "build_number=$((100 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
+
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      - name: Install provisioning profile
+        env:
+          PROFILE_B64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE_B64" | base64 --decode \
+            > ~/Library/MobileDevice/Provisioning\ Profiles/dropshot_appstore.mobileprovision
+
+      - name: Extract profile metadata
+        id: profile
+        run: |
+          PROFILE=~/Library/MobileDevice/Provisioning\ Profiles/dropshot_appstore.mobileprovision
+          NAME=$(security cms -D -i "$PROFILE" | plutil -extract Name raw -)
+          UUID=$(security cms -D -i "$PROFILE" | plutil -extract UUID raw -)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "uuid=$UUID" >> "$GITHUB_OUTPUT"
+
+      - name: Restore (iOS only)
+        run: dotnet restore DropShot.Maui/DropShot.Maui.csproj -p:TargetFramework=net9.0-ios
+
+      - name: Publish IPA
+        run: |
+          dotnet publish DropShot.Maui/DropShot.Maui.csproj \
+            -f net9.0-ios \
+            -c Release \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:ArchiveOnBuild=true \
+            -p:CodesignKey="${{ secrets.IOS_CODESIGN_KEY }}" \
+            -p:CodesignProvision="${{ steps.profile.outputs.name }}" \
+            -p:ApplicationVersion=${{ steps.bn.outputs.build_number }} \
+            -p:ApplicationDisplayVersion=1.0
+
+      - name: Locate IPA
+        id: ipa
+        run: |
+          IPA=$(find DropShot.Maui/bin/Release/net9.0-ios -name "*.ipa" | head -n 1)
+          test -n "$IPA" || { echo "No IPA produced"; exit 1; }
+          echo "path=$IPA" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to TestFlight
+        uses: apple-actions/upload-testflight-build@v3
+        with:
+          app-path: ${{ steps.ipa.outputs.path }}
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: Upload IPA + dSYMs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DropShot-ios-${{ steps.bn.outputs.build_number }}
+          path: |
+            DropShot.Maui/bin/Release/net9.0-ios/ios-arm64/publish/*.ipa
+            DropShot.Maui/bin/Release/net9.0-ios/ios-arm64/**/*.dSYM/**
+          retention-days: 14
