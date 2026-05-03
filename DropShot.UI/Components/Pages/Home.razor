@@ -289,18 +289,24 @@
     </MudGrid>
 }
 
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6819827391362636"
-     crossorigin="anonymous"></script>
-<!-- Home page Ad -->
-<ins class="adsbygoogle"
-     style="display:block"
-     data-ad-client="ca-pub-6819827391362636"
-     data-ad-slot="5137127862"
-     data-ad-format="auto"
-     data-full-width-responsive="true"></ins>
-<script>
-     (adsbygoogle = window.adsbygoogle || []).push({});
-</script>
+@* AdSense rejects WebView contexts and redirects to googlesyndication on
+   mobile MAUI hosts. Suppress in iOS/Android/MacCatalyst where the C# runs
+   on-device; web users (Blazor Server runs on Linux) still see ads. *@
+@if (!OperatingSystem.IsIOS() && !OperatingSystem.IsAndroid() && !OperatingSystem.IsMacCatalyst())
+{
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6819827391362636"
+         crossorigin="anonymous"></script>
+    <!-- Home page Ad -->
+    <ins class="adsbygoogle"
+         style="display:block"
+         data-ad-client="ca-pub-6819827391362636"
+         data-ad-slot="5137127862"
+         data-ad-format="auto"
+         data-full-width-responsive="true"></ins>
+    <script>
+         (adsbygoogle = window.adsbygoogle || []).push({});
+    </script>
+}
 
 @code {
     private bool arrows = true;
