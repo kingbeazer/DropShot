@@ -110,17 +110,12 @@ jobs:
 
       - name: Publish IPA
         run: |
-          # IgnoreXcodeVersion=true: the .NET for iOS pack (26.0.11017) was
-          # built against Xcode 26.0 and strictly version-checks. Runner only
-          # has Xcode 26.0 (missing actool) or 26.1+. iOS 26.1 SDK is
-          # forward-compatible for our needs and Apple accepts any iOS 26+ SDK.
           dotnet publish DropShot.Maui/DropShot.Maui.csproj \
             -f net10.0-ios26.0 \
             -c Release \
             -p:RuntimeIdentifier=ios-arm64 \
             -p:ArchiveOnBuild=true \
             -p:OptimizePNGs=false \
-            -p:IgnoreXcodeVersion=true \
             -p:CodesignKey="${{ secrets.IOS_CODESIGN_KEY }}" \
             -p:CodesignProvision="${{ steps.profile.outputs.name }}" \
             -p:ApplicationVersion=${{ steps.bn.outputs.build_number }} \
