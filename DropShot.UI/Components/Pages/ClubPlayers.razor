@@ -11,15 +11,30 @@
 
 <MudText Typo="Typo.h4" Class="mb-4" Style="color: white;">Club Players</MudText>
 
+@if (_availableClubs.Count > 1)
+{
+    <MudSelect T="int?" Value="_activeClubId" ValueChanged="OnClubChangedAsync"
+               Label="Club" Variant="Variant.Outlined" Class="mb-4"
+               Style="background-color: rgba(255,255,255,0.04);">
+        @foreach (var club in _availableClubs)
+        {
+            <MudSelectItem T="int?" Value="@((int?)club.ClubId)">@club.Name</MudSelectItem>
+        }
+    </MudSelect>
+}
+
 @if (_activeClubId is null)
 {
     <MudAlert Severity="Severity.Warning">
-        No club is currently selected. You may not be an administrator of any club.
+        No clubs available. You may not be an administrator of any club.
     </MudAlert>
 }
 else
 {
-    <MudText Typo="Typo.subtitle1" Class="mb-3" Style="color: rgba(255,255,255,0.85);">Managing: <strong>@_clubName</strong></MudText>
+    @if (_availableClubs.Count == 1)
+    {
+        <MudText Typo="Typo.subtitle1" Class="mb-3" Style="color: rgba(255,255,255,0.85);">Managing: <strong>@_clubName</strong></MudText>
+    }
 
     <MudStack Row="true" Spacing="2" Class="mb-4">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
@@ -201,6 +216,7 @@ else
     private string _searchText = "";
     private int? _activeClubId;
     private string _clubName = "";
+    private List<ClubDto> _availableClubs = [];
 
     private bool _showPlayerDialog;
     private int? _editingPlayerId;
@@ -238,12 +254,31 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _activeClubId = CurrentUser.ActiveClubId;
-        if (_activeClubId is not null)
+        // Admin / SuperAdmin manage every club; ClubAdmin only their own.
+        // Build the picker options from whichever scope applies, then default
+        // to the user's active club if set, else the first option.
+        var allClubs = await ClubService.GetClubsAsync();
+        if (CurrentUser.HasRole("Admin") || CurrentUser.HasRole("SuperAdmin"))
         {
-            var club = await ClubService.GetClubAsync(_activeClubId.Value);
-            _clubName = club?.Name ?? "";
+            _availableClubs = allClubs;
         }
+        else
+        {
+            var adminIds = CurrentUser.AdminClubIds.ToHashSet();
+            _availableClubs = allClubs.Where(c => adminIds.Contains(c.ClubId)).ToList();
+        }
+
+        _activeClubId = CurrentUser.ActiveClubId
+            ?? _availableClubs.FirstOrDefault()?.ClubId;
+        _clubName = _availableClubs.FirstOrDefault(c => c.ClubId == _activeClubId)?.Name ?? "";
+
+        await LoadPlayers();
+    }
+
+    private async Task OnClubChangedAsync(int? clubId)
+    {
+        _activeClubId = clubId;
+        _clubName = _availableClubs.FirstOrDefault(c => c.ClubId == clubId)?.Name ?? "";
         await LoadPlayers();
     }
 
