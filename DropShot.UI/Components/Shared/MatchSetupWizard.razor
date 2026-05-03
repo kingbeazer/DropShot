@@ -825,23 +825,31 @@
         var excluded = GetAlreadySelectedPlayerIds();
 
         if (string.IsNullOrWhiteSpace(value))
-            return _searchablePlayers
-                .Where(p => !p.PlayerId.HasValue || !excluded.Contains(p.PlayerId.Value))
-                .Take(20);
+        {
+            if (_searchablePlayers.Count > 0)
+                return _searchablePlayers
+                    .Where(p => !p.PlayerId.HasValue || !excluded.Contains(p.PlayerId.Value))
+                    .Take(20);
+
+            // First-time users have no light/bookmarked players. Fall back to
+            // the fuzzy seed so the picker isn't empty before they type.
+            return _fuzzySeed
+                .Where(i => !excluded.Contains(i.PlayerId))
+                .Take(20)
+                .Select(FuzzyItemToSelection);
+        }
 
         List<PlayerSelection> results;
 
         if (_fuzzyInitialized)
         {
-            // Fuzzy index has all players, but autocomplete should only show my players
-            var myPlayerIds = _searchablePlayers
-                .Where(p => p.PlayerId.HasValue)
-                .Select(p => p.PlayerId!.Value)
-                .ToHashSet();
-
+            // Surface every verified player the fuzzy index knows about, not
+            // just the user's roster. StartMatch auto-bookmarks any verified
+            // pick (~line 1020), so widening the picker is intentional — do
+            // not re-add a "my players only" filter here.
             var fuzzyResults = await FuzzySearch.SearchAsync(value, 30);
             results = fuzzyResults
-                .Where(r => myPlayerIds.Contains(r.PlayerId) && !excluded.Contains(r.PlayerId))
+                .Where(r => !excluded.Contains(r.PlayerId))
                 .Take(14)
                 .Select(r => new PlayerSelection
                 {
@@ -852,13 +860,23 @@
                 })
                 .ToList();
         }
-        else
+        else if (_searchablePlayers.Count > 0)
         {
-            // Fallback before fuzzy index is ready
+            // Pre-init fallback for users with a roster: substring-search it.
             results = _searchablePlayers
                 .Where(p => p.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase)
                             && (!p.PlayerId.HasValue || !excluded.Contains(p.PlayerId.Value)))
                 .Take(14)
+                .ToList();
+        }
+        else
+        {
+            // Pre-init fallback for first-time users: substring-search the seed.
+            results = _fuzzySeed
+                .Where(i => i.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase)
+                            && !excluded.Contains(i.PlayerId))
+                .Take(14)
+                .Select(FuzzyItemToSelection)
                 .ToList();
         }
 
@@ -873,6 +891,14 @@
 
         return results;
     }
+
+    private PlayerSelection FuzzyItemToSelection(WizardFuzzyItemDto item) => new()
+    {
+        PlayerId = item.PlayerId,
+        DisplayName = item.DisplayName,
+        IsLight = item.IsLight,
+        ProfileImagePath = _playerAvatars.GetValueOrDefault(item.PlayerId)
+    };
 
     // ── Inline Light Player Creation ────────────────────────
 
