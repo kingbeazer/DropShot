@@ -17,26 +17,27 @@ concurrency:
 
 jobs:
   build-upload:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode (pin to MAUI-9-compatible version)
+      - name: Select Xcode 26
         run: |
-          # MAUI 9 iOS workload ships iOS 18.0 SDK pack. Xcode 16.4 (default on
-          # macos-15) ships iOS 18.4 SDK, which silently breaks actool. Pin to
-          # the lowest available 16.x (16.0-16.3); avoid 16.4+.
+          # Apple now requires builds with Xcode 26+ / iOS 26 SDK for App Store
+          # uploads. Pick the lowest available 26.x to match the .NET for iOS
+          # workload pack version (newer Xcodes may ship SDKs the pack doesn't
+          # know about yet).
           XCODE=""
-          for v in "16.1" "16.2" "16.1.0" "16.2.0" "16.0" "16.0.0" "16.3" "16.3.0"; do
+          for v in "26.0" "26.0.0" "26.1" "26.1.0" "26.2" "26.2.0" "26.3" "26.3.0"; do
             if [ -d "/Applications/Xcode_${v}.app" ]; then
               XCODE="/Applications/Xcode_${v}.app"
               break
             fi
           done
           if [ -z "$XCODE" ]; then
-            echo "No compatible Xcode (16.0-16.3) found. Available:"
+            echo "No Xcode 26.x found. Available:"
             ls -d /Applications/Xcode_*.app 2>/dev/null
             exit 1
           fi
@@ -46,9 +47,7 @@ jobs:
       - name: Install matching iOS Simulator runtime
         run: |
           # actool validates the asset catalog against the iphonesimulator SDK
-          # bundled with the selected Xcode (e.g. iOS 18.1 for Xcode 16.1).
-          # macos-15 runner only ships iOS 18.5+/19.x runtimes; download the
-          # matching one for the selected Xcode.
+          # bundled with the selected Xcode. Download the matching runtime.
           sudo xcodebuild -downloadPlatform iOS
           echo "=== Available simulator runtimes after download ==="
           xcrun simctl list runtimes | grep -i ios
@@ -92,12 +91,12 @@ jobs:
           echo "uuid=$UUID" >> "$GITHUB_OUTPUT"
 
       - name: Restore (iOS only)
-        run: dotnet restore DropShot.Maui/DropShot.Maui.csproj -p:TargetFramework=net9.0-ios18.0
+        run: dotnet restore DropShot.Maui/DropShot.Maui.csproj -p:TargetFramework=net10.0-ios26.0
 
       - name: Publish IPA
         run: |
           dotnet publish DropShot.Maui/DropShot.Maui.csproj \
-            -f net9.0-ios18.0 \
+            -f net10.0-ios26.0 \
             -c Release \
             -p:RuntimeIdentifier=ios-arm64 \
             -p:ArchiveOnBuild=true \
@@ -111,13 +110,13 @@ jobs:
         if: failure()
         run: |
           echo "=== actool dir contents ==="
-          ls -la DropShot.Maui/obj/Release/net9.0-ios18.0/ios-arm64/actool/ 2>/dev/null || echo "(no actool dir)"
+          ls -la DropShot.Maui/obj/Release/net10.0-ios26.0/ios-arm64/actool/ 2>/dev/null || echo "(no actool dir)"
           echo
           echo "=== asset-manifest.plist ==="
-          cat DropShot.Maui/obj/Release/net9.0-ios18.0/ios-arm64/actool/asset-manifest.plist 2>/dev/null || echo "(missing)"
+          cat DropShot.Maui/obj/Release/net10.0-ios26.0/ios-arm64/actool/asset-manifest.plist 2>/dev/null || echo "(missing)"
           echo
           echo "=== actool log files ==="
-          find DropShot.Maui/obj/Release/net9.0-ios18.0/ios-arm64/actool/ -type f -name "*.log" -exec sh -c 'echo "--- {} ---"; cat "{}"' \; 2>/dev/null || true
+          find DropShot.Maui/obj/Release/net10.0-ios26.0/ios-arm64/actool/ -type f -name "*.log" -exec sh -c 'echo "--- {} ---"; cat "{}"' \; 2>/dev/null || true
           echo
           echo "=== Xcode + actool version ==="
           xcode-select -p
@@ -129,7 +128,7 @@ jobs:
       - name: Locate IPA
         id: ipa
         run: |
-          IPA=$(find DropShot.Maui/bin/Release/net9.0-ios18.0 -name "*.ipa" | head -n 1)
+          IPA=$(find DropShot.Maui/bin/Release/net10.0-ios26.0 -name "*.ipa" | head -n 1)
           test -n "$IPA" || { echo "No IPA produced"; exit 1; }
           echo "path=$IPA" >> "$GITHUB_OUTPUT"
 
@@ -147,6 +146,6 @@ jobs:
         with:
           name: DropShot-ios-${{ steps.bn.outputs.build_number }}
           path: |
-            DropShot.Maui/bin/Release/net9.0-ios18.0/ios-arm64/publish/*.ipa
-            DropShot.Maui/bin/Release/net9.0-ios18.0/ios-arm64/**/*.dSYM/**
+            DropShot.Maui/bin/Release/net10.0-ios26.0/ios-arm64/publish/*.ipa
+            DropShot.Maui/bin/Release/net10.0-ios26.0/ios-arm64/**/*.dSYM/**
           retention-days: 14
