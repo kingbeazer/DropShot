@@ -67,6 +67,15 @@
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.1" />
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.8" />
+        <!-- Hard-root Configuration.Memory so the iOS AOT/trimmer keeps it.
+             MauiProgram.CreateMauiApp calls builder.Configuration.AddInMemoryCollection(...);
+             the in-memory provider is only a transitive dep, so without an
+             explicit PackageReference the iOS Release publisher strips the
+             assembly and the runtime aborts during init when it can't load
+             the AOT module. Crash signature: SIGABRT in
+             mono_runtime_init_checked → mono_assembly_request_byname →
+             load_aot_module on a TestFlight device build. -->
+        <PackageReference Include="Microsoft.Extensions.Configuration.Memory" Version="9.0.8" />
         <PackageReference Include="MudBlazor" Version="9.2.0" />
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.4.0" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
