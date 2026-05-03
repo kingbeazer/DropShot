@@ -7,6 +7,16 @@ on:
         description: "What to test (shown in TestFlight)"
         required: false
         default: "Internal build"
+  # TEMP: auto-fire on push to main during initial debugging.
+  # Remove once the workflow reliably reaches TestFlight upload — manual
+  # triggers are preferable to avoid burning TestFlight build numbers.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ios-testflight.yml'
+      - 'DropShot.Maui/**'
+      - 'DropShot.UI/**'
+      - 'DropShot.Shared/**'
 
 permissions:
   contents: read
@@ -23,31 +33,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 26
+      - name: Select Xcode 26.2 / 26.3
         run: |
-          # Apple requires Xcode 26+ / iOS 26 SDK for App Store uploads.
-          # Prefer 26.1/26.2 — Xcode 26.0 on macos-26 was missing actool in
-          # one image revision (xcrun -find actool fails). Newer 26.x are
-          # complete builds.
+          # The .NET for iOS workload set 10.0.202 ships pack 26.2.10233 which
+          # supports Xcode 26.2 and 26.3 (identical SDK). No pack supports
+          # Xcode 26.1, and Xcode 26.0 on macos-26 is missing actool. So
+          # 26.2/26.3 is the only viable window.
           XCODE=""
-          for v in "26.1" "26.1.0" "26.2" "26.2.0" "26.3" "26.3.0" "26.0" "26.0.0"; do
+          for v in "26.2" "26.2.0" "26.3" "26.3.0"; do
             if [ -d "/Applications/Xcode_${v}.app" ]; then
               XCODE="/Applications/Xcode_${v}.app"
               break
             fi
           done
           if [ -z "$XCODE" ]; then
-            echo "No Xcode 26.x found. Available:"
+            echo "No Xcode 26.2 or 26.3 found. Available:"
             ls -d /Applications/Xcode_*.app 2>/dev/null
             exit 1
           fi
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
-          # First-launch unpacks bundled tools (actool, ibtool, etc.).
           sudo xcodebuild -runFirstLaunch
           echo "=== verifying actool is findable ==="
           xcrun -find actool || {
-            echo "actool not found in selected Xcode. Listing developer/usr/bin:"
+            echo "actool not found. Listing developer/usr/bin:"
             ls "$(xcode-select -p)/usr/bin/" | head -50
             exit 1
           }
@@ -75,8 +84,19 @@ jobs:
       - name: Pin SDK at repo root
         run: cp DropShot.Maui/global.json global.json
 
-      - name: Install MAUI workload
-        run: dotnet workload install maui
+      - name: Show .NET SDK and existing workloads
+        run: |
+          dotnet --version
+          dotnet workload list || true
+
+      - name: Install MAUI workload (set 10.0.202 for Xcode 26.2/26.3 support)
+        run: |
+          # Pin to workload set 10.0.202 — ships .NET for iOS pack 26.2.10233
+          # which supports Xcode 26.2/26.3. Without --version the install
+          # resolves to the older 26.0.11017 pack that strict-rejects Xcode 26.1+.
+          dotnet workload install maui --version 10.0.202
+          echo "=== Workloads after install ==="
+          dotnet workload list
 
       - name: Compute build number
         id: bn
