@@ -25,12 +25,12 @@ jobs:
 
       - name: Select Xcode 26
         run: |
-          # Apple now requires builds with Xcode 26+ / iOS 26 SDK for App Store
-          # uploads. Pick the lowest available 26.x to match the .NET for iOS
-          # workload pack version (newer Xcodes may ship SDKs the pack doesn't
-          # know about yet).
+          # Apple requires Xcode 26+ / iOS 26 SDK for App Store uploads.
+          # Prefer 26.1/26.2 — Xcode 26.0 on macos-26 was missing actool in
+          # one image revision (xcrun -find actool fails). Newer 26.x are
+          # complete builds.
           XCODE=""
-          for v in "26.0" "26.0.0" "26.1" "26.1.0" "26.2" "26.2.0" "26.3" "26.3.0"; do
+          for v in "26.1" "26.1.0" "26.2" "26.2.0" "26.3" "26.3.0" "26.0" "26.0.0"; do
             if [ -d "/Applications/Xcode_${v}.app" ]; then
               XCODE="/Applications/Xcode_${v}.app"
               break
@@ -43,6 +43,14 @@ jobs:
           fi
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          # First-launch unpacks bundled tools (actool, ibtool, etc.).
+          sudo xcodebuild -runFirstLaunch
+          echo "=== verifying actool is findable ==="
+          xcrun -find actool || {
+            echo "actool not found in selected Xcode. Listing developer/usr/bin:"
+            ls "$(xcode-select -p)/usr/bin/" | head -50
+            exit 1
+          }
 
       - name: Ensure iOS Simulator runtime present
         run: |
