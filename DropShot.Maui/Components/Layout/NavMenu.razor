@@ -1,7 +1,38 @@
+@implements IDisposable
+@using DropShot.Maui.Services
+@using DropShot.UI.Services.Auth
+@inject AuthService Auth
+@inject ICurrentUser CurrentUser
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
 <MudNavMenu>
+    <AuthorizeView>
+        <Authorized>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="px-4 py-3">
+                <MudAvatar Color="Color.Primary" Size="Size.Medium">
+                    <MudIcon Icon="@Icons.Material.Filled.Person" />
+                </MudAvatar>
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.body1" Style="font-weight:600;">@CurrentUser.UserName</MudText>
+                    @if (!string.IsNullOrEmpty(CurrentUser.ActiveRole))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@CurrentUser.ActiveRole</MudText>
+                    }
+                </MudStack>
+            </MudStack>
+            <MudDivider />
+        </Authorized>
+    </AuthorizeView>
+
     <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">
         Home
     </MudNavLink>
+    <AuthorizeView Roles="User">
+        <MudNavLink Href="/match" Icon="@Icons.Material.Filled.SportsTennis">
+            Match
+        </MudNavLink>
+    </AuthorizeView>
     <MudNavLink Href="/competitions" Icon="@Icons.Material.Filled.EmojiEvents">
         Competitions
     </MudNavLink>
@@ -21,4 +52,61 @@
             Players
         </MudNavLink>
     </AuthorizeView>
+
+    <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
+        <MudDivider Class="my-2" />
+        <MudNavLink Href="/score" Icon="@Icons.Material.Filled.Tv">
+            Scoreboard View
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView>
+        <Authorized>
+            <MudDivider Class="my-2" />
+            @if (CurrentUser.GrantedRoles.Count > 1)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-4 pt-2">Switch role</MudText>
+                @foreach (var role in CurrentUser.GrantedRoles)
+                {
+                    <MudNavLink Icon="@Icons.Material.Filled.SwapHoriz"
+                                OnClick="@(() => SwitchRoleAsync(role))"
+                                Disabled="@(role == CurrentUser.ActiveRole)">
+                        @role
+                    </MudNavLink>
+                }
+                <MudDivider Class="my-2" />
+            }
+            <MudNavLink Icon="@Icons.Material.Filled.Logout" OnClick="LogoutAsync">
+                Logout
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
 </MudNavMenu>
+
+@code {
+    protected override void OnInitialized()
+    {
+        CurrentUser.Changed += OnCurrentUserChanged;
+    }
+
+    private void OnCurrentUserChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task SwitchRoleAsync(string role)
+    {
+        var ok = await Auth.SwitchRoleAsync(role);
+        Snackbar.Add(
+            ok ? $"Switched to {role}." : $"Failed to switch to {role}.",
+            ok ? Severity.Success : Severity.Error);
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Auth.LogoutAsync();
+        Nav.NavigateTo("/login", replace: true);
+    }
+
+    public void Dispose()
+    {
+        CurrentUser.Changed -= OnCurrentUserChanged;
+    }
+}
