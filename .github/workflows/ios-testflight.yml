@@ -7,16 +7,6 @@ on:
         description: "What to test (shown in TestFlight)"
         required: false
         default: "Internal build"
-  # TEMP: auto-fire on push to main during initial debugging.
-  # Remove once the workflow reliably reaches TestFlight upload — manual
-  # triggers are preferable to avoid burning TestFlight build numbers.
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/ios-testflight.yml'
-      - 'DropShot.Maui/**'
-      - 'DropShot.UI/**'
-      - 'DropShot.Shared/**'
 
 permissions:
   contents: read
