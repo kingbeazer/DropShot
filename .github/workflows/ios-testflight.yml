@@ -44,13 +44,20 @@ jobs:
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
 
-      - name: Install matching iOS Simulator runtime
+      - name: Ensure iOS Simulator runtime present
         run: |
-          # actool validates the asset catalog against the iphonesimulator SDK
-          # bundled with the selected Xcode. Download the matching runtime.
-          sudo xcodebuild -downloadPlatform iOS
-          echo "=== Available simulator runtimes after download ==="
-          xcrun simctl list runtimes | grep -i ios
+          # Xcode 26 on macos-26 typically ships with a matching iOS 26
+          # simulator runtime — only download if none is available, since the
+          # download command fails with "Unable to connect to simulator" when
+          # the requested runtime is already installed.
+          if xcrun simctl list runtimes 2>/dev/null | grep -qi 'iOS '; then
+            echo "iOS simulator runtime already present:"
+            xcrun simctl list runtimes | grep -i ios
+          else
+            echo "No iOS runtime found, downloading..."
+            sudo xcodebuild -downloadPlatform iOS
+            xcrun simctl list runtimes | grep -i ios
+          fi
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
