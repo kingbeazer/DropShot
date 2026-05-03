@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DropShot.Services;
 
+internal sealed record MatchPlayerSlots(int? P1, int? P2, int? P3, int? P4);
+
 /// <summary>
 /// Web implementation of <see cref="IPlayerService"/>. Mirrors
 /// <c>PlayersController</c> EF queries 1:1 so behaviour is identical between
@@ -295,15 +297,23 @@ public sealed class WebPlayerService(
             .Concat(bookmarkedPlayers.Select(p => p.PlayerId))
             .ToList();
 
-        var withMatchHistoryIds = await db.SavedMatch
-            .Where(m => allIds.Contains(m.Player1Id ?? 0) || allIds.Contains(m.Player2Id ?? 0)
-                || allIds.Contains(m.Player3Id ?? 0) || allIds.Contains(m.Player4Id ?? 0))
-            .SelectMany(m => new[] { m.Player1Id, m.Player2Id, m.Player3Id, m.Player4Id })
-            .Where(id => id.HasValue && allIds.Contains(id.Value))
+        // Materialise the participating-player slots first; the in-memory
+        // SelectMany over a four-element array literal is a known EF Core
+        // translation hazard ("the LINQ expression could not be translated").
+        var matchedRows = allIds.Count == 0
+            ? new List<MatchPlayerSlots>()
+            : await db.SavedMatch
+                .Where(m => allIds.Contains(m.Player1Id ?? 0) || allIds.Contains(m.Player2Id ?? 0)
+                    || allIds.Contains(m.Player3Id ?? 0) || allIds.Contains(m.Player4Id ?? 0))
+                .Select(m => new MatchPlayerSlots(m.Player1Id, m.Player2Id, m.Player3Id, m.Player4Id))
+                .ToListAsync(ct);
+
+        var allIdSet = allIds.ToHashSet();
+        var hasHistory = matchedRows
+            .SelectMany(m => new[] { m.P1, m.P2, m.P3, m.P4 })
+            .Where(id => id.HasValue && allIdSet.Contains(id.Value))
             .Select(id => id!.Value)
-            .Distinct()
-            .ToListAsync(ct);
-        var hasHistory = withMatchHistoryIds.ToHashSet();
+            .ToHashSet();
 
         return lightPlayers.Select(p => new MyPlayerRowDto(
                 p.PlayerId, p.DisplayName, p.FirstName, p.LastName, true,
