@@ -5,6 +5,7 @@
 @inject ICurrentUser CurrentUser
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject ThemeState Theme
 
 <MudNavMenu>
     <AuthorizeView>
@@ -69,6 +70,12 @@
         </Authorized>
     </AuthorizeView>
 
+    <MudDivider Class="my-2" />
+    <MudNavLink Icon="@(Theme.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                OnClick="@(() => Theme.Toggle())">
+        @(Theme.IsDarkMode ? "Light Mode" : "Dark Mode")
+    </MudNavLink>
+
     <AuthorizeView>
         <Authorized>
             <MudDivider Class="my-2" />
@@ -96,9 +103,12 @@
     protected override void OnInitialized()
     {
         CurrentUser.Changed += OnCurrentUserChanged;
+        Theme.Changed += OnThemeChanged;
     }
 
     private void OnCurrentUserChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
 
     private async Task SwitchRoleAsync(string role)
     {
@@ -117,5 +127,6 @@
     public void Dispose()
     {
         CurrentUser.Changed -= OnCurrentUserChanged;
+        Theme.Changed -= OnThemeChanged;
     }
 }

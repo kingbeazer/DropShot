@@ -41,6 +41,7 @@ public static class MauiProgram
             new HttpClient { BaseAddress = new Uri(ApiBaseUrl) });
 
         // ── Auth & API services ──────────────────────────────────────────────
+        builder.Services.AddSingleton<ThemeState>();
         builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
             sp.GetRequiredService<AuthService>());

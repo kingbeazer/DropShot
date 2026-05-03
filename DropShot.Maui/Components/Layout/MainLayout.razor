@@ -1,8 +1,11 @@
 @inherits LayoutComponentBase
 @implements IDisposable
+@using DropShot.Maui.Services
 @inject ICurrentUser CurrentUser
+@inject ThemeState Theme
+@inject IJSRuntime JS
 
-<MudThemeProvider IsDarkMode="true" Theme="DropShot.UI.Theme.DropShotTheme.Default" />
+<MudThemeProvider IsDarkMode="@Theme.IsDarkMode" Theme="DropShot.UI.Theme.DropShotTheme.Default" />
 <MudPopoverProvider />
 <MudDialogProvider FullWidth="true" MaxWidth="MaxWidth.Small" />
 <MudSnackbarProvider />
@@ -33,14 +36,39 @@
     protected override void OnInitialized()
     {
         CurrentUser.Changed += OnCurrentUserChanged;
+        Theme.Changed += OnThemeChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await ApplyHtmlThemeAttributeAsync();
     }
 
     private void OnCurrentUserChanged() => InvokeAsync(StateHasChanged);
+
+    private async void OnThemeChanged()
+    {
+        await ApplyHtmlThemeAttributeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ApplyHtmlThemeAttributeAsync()
+    {
+        // Web's theme-light.css overrides cascade off [data-theme="light"] on
+        // <html>; replicate that toggle here so the same stylesheet applies in
+        // the MAUI WebView host.
+        await JS.InvokeVoidAsync(
+            "document.documentElement.setAttribute",
+            "data-theme",
+            Theme.IsDarkMode ? "dark" : "light");
+    }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
     public void Dispose()
     {
         CurrentUser.Changed -= OnCurrentUserChanged;
+        Theme.Changed -= OnThemeChanged;
     }
 }
