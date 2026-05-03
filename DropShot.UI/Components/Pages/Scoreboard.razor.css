@@ -12,7 +12,7 @@
    gradient and any scoreboard background. */
 .scoreboard-fullscreen-toggle {
     position: fixed;
-    top: calc(3.5rem + 8px);
+    top: calc(3.5rem + 8px + env(safe-area-inset-top, 0px));
     right: 12px;
     z-index: 9999;
     opacity: 0.75;
