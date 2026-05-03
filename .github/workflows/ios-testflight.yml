@@ -78,10 +78,30 @@ jobs:
             -c Release \
             -p:RuntimeIdentifier=ios-arm64 \
             -p:ArchiveOnBuild=true \
+            -p:OptimizePNGs=false \
             -p:CodesignKey="${{ secrets.IOS_CODESIGN_KEY }}" \
             -p:CodesignProvision="${{ steps.profile.outputs.name }}" \
             -p:ApplicationVersion=${{ steps.bn.outputs.build_number }} \
             -p:ApplicationDisplayVersion=1.0
+
+      - name: Dump actool diagnostics on failure
+        if: failure()
+        run: |
+          echo "=== actool dir contents ==="
+          ls -la DropShot.Maui/obj/Release/net9.0-ios18.0/ios-arm64/actool/ 2>/dev/null || echo "(no actool dir)"
+          echo
+          echo "=== asset-manifest.plist ==="
+          cat DropShot.Maui/obj/Release/net9.0-ios18.0/ios-arm64/actool/asset-manifest.plist 2>/dev/null || echo "(missing)"
+          echo
+          echo "=== actool log files ==="
+          find DropShot.Maui/obj/Release/net9.0-ios18.0/ios-arm64/actool/ -type f -name "*.log" -exec sh -c 'echo "--- {} ---"; cat "{}"' \; 2>/dev/null || true
+          echo
+          echo "=== Xcode + actool version ==="
+          xcode-select -p
+          xcrun actool --version 2>&1 || true
+          echo
+          echo "=== Resources/AppIcon contents ==="
+          ls -la DropShot.Maui/Resources/AppIcon/
 
       - name: Locate IPA
         id: ipa
