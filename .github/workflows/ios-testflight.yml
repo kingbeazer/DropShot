@@ -33,14 +33,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 26.2 / 26.3
+      - name: Select Xcode 26.3
         run: |
-          # The .NET for iOS workload set 10.0.202 ships pack 26.2.10233 which
-          # supports Xcode 26.2 and 26.3 (identical SDK). No pack supports
-          # Xcode 26.1, and Xcode 26.0 on macos-26 is missing actool. So
-          # 26.2/26.3 is the only viable window.
+          # The .NET for iOS workload set 10.0.202 ships pack 26.2.10233.
+          # Despite its "26.2" name, the pack strict-requires Xcode 26.3
+          # (verified empirically — Xcode 26.2 selection produces:
+          # "This version of .NET for iOS (26.2.10233) requires Xcode 26.3").
+          # Prefer 26.3; fall back to 26.2 only as last resort.
           XCODE=""
-          for v in "26.2" "26.2.0" "26.3" "26.3.0"; do
+          for v in "26.3" "26.3.0" "26.2" "26.2.0"; do
             if [ -d "/Applications/Xcode_${v}.app" ]; then
               XCODE="/Applications/Xcode_${v}.app"
               break
