@@ -3,19 +3,19 @@
 @inject ICurrentUser CurrentUser
 @inject ISnackbar Snackbar
 
-@* Routing + auth + MudProviders supplied by host shims. *@
+@* Routing + auth + MudProviders supplied by host shims. The page used
+   to wrap content in its own background-image + dark overlay layer
+   (legacy from before the host-level branded bg + .frosted-card
+   pattern). That double-darkened the list and conflicted with the
+   shared frosted look — drop it and rely on the host bg + frosted
+   list cards like the other list pages do. *@
 
-<div style="position: relative; min-height: 100vh; background-image: url('images/background.png'); background-repeat: no-repeat; background-size: cover; background-position: center; margin: -24px; padding: 0;">
-    <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
-    <div style="position: relative; z-index: 1; padding: 1rem 0.5rem 2rem;">
-
-<MudText Typo="Typo.h4" Class="mb-4" Style="color: white;">Club Players</MudText>
+<MudText Typo="Typo.h4" Class="mb-4">Club Players</MudText>
 
 @if (_availableClubs.Count > 1)
 {
     <MudSelect T="int?" Value="_activeClubId" ValueChanged="OnClubChangedAsync"
-               Label="Club" Variant="Variant.Outlined" Class="mb-4"
-               Style="background-color: rgba(255,255,255,0.04);">
+               Label="Club" Variant="Variant.Outlined" Class="mb-4">
         @foreach (var club in _availableClubs)
         {
             <MudSelectItem T="int?" Value="@((int?)club.ClubId)">@club.Name</MudSelectItem>
@@ -33,7 +33,7 @@ else
 {
     @if (_availableClubs.Count == 1)
     {
-        <MudText Typo="Typo.subtitle1" Class="mb-3" Style="color: rgba(255,255,255,0.85);">Managing: <strong>@_clubName</strong></MudText>
+        <MudText Typo="Typo.subtitle1" Class="mb-3" Color="Color.Secondary">Managing: <strong>@_clubName</strong></MudText>
     }
 
     <MudStack Row="true" Spacing="2" Class="mb-4">
@@ -208,8 +208,6 @@ else
         <MudButton OnClick="@(() => _showAddExistingDialog = false)">Close</MudButton>
     </DialogActions>
 </MudDialog>
-
-</div></div>
 
 @code {
     private bool _loading = true;
