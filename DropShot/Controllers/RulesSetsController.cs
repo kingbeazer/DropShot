@@ -95,6 +95,19 @@ public class RulesSetsController(IDbContextFactory<MyDbContext> dbFactory) : Con
         return Ok(new RulesSetItemDto(item.RulesSetItemId, item.RulesSetId, item.SortOrder, item.RuleText));
     }
 
+    [HttpPut("{id:int}/items/{itemId:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<RulesSetItemDto>> UpdateItem(int id, int itemId, [FromBody] AddRulesSetItemRequest req)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var item = await db.RulesSetItems.FindAsync(itemId);
+        if (item is null || item.RulesSetId != id) return NotFound();
+        // SortOrder preserved so editing a rule doesn't move it.
+        item.RuleText = req.RuleText.Trim();
+        await db.SaveChangesAsync();
+        return Ok(new RulesSetItemDto(item.RulesSetItemId, item.RulesSetId, item.SortOrder, item.RuleText));
+    }
+
     [HttpDelete("{id:int}/items/{itemId:int}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteItem(int id, int itemId)

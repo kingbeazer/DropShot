@@ -44,6 +44,15 @@ public sealed class HttpRulesSetService(HttpClient http) : IRulesSetService
         return (await resp.Content.ReadFromJsonAsync<RulesSetItemDto>(cancellationToken: ct))!;
     }
 
+    public async Task<RulesSetItemDto> UpdateRulesSetItemAsync(
+        int rulesSetId, int itemId, AddRulesSetItemRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/rulessets/{rulesSetId}/items/{itemId}", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<RulesSetItemDto>(cancellationToken: ct))!;
+    }
+
     public async Task DeleteRulesSetItemAsync(int rulesSetId, int itemId, CancellationToken ct = default)
     {
         var resp = await http.DeleteAsync($"api/rulessets/{rulesSetId}/items/{itemId}", ct);
