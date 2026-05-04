@@ -2,17 +2,6 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     height: 100%;
     overflow: hidden;
-    /* !important here outweighs MudBlazor.min.css rule
-       `body { background-color: var(--mud-palette-background) }` which the
-       MudThemeProvider parameterises at runtime — without it the runtime
-       cascade can replace the bg-color and clobber the shorthand path on
-       some browsers, so the branded image is invisible on every page that
-       isn't the match scoreboard (which paints its own .bg-tennis). */
-    background-color: #121212 !important;
-    background-image:
-        linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
-        url('_content/DropShot.UI/images/background.png') !important;
-    background-repeat: repeat !important;
 }
 
 /* Defensive guard against pages whose content (wide MudTables, fixed-width
@@ -49,19 +38,30 @@ html:not([data-theme="light"]) .mud-appbar {
    this the body's overflow:hidden clips overflowing content and it
    becomes unreachable.
 
-   Force transparent so the body's branded background image shows through
-   on the side margins of MudContainer (matching the web layout, where
-   the body bg is visible outside the centered content column). MudBlazor
-   normally paints --mud-palette-background here, which would cover body. */
+   Paint the branded background here (rather than on body) because
+   MudBlazor's MudThemeProvider runtime palette covers body's bg on
+   every regular page — only the match page worked when the bg was on
+   body, because TennisScore.razor.css paints its own .bg-tennis on top.
+   :has(.bg-tennis) suppresses this on the scoreboard so the user
+   doesn't see the same image at two different scroll positions. */
 .mud-main-content {
     height: 100vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    background: transparent !important;
+    background-color: #121212;
+    background-image:
+        linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
+        url('_content/DropShot.UI/images/background.png');
+    background-repeat: repeat;
 }
 
-.mud-layout {
-    background: transparent !important;
+.mud-main-content:has(.bg-tennis) {
+    background: transparent;
+}
+
+[data-theme="light"] .mud-main-content {
+    background-color: #f5f5f5;
+    background-image: none;
 }
 
 /* Force dark text + visible link colour on the lightyellow background.
