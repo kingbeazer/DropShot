@@ -8,6 +8,7 @@
 
 @inject ICompetitionAdminService Admin
 @inject ICompetitionService Competitions
+@inject IRulesSetService RulesSetService
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
@@ -169,17 +170,15 @@ else
 
                     <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
                         <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
-                                   Clearable="true" Style="flex:1"
-                                   Disabled="@(Model.HostClubId == null)">
+                                   Clearable="true" Style="flex:1">
                             @foreach (var r in _rulesSets)
                             {
                                 <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
                             }
                         </MudSelect>
-                        <MudTooltip Text="@(Model.HostClubId == null ? "Select a host club first" : "Add new rules set")">
+                        <MudTooltip Text="Add new rules set">
                             <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
                                            Color="Color.Primary"
-                                           Disabled="@(Model.HostClubId == null)"
                                            OnClick="@(() => _showAddRulesSetDialog = true)" />
                         </MudTooltip>
                     </MudStack>
@@ -2045,16 +2044,36 @@ else
     private void OnHostClubChanged(int? clubId)
     {
         Model.HostClubId = clubId;
-        // The RulesSetDto on this surface doesn't carry ClubId, so we can't
-        // tell whether the currently-selected set belongs to the new club —
-        // clear unconditionally on any host-club change to be safe.
-        if (clubId == null) Model.RulesSetId = null;
     }
 
-    private void SaveNewRulesSet()
+    private async Task SaveNewRulesSet()
     {
-        _showAddRulesSetDialog = false;
-        Snackbar.Add("Adding rules sets from this page is no longer supported — use Admin → Rules Sets.", Severity.Warning);
+        var name = _newRulesSetName.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        try
+        {
+            var saved = await RulesSetService.SaveRulesSetAsync(0, new SaveRulesSetRequest(name, null));
+            if (saved is null)
+            {
+                Snackbar.Add("Could not create rules set.", Severity.Error);
+                return;
+            }
+            _rulesSets = (await RulesSetService.GetRulesSetsAsync())
+                .OrderBy(r => r.Name).ToList();
+            Model.RulesSetId = saved.RulesSetId;
+            Snackbar.Add($"Rules set \"{saved.Name}\" added.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create rules set from CompetitionPage.");
+            Snackbar.Add("Could not create rules set.", Severity.Error);
+        }
+        finally
+        {
+            _showAddRulesSetDialog = false;
+            _newRulesSetName = "";
+        }
     }
 
     private void SaveNewEvent()
