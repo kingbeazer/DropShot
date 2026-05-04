@@ -1,27 +1,33 @@
 using DropShot.Data;
+using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Headers;
-using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 
 namespace DropShot.Controllers;
 
+// Bearer-only because the web uses WebPaymentService directly (see Program.cs)
+// — only the MAUI HttpPaymentService hits this controller. Plain [Authorize]
+// (default cookie scheme) silently 401'd every MAUI request.
 [ApiController]
 [Route("api/subscription")]
+[Authorize(AuthenticationSchemes = "Bearer")]
 public class SubscriptionController(
     UserManager<ApplicationUser> userManager,
+    ICurrentUser currentUser,
     IConfiguration configuration,
     ILogger<SubscriptionController> logger) : ControllerBase
 {
     // ── Activate ────────────────────────────────────────────────────────────────
     [HttpPost("activate")]
-    [Authorize]
     public async Task<IActionResult> Activate([FromBody] ActivateRequest request)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        // ICurrentUser already falls back from NameIdentifier to JWT 'sub' for
+        // bearer requests (PR #558), so this works for both cookie and JWT auth.
+        var userId = currentUser.UserId;
         if (userId is null) return Unauthorized();
 
         var user = await userManager.FindByIdAsync(userId);
@@ -108,10 +114,9 @@ public class SubscriptionController(
 
     // ── Status ──────────────────────────────────────────────────────────────────
     [HttpGet("status")]
-    [Authorize]
     public async Task<ActionResult<DropShot.Shared.Dtos.SubscriptionStatusDto>> Status()
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = currentUser.UserId;
         if (userId is null) return Unauthorized();
 
         var user = await userManager.FindByIdAsync(userId);
