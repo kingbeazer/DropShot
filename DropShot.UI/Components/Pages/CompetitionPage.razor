@@ -176,6 +176,12 @@ else
                                 <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
                             }
                         </MudSelect>
+                        <MudTooltip Text="@(Model.RulesSetId.HasValue ? "Manage rules in this set" : "Select a rules set to manage its rules")">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatListBulleted" Size="Size.Small"
+                                           Color="Color.Primary"
+                                           Disabled="@(!Model.RulesSetId.HasValue)"
+                                           OnClick="ManageSelectedRulesSetItemsAsync" />
+                        </MudTooltip>
                         <MudTooltip Text="Add new rules set">
                             <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
                                            Color="Color.Primary"
@@ -2051,9 +2057,10 @@ else
         var name = _newRulesSetName.Trim();
         if (string.IsNullOrWhiteSpace(name)) return;
 
+        RulesSetDto? saved = null;
         try
         {
-            var saved = await RulesSetService.SaveRulesSetAsync(0, new SaveRulesSetRequest(name, null));
+            saved = await RulesSetService.SaveRulesSetAsync(0, new SaveRulesSetRequest(name, null));
             if (saved is null)
             {
                 Snackbar.Add("Could not create rules set.", Severity.Error);
@@ -2074,6 +2081,35 @@ else
             _showAddRulesSetDialog = false;
             _newRulesSetName = "";
         }
+
+        // Empty rules set on its own isn't useful — drop the user straight
+        // into the items dialog so they can add the rules without hopping
+        // over to the dedicated Rules Sets page.
+        if (saved is not null)
+            await ShowRulesSetItemsDialogAsync(saved.RulesSetId, saved.Name);
+    }
+
+    private async Task ManageSelectedRulesSetItemsAsync()
+    {
+        if (!Model.RulesSetId.HasValue) return;
+        var rs = _rulesSets.FirstOrDefault(r => r.RulesSetId == Model.RulesSetId.Value);
+        if (rs is null) return;
+        await ShowRulesSetItemsDialogAsync(rs.RulesSetId, rs.Name);
+    }
+
+    private async Task ShowRulesSetItemsDialogAsync(int rulesSetId, string rulesSetName)
+    {
+        var parameters = new DialogParameters<RulesSetItemsDialog>
+        {
+            { x => x.RulesSetId, rulesSetId },
+            { x => x.RulesSetName, rulesSetName }
+        };
+        var dialog = await DialogService.ShowAsync<RulesSetItemsDialog>(
+            $"Rules — {rulesSetName}", parameters);
+        await dialog.Result;
+        // Refresh ItemCount on the dropdown's source list.
+        _rulesSets = (await RulesSetService.GetRulesSetsAsync())
+            .OrderBy(r => r.Name).ToList();
     }
 
     private void SaveNewEvent()
