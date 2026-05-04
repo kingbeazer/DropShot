@@ -16,8 +16,7 @@ namespace DropShot.Controllers;
 [Route("api/competitions/admin")]
 [Authorize(AuthenticationSchemes = "Bearer")]
 public class CompetitionsAdminController(
-    ICompetitionAdminService admin,
-    ILogger<CompetitionsAdminController> logger) : ControllerBase
+    ICompetitionAdminService admin) : ControllerBase
 {
     // ── Read ─────────────────────────────────────────────────────────────────
 

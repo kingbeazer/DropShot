@@ -23,7 +23,7 @@ public class InvitationsController(IInvitationService invitations) : ControllerB
         {
             return await invitations.CreateOrReuseLightPlayerInvitationAsync(lightPlayerId, ct);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
             return Forbid();
         }

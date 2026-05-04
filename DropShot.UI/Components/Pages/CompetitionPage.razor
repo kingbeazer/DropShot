@@ -1955,7 +1955,7 @@ else
     private async Task SubmitAsync()
     {
         _serverError = null;
-        if (_form is not null) await _form.Validate();
+        if (_form is not null) await _form.ValidateAsync();
         _categoryError = Model.Category == null ? "Please select a category." : null;
         if (!_isValid || _categoryError != null) return;
 
