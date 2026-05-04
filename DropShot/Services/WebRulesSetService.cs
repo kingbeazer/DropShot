@@ -97,6 +97,22 @@ public sealed class WebRulesSetService(IDbContextFactory<MyDbContext> dbFactory)
         return new RulesSetItemDto(item.RulesSetItemId, item.RulesSetId, item.SortOrder, item.RuleText);
     }
 
+    public async Task<RulesSetItemDto> UpdateRulesSetItemAsync(
+        int rulesSetId, int itemId, AddRulesSetItemRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var item = await db.RulesSetItems.FindAsync([itemId], ct)
+            ?? throw new KeyNotFoundException("Rule not found.");
+        if (item.RulesSetId != rulesSetId)
+            throw new InvalidOperationException("Rule does not belong to the specified rules set.");
+        // SortOrder is intentionally preserved — admins fixing wording
+        // shouldn't lose the rule's position. Renumbering is a separate
+        // future concern (drag-to-reorder).
+        item.RuleText = request.RuleText.Trim();
+        await db.SaveChangesAsync(ct);
+        return new RulesSetItemDto(item.RulesSetItemId, item.RulesSetId, item.SortOrder, item.RuleText);
+    }
+
     public async Task DeleteRulesSetItemAsync(int rulesSetId, int itemId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);

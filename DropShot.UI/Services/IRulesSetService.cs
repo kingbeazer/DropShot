@@ -33,6 +33,15 @@ public interface IRulesSetService
     Task<RulesSetItemDto> AddRulesSetItemAsync(
         int rulesSetId, AddRulesSetItemRequest request, CancellationToken ct = default);
 
+    /// <summary>
+    /// Update the text of an existing rule in place. <c>SortOrder</c> is
+    /// preserved so admins can fix typos / wording without losing the
+    /// rule's position. Reuses <see cref="AddRulesSetItemRequest"/> since
+    /// the payload (just the new <c>RuleText</c>) is identical.
+    /// </summary>
+    Task<RulesSetItemDto> UpdateRulesSetItemAsync(
+        int rulesSetId, int itemId, AddRulesSetItemRequest request, CancellationToken ct = default);
+
     Task DeleteRulesSetItemAsync(
         int rulesSetId, int itemId, CancellationToken ct = default);
 }

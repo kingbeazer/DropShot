@@ -1,5 +1,6 @@
 @using DropShot.Shared.Dtos
 @using DropShot.UI.Services
+@using Microsoft.AspNetCore.Components.Web
 @inject IRulesSetService RulesSets
 @inject ISnackbar Snackbar
 
@@ -21,12 +22,39 @@
                     @foreach (var item in _items.OrderBy(i => i.SortOrder))
                     {
                         <MudListItem>
-                            <MudStack Row="true" AlignItems="AlignItems.Center">
-                                <MudText Class="flex-grow-1">@item.SortOrder. @item.RuleText</MudText>
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                               Color="Color.Error"
-                                               OnClick="@(() => DeleteItemAsync(item))" />
-                            </MudStack>
+                            @if (_editingItemId == item.RulesSetItemId)
+                            {
+                                @* Inline edit mode — keep SortOrder visible so the
+                                   admin sees the position they're editing. Enter
+                                   commits, Escape cancels. *@
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudText Style="min-width: 1.5rem;">@item.SortOrder.</MudText>
+                                    <MudTextField @bind-Value="_editingText"
+                                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                  Class="flex-grow-1" Immediate="true"
+                                                  AutoFocus="true"
+                                                  OnKeyDown="OnEditKeyDown" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small"
+                                                   Color="Color.Success"
+                                                   Disabled="@string.IsNullOrWhiteSpace(_editingText)"
+                                                   OnClick="@(() => SaveEditAsync(item))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                                   OnClick="CancelEdit" />
+                                </MudStack>
+                            }
+                            else
+                            {
+                                <MudStack Row="true" AlignItems="AlignItems.Center">
+                                    <MudText Class="flex-grow-1">@item.SortOrder. @item.RuleText</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                   Disabled="@(_editingItemId.HasValue)"
+                                                   OnClick="@(() => StartEdit(item))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   Disabled="@(_editingItemId.HasValue)"
+                                                   OnClick="@(() => DeleteItemAsync(item))" />
+                                </MudStack>
+                            }
                         </MudListItem>
                     }
                 </MudList>
@@ -35,15 +63,16 @@
             <MudDivider Class="my-2" />
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                 <MudTextField @bind-Value="_newRule" Label="New rule…"
-                              Variant="Variant.Outlined" Class="flex-grow-1" />
+                              Variant="Variant.Outlined" Class="flex-grow-1"
+                              Disabled="@(_editingItemId.HasValue)" />
                 <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
-                               Disabled="string.IsNullOrWhiteSpace(_newRule)"
+                               Disabled="@(_editingItemId.HasValue || string.IsNullOrWhiteSpace(_newRule))"
                                OnClick="AddItemAsync" />
             </MudStack>
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="() => MudDialog.Close()">Close</MudButton>
+        <MudButton OnClick="() => MudDialog.Close()" Disabled="@(_editingItemId.HasValue)">Close</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -55,6 +84,8 @@
     private List<RulesSetItemDto> _items = [];
     private bool _loading = true;
     private string _newRule = "";
+    private int? _editingItemId;
+    private string _editingText = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -87,6 +118,61 @@
         catch (Exception ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void StartEdit(RulesSetItemDto item)
+    {
+        _editingItemId = item.RulesSetItemId;
+        _editingText = item.RuleText;
+    }
+
+    private void CancelEdit()
+    {
+        _editingItemId = null;
+        _editingText = "";
+    }
+
+    // Enter commits, Escape cancels — typical inline-edit shortcuts.
+    private async Task OnEditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Escape")
+        {
+            CancelEdit();
+            return;
+        }
+        if (e.Key is "Enter" or "NumpadEnter")
+        {
+            var item = _items.FirstOrDefault(i => i.RulesSetItemId == _editingItemId);
+            if (item is not null) await SaveEditAsync(item);
+        }
+    }
+
+    private async Task SaveEditAsync(RulesSetItemDto item)
+    {
+        var text = _editingText.Trim();
+        if (string.IsNullOrWhiteSpace(text)) return;
+        // No-op when nothing changed — saves a round-trip.
+        if (text == item.RuleText)
+        {
+            CancelEdit();
+            return;
+        }
+        try
+        {
+            var updated = await RulesSets.UpdateRulesSetItemAsync(
+                RulesSetId, item.RulesSetItemId, new AddRulesSetItemRequest(text));
+            var idx = _items.FindIndex(i => i.RulesSetItemId == item.RulesSetItemId);
+            if (idx >= 0) _items[idx] = updated;
+            Snackbar.Add("Rule updated.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            CancelEdit();
         }
     }
 
