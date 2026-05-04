@@ -186,11 +186,14 @@
                  Dense="true" />
 </MudStack>
 
-<MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" ApplyEffectsToContainer="true" Class="mb-4">
-    <MudTabPanel Text="All Competitions" Icon="@Icons.Material.Filled.List">
-        <MudDataGrid Items="@_competitions" Filterable="false" SortMode="@SortMode.None" Groupable="false"
-                     QuickFilter="@FilterCompetitions"
-                     Class="frosted-card" Elevation="0">
+@* Inline RenderFragment so the All Competitions grid can be reused in
+   both the tabbed (events present) and untabbed (no events) paths
+   below without duplicating ~60 lines of grid markup. We're already
+   inside an @if(!_isUserView) code block so no @{ } wrapper here. *@
+RenderFragment allCompetitionsGrid =
+    @<MudDataGrid Items="@_competitions" Filterable="false" SortMode="@SortMode.None" Groupable="false"
+                      QuickFilter="@FilterCompetitions"
+                      Class="frosted-card" Elevation="0">
             <Columns>
                 <PropertyColumn Property="x => x.CompetitionName" />
                 <PropertyColumn Property="x => x.CompetitionFormat.ToDisplayName()" Title="Format" />
@@ -252,7 +255,17 @@
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>
-        </MudDataGrid>
+        </MudDataGrid>;
+
+@* The "All Competitions / By Event" tab strip only earns its keep when
+   at least one competition belongs to an event — otherwise the By Event
+   tab is empty and the tab strip is just visual noise. Hide the tabs
+   entirely in that case and render the grid directly. *@
+@if (_events.Any())
+{
+<MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" ApplyEffectsToContainer="true" Class="mb-4">
+    <MudTabPanel Text="All Competitions" Icon="@Icons.Material.Filled.List">
+        @allCompetitionsGrid
     </MudTabPanel>
 
     <MudTabPanel Text="By Event" Icon="@Icons.Material.Filled.FolderOpen">
@@ -409,6 +422,11 @@
         }
     </MudTabPanel>
 </MudTabs>
+}
+else
+{
+    @allCompetitionsGrid
+}
 
 @if (CurrentUser.IsAdmin || _hasEditableClubs || CurrentUser.CanCreateUserCompetition)
 {
