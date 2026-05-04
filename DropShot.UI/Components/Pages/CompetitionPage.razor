@@ -4,11 +4,13 @@
 @using DropShot.Shared.Extensions
 @using DropShot.UI.Components.Competitions.Setup
 @using DropShot.UI.Services
+@using DropShot.UI.Services.Auth
 @using TennisMatch = DropShot.Shared.Match
 
 @inject ICompetitionAdminService Admin
 @inject ICompetitionService Competitions
 @inject IRulesSetService RulesSetService
+@inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
@@ -153,7 +155,10 @@ else
                                        ReadOnly="@_lockHostClub"
                                        Disabled="@_lockHostClub"
                                        Style="flex:1">
-                                @foreach (var c in _clubs)
+                                @* SuperAdmin / Admin see every club. Plain ClubAdmins only see
+                                   the clubs they administer; Users with no admin clubs see
+                                   nothing here (the host-club picker is moot for them). *@
+                                @foreach (var c in VisibleHostClubs())
                                 {
                                     <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
                                 }
@@ -170,8 +175,11 @@ else
 
                     <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
                         <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)" Variant="Variant.Text"
-                                   Clearable="true" Style="flex:1">
-                            @foreach (var r in _rulesSets)
+                                   Clearable="true" Style="flex:1"
+                                   Disabled="@(Model.HostClubId == null)">
+                            @* Tied to the host club: rules sets are club-scoped,
+                               so the list reflects the currently-selected club. *@
+                            @foreach (var r in VisibleRulesSets())
                             {
                                 <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
                             }
@@ -186,7 +194,7 @@ else
                             <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
                                            Color="Color.Primary"
                                            Disabled="@(Model.HostClubId == null)"
-                                           OnClick="@(() => _showAddRulesSetDialog = true)" />
+                                           OnClick="OpenAddRulesSetAsync" />
                         </MudTooltip>
                     </MudStack>
 
@@ -1382,67 +1390,10 @@ else
     </DialogActions>
 </MudDialog>
 
-@* ── Add Rules Set Dialog ───────────────────────────────────
-   Wider than the default MudDialogProvider Small so the rules list has
-   room to breathe on desktop; FullWidth keeps the dialog comfortable on
-   mobile too. Rules are staged client-side and committed in sequence on
-   Save so the user gets a single Save / Cancel decision. *@
-<MudDialog @bind-Visible="_showAddRulesSetDialog"
-           Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
-    <TitleContent>Add Rules Set</TitleContent>
-    <DialogContent>
-        <MudTextField @bind-Value="_newRulesSetName" Label="Rules Set Name"
-                      Variant="Variant.Outlined" Required="true" Class="mb-3"
-                      Disabled="@_newRulesSetSaving" />
-        <MudTextField @bind-Value="_newRulesSetDescription" Label="Description (optional)"
-                      Variant="Variant.Outlined" Class="mb-3"
-                      Disabled="@_newRulesSetSaving" />
-
-        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Rules</MudText>
-        @if (_newRulesSetItems.Count == 0)
-        {
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
-                No rules yet. Add as many as you like — they save with the rules set.
-            </MudText>
-        }
-        else
-        {
-            <MudList T="string" Dense="true" Class="mb-2">
-                @for (int i = 0; i < _newRulesSetItems.Count; i++)
-                {
-                    var idx = i;
-                    <MudListItem T="string">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                            <MudText Class="flex-grow-1">@(idx + 1). @_newRulesSetItems[idx]</MudText>
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                           Color="Color.Error"
-                                           Disabled="@_newRulesSetSaving"
-                                           OnClick="@(() => _newRulesSetItems.RemoveAt(idx))" />
-                        </MudStack>
-                    </MudListItem>
-                }
-            </MudList>
-        }
-
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-            <MudTextField @bind-Value="_newRuleText" @bind-Value:after="StageNewRuleIfReady"
-                          Label="New rule…" Variant="Variant.Outlined" Class="flex-grow-1"
-                          Immediate="true" OnKeyDown="OnNewRuleKeyDown"
-                          Disabled="@_newRulesSetSaving" />
-            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
-                           Disabled="@(_newRulesSetSaving || string.IsNullOrWhiteSpace(_newRuleText))"
-                           OnClick="StageNewRule" />
-        </MudStack>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="CancelNewRulesSet" Disabled="@_newRulesSetSaving">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   Disabled="@(_newRulesSetSaving || string.IsNullOrWhiteSpace(_newRulesSetName))"
-                   OnClick="SaveNewRulesSet">
-            @(_newRulesSetSaving ? "Saving…" : "Save")
-        </MudButton>
-    </DialogActions>
-</MudDialog>
+@* Add Rules Set is now a launched dialog (RulesSetCreateDialog) shared
+   with the dedicated /rulessets page so the two flows can't drift. The
+   inline markup that lived here previously was extracted into the
+   shared component. *@
 
 @* ── Add Event Dialog ─────────────────────────────────────── *@
 <MudDialog @bind-Visible="_showAddEventDialog">
@@ -1717,14 +1668,6 @@ else
     private string _newClubTown = "";
     private string _newClubPostcode = "";
 
-    // Add Rules Set dialog
-    private bool _showAddRulesSetDialog;
-    private string _newRulesSetName = "";
-    private string? _newRulesSetDescription;
-    private string _newRuleText = "";
-    private List<string> _newRulesSetItems = [];
-    private bool _newRulesSetSaving;
-
     // Add Event dialog
     private bool _showAddEventDialog;
     private string _newEventName = "";
@@ -1911,7 +1854,9 @@ else
         }
 
         _clubs = view.Clubs.ToList();
-        _rulesSets = view.RulesSets.ToList();
+        // Keep the full set in memory; VisibleRulesSets() filters by the
+        // currently-selected host club at render time.
+        _rulesSets = view.RulesSets.OrderBy(r => r.Name).ToList();
         _events = view.Events.ToList();
         _canEdit = view.CanEdit;
         _isSuperAdmin = view.IsSuperAdmin;
@@ -2101,113 +2046,75 @@ else
         Snackbar.Add("Adding clubs from this page is no longer supported — use Admin → Clubs.", Severity.Warning);
     }
 
-    private void OnHostClubChanged(int? clubId)
+    private async Task OnHostClubChanged(int? clubId)
     {
         Model.HostClubId = clubId;
+        // Rules sets are club-scoped; the previously-selected one almost
+        // certainly doesn't belong to the new host club, so clear it and
+        // refresh the dropdown source filtered to the new club.
+        Model.RulesSetId = null;
+        await ReloadRulesSetsAsync();
     }
 
-    private void StageNewRule()
+    private async Task ReloadRulesSetsAsync()
     {
-        var text = _newRuleText.Trim();
-        if (string.IsNullOrWhiteSpace(text)) return;
-        _newRulesSetItems.Add(text);
-        _newRuleText = "";
+        try
+        {
+            // Refetch all sets across all clubs — VisibleRulesSets() does the
+            // per-club filter at render time. The full list keeps cached
+            // sets for other clubs available if the host club changes again.
+            _rulesSets = (await RulesSetService.GetRulesSetsAsync())
+                .OrderBy(r => r.Name).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to reload rules sets.");
+            _rulesSets = [];
+        }
     }
 
-    // Convenience for Enter-to-add inside the new-rule input.
-    private void OnNewRuleKeyDown(KeyboardEventArgs e)
+    private IEnumerable<RulesSetDto> VisibleRulesSets()
     {
-        if (e.Key is "Enter" or "NumpadEnter") StageNewRule();
+        if (Model.HostClubId is null) return [];
+        return _rulesSets.Where(r => r.ClubId == Model.HostClubId.Value);
     }
 
-    // Companion to @bind-Value:after — keeps a no-op so the binding fires
-    // updates without needing a separate ValueChanged handler.
-    private void StageNewRuleIfReady() { }
-
-    private void CancelNewRulesSet()
+    /// <summary>
+    /// SuperAdmin / Admin see every club; plain ClubAdmins only see their
+    /// own admin clubs. Always include the currently-selected host club
+    /// even if outside the admin's allowed list — admins editing a comp
+    /// they didn't create shouldn't see "(unset)" because filtering hides
+    /// the row.
+    /// </summary>
+    private IEnumerable<ClubDto> VisibleHostClubs()
     {
-        _showAddRulesSetDialog = false;
-        ResetNewRulesSetForm();
+        if (CurrentUser.IsAdmin) return _clubs;
+        var allowed = CurrentUser.AdminClubIds.ToHashSet();
+        return _clubs.Where(c =>
+            allowed.Contains(c.ClubId) ||
+            c.ClubId == Model.HostClubId);
     }
 
-    private void ResetNewRulesSetForm()
+    private async Task OpenAddRulesSetAsync()
     {
-        _newRulesSetName = "";
-        _newRulesSetDescription = null;
-        _newRuleText = "";
-        _newRulesSetItems = [];
-        _newRulesSetSaving = false;
-    }
-
-    private async Task SaveNewRulesSet()
-    {
-        var name = _newRulesSetName.Trim();
-        if (string.IsNullOrWhiteSpace(name)) return;
-
-        // RulesSet.ClubId is a required FK in the schema — abort cleanly
-        // if the host club somehow became null between opening the dialog
-        // and clicking Save (the + button is gated on HostClubId so this
-        // is a defensive check, not the main path).
+        // Defensive: + button is gated on HostClubId so this should always pass.
         if (Model.HostClubId is null)
         {
             Snackbar.Add("Select a host club first — rules sets are club-scoped.", Severity.Warning);
             return;
         }
 
-        // Roll up any unstaged text in the New rule input so the user
-        // doesn't lose what they were typing on Save.
-        StageNewRule();
-
-        _newRulesSetSaving = true;
-        try
+        var parameters = new DialogParameters<RulesSetCreateDialog>
         {
-            var saved = await RulesSetService.SaveRulesSetAsync(
-                0, new SaveRulesSetRequest(
-                    name,
-                    string.IsNullOrWhiteSpace(_newRulesSetDescription) ? null : _newRulesSetDescription!.Trim(),
-                    Model.HostClubId));
-            if (saved is null)
-            {
-                Snackbar.Add("Could not create rules set.", Severity.Error);
-                return;
-            }
-
-            // Rules are committed sequentially because the API's SortOrder
-            // is auto-assigned per-item; preserving the order the user
-            // entered them matters for how rules render in the UI.
-            foreach (var ruleText in _newRulesSetItems)
-            {
-                try
-                {
-                    await RulesSetService.AddRulesSetItemAsync(
-                        saved.RulesSetId, new AddRulesSetItemRequest(ruleText));
-                }
-                catch (Exception itemEx)
-                {
-                    Logger.LogError(itemEx, "Failed to add rule '{RuleText}' to set {RulesSetId}.",
-                        ruleText, saved.RulesSetId);
-                    Snackbar.Add($"Saved set but rule \"{ruleText}\" could not be added.", Severity.Warning);
-                }
-            }
-
-            _rulesSets = (await RulesSetService.GetRulesSetsAsync())
-                .OrderBy(r => r.Name).ToList();
+            { x => x.ClubId, Model.HostClubId.Value }
+        };
+        var dialog = await DialogService.ShowAsync<RulesSetCreateDialog>(
+            "Add Rules Set", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: RulesSetDto saved })
+        {
+            await ReloadRulesSetsAsync();
             Model.RulesSetId = saved.RulesSetId;
-            Snackbar.Add(
-                $"Rules set \"{saved.Name}\" saved with {_newRulesSetItems.Count} rule(s).",
-                Severity.Success);
-
-            _showAddRulesSetDialog = false;
-            ResetNewRulesSetForm();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to create rules set from CompetitionPage.");
-            Snackbar.Add("Could not create rules set.", Severity.Error);
-        }
-        finally
-        {
-            _newRulesSetSaving = false;
         }
     }
 

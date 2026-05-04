@@ -1,0 +1,162 @@
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Services
+@using Microsoft.AspNetCore.Components.Web
+@inject IRulesSetService RulesSets
+@inject ISnackbar Snackbar
+@inject Microsoft.Extensions.Logging.ILogger<RulesSetCreateDialog> Logger
+
+@*
+    Shared "Add Rules Set" dialog used by both the dedicated /rulessets page
+    and CompetitionPage's inline Setup flow. Captures Name, optional
+    Description, and a staged-in-memory list of rules — committed in one
+    sequence on Save so Cancel actually cancels (no orphaned set-with-no-rules
+    state). Returns the saved RulesSetDto via DialogResult, or Cancel.
+
+    Wider than the default MudDialogProvider Small so the rules list has
+    room on desktop.
+*@
+
+<MudDialog Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Rules Set Name"
+                      Variant="Variant.Outlined" Required="true" Class="mb-3"
+                      Disabled="@_saving" />
+        <MudTextField @bind-Value="_description" Label="Description (optional)"
+                      Variant="Variant.Outlined" Class="mb-3"
+                      Disabled="@_saving" />
+
+        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Rules</MudText>
+        @if (_items.Count == 0)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                No rules yet. Add as many as you like — they save with the rules set.
+            </MudText>
+        }
+        else
+        {
+            <MudList T="string" Dense="true" Class="mb-2">
+                @for (int i = 0; i < _items.Count; i++)
+                {
+                    var idx = i;
+                    <MudListItem T="string">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Class="flex-grow-1">@(idx + 1). @_items[idx]</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error"
+                                           Disabled="@_saving"
+                                           OnClick="@(() => _items.RemoveAt(idx))" />
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudTextField @bind-Value="_newRule" Label="New rule…"
+                          Variant="Variant.Outlined" Class="flex-grow-1"
+                          Immediate="true" OnKeyDown="OnNewRuleKeyDown"
+                          Disabled="@_saving" />
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
+                           Disabled="@(_saving || string.IsNullOrWhiteSpace(_newRule))"
+                           OnClick="StageRule" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="@_saving">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_saving || string.IsNullOrWhiteSpace(_name))"
+                   OnClick="SaveAsync">
+            @(_saving ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    /// <summary>Club the new rules set is owned by. Required — the schema
+    /// FK_RulesSets_Clubs_ClubId is non-null.</summary>
+    [Parameter, EditorRequired] public int ClubId { get; set; }
+
+    private string _name = "";
+    private string? _description;
+    private string _newRule = "";
+    private List<string> _items = [];
+    private bool _saving;
+
+    private void StageRule()
+    {
+        var text = _newRule.Trim();
+        if (string.IsNullOrWhiteSpace(text)) return;
+        _items.Add(text);
+        _newRule = "";
+    }
+
+    // Enter-to-add inside the New rule input.
+    private void OnNewRuleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or "NumpadEnter") StageRule();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        var name = _name.Trim();
+        if (string.IsNullOrWhiteSpace(name) || ClubId <= 0) return;
+
+        // Roll up unstaged text in the New rule input so the user doesn't
+        // lose what they were typing on Save.
+        StageRule();
+
+        _saving = true;
+        try
+        {
+            var saved = await RulesSets.SaveRulesSetAsync(
+                0,
+                new SaveRulesSetRequest(
+                    name,
+                    string.IsNullOrWhiteSpace(_description) ? null : _description!.Trim(),
+                    ClubId));
+            if (saved is null)
+            {
+                Snackbar.Add("Could not create rules set.", Severity.Error);
+                return;
+            }
+
+            // Rules committed sequentially because the API auto-assigns
+            // SortOrder per item; preserving entry order matters for how
+            // rules render later.
+            foreach (var ruleText in _items)
+            {
+                try
+                {
+                    await RulesSets.AddRulesSetItemAsync(
+                        saved.RulesSetId, new AddRulesSetItemRequest(ruleText));
+                }
+                catch (Exception itemEx)
+                {
+                    Logger.LogError(itemEx, "Failed to add rule '{RuleText}' to set {RulesSetId}.",
+                        ruleText, saved.RulesSetId);
+                    Snackbar.Add($"Saved set but rule \"{ruleText}\" could not be added.", Severity.Warning);
+                }
+            }
+
+            Snackbar.Add(
+                $"Rules set \"{saved.Name}\" saved with {_items.Count} rule(s).",
+                Severity.Success);
+
+            // Caller refreshes its rules-set list from the returned DTO.
+            MudDialog.Close(DialogResult.Ok(saved));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create rules set.");
+            Snackbar.Add("Could not create rules set.", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

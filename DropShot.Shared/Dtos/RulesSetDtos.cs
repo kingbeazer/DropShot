@@ -4,12 +4,14 @@ public record RulesSetDto(
     int RulesSetId,
     string Name,
     string? Description,
-    int ItemCount);
+    int ItemCount,
+    int ClubId);
 
 public record RulesSetDetailDto(
     int RulesSetId,
     string Name,
     string? Description,
+    int ClubId,
     List<RulesSetItemDto> Items);
 
 public record RulesSetItemDto(

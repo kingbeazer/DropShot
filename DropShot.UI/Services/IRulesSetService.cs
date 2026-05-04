@@ -9,7 +9,12 @@ namespace DropShot.UI.Services;
 /// </summary>
 public interface IRulesSetService
 {
-    Task<List<RulesSetDto>> GetRulesSetsAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Returns rules sets, optionally filtered to a single club. Pass
+    /// <paramref name="clubId"/> to scope the result; pass <c>null</c> to
+    /// return all sets across all clubs (admin-only contexts).
+    /// </summary>
+    Task<List<RulesSetDto>> GetRulesSetsAsync(int? clubId = null, CancellationToken ct = default);
     Task<RulesSetDetailDto?> GetRulesSetAsync(int id, CancellationToken ct = default);
 
     /// <summary>

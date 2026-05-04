@@ -101,11 +101,14 @@ else
         try
         {
             _clubs = await ClubService.GetClubsAsync();
-            // Default to the first admin-club for ClubAdmins (they only have
-            // one) so Add is enabled out of the box; SuperAdmins still pick.
-            if (CurrentUser.AdminClubIds.Count == 1)
+            // SuperAdmin / Admin can pick any club; ClubAdmins are scoped to
+            // their own admin clubs and default to the first one (usually
+            // their only one) so Add is enabled out of the box.
+            if (!CurrentUser.IsAdmin)
+                _clubs = _clubs.Where(c => CurrentUser.AdminClubIds.Contains(c.ClubId)).ToList();
+            if (CurrentUser.AdminClubIds.Count >= 1)
                 _selectedClubId = CurrentUser.AdminClubIds.First();
-            _rulesSets = await RulesSetService.GetRulesSetsAsync();
+            _rulesSets = await RulesSetService.GetRulesSetsAsync(_selectedClubId);
         }
         catch (Exception ex)
         {
@@ -117,9 +120,15 @@ else
         }
     }
 
-    private void OnClubChanged(int? clubId)
+    private async Task OnClubChanged(int? clubId)
     {
         _selectedClubId = clubId;
+        // The list below is scoped to the selected club; refetch on change
+        // (or clear when the picker is cleared) so the user sees only that
+        // club's sets.
+        _rulesSets = clubId is null
+            ? null
+            : await RulesSetService.GetRulesSetsAsync(clubId);
     }
 
     private async Task OpenAddDialog()
@@ -129,10 +138,21 @@ else
             Snackbar.Add("Pick a club first — rules sets are club-scoped.", Severity.Warning);
             return;
         }
-        var dialog = await Dialog.ShowAsync<RulesSetDialog>("Add Rules Set");
+        // Use the shared RulesSetCreateDialog (also driven by CompetitionPage's
+        // inline +) so the two flows can't drift in fields, validation, or
+        // rules-list staging behaviour.
+        var parameters = new DialogParameters<RulesSetCreateDialog>
+        {
+            { x => x.ClubId, _selectedClubId.Value }
+        };
+        var dialog = await Dialog.ShowAsync<RulesSetCreateDialog>("Add Rules Set", parameters);
         var result = await dialog.Result;
-        if (result is { Canceled: false, Data: RulesSetFormModel model })
-            await SaveAsync(0, model);
+        if (result is { Canceled: false, Data: RulesSetDto saved })
+        {
+            // Refresh from the server so ItemCount reflects any rules the
+            // user added inside the dialog.
+            _rulesSets = await RulesSetService.GetRulesSetsAsync(_selectedClubId);
+        }
     }
 
     private async Task OpenEditDialog(RulesSetDto rs)
@@ -182,8 +202,8 @@ else
             { x => x.RulesSetName, rs.Name }
         };
         await Dialog.ShowAsync<RulesSetItemsDialog>($"Rules — {rs.Name}", parameters);
-        // Reload to get updated item count
-        _rulesSets = await RulesSetService.GetRulesSetsAsync();
+        // Reload to get updated item count, scoped to the selected club.
+        _rulesSets = await RulesSetService.GetRulesSetsAsync(_selectedClubId);
     }
 
     private async Task DeleteAsync(RulesSetDto rs)
