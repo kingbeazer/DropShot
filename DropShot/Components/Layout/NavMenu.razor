@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using DropShot.Data
+@using DropShot.UI.Services.Navigation
 
 @inject NavigationManager NavigationManager
 @inject IDbContextFactory<MyDbContext> DbFactory
@@ -18,30 +19,55 @@
 
     <div class="nav-content" onclick="document.getElementById('nav-toggle').click()">
         <nav class="nav-primary">
-            <AuthorizeView Roles="User">
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="match">
-                        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Class="nav-icon" />
-                        <span class="nav-label-group">
-                            <span class="nav-label">Match</span>
-                            <span class="nav-sublabel">Score or join a match</span>
-                        </span>
-                    </NavLink>
-                </div>
-            </AuthorizeView>
+            @* Primary nav entries come from DropShot.UI.Services.Navigation.NavCatalog
+               so the web and MAUI menus can't drift. Host-specific entries
+               (the My-Players-vs-Club-Players role-aware swap below, plus the
+               account/admin/utility dropdown) stay in this file. *@
+            @foreach (var link in NavCatalog.Primary)
+            {
+                if (!string.IsNullOrEmpty(link.RequiredRoles))
+                {
+                    <AuthorizeView Roles="@link.RequiredRoles">
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="@link.Href">
+                                <MudIcon Icon="@link.Icon" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">@link.Label</span>
+                                    @if (!string.IsNullOrEmpty(link.Sublabel))
+                                    {
+                                        <span class="nav-sublabel">@link.Sublabel</span>
+                                    }
+                                </span>
+                            </NavLink>
+                        </div>
+                    </AuthorizeView>
+                }
+                else
+                {
+                    <AuthorizeView>
+                        <Authorized>
+                            <div class="nav-item">
+                                <NavLink class="nav-link" href="@link.Href">
+                                    <MudIcon Icon="@link.Icon" Class="nav-icon" />
+                                    <span class="nav-label-group">
+                                        <span class="nav-label">@link.Label</span>
+                                        @if (!string.IsNullOrEmpty(link.Sublabel))
+                                        {
+                                            <span class="nav-sublabel">@link.Sublabel</span>
+                                        }
+                                    </span>
+                                </NavLink>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
+                }
+            }
 
+            @* My-Players / Club-Players is web-specific — the entry shown
+               flips based on the active-role cookie. Lives outside the
+               shared catalog because MAUI doesn't have the toggle. *@
             <AuthorizeView>
-                <Authorized Context="mainCtx">
-                    <div class="nav-item">
-                        <NavLink class="nav-link" href="competitions">
-                            <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Class="nav-icon" />
-                            <span class="nav-label-group">
-                                <span class="nav-label">Competitions</span>
-                                <span class="nav-sublabel">Browse and manage events</span>
-                            </span>
-                        </NavLink>
-                    </div>
-
+                <Authorized Context="playersCtx">
                     <div class="nav-item">
                         @if (_isClubAdminActive)
                         {
@@ -65,30 +91,6 @@
                         }
                     </div>
                 </Authorized>
-            </AuthorizeView>
-
-            <AuthorizeView Roles="SuperAdmin">
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="players">
-                        <MudIcon Icon="@Icons.Material.Filled.People" Class="nav-icon" />
-                        <span class="nav-label-group">
-                            <span class="nav-label">Players</span>
-                            <span class="nav-sublabel">All players in the system</span>
-                        </span>
-                    </NavLink>
-                </div>
-            </AuthorizeView>
-
-            <AuthorizeView>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="clubs">
-                        <MudIcon Icon="@Icons.Material.Filled.Business" Class="nav-icon" />
-                        <span class="nav-label-group">
-                            <span class="nav-label">Clubs</span>
-                            <span class="nav-sublabel">Browse tennis clubs</span>
-                        </span>
-                    </NavLink>
-                </div>
             </AuthorizeView>
         </nav>
 
