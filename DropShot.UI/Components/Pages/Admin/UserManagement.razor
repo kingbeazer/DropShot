@@ -18,7 +18,8 @@
               Immediate="true" Class="mb-4" />
 
 <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Dense="true"
-          Filter="@(row => FilterUsers(row))">
+          Filter="@(row => FilterUsers(row))"
+          Class="frosted-card" Elevation="0">
     <HeaderContent>
         <MudTh>Username</MudTh>
         <MudTh>Email</MudTh>

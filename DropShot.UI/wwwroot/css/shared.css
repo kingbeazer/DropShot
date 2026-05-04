@@ -24,3 +24,22 @@
     background: rgba(255, 255, 255, 0.6) !important;
     border: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
+
+/* MudBlazor child surfaces (table containers, card content, nested
+   paper) paint their own --mud-palette-surface which covers the
+   frosted parent. Force them transparent inside .frosted-card so the
+   parent's blurred bg shows through — covers:
+     - MudTable rendered inside a frosted MudCard (Home upcoming /
+       recent results, /match active matches list)
+     - MudTable used directly with frosted-card (Clubs, Players,
+       Competitions, Users) — its inner -container / -root children
+       still paint surface
+     - MudCardContent inside a frosted MudCard. */
+.frosted-card .mud-table,
+.frosted-card .mud-table-root,
+.frosted-card .mud-table-container,
+.frosted-card .mud-card-content,
+.frosted-card .mud-paper {
+    background: transparent !important;
+    background-color: transparent !important;
+}
