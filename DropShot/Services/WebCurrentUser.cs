@@ -112,10 +112,43 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
             .ToListAsync();
     }
 
-    public string? UserId => _userId;
-    public string? UserName => _userName;
+    /// <summary>
+    /// API requests authenticated via JWT bearer (MAUI / iOS) populate
+    /// HttpContext.User but never feed the Blazor AuthenticationStateProvider
+    /// (which only tracks SignalR circuits) — and ServerAuthenticationStateProvider
+    /// throws on circuits that were never initialised, faulting the constructor's
+    /// fire-and-forget RefreshAsync so the snapshot fields stay null. Read the
+    /// principal-derived fields straight off HttpContext.User when one is present,
+    /// and fall back to the Blazor snapshot for interactive Blazor pages
+    /// (where HttpContext is null during SignalR mode).
+    /// </summary>
+    private ClaimsPrincipal? ApiPrincipal
+    {
+        get
+        {
+            var u = _httpContextAccessor.HttpContext?.User;
+            return u?.Identity?.IsAuthenticated == true ? u : null;
+        }
+    }
+
+    public string? UserId =>
+        ApiPrincipal is { } u
+            ? u.FindFirstValue(ClaimTypes.NameIdentifier)
+              ?? u.FindFirstValue(JwtRegisteredClaimNames.Sub)
+              ?? u.FindFirstValue("sub")
+            : _userId;
+
+    public string? UserName =>
+        ApiPrincipal is { } u
+            ? u.Identity?.Name ?? u.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+            : _userName;
+
     public string? Email => _email;
-    public string? ActiveRole => _activeRole;
+
+    public string? ActiveRole =>
+        ApiPrincipal is { } u
+            ? u.FindFirstValue(ClaimTypes.Role) ?? u.FindFirstValue("active_role")
+            : _activeRole;
     public IReadOnlyCollection<string> GrantedRoles => _grantedRoles;
     public IReadOnlyCollection<int> AdminClubIds => _adminClubIds;
 
@@ -133,7 +166,7 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
         }
     }
 
-    public bool IsAuthenticated => _isAuthenticated;
+    public bool IsAuthenticated => ApiPrincipal is not null || _isAuthenticated;
     public bool IsAdmin => _activeRole is "Admin" or "SuperAdmin";
     public bool IsClubAdmin => _activeRole == "ClubAdmin";
     public bool IsSubscribed => _isSubscribed;
