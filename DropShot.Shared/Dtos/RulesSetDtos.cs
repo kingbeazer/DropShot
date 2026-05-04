@@ -18,6 +18,6 @@ public record RulesSetItemDto(
     int SortOrder,
     string RuleText);
 
-public record SaveRulesSetRequest(string Name, string? Description);
+public record SaveRulesSetRequest(string Name, string? Description, int? ClubId = null);
 
 public record AddRulesSetItemRequest(string RuleText);

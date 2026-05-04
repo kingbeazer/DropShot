@@ -36,7 +36,20 @@ public sealed class WebRulesSetService(IDbContextFactory<MyDbContext> dbFactory)
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         if (id == 0)
         {
-            var r = new RulesSet { Name = request.Name.Trim(), Description = request.Description };
+            // RulesSet.ClubId is a required FK in the schema (every set is
+            // owned by exactly one club). Reject create requests that don't
+            // supply a ClubId rather than letting EF blow up on the FK
+            // violation downstream.
+            if (request.ClubId is null or 0)
+                throw new InvalidOperationException(
+                    "ClubId is required when creating a rules set.");
+
+            var r = new RulesSet
+            {
+                Name = request.Name.Trim(),
+                Description = request.Description,
+                ClubId = request.ClubId.Value
+            };
             db.RulesSets.Add(r);
             await db.SaveChangesAsync(ct);
             return new RulesSetDto(r.RulesSetId, r.Name, r.Description, 0);
@@ -47,6 +60,9 @@ public sealed class WebRulesSetService(IDbContextFactory<MyDbContext> dbFactory)
                 ?? throw new KeyNotFoundException("Rules set not found.");
             r.Name = request.Name.Trim();
             r.Description = request.Description;
+            // ClubId is intentionally not editable here — moving a rules set
+            // between clubs would orphan its references on competitions and
+            // ladders that point to the original club.
             await db.SaveChangesAsync(ct);
             return new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count);
         }
