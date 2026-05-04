@@ -59,12 +59,14 @@ html:not([data-theme="light"]) .mud-appbar {
    same image from its own top-left, which doesn't line up with the
    .mud-main-content tile pattern and produces a visible seam at the
    .bg-tennis edge. Disable .bg-tennis's own image so the underlying
-   .mud-main-content image shows through uniformly; the ::before overlay
-   (--overlay-color / --overlay-alpha) is unaffected so the scoreboard
-   keeps its darkened atmosphere. */
+   .mud-main-content image shows through uniformly. Also zero the
+   ::before overlay alpha — the .mud-main-content rule already applies
+   an 85% dark gradient over the image, so .bg-tennis's darkening on
+   top would double-up and turn the centre section black. */
 .mud-main-content .bg-tennis {
     --bg-image: none !important;
     --bg-fallback: transparent !important;
+    --overlay-alpha: 0 !important;
 }
 
 [data-theme="light"] .mud-main-content {
