@@ -3358,6 +3358,16 @@ else
         else
             Snackbar.Add($"{result.FixturesScheduled} fixtures scheduled.", Severity.Success);
 
+        // Headline summary first when nothing got scheduled — gives the user
+        // immediate context for the per-participant warnings that follow.
+        if (result.FixturesScheduled == 0 && result.Warnings.Count > 0)
+        {
+            Snackbar.Add(
+                $"No fixtures scheduled — {result.Warnings.Count} participant(s) skipped because they are not Full Players. See per-player warnings below.",
+                Severity.Warning,
+                c => c.VisibleStateDuration = 20000);
+        }
+
         foreach (var w in result.Warnings)
             Snackbar.Add(w, Severity.Warning, c => c.VisibleStateDuration = 12000);
     }
