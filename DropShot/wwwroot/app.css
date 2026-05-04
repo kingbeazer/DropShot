@@ -4,7 +4,7 @@ html, body {
     background-color: #121212;
     background-image:
         linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
-        url('images/background.png');
+        url('_content/DropShot.UI/images/background.png');
     background-repeat: repeat;
     color: #e0e0e0;
 }
