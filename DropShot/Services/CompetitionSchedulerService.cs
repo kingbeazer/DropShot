@@ -62,12 +62,27 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
         // (added but not confirmed) or Substitute — those rows are intentionally
         // skipped by the scheduler, but it's easy to miss them on a big roster
         // and end up wondering why a fixture was generated without so-and-so.
+        // Format each entry with the status and the action the admin needs to
+        // take so the warning is actionable on its own (the UI used to render
+        // bare names with no context).
         var unconfirmed = comp.Participants
             .Where(p => p.Status != ParticipantStatus.FullPlayer
                      && p.Status != ParticipantStatus.Withdrawn
                      && p.Status != ParticipantStatus.Disqualified)
-            .Select(p => p.Player?.DisplayName ?? $"Player {p.PlayerId}")
-            .OrderBy(n => n)
+            .Select(p =>
+            {
+                var name = p.Player?.DisplayName ?? $"Player {p.PlayerId}";
+                var reason = p.Status switch
+                {
+                    ParticipantStatus.Registered =>
+                        "status 'Registered' — not yet confirmed; change to 'Full Player' on the Setup tab to include in scheduling.",
+                    ParticipantStatus.Substitute =>
+                        "status 'Substitute' — substitutes are not auto-scheduled.",
+                    _ => $"status '{p.Status}' — only Full Players are scheduled."
+                };
+                return $"{name} — {reason}";
+            })
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         // ── Delete according to mode ─────────────────────────────────────────
@@ -380,6 +395,26 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
             f.FixtureLabel = label;
             f.RoundNumber = roundNumber;
             newFixtures.Add(f);
+        }
+
+        // ── Round-robin viability gate ───────────────────────────────────────
+        // If the competition declares a round-robin stage but has no eligible
+        // players / teams to fill it, halt before any stage runs. Knockout
+        // placeholders that follow the round-robin would be meaningless without
+        // standings to feed them, so we'd rather create nothing than create
+        // orphaned TBD bracket fixtures the admin then has to delete.
+        bool hasRoundRobin = comp.Stages.Any(s => s.StageType == StageType.RoundRobin);
+        bool roundRobinViable = isTeamComp
+            ? comp.Teams.Count(t => comp.Participants
+                .Any(p => p.TeamId == t.CompetitionTeamId && p.Status == ParticipantStatus.FullPlayer)) >= 2
+            : activePlayers.Count >= 2;
+        if (hasRoundRobin && !roundRobinViable)
+        {
+            var headline = isTeamComp
+                ? $"Round-robin cannot be scheduled — only {comp.Teams.Count} team(s) with Full Players (need at least 2). No fixtures created; later stages were skipped because they depend on round-robin standings."
+                : $"Round-robin cannot be scheduled — only {activePlayers.Count} Full Player(s) (need at least 2). No fixtures created; later stages were skipped because they depend on round-robin standings.";
+            unconfirmed.Insert(0, headline);
+            return new ScheduleFixturesResult(0, 0, unconfirmed);
         }
 
         // ── Generate fixtures per stage ──────────────────────────────────────
