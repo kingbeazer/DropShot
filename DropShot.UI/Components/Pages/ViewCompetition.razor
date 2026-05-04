@@ -132,44 +132,19 @@ else
 
     <MudDivider Class="mb-4" />
 
-    @* Gutters="true" keeps a visible gap between panels when they're
-       collapsed (default MudExpansionPanels stacks them flush with a
-       single divider, which makes the page look like one tall block). *@
-    <MudExpansionPanels MultiExpansion="true" Gutters="true" Class="mb-4">
-
-    @if (_competition.RulesSetId.HasValue && !string.IsNullOrEmpty(_competition.RulesSetName))
-    {
-        <MudExpansionPanel Text="@($"Rules — {_competition.RulesSetName}")">
-            @if (_ruleItems is null)
-            {
-                <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
-            }
-            else if (_ruleItems.Count == 0)
-            {
-                <MudText Typo="Typo.body2" Color="Color.Secondary">
-                    This rules set has no rules defined yet.
-                </MudText>
-            }
-            else
-            {
-                <MudList T="RulesSetItemDto" Dense="true">
-                    @foreach (var item in _ruleItems.OrderBy(i => i.SortOrder))
-                    {
-                        <MudListItem T="RulesSetItemDto">
-                            <MudText Typo="Typo.body2">@item.SortOrder. @item.RuleText</MudText>
-                        </MudListItem>
-                    }
-                </MudList>
-            }
-        </MudExpansionPanel>
-    }
+    @* mb-2 on each individual panel below puts a visible gap between
+       collapsed panels (default MudExpansionPanels stacks them flush with
+       a single divider, which makes the page look like one tall block).
+       Gutters on the parent only adds horizontal padding, not vertical
+       spacing — easy thing to mistake. *@
+    <MudExpansionPanels MultiExpansion="true" Class="mb-4">
 
     @if (!(_canEdit && _competition.HasDivisions))
     {
     var visibleDivisionCount = _fixturesByDivision.Count(g => g.StageGroups.Count > 0);
     var showDivisionHeadings = _competition.HasDivisions && visibleDivisionCount > 1;
 
-    <MudExpansionPanel Text="Scheduled Matches">
+    <MudExpansionPanel Class="mb-2" Text="Scheduled Matches">
     @if (!_fixtures.Any())
     {
         <MudAlert Severity="Severity.Info" Class="mb-4">No matches scheduled yet.</MudAlert>
@@ -207,7 +182,7 @@ else
             var fxCount = stageGroups.Sum(sg => sg.Fixtures.Count);
             var panelTitle = $"{divGroup.Division?.Name ?? "Unassigned"} — {divTeams.Count} team{(divTeams.Count == 1 ? "" : "s")}, {fxCount} match{(fxCount == 1 ? "" : "es")}";
 
-            <MudExpansionPanel Text="@panelTitle">
+            <MudExpansionPanel Class="mb-2" Text="@panelTitle">
                 <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Scheduled Matches</MudText>
                 @if (stageGroups.Count == 0)
                 {
@@ -292,7 +267,7 @@ else
         var showLeagueHeadings = visibleLeagueGroups.Count > 1;
         var leagueTitle = showLeagueHeadings ? "Division League Tables" : "League Table";
 
-        <MudExpansionPanel Text="@leagueTitle">
+        <MudExpansionPanel Class="mb-2" Text="@leagueTitle">
             @foreach (var group in visibleLeagueGroups)
             {
                 var rows = group.Rows;
@@ -308,13 +283,13 @@ else
     else if (_teamLeagueTable.Any())
     {
         var (forHeader, againstHeader, forTooltip, againstTooltip) = LeagueHeaders();
-        <MudExpansionPanel Text="Team League Table">
+        <MudExpansionPanel Class="mb-2" Text="Team League Table">
             @RenderTeamLeagueTable(_teamLeagueTable, forHeader, againstHeader, forTooltip, againstTooltip)
         </MudExpansionPanel>
     }
     else if (_leagueTable.Any())
     {
-        <MudExpansionPanel Text="League Table">
+        <MudExpansionPanel Class="mb-2" Text="League Table">
             <MudTable Items="@_leagueTable" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:600px">
                 <HeaderContent>
                     <MudTh>Pos</MudTh>
@@ -340,7 +315,7 @@ else
     {
         @if (_participants.Any(p => p.TeamId == null))
         {
-            <MudExpansionPanel Text="Unassigned Participants">
+            <MudExpansionPanel Class="mb-2" Text="Unassigned Participants">
                 <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table">
                     <HeaderContent>
                         <MudTh>Player</MudTh>
@@ -364,7 +339,7 @@ else
     {
         var isTeamFormat = _competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch && _teams.Any();
         var competitorsPanelText = isTeamFormat ? "Teams" : "Competitors";
-    <MudExpansionPanel Text="@competitorsPanelText">
+    <MudExpansionPanel Class="mb-2" Text="@competitorsPanelText">
     @if (isTeamFormat)
     {
         var visibleTeamGroups = _teamsByDivision.Where(g => g.Teams.Count > 0).ToList();
@@ -445,6 +420,35 @@ else
         </MudTable>
     }
     </MudExpansionPanel>
+    }
+
+    @* Rules panel comes last — competitors-and-fixtures content is what
+       people open the page for; the rules-set reference is supporting info. *@
+    @if (_competition.RulesSetId.HasValue && !string.IsNullOrEmpty(_competition.RulesSetName))
+    {
+        <MudExpansionPanel Class="mb-2" Text="@($"Rules — {_competition.RulesSetName}")">
+            @if (_ruleItems is null)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+            }
+            else if (_ruleItems.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    This rules set has no rules defined yet.
+                </MudText>
+            }
+            else
+            {
+                <MudList T="RulesSetItemDto" Dense="true">
+                    @foreach (var item in _ruleItems.OrderBy(i => i.SortOrder))
+                    {
+                        <MudListItem T="RulesSetItemDto">
+                            <MudText Typo="Typo.body2">@item.SortOrder. @item.RuleText</MudText>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        </MudExpansionPanel>
     }
 
     </MudExpansionPanels>
