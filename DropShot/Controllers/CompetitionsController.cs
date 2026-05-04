@@ -57,8 +57,14 @@ public class CompetitionsController(
     [HttpGet("{id:int}")]
     public async Task<ActionResult<CompetitionDetailDto>> Get(int id)
     {
+        // Match WebCompetitionService.GetCompetitionAsync's full include
+        // graph — without Fixtures / Teams / CourtPairs the MAUI
+        // ViewCompetition page rendered "No matches scheduled yet." even
+        // when the competition had a populated fixture list (the web is
+        // unaffected because it goes through the in-process service).
         await using var db = dbFactory.CreateDbContext();
         var c = await db.Competition
+            .AsSplitQuery()
             .Include(x => x.HostClub)
             .Include(x => x.Rules)
             .Include(x => x.Event)
@@ -68,6 +74,21 @@ public class CompetitionsController(
             .Include(x => x.Participants).ThenInclude(p => p.Division)
             .Include(x => x.Divisions)
             .Include(x => x.AllowedPlayers)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Stage)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Court)
+            .Include(x => x.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
+            .Include(x => x.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Player1)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Player2)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Player3)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Player4)
+            .Include(x => x.Fixtures).ThenInclude(f => f.HomeTeam)
+            .Include(x => x.Fixtures).ThenInclude(f => f.AwayTeam)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.HomePlayer1)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.HomePlayer2)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.AwayPlayer1)
+            .Include(x => x.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.AwayPlayer2)
+            .Include(x => x.Teams).ThenInclude(t => t.Captain)
             .FirstOrDefaultAsync(x => x.CompetitionID == id);
 
         if (c is null) return NotFound();
@@ -75,6 +96,14 @@ public class CompetitionsController(
         // Enforce hard visibility for the detail view too.
         if (!await authzService.CanViewCompetitionAsync(User, id))
             return NotFound();
+
+        var courtPairs = await db.CourtPairs
+            .AsNoTracking()
+            .Where(cp => cp.CompetitionId == id)
+            .Include(cp => cp.Court1)
+            .Include(cp => cp.Court2)
+            .OrderBy(cp => cp.Name)
+            .ToListAsync();
 
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
@@ -103,7 +132,23 @@ public class CompetitionsController(
             c.HasDivisions,
             c.Divisions.OrderBy(d => d.Rank)
                 .Select(d => new CompetitionDivisionDto(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name))
-                .ToList());
+                .ToList(),
+            c.Fixtures
+                .OrderBy(f => f.RoundNumber).ThenBy(f => f.ScheduledAt)
+                .Select(ToFixtureDto)
+                .ToList(),
+            c.Teams
+                .Select(t => new CompetitionTeamDto(
+                    t.CompetitionTeamId, t.CompetitionId, t.Name,
+                    t.CaptainPlayerId, t.Captain?.DisplayName,
+                    t.CompetitionDivisionId))
+                .ToList(),
+            courtPairs.Select(cp => new CourtPairDto(
+                cp.CourtPairId, cp.CompetitionId,
+                cp.Court1Id, cp.Court1.Name,
+                cp.Court2Id, cp.Court2.Name,
+                cp.Name)).ToList(),
+            c.LeagueScoring);
     }
 
     [HttpPost]
