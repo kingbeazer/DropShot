@@ -189,7 +189,8 @@
 <MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" ApplyEffectsToContainer="true" Class="mb-4">
     <MudTabPanel Text="All Competitions" Icon="@Icons.Material.Filled.List">
         <MudDataGrid Items="@_competitions" Filterable="false" SortMode="@SortMode.None" Groupable="false"
-                     QuickFilter="@FilterCompetitions">
+                     QuickFilter="@FilterCompetitions"
+                     Class="frosted-card" Elevation="0">
             <Columns>
                 <PropertyColumn Property="x => x.CompetitionName" />
                 <PropertyColumn Property="x => x.CompetitionFormat.ToDisplayName()" Title="Format" />
