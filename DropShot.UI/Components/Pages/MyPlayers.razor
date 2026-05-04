@@ -23,7 +23,8 @@
               Immediate="true" Class="mb-4" />
 
 <MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
-          Filter="@(row => FilterPlayers(row))">
+          Filter="@(row => FilterPlayers(row))"
+          Class="frosted-card" Elevation="0">
     <HeaderContent>
         <MudTh>Player</MudTh>
         <MudTh>First Name</MudTh>

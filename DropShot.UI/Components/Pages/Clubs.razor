@@ -24,7 +24,8 @@
               Immediate="true" Class="mb-4" />
 
 <MudTable Items="@_clubs" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
-          Filter="@(club => FilterClubs(club))">
+          Filter="@(club => FilterClubs(club))"
+          Class="frosted-card" Elevation="0">
     <HeaderContent>
         <MudTh>Name</MudTh>
         <MudTh>Town</MudTh>
