@@ -2,11 +2,17 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     height: 100%;
     overflow: hidden;
-    background-color: #121212;
+    /* !important here outweighs MudBlazor.min.css rule
+       `body { background-color: var(--mud-palette-background) }` which the
+       MudThemeProvider parameterises at runtime — without it the runtime
+       cascade can replace the bg-color and clobber the shorthand path on
+       some browsers, so the branded image is invisible on every page that
+       isn't the match scoreboard (which paints its own .bg-tennis). */
+    background-color: #121212 !important;
     background-image:
         linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
-        url('_content/DropShot.UI/images/background.png');
-    background-repeat: repeat;
+        url('_content/DropShot.UI/images/background.png') !important;
+    background-repeat: repeat !important;
 }
 
 /* Defensive guard against pages whose content (wide MudTables, fixed-width
