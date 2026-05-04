@@ -2,6 +2,7 @@
 @using DropShot.UI.Services
 @using DropShot.UI.Services.Auth
 @inject IRulesSetService RulesSetService
+@inject IClubService ClubService
 @inject ICurrentUser CurrentUser
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
@@ -22,8 +23,25 @@ else
 {
     @if (CurrentUser.IsAdmin)
     {
-        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
-                   Color="Color.Primary" Class="mb-3" OnClick="OpenAddDialog">Add Rules Set</MudButton>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+            @* Rules sets are club-scoped at the schema level — Add needs a
+               club to attach the new set to. The picker also doubles as a
+               filter for the list below. *@
+            <MudSelect T="int?" Value="_selectedClubId"
+                       ValueChanged="OnClubChanged"
+                       Label="Club" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       Clearable="true" Style="min-width: 240px;">
+                @foreach (var c in _clubs)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTooltip Text="@(_selectedClubId.HasValue ? "Add a rules set to the selected club" : "Pick a club first")">
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
+                           Color="Color.Primary" OnClick="OpenAddDialog"
+                           Disabled="@(!_selectedClubId.HasValue)">Add Rules Set</MudButton>
+            </MudTooltip>
+        </MudStack>
     }
 
     @if (_rulesSets?.Count == 0)
@@ -73,6 +91,8 @@ else
 
 @code {
     private List<RulesSetDto>? _rulesSets;
+    private List<ClubDto> _clubs = [];
+    private int? _selectedClubId;
     private bool _loading = true;
     private string? _error;
 
@@ -80,6 +100,11 @@ else
     {
         try
         {
+            _clubs = await ClubService.GetClubsAsync();
+            // Default to the first admin-club for ClubAdmins (they only have
+            // one) so Add is enabled out of the box; SuperAdmins still pick.
+            if (CurrentUser.AdminClubIds.Count == 1)
+                _selectedClubId = CurrentUser.AdminClubIds.First();
             _rulesSets = await RulesSetService.GetRulesSetsAsync();
         }
         catch (Exception ex)
@@ -92,8 +117,18 @@ else
         }
     }
 
+    private void OnClubChanged(int? clubId)
+    {
+        _selectedClubId = clubId;
+    }
+
     private async Task OpenAddDialog()
     {
+        if (_selectedClubId is null)
+        {
+            Snackbar.Add("Pick a club first — rules sets are club-scoped.", Severity.Warning);
+            return;
+        }
         var dialog = await Dialog.ShowAsync<RulesSetDialog>("Add Rules Set");
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: RulesSetFormModel model })
@@ -116,8 +151,11 @@ else
     {
         try
         {
+            // ClubId is only set on create — edits don't move sets between
+            // clubs (would orphan competitions / ladders pointing at the
+            // original). The service ignores ClubId on update.
             var dto = await RulesSetService.SaveRulesSetAsync(
-                id, new SaveRulesSetRequest(model.Name, model.Description));
+                id, new SaveRulesSetRequest(model.Name, model.Description, id == 0 ? _selectedClubId : null));
             if (dto is not null)
             {
                 if (id == 0)

@@ -182,9 +182,10 @@ else
                                            Disabled="@(!Model.RulesSetId.HasValue)"
                                            OnClick="ManageSelectedRulesSetItemsAsync" />
                         </MudTooltip>
-                        <MudTooltip Text="Add new rules set">
+                        <MudTooltip Text="@(Model.HostClubId == null ? "Select a host club first — rules sets are club-scoped" : "Add new rules set")">
                             <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
                                            Color="Color.Primary"
+                                           Disabled="@(Model.HostClubId == null)"
                                            OnClick="@(() => _showAddRulesSetDialog = true)" />
                         </MudTooltip>
                     </MudStack>
@@ -2143,6 +2144,16 @@ else
         var name = _newRulesSetName.Trim();
         if (string.IsNullOrWhiteSpace(name)) return;
 
+        // RulesSet.ClubId is a required FK in the schema — abort cleanly
+        // if the host club somehow became null between opening the dialog
+        // and clicking Save (the + button is gated on HostClubId so this
+        // is a defensive check, not the main path).
+        if (Model.HostClubId is null)
+        {
+            Snackbar.Add("Select a host club first — rules sets are club-scoped.", Severity.Warning);
+            return;
+        }
+
         // Roll up any unstaged text in the New rule input so the user
         // doesn't lose what they were typing on Save.
         StageNewRule();
@@ -2151,7 +2162,10 @@ else
         try
         {
             var saved = await RulesSetService.SaveRulesSetAsync(
-                0, new SaveRulesSetRequest(name, string.IsNullOrWhiteSpace(_newRulesSetDescription) ? null : _newRulesSetDescription!.Trim()));
+                0, new SaveRulesSetRequest(
+                    name,
+                    string.IsNullOrWhiteSpace(_newRulesSetDescription) ? null : _newRulesSetDescription!.Trim(),
+                    Model.HostClubId));
             if (saved is null)
             {
                 Snackbar.Add("Could not create rules set.", Severity.Error);

@@ -36,8 +36,18 @@ public class RulesSetsController(IDbContextFactory<MyDbContext> dbFactory) : Con
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<RulesSetDto>> Create([FromBody] SaveRulesSetRequest req)
     {
+        // RulesSet.ClubId is a required FK — reject up-front so the caller
+        // gets a 400 instead of a 500 wrapping the FK violation.
+        if (req.ClubId is null or 0)
+            return BadRequest("ClubId is required when creating a rules set.");
+
         await using var db = dbFactory.CreateDbContext();
-        var r = new RulesSet { Name = req.Name.Trim(), Description = req.Description };
+        var r = new RulesSet
+        {
+            Name = req.Name.Trim(),
+            Description = req.Description,
+            ClubId = req.ClubId.Value
+        };
         db.RulesSets.Add(r);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(Get), new { id = r.RulesSetId },
