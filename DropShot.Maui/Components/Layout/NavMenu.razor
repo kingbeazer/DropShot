@@ -29,28 +29,34 @@
     <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">
         Home
     </MudNavLink>
-    <AuthorizeView Roles="User">
-        <MudNavLink Href="/match" Icon="@Icons.Material.Filled.SportsTennis">
-            Match
-        </MudNavLink>
-    </AuthorizeView>
-    <MudNavLink Href="/competitions" Icon="@Icons.Material.Filled.EmojiEvents">
-        Competitions
-    </MudNavLink>
-    <MudNavLink Href="/clubs" Icon="@Icons.Material.Filled.SportsTennis">
-        Clubs
-    </MudNavLink>
-    <MudNavLink Href="/rulessets" Icon="@Icons.Material.Filled.Gavel">
-        Rules Sets
-    </MudNavLink>
+
+    @* Primary nav links live in DropShot.UI.Services.Navigation.NavCatalog
+       so the web and MAUI menus stay in sync — adding a link in the catalog
+       lights it up in both hosts automatically. *@
+    @foreach (var link in DropShot.UI.Services.Navigation.NavCatalog.Primary)
+    {
+        if (!string.IsNullOrEmpty(link.RequiredRoles))
+        {
+            <AuthorizeView Roles="@link.RequiredRoles">
+                <MudNavLink Href="@($"/{link.Href}")" Icon="@link.Icon">
+                    @link.Label
+                </MudNavLink>
+            </AuthorizeView>
+        }
+        else
+        {
+            <MudNavLink Href="@($"/{link.Href}")" Icon="@link.Icon">
+                @link.Label
+            </MudNavLink>
+        }
+    }
+
+    @* Club Players stays MAUI-specific because the web swaps it with
+       My Players based on the active-role cookie — different per-host
+       behaviour, easier to keep out of the shared catalog. *@
     <AuthorizeView Roles="ClubAdmin,Admin,SuperAdmin">
         <MudNavLink Href="/players/club" Icon="@Icons.Material.Filled.Groups">
             Club Players
-        </MudNavLink>
-    </AuthorizeView>
-    <AuthorizeView Roles="SuperAdmin">
-        <MudNavLink Href="/players" Icon="@Icons.Material.Filled.People">
-            Players
         </MudNavLink>
     </AuthorizeView>
 
