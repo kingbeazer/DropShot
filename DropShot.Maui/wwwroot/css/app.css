@@ -2,6 +2,11 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     height: 100%;
     overflow: hidden;
+    background-color: #121212;
+    background-image:
+        linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
+        url('_content/DropShot.UI/images/background.png');
+    background-repeat: repeat;
 }
 
 /* Defensive guard against pages whose content (wide MudTables, fixed-width
@@ -36,22 +41,21 @@ html:not([data-theme="light"]) .mud-appbar {
 /* MudMainContent owns the scroll viewport so the AppBar and Drawer stay
    pinned while lists (Competitions, Clubs, etc.) scroll inside. Without
    this the body's overflow:hidden clips overflowing content and it
-   becomes unreachable. The branded background image lives here (not on
-   body) because MudLayout paints its own opaque background over body. */
+   becomes unreachable.
+
+   Force transparent so the body's branded background image shows through
+   on the side margins of MudContainer (matching the web layout, where
+   the body bg is visible outside the centered content column). MudBlazor
+   normally paints --mud-palette-background here, which would cover body. */
 .mud-main-content {
     height: 100vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    background-color: #121212;
-    background-image:
-        linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
-        url('_content/DropShot.UI/images/background.png');
-    background-repeat: repeat;
+    background: transparent !important;
 }
 
-[data-theme="light"] .mud-main-content {
-    background-color: #f5f5f5;
-    background-image: none;
+.mud-layout {
+    background: transparent !important;
 }
 
 /* Force dark text + visible link colour on the lightyellow background.
