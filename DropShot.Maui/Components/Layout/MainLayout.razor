@@ -24,7 +24,12 @@
     </MudDrawer>
 
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="pb-8">
+        @* pt-4 keeps page content from butting against the AppBar — the
+           iOS-only safe-area block in app.css adds top padding via
+           @@supports(-webkit-touch-callout), so without pt-4 here Windows /
+           Android / MacCatalyst hosts have no top padding and clip pages
+           like Edit Competition. pb-8 leaves room for the iOS home indicator. *@
+        <MudContainer MaxWidth="MaxWidth.Large" Class="pt-4 pb-8">
             @Body
         </MudContainer>
     </MudMainContent>
