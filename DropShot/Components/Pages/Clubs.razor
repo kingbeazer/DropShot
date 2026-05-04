@@ -10,6 +10,7 @@
 @using DropShot.Shared.Extensions
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 @* The 14 admin-template / rules-management write paths stay web-only on this
    shim until phase 5. The shared RCL component renders the public surface and
@@ -270,11 +271,13 @@
         <MudDialog @bind-Visible="_showRulesDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
             <TitleContent>Rules – @(_rulesClub?.Name)</TitleContent>
             <DialogContent>
+                @* Launch the shared RulesSetCreateDialog (same one used by
+                   CompetitionPage's inline + and the dedicated /rulessets
+                   Add) so this club-scoped flow can't drift from the others. *@
                 <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.Center">
-                    <MudTextField @bind-Value="_newRulesSetName" Label="New Rules Set Name" Variant="Variant.Outlined"
-                                  Margin="Margin.Dense" Style="flex:1" />
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                               OnClick="AddRulesSet">Add Set</MudButton>
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="OpenAddRulesSetDialog">Add Rules Set</MudButton>
                 </MudStack>
 
                 @foreach (var set in _rulesSets)
@@ -378,7 +381,6 @@
     private bool _showRulesDialog;
     private Club? _rulesClub;
     private List<RulesSet> _rulesSets = [];
-    private string _newRulesSetName = "";
     private readonly Dictionary<int, string> _newRuleTextByRulesSet = [];
 
     private bool _showEditRulesSetDialog;
@@ -486,7 +488,6 @@
     private async Task OpenRules(ClubDto club)
     {
         _rulesClub = await LoadClub(club.ClubId);
-        _newRulesSetName = "";
         _newRuleTextByRulesSet.Clear();
         await LoadRulesSets();
         _showRulesDialog = true;
@@ -503,19 +504,23 @@
             .ToListAsync();
     }
 
-    private async Task AddRulesSet()
+    private async Task OpenAddRulesSetDialog()
     {
-        if (_rulesClub == null || string.IsNullOrWhiteSpace(_newRulesSetName)) return;
-        await using var dbc = DbFactory.CreateDbContext();
-        dbc.RulesSets.Add(new RulesSet
+        if (_rulesClub == null) return;
+
+        // Shared component handles fields, rules-list staging, validation,
+        // and persistence. We just refresh the local entity-backed list
+        // afterwards so the per-set Items / Edit / Delete UI on this dialog
+        // sees the new row.
+        var parameters = new DialogParameters<DropShot.UI.Components.Pages.RulesSetCreateDialog>
         {
-            Name = _newRulesSetName.Trim(),
-            ClubId = _rulesClub.ClubId
-        });
-        await dbc.SaveChangesAsync();
-        _newRulesSetName = "";
-        Snackbar.Add("Rules set added.", Severity.Success);
-        await LoadRulesSets();
+            { x => x.ClubId, _rulesClub.ClubId }
+        };
+        var dialog = await DialogService.ShowAsync<DropShot.UI.Components.Pages.RulesSetCreateDialog>(
+            "Add Rules Set", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadRulesSets();
     }
 
     private void StartEditRulesSet(RulesSet set)
