@@ -13,11 +13,14 @@ namespace DropShot.Controllers;
 public class RulesSetsController(IDbContextFactory<MyDbContext> dbFactory) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<RulesSetDto>>> GetAll()
+    public async Task<ActionResult<List<RulesSetDto>>> GetAll([FromQuery] int? clubId = null)
     {
         await using var db = dbFactory.CreateDbContext();
-        var sets = await db.RulesSets.Include(r => r.Items).OrderBy(r => r.Name).ToListAsync();
-        return sets.Select(r => new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count)).ToList();
+        var query = db.RulesSets.Include(r => r.Items).AsQueryable();
+        if (clubId is not null)
+            query = query.Where(r => r.ClubId == clubId.Value);
+        var sets = await query.OrderBy(r => r.Name).ToListAsync();
+        return sets.Select(r => new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count, r.ClubId)).ToList();
     }
 
     [HttpGet("{id:int}")]
@@ -28,7 +31,7 @@ public class RulesSetsController(IDbContextFactory<MyDbContext> dbFactory) : Con
             .FirstOrDefaultAsync(x => x.RulesSetId == id);
         if (r is null) return NotFound();
 
-        return new RulesSetDetailDto(r.RulesSetId, r.Name, r.Description,
+        return new RulesSetDetailDto(r.RulesSetId, r.Name, r.Description, r.ClubId,
             r.Items.Select(i => new RulesSetItemDto(i.RulesSetItemId, i.RulesSetId, i.SortOrder, i.RuleText)).ToList());
     }
 
@@ -51,7 +54,7 @@ public class RulesSetsController(IDbContextFactory<MyDbContext> dbFactory) : Con
         db.RulesSets.Add(r);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(Get), new { id = r.RulesSetId },
-            new RulesSetDto(r.RulesSetId, r.Name, r.Description, 0));
+            new RulesSetDto(r.RulesSetId, r.Name, r.Description, 0, r.ClubId));
     }
 
     [HttpPut("{id:int}")]
@@ -64,7 +67,7 @@ public class RulesSetsController(IDbContextFactory<MyDbContext> dbFactory) : Con
         r.Name = req.Name.Trim();
         r.Description = req.Description;
         await db.SaveChangesAsync();
-        return new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count);
+        return new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count, r.ClubId);
     }
 
     [HttpDelete("{id:int}")]

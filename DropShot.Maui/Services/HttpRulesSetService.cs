@@ -10,8 +10,11 @@ namespace DropShot.Maui.Services;
 /// </summary>
 public sealed class HttpRulesSetService(HttpClient http) : IRulesSetService
 {
-    public async Task<List<RulesSetDto>> GetRulesSetsAsync(CancellationToken ct = default) =>
-        await http.GetFromJsonAsync<List<RulesSetDto>>("api/rulessets", ct) ?? [];
+    public async Task<List<RulesSetDto>> GetRulesSetsAsync(int? clubId = null, CancellationToken ct = default)
+    {
+        var url = clubId.HasValue ? $"api/rulessets?clubId={clubId.Value}" : "api/rulessets";
+        return await http.GetFromJsonAsync<List<RulesSetDto>>(url, ct) ?? [];
+    }
 
     public Task<RulesSetDetailDto?> GetRulesSetAsync(int id, CancellationToken ct = default) =>
         http.GetFromJsonAsync<RulesSetDetailDto>($"api/rulessets/{id}", ct);

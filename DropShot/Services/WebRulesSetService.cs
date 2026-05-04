@@ -12,11 +12,14 @@ namespace DropShot.Services;
 /// </summary>
 public sealed class WebRulesSetService(IDbContextFactory<MyDbContext> dbFactory) : IRulesSetService
 {
-    public async Task<List<RulesSetDto>> GetRulesSetsAsync(CancellationToken ct = default)
+    public async Task<List<RulesSetDto>> GetRulesSetsAsync(int? clubId = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var sets = await db.RulesSets.Include(r => r.Items).OrderBy(r => r.Name).ToListAsync(ct);
-        return sets.Select(r => new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count)).ToList();
+        var query = db.RulesSets.Include(r => r.Items).AsQueryable();
+        if (clubId is not null)
+            query = query.Where(r => r.ClubId == clubId.Value);
+        var sets = await query.OrderBy(r => r.Name).ToListAsync(ct);
+        return sets.Select(r => new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count, r.ClubId)).ToList();
     }
 
     public async Task<RulesSetDetailDto?> GetRulesSetAsync(int id, CancellationToken ct = default)
@@ -26,7 +29,7 @@ public sealed class WebRulesSetService(IDbContextFactory<MyDbContext> dbFactory)
             .FirstOrDefaultAsync(x => x.RulesSetId == id, ct);
         if (r is null) return null;
 
-        return new RulesSetDetailDto(r.RulesSetId, r.Name, r.Description,
+        return new RulesSetDetailDto(r.RulesSetId, r.Name, r.Description, r.ClubId,
             r.Items.Select(i => new RulesSetItemDto(i.RulesSetItemId, i.RulesSetId, i.SortOrder, i.RuleText)).ToList());
     }
 
@@ -52,7 +55,7 @@ public sealed class WebRulesSetService(IDbContextFactory<MyDbContext> dbFactory)
             };
             db.RulesSets.Add(r);
             await db.SaveChangesAsync(ct);
-            return new RulesSetDto(r.RulesSetId, r.Name, r.Description, 0);
+            return new RulesSetDto(r.RulesSetId, r.Name, r.Description, 0, r.ClubId);
         }
         else
         {
@@ -64,7 +67,7 @@ public sealed class WebRulesSetService(IDbContextFactory<MyDbContext> dbFactory)
             // between clubs would orphan its references on competitions and
             // ladders that point to the original club.
             await db.SaveChangesAsync(ct);
-            return new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count);
+            return new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count, r.ClubId);
         }
     }
 
