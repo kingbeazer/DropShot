@@ -19,7 +19,7 @@
             @foreach (var m in _matches)
             {
                 <MudListItem T="ActiveMatchDto">
-                    <MudCard Outlined="true" Class="mb-2" Style="cursor:pointer" @onclick="@(() => Navigation.NavigateTo($"/match/{m.SavedMatchId}"))">
+                    <MudCard Class="mb-2 frosted-card" Style="cursor:pointer" @onclick="@(() => Navigation.NavigateTo($"/match/{m.SavedMatchId}"))">
                         <MudCardContent Class="py-2 px-3">
                             <MudText Typo="Typo.subtitle1">
                                 @PlayerLabel(m)

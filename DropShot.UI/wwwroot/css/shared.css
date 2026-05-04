@@ -1,0 +1,26 @@
+/* ══════════════════════════════════════════════════════════════════════
+   DropShot — shared CSS loaded by both the web and MAUI hosts via
+   _content/DropShot.UI/css/shared.css. Add cross-host visual primitives
+   here so both hosts pick them up without re-declaration.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Frosted-glass card ────────────────────────────────────────────────
+   Replaces the default MudCard / MudPaper grey surface with the same
+   frosted look used on the competition setup sections (AdminsSection,
+   DivisionsSection, etc.). Used on list / row cards across pages so the
+   branded background image shows through with a subtle blur instead of
+   a flat grey block.
+   ══════════════════════════════════════════════════════════════════════ */
+.frosted-card {
+    background: rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 12px !important;
+}
+
+/* Light-theme override: glass darkens against the lighter background. */
+[data-theme="light"] .frosted-card {
+    background: rgba(255, 255, 255, 0.6) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
