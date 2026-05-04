@@ -34,7 +34,7 @@ public sealed class WebCompetitionAdminService(
                 c.Phone, c.Email, c.Website, c.Courts.Count))
             .ToListAsync(ct);
         var rulesSets = await db.RulesSets.AsNoTracking().OrderBy(r => r.Name)
-            .Select(r => new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count))
+            .Select(r => new RulesSetDto(r.RulesSetId, r.Name, r.Description, r.Items.Count, r.ClubId))
             .ToListAsync(ct);
         var events = await db.Events.AsNoTracking().OrderBy(e => e.Name)
             .Select(e => new EventDto(e.EventId, e.Name, e.Description, e.StartDate, e.EndDate,
