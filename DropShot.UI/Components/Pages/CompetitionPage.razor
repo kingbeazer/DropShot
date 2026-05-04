@@ -1381,16 +1381,65 @@ else
     </DialogActions>
 </MudDialog>
 
-@* ── Add Rules Set Dialog ─────────────────────────────────── *@
-<MudDialog @bind-Visible="_showAddRulesSetDialog">
+@* ── Add Rules Set Dialog ───────────────────────────────────
+   Wider than the default MudDialogProvider Small so the rules list has
+   room to breathe on desktop; FullWidth keeps the dialog comfortable on
+   mobile too. Rules are staged client-side and committed in sequence on
+   Save so the user gets a single Save / Cancel decision. *@
+<MudDialog @bind-Visible="_showAddRulesSetDialog"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
     <TitleContent>Add Rules Set</TitleContent>
     <DialogContent>
-        <MudTextField @bind-Value="_newRulesSetName" Label="Rules Set Name" Variant="Variant.Outlined" Required="true" />
+        <MudTextField @bind-Value="_newRulesSetName" Label="Rules Set Name"
+                      Variant="Variant.Outlined" Required="true" Class="mb-3"
+                      Disabled="@_newRulesSetSaving" />
+        <MudTextField @bind-Value="_newRulesSetDescription" Label="Description (optional)"
+                      Variant="Variant.Outlined" Class="mb-3"
+                      Disabled="@_newRulesSetSaving" />
+
+        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Rules</MudText>
+        @if (_newRulesSetItems.Count == 0)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                No rules yet. Add as many as you like — they save with the rules set.
+            </MudText>
+        }
+        else
+        {
+            <MudList T="string" Dense="true" Class="mb-2">
+                @for (int i = 0; i < _newRulesSetItems.Count; i++)
+                {
+                    var idx = i;
+                    <MudListItem T="string">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Class="flex-grow-1">@(idx + 1). @_newRulesSetItems[idx]</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error"
+                                           Disabled="@_newRulesSetSaving"
+                                           OnClick="@(() => _newRulesSetItems.RemoveAt(idx))" />
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudTextField @bind-Value="_newRuleText" @bind-Value:after="StageNewRuleIfReady"
+                          Label="New rule…" Variant="Variant.Outlined" Class="flex-grow-1"
+                          Immediate="true" OnKeyDown="OnNewRuleKeyDown"
+                          Disabled="@_newRulesSetSaving" />
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
+                           Disabled="@(_newRulesSetSaving || string.IsNullOrWhiteSpace(_newRuleText))"
+                           OnClick="StageNewRule" />
+        </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@(() => _showAddRulesSetDialog = false)">Cancel</MudButton>
+        <MudButton OnClick="CancelNewRulesSet" Disabled="@_newRulesSetSaving">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   Disabled="@string.IsNullOrWhiteSpace(_newRulesSetName)" OnClick="SaveNewRulesSet">Add</MudButton>
+                   Disabled="@(_newRulesSetSaving || string.IsNullOrWhiteSpace(_newRulesSetName))"
+                   OnClick="SaveNewRulesSet">
+            @(_newRulesSetSaving ? "Saving…" : "Save")
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -1670,6 +1719,10 @@ else
     // Add Rules Set dialog
     private bool _showAddRulesSetDialog;
     private string _newRulesSetName = "";
+    private string? _newRulesSetDescription;
+    private string _newRuleText = "";
+    private List<string> _newRulesSetItems = [];
+    private bool _newRulesSetSaving;
 
     // Add Event dialog
     private bool _showAddEventDialog;
@@ -2052,24 +2105,86 @@ else
         Model.HostClubId = clubId;
     }
 
+    private void StageNewRule()
+    {
+        var text = _newRuleText.Trim();
+        if (string.IsNullOrWhiteSpace(text)) return;
+        _newRulesSetItems.Add(text);
+        _newRuleText = "";
+    }
+
+    // Convenience for Enter-to-add inside the new-rule input.
+    private void OnNewRuleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or "NumpadEnter") StageNewRule();
+    }
+
+    // Companion to @bind-Value:after — keeps a no-op so the binding fires
+    // updates without needing a separate ValueChanged handler.
+    private void StageNewRuleIfReady() { }
+
+    private void CancelNewRulesSet()
+    {
+        _showAddRulesSetDialog = false;
+        ResetNewRulesSetForm();
+    }
+
+    private void ResetNewRulesSetForm()
+    {
+        _newRulesSetName = "";
+        _newRulesSetDescription = null;
+        _newRuleText = "";
+        _newRulesSetItems = [];
+        _newRulesSetSaving = false;
+    }
+
     private async Task SaveNewRulesSet()
     {
         var name = _newRulesSetName.Trim();
         if (string.IsNullOrWhiteSpace(name)) return;
 
-        RulesSetDto? saved = null;
+        // Roll up any unstaged text in the New rule input so the user
+        // doesn't lose what they were typing on Save.
+        StageNewRule();
+
+        _newRulesSetSaving = true;
         try
         {
-            saved = await RulesSetService.SaveRulesSetAsync(0, new SaveRulesSetRequest(name, null));
+            var saved = await RulesSetService.SaveRulesSetAsync(
+                0, new SaveRulesSetRequest(name, string.IsNullOrWhiteSpace(_newRulesSetDescription) ? null : _newRulesSetDescription!.Trim()));
             if (saved is null)
             {
                 Snackbar.Add("Could not create rules set.", Severity.Error);
                 return;
             }
+
+            // Rules are committed sequentially because the API's SortOrder
+            // is auto-assigned per-item; preserving the order the user
+            // entered them matters for how rules render in the UI.
+            foreach (var ruleText in _newRulesSetItems)
+            {
+                try
+                {
+                    await RulesSetService.AddRulesSetItemAsync(
+                        saved.RulesSetId, new AddRulesSetItemRequest(ruleText));
+                }
+                catch (Exception itemEx)
+                {
+                    Logger.LogError(itemEx, "Failed to add rule '{RuleText}' to set {RulesSetId}.",
+                        ruleText, saved.RulesSetId);
+                    Snackbar.Add($"Saved set but rule \"{ruleText}\" could not be added.", Severity.Warning);
+                }
+            }
+
             _rulesSets = (await RulesSetService.GetRulesSetsAsync())
                 .OrderBy(r => r.Name).ToList();
             Model.RulesSetId = saved.RulesSetId;
-            Snackbar.Add($"Rules set \"{saved.Name}\" added.", Severity.Success);
+            Snackbar.Add(
+                $"Rules set \"{saved.Name}\" saved with {_newRulesSetItems.Count} rule(s).",
+                Severity.Success);
+
+            _showAddRulesSetDialog = false;
+            ResetNewRulesSetForm();
         }
         catch (Exception ex)
         {
@@ -2078,15 +2193,8 @@ else
         }
         finally
         {
-            _showAddRulesSetDialog = false;
-            _newRulesSetName = "";
+            _newRulesSetSaving = false;
         }
-
-        // Empty rules set on its own isn't useful — drop the user straight
-        // into the items dialog so they can add the rules without hopping
-        // over to the dedicated Rules Sets page.
-        if (saved is not null)
-            await ShowRulesSetItemsDialogAsync(saved.RulesSetId, saved.Name);
     }
 
     private async Task ManageSelectedRulesSetItemsAsync()
