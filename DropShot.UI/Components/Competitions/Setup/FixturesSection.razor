@@ -1,8 +1,8 @@
 @using DropShot.Shared
 @using DropShot.Shared.Dtos
 
-<MudPaper id="section-fixtures" Class="pa-4 setup-section" Elevation="0"
-     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+<MudPaper id="section-fixtures" Class="pa-4 setup-section frosted-card" Elevation="0"
+     Style="color: white;">
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
         <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
         @if (IsSuperAdmin && Stages.Any(s => s.StageType == StageType.RoundRobin))
