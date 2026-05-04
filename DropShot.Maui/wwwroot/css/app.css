@@ -55,8 +55,16 @@ html:not([data-theme="light"]) .mud-appbar {
     background-repeat: repeat;
 }
 
-.mud-main-content:has(.bg-tennis) {
-    background: transparent;
+/* The match scoreboard's .bg-tennis (TennisScore.razor.css) paints the
+   same image from its own top-left, which doesn't line up with the
+   .mud-main-content tile pattern and produces a visible seam at the
+   .bg-tennis edge. Disable .bg-tennis's own image so the underlying
+   .mud-main-content image shows through uniformly; the ::before overlay
+   (--overlay-color / --overlay-alpha) is unaffected so the scoreboard
+   keeps its darkened atmosphere. */
+.mud-main-content .bg-tennis {
+    --bg-image: none !important;
+    --bg-fallback: transparent !important;
 }
 
 [data-theme="light"] .mud-main-content {
