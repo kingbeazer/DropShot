@@ -1,4 +1,5 @@
 @inject ICompetitionService CompetitionService
+@inject IRulesSetService RulesSetService
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
 @using DropShot.Shared.Extensions
@@ -131,7 +132,37 @@ else
 
     <MudDivider Class="mb-4" />
 
-    <MudExpansionPanels MultiExpansion="true" Class="mb-4">
+    @* Gutters="true" keeps a visible gap between panels when they're
+       collapsed (default MudExpansionPanels stacks them flush with a
+       single divider, which makes the page look like one tall block). *@
+    <MudExpansionPanels MultiExpansion="true" Gutters="true" Class="mb-4">
+
+    @if (_competition.RulesSetId.HasValue && !string.IsNullOrEmpty(_competition.RulesSetName))
+    {
+        <MudExpansionPanel Text="@($"Rules — {_competition.RulesSetName}")">
+            @if (_ruleItems is null)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+            }
+            else if (_ruleItems.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    This rules set has no rules defined yet.
+                </MudText>
+            }
+            else
+            {
+                <MudList T="RulesSetItemDto" Dense="true">
+                    @foreach (var item in _ruleItems.OrderBy(i => i.SortOrder))
+                    {
+                        <MudListItem T="RulesSetItemDto">
+                            <MudText Typo="Typo.body2">@item.SortOrder. @item.RuleText</MudText>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        </MudExpansionPanel>
+    }
 
     @if (!(_canEdit && _competition.HasDivisions))
     {
@@ -430,6 +461,10 @@ else
     private List<CompetitionParticipantDto> _participants = [];
     private List<CompetitionTeamDto> _teams = [];
 
+    // Rules-set items lazy-loaded when the competition has a rules set.
+    // null = not loaded yet (panel shows a spinner if expanded).
+    private List<RulesSetItemDto>? _ruleItems;
+
     private record LeagueRow(int PlayerId, string PlayerName, int Played, int Won, int Lost, int Points);
     private List<LeagueRow> _leagueTable = [];
 
@@ -466,8 +501,32 @@ else
                 .ThenBy(f => f.RoundNumber ?? 0)
                 .ToList();
 
+            // Load the rules-set items if this competition references one,
+            // so the Rules expansion panel can show them inline. Detail
+            // endpoint doesn't carry them, so this is one extra round-trip.
+            if (_competition.RulesSetId is { } rsId)
+            {
+                try
+                {
+                    var detail = await RulesSetService.GetRulesSetAsync(rsId);
+                    _ruleItems = detail?.Items ?? [];
+                }
+                catch
+                {
+                    _ruleItems = [];
+                }
+            }
+            else
+            {
+                _ruleItems = null;
+            }
+
+            // Sort by status rank first so Full Players appear before
+            // Registered / Substitute / Withdrawn / Disqualified in the
+            // competitors table; alphabetical within each bucket.
             _participants = _competition.Participants
-                .OrderBy(p => p.DisplayName)
+                .OrderBy(p => ParticipantStatusRank(p.Status))
+                .ThenBy(p => p.DisplayName)
                 .ToList();
 
             _myParticipant = _competition.MyPlayerId is { } mid
@@ -924,6 +983,19 @@ else
     {
         ParticipantStatus.FullPlayer => "Full Player",
         _ => s.ToString()
+    };
+
+    // Sort key for the competitors list — Full Players first, then
+    // Registered, Substitutes, Withdrawn, Disqualified. The byte values
+    // on ParticipantStatus aren't in display order so map explicitly.
+    private static int ParticipantStatusRank(ParticipantStatus s) => s switch
+    {
+        ParticipantStatus.FullPlayer   => 0,
+        ParticipantStatus.Registered   => 1,
+        ParticipantStatus.Substitute   => 2,
+        ParticipantStatus.Withdrawn    => 3,
+        ParticipantStatus.Disqualified => 4,
+        _ => 99
     };
 
     private async Task SelfRegisterAsync(ParticipantStatus status)
