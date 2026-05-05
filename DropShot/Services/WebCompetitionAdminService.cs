@@ -4,6 +4,7 @@ using DropShot.Models;
 using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,14 +15,31 @@ public sealed class WebCompetitionAdminService(
     IDbContextFactory<MyDbContext> dbFactory,
     ClubAuthorizationService authzService,
     IHttpContextAccessor httpContextAccessor,
+    AuthenticationStateProvider authStateProvider,
     UserManager<ApplicationUser> userManager,
     ICompetitionRubberTemplateProvider rubberTemplateProvider,
     AdminEmailService adminEmailService,
     CompetitionSchedulerService scheduler,
     FixtureSimulationService fixtureSimulator) : ICompetitionAdminService
 {
-    private ClaimsPrincipal CurrentUser =>
-        httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+    // IHttpContextAccessor.HttpContext is null in interactive Blazor Server mode (SignalR
+    // circuit). Fall back to AuthenticationStateProvider, which works in both SSR and
+    // interactive phases. The HttpContext path is kept for API/MAUI JWT bearer requests
+    // where there is no Blazor circuit.
+    private async Task<ClaimsPrincipal> GetCurrentPrincipalAsync()
+    {
+        var ctx = httpContextAccessor.HttpContext;
+        if (ctx?.User?.Identity?.IsAuthenticated == true) return ctx.User;
+        try
+        {
+            var state = await authStateProvider.GetAuthenticationStateAsync();
+            return state.User;
+        }
+        catch
+        {
+            return new ClaimsPrincipal();
+        }
+    }
 
     // ── Read ─────────────────────────────────────────────────────────────────
 
@@ -46,7 +64,7 @@ public sealed class WebCompetitionAdminService(
         {
             // Create-mode payload: lookups + authz flags, no entity data.
             var canCreate = await CanEditCompetitionAsync(null, ct);
-            var isSuperAdminCreate = authzService.IsSuperAdmin(CurrentUser);
+            var isSuperAdminCreate = authzService.IsSuperAdmin(await GetCurrentPrincipalAsync());
             return new CompetitionEditDto(
                 CompetitionId: null,
                 CompetitionName: "",
@@ -106,11 +124,11 @@ public sealed class WebCompetitionAdminService(
 
         if (comp is null) return null;
 
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, id))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, id))
             return null;
 
         var canEdit = true;
-        var isSuperAdmin = authzService.IsSuperAdmin(CurrentUser);
+        var isSuperAdmin = authzService.IsSuperAdmin(await GetCurrentPrincipalAsync());
 
         var courtPairs = await db.CourtPairs.AsNoTracking()
             .Where(cp => cp.CompetitionId == id)
@@ -269,18 +287,19 @@ public sealed class WebCompetitionAdminService(
                 .Where(c => c.CompetitionID == competitionId.Value)
                 .Select(c => c.HostClubId)
                 .FirstOrDefaultAsync(ct);
-            return await authzService.CanEditCompetitionAsync(CurrentUser, hostClubId, competitionId.Value);
+            return await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), hostClubId, competitionId.Value);
         }
 
-        var appUser = await userManager.GetUserAsync(CurrentUser);
-        var canCreateUserComp = authzService.CanCreateUserCompetition(CurrentUser, appUser);
-        var isAdmin = await authzService.IsAdminAsync(CurrentUser);
-        var adminClubIds = await authzService.GetAdminClubIdsAsync(CurrentUser);
+        var principal = await GetCurrentPrincipalAsync();
+        var appUser = await userManager.GetUserAsync(principal);
+        var canCreateUserComp = authzService.CanCreateUserCompetition(principal, appUser);
+        var isAdmin = await authzService.IsAdminAsync(principal);
+        var adminClubIds = await authzService.GetAdminClubIdsAsync(principal);
         return isAdmin || adminClubIds.Count > 0 || canCreateUserComp;
     }
 
-    public Task<bool> IsSuperAdminAsync(CancellationToken ct = default)
-        => Task.FromResult(authzService.IsSuperAdmin(CurrentUser));
+    public async Task<bool> IsSuperAdminAsync(CancellationToken ct = default)
+        => authzService.IsSuperAdmin(await GetCurrentPrincipalAsync());
 
     public async Task<List<CompetitionAdminRowDto>> GetCompetitionAdminsAsync(int competitionId, CancellationToken ct = default)
     {
@@ -315,7 +334,7 @@ public sealed class WebCompetitionAdminService(
             var comp = await db.Competition.FirstOrDefaultAsync(c => c.CompetitionID == competitionId.Value, ct)
                 ?? throw new KeyNotFoundException("Competition not found.");
 
-            if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, comp.CompetitionID))
+            if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, comp.CompetitionID))
                 throw new UnauthorizedAccessException("You can't edit this competition.");
 
             ApplyRequestToEntity(comp, request, name);
@@ -330,7 +349,7 @@ public sealed class WebCompetitionAdminService(
             var comp = new Competition();
             ApplyRequestToEntity(comp, request, name);
             if (comp.HostClubId is null)
-                comp.CreatorUserId = userManager.GetUserId(CurrentUser);
+                comp.CreatorUserId = userManager.GetUserId(await GetCurrentPrincipalAsync());
             else
                 comp.CreatorUserId = null;
 
@@ -380,7 +399,7 @@ public sealed class WebCompetitionAdminService(
             .FirstOrDefaultAsync(c => c.CompetitionID == sourceCompetitionId, ct)
             ?? throw new KeyNotFoundException("Source competition not found.");
 
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, source.HostClubId, sourceCompetitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), source.HostClubId, sourceCompetitionId))
             throw new UnauthorizedAccessException("You can't clone this competition.");
 
         var newComp = new Competition
@@ -472,7 +491,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.FindAsync([competitionId], ct)
             ?? throw new KeyNotFoundException("Competition not found.");
 
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         comp.IsStarted = !comp.IsStarted;
@@ -491,7 +510,7 @@ public sealed class WebCompetitionAdminService(
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
 
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         foreach (var type in request.StageTypes)
@@ -523,7 +542,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't manage admins for this competition.");
 
         var email = request.Email.Trim();
@@ -549,7 +568,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't manage admins for this competition.");
 
         var ca = await db.CompetitionAdmins.FindAsync([competitionId, userId], ct);
@@ -607,7 +626,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         comp.RubberTemplateKey = string.IsNullOrWhiteSpace(request.PresetKey) ? null : request.PresetKey;
@@ -624,7 +643,7 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.RubberTemplate).ThenInclude(t => t!.Rubbers)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var resolved = await rubberTemplateProvider.GetAsync(db, competitionId);
@@ -662,7 +681,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var template = await db.CompetitionRubberTemplates
@@ -689,7 +708,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var row = await db.RubberTemplateRubbers
@@ -711,7 +730,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var row = await db.RubberTemplateRubbers
@@ -728,7 +747,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         comp.RubberTemplateKey = null;
@@ -747,7 +766,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't email for this competition.");
 
         var fixture = await db.CompetitionFixtures
@@ -768,7 +787,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't email for this competition.");
 
         var participants = await db.CompetitionParticipants
@@ -867,7 +886,7 @@ public sealed class WebCompetitionAdminService(
             })
             .FirstOrDefaultAsync(ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
         return comp;
     }
@@ -944,7 +963,7 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         if (comp.Participants.Any(p => p.PlayerId == request.PlayerId))
@@ -1094,7 +1113,7 @@ public sealed class WebCompetitionAdminService(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var comp = await db.Competition.FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         if (divisionId is null)
@@ -1162,7 +1181,7 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var previous = await db.Competition
@@ -1371,7 +1390,7 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Divisions)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var participants = await db.CompetitionParticipants.AsNoTracking()
@@ -1543,7 +1562,7 @@ public sealed class WebCompetitionAdminService(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var comp = await db.Competition.FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var existingTeams = await db.CompetitionTeams.Where(t => t.CompetitionId == competitionId).ToListAsync(ct);
@@ -1594,7 +1613,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var team = await db.CompetitionTeams.AsNoTracking()
@@ -1636,7 +1655,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var side1 = new[] { request.Player1Id, request.Player3Id }.Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
@@ -1865,7 +1884,7 @@ public sealed class WebCompetitionAdminService(
         var comp = await db.Competition.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct);
         if (comp is null) return null;
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't view this competition's fixtures.");
 
         var f = await db.CompetitionFixtures.AsNoTracking()
@@ -1892,7 +1911,7 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.AllowedPlayers)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var playerIds = new[] { request.Player1Id, request.Player2Id, request.Player3Id, request.Player4Id }
@@ -1957,7 +1976,7 @@ public sealed class WebCompetitionAdminService(
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await LoadAndAuthorizeAsync(db, competitionId, ct);
-        if (!authzService.IsSuperAdmin(CurrentUser))
+        if (!authzService.IsSuperAdmin(await GetCurrentPrincipalAsync()))
             throw new UnauthorizedAccessException("Only super admins can simulate fixtures.");
 
         var outcome = await fixtureSimulator.SimulateRoundRobinAsync(db, competitionId);
@@ -1973,7 +1992,7 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(CurrentUser, comp.HostClubId, competitionId))
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         var warnings = new List<string>();
