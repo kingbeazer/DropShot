@@ -51,13 +51,23 @@
         }
     }
 
-    @* Club Players stays MAUI-specific because the web swaps it with
-       My Players based on the active-role cookie — different per-host
-       behaviour, easier to keep out of the shared catalog. *@
+    @* Club Players / My Players stays MAUI-specific because the entry shown
+       flips based on the active role — mirroring the web's active-role cookie
+       swap but using CurrentUser.ActiveRole directly. *@
     <AuthorizeView Roles="ClubAdmin,Admin,SuperAdmin">
         <MudNavLink Href="/players/club" Icon="@Icons.Material.Filled.Groups">
             Club Players
         </MudNavLink>
+    </AuthorizeView>
+    <AuthorizeView>
+        <Authorized>
+            @if (CurrentUser.ActiveRole is not ("ClubAdmin" or "Admin" or "SuperAdmin"))
+            {
+                <MudNavLink Href="/players/mine" Icon="@Icons.Material.Filled.RecentActors">
+                    My Players
+                </MudNavLink>
+            }
+        </Authorized>
     </AuthorizeView>
 
     <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin">
