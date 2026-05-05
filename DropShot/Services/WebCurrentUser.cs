@@ -64,12 +64,38 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
 
     private async Task RefreshAsync() => await ApplyStateAsync(await _authState.GetAuthenticationStateAsync());
 
-    public Task EnsureLoadedAsync(CancellationToken ct = default) => RefreshAsync();
+    public async Task EnsureLoadedAsync(CancellationToken ct = default)
+    {
+        // Swallow — ServerAuthenticationStateProvider.GetAuthenticationStateAsync
+        // throws InvalidOperationException when the auth-state task on this
+        // scope hasn't been initialised (some interactive Blazor nav paths
+        // hit OnInitializedAsync before the state is wired up). Callers
+        // fall back to the existing snapshot populated by an earlier
+        // RefreshAsync; a real auth change still arrives through
+        // OnAuthStateChanged.
+        try { await RefreshAsync(); } catch { }
+    }
 
     private async Task ApplyStateAsync(AuthenticationState state)
     {
         var user = state.User;
-        _isAuthenticated = user.Identity?.IsAuthenticated == true;
+        var newAuthed = user.Identity?.IsAuthenticated == true;
+
+        // Transient unauthenticated states can come through
+        // OnAuthStateChanged with an anonymous principal during Blazor
+        // navigation in the same circuit (the auth-state task gets
+        // re-resolved per call). Blindly clearing the snapshot here
+        // makes downstream reads of currentUser.UserId return null and
+        // server-side queries (My Competitions etc.) silently return
+        // empty until something forces another refresh. Real logouts
+        // tear down the circuit, so the next ApplyStateAsync runs with
+        // _userId already null and follows the not-authenticated branch.
+        if (!newAuthed && _userId is not null)
+        {
+            return;
+        }
+
+        _isAuthenticated = newAuthed;
         if (!_isAuthenticated)
         {
             _userId = null;
