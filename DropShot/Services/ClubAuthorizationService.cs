@@ -20,6 +20,7 @@ public sealed record VisibilityContext(
     int? Age,
     PlayerSex? Sex,
     HashSet<int> ClubIdsMember,
+    HashSet<int> ClubIdsAdministered,
     HashSet<int> FriendPlayerIds,
     HashSet<int> OwnCompetitionIds);
 
@@ -185,7 +186,7 @@ public class ClubAuthorizationService(
         var isAdmin = userId is not null && (roles.Contains("Admin") || roles.Contains("SuperAdmin"));
 
         if (userId is null)
-            return new VisibilityContext(false, null, null, null, null, new(), new(), new());
+            return new VisibilityContext(false, null, null, null, null, new(), new(), new(), new());
 
         await using var db = dbFactory.CreateDbContext();
 
@@ -228,7 +229,20 @@ public class ClubAuthorizationService(
             .Select(ca => ca.CompetitionId)
             .ToListAsync()).ToHashSet();
 
-        return new VisibilityContext(isAdmin, userId, playerId, age, sex, clubIds, friendIds, ownCompIds);
+        // ClubAdministrators rows: clubs the user can administer. The active
+        // role filtering happens at the Competitions page level (via
+        // ICurrentUser.AdminClubIds when ActiveRole is User), but the
+        // visibility filter must include these so a ClubAdmin sees their
+        // host club's competitions even if they aren't also a ClubPlayer
+        // member of that club.
+        var adminClubIds = (roles.Count == 1 && roles[0] == "User")
+            ? new HashSet<int>()
+            : (await db.ClubAdministrators
+                .Where(ca => ca.UserId == userId)
+                .Select(ca => ca.ClubId)
+                .ToListAsync()).ToHashSet();
+
+        return new VisibilityContext(isAdmin, userId, playerId, age, sex, clubIds, adminClubIds, friendIds, ownCompIds);
     }
 
     /// <summary>
@@ -246,6 +260,7 @@ public class ClubAuthorizationService(
         var playerId = ctx.PlayerId;
         var userId = ctx.UserId;
         var clubIds = ctx.ClubIdsMember;
+        var adminClubIds = ctx.ClubIdsAdministered;
         var friendIds = ctx.FriendPlayerIds;
         var ownComps = ctx.OwnCompetitionIds;
         var age = ctx.Age;
@@ -254,6 +269,9 @@ public class ClubAuthorizationService(
         return q.Where(c =>
             // Access rule
             ownComps.Contains(c.CompetitionID) ||
+            // ClubAdmin sees every competition hosted by a club they administer,
+            // regardless of restriction and regardless of whether they're also a member.
+            (c.HostClubId != null && adminClubIds.Contains(c.HostClubId.Value)) ||
             (c.HostClubId != null && clubIds.Contains(c.HostClubId.Value)
                 && (!c.IsRestricted || c.AllowedPlayers.Any(ap => playerId != null && ap.PlayerId == playerId)))
             ||
@@ -264,10 +282,15 @@ public class ClubAuthorizationService(
                 && (!c.IsRestricted || c.AllowedPlayers.Any(ap => playerId != null && ap.PlayerId == playerId)))
         )
         .Where(c =>
-            // Age/sex eligibility: treat as hard filter per product decision.
-            (c.EligibleSex == null || c.EligibleSex == sex) &&
-            (c.MinAge == null || (age != null && age >= c.MinAge)) &&
-            (c.MaxAge == null || (age != null && age <= c.MaxAge))
+            // Age/sex eligibility: hard filter for entry/discovery, but a
+            // ClubAdmin needs to manage every competition under their club —
+            // including ones they couldn't enter — so bypass for admin-club rows.
+            (c.HostClubId != null && adminClubIds.Contains(c.HostClubId.Value)) ||
+            (
+                (c.EligibleSex == null || c.EligibleSex == sex) &&
+                (c.MinAge == null || (age != null && age >= c.MinAge)) &&
+                (c.MaxAge == null || (age != null && age <= c.MaxAge))
+            )
         );
     }
 

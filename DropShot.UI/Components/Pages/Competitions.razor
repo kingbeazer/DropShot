@@ -506,16 +506,18 @@ else
 
     private async Task LoadAsync()
     {
-        var isAdmin = CurrentUser.IsAdmin;
         _hasEditableClubs = CurrentUser.AdminClubIds.Count > 0;
-        // True user view = not admin, not a club admin, and (per server)
-        // not a competition admin either. The pending-verification call
-        // returns an empty list for users who can't review anything, so
-        // we use it as the "is admin-ish" signal alongside the local checks.
         _pendingFixtures = await CompetitionService.GetPendingVerificationFixturesAsync();
-        var hasReviewableComps = _pendingFixtures.Count > 0;
 
-        _isUserView = !isAdmin && !_hasEditableClubs && !hasReviewableComps;
+        // _isUserView is driven by the ACTIVE role, not the underlying
+        // grants. A user with both User and ClubAdmin grants who has
+        // toggled into User mode wants to see their own My/Available
+        // lists — looking at AdminClubIds.Count would always send them
+        // into the admin grid even when "acting as" a plain user.
+        // Admin / SuperAdmin / ClubAdmin active roles use the admin
+        // view; anything else (User, or unset) uses the user view.
+        var role = CurrentUser.ActiveRole;
+        _isUserView = role is not ("Admin" or "SuperAdmin" or "ClubAdmin");
 
         if (_isUserView)
         {
