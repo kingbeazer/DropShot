@@ -122,16 +122,13 @@
         Snackbar.Add(
             ok ? $"Switched to {role}." : $"Failed to switch to {role}.",
             ok ? Severity.Success : Severity.Error);
-        if (!ok) return;
-
-        // Force a hard reload of the current page so any role-gated UI
-        // (admin sections, nav links, page-level @attribute [Authorize]
-        // route guards) re-evaluates against the new ActiveRole instead
-        // of showing stale state from before the switch. forceLoad: true
-        // is needed because Blazor's normal router-based navigation
-        // doesn't tear down the existing component tree.
-        var currentUri = Nav.Uri;
-        Nav.NavigateTo(currentUri, forceLoad: true);
+        // Pages that need to react to a role change subscribe to
+        // CurrentUser.Changed and reload their data from the handler
+        // (Competitions.razor does this). Forcing a full page reload
+        // here was redirecting MAUI users to the host page —
+        // BlazorWebView treats forceLoad on the current URI as a
+        // navigation back to wwwroot/index.html, so the user lost
+        // their place in the app on every role switch.
     }
 
     private async Task LogoutAsync()

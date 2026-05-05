@@ -1,4 +1,5 @@
 @using DropShot.Shared.Extensions
+@implements IDisposable
 
 @inject NavigationManager Nav
 @inject ICompetitionService CompetitionService
@@ -474,6 +475,32 @@ else
         c.CompetitionFormat.ToDisplayName().Contains(_searchText, StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to CurrentUser changes so a late-arriving auth-state
+        // snapshot (Blazor circuits load it asynchronously after circuit
+        // start) or a role switch (drawer "Switch role") triggers a reload
+        // of the list. Without this, OnInitializedAsync may run with a
+        // half-populated WebCurrentUser snapshot and the user sees an
+        // empty list that never recovers without a hard refresh.
+        CurrentUser.Changed += OnCurrentUserChanged;
+        await LoadAsync();
+    }
+
+    private void OnCurrentUserChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        CurrentUser.Changed -= OnCurrentUserChanged;
+    }
+
+    private async Task LoadAsync()
     {
         var isAdmin = CurrentUser.IsAdmin;
         _hasEditableClubs = CurrentUser.AdminClubIds.Count > 0;
