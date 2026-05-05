@@ -563,13 +563,28 @@ public sealed class WebCompetitionService(
             return new MyCompetitionsViewDto(false, [], []);
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var player = await db.Players
-            .FirstOrDefaultAsync(p => p.UserId == currentUser.UserId && !p.IsLight, ct);
-        if (player is null) return new MyCompetitionsViewDto(false, [], []);
+
+        // A user can have multiple Player rows in flight: a verified row
+        // (IsLight=false) plus light rows that were created by an admin
+        // adding them to a competition before they registered, then later
+        // linked to their account. CompetitionParticipants entries can
+        // reference either. Filtering to !IsLight here was making My
+        // Competitions come back empty for users with light-only
+        // participation history while Available still worked (because
+        // Available just needs *a* player for eligibility checks).
+        // Match on UserId for the entered query; pick the verified
+        // player (or first if none) for eligibility.
+        var myPlayers = await db.Players
+            .Where(p => p.UserId == currentUser.UserId)
+            .ToListAsync(ct);
+        if (myPlayers.Count == 0) return new MyCompetitionsViewDto(false, [], []);
+        var myPlayerIds = myPlayers.Select(p => p.PlayerId).ToList();
+        var eligibilityPlayer = myPlayers.FirstOrDefault(p => !p.IsLight) ?? myPlayers[0];
 
         var enteredIds = await db.CompetitionParticipants
-            .Where(cp => cp.PlayerId == player.PlayerId)
+            .Where(cp => myPlayerIds.Contains(cp.PlayerId))
             .Select(cp => cp.CompetitionId)
+            .Distinct()
             .ToListAsync(ct);
 
         var enteredEntities = await db.Competition
@@ -591,7 +606,7 @@ public sealed class WebCompetitionService(
             .ToListAsync(ct);
 
         var available = candidates
-            .Where(c => EligibilityEvaluator.Evaluate(c, player).Count == 0)
+            .Where(c => EligibilityEvaluator.Evaluate(c, eligibilityPlayer).Count == 0)
             .Select(ToDto).ToList();
         return new MyCompetitionsViewDto(true, enteredEntities.Select(ToDto).ToList(), available);
     }
