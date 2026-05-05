@@ -22,7 +22,7 @@
     }
     else
     {
-        @if (CurrentUser.CanCreateUserCompetition)
+        @if (_canCreateUserCompetition)
         {
             <MudStack Row="true" Class="mb-4">
                 <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
@@ -431,7 +431,7 @@ else
     @allCompetitionsGrid
 }
 
-@if (CurrentUser.IsAdmin || _hasEditableClubs || CurrentUser.CanCreateUserCompetition)
+@if (CurrentUser.IsAdmin || _hasEditableClubs || _canCreateUserCompetition)
 {
     <MudStack Row="true" Spacing="2" Class="mt-3">
         <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Primary"
@@ -463,6 +463,12 @@ else
     private List<CompetitionDto> _myEnteredComps = [];
     private List<CompetitionDto> _availableComps = [];
 
+    // Captured from CurrentUser after the snapshot is loaded so the
+    // Create Competition button doesn't flicker during interactive boot,
+    // when the freshly-constructed WebCurrentUser hasn't yet finished
+    // its fire-and-forget RefreshAsync.
+    private bool _canCreateUserCompetition;
+
     private sealed class EventGroup
     {
         public EventDto Event { get; init; } = default!;
@@ -476,6 +482,7 @@ else
         bool IsUserView,
         bool HasEditableClubs,
         bool HasPlayer,
+        bool CanCreateUserCompetition,
         List<CompetitionDto> Competitions,
         List<CompetitionDto> UngroupedCompetitions,
         List<EventDto> EventGroups,
@@ -525,6 +532,7 @@ else
         _isUserView = snap.IsUserView;
         _hasEditableClubs = snap.HasEditableClubs;
         _hasPlayer = snap.HasPlayer;
+        _canCreateUserCompetition = snap.CanCreateUserCompetition;
         _competitions = snap.Competitions;
         _ungroupedCompetitions = snap.UngroupedCompetitions;
         _myEnteredComps = snap.MyEnteredComps;
@@ -545,6 +553,7 @@ else
             _isUserView,
             _hasEditableClubs,
             _hasPlayer,
+            _canCreateUserCompetition,
             _competitions,
             _ungroupedCompetitions,
             _events.Select(g => g.Event).ToList(),
@@ -574,6 +583,7 @@ else
     private async Task LoadAsync()
     {
         _hasEditableClubs = CurrentUser.AdminClubIds.Count > 0;
+        _canCreateUserCompetition = CurrentUser.CanCreateUserCompetition;
         _pendingFixtures = await CompetitionService.GetPendingVerificationFixturesAsync();
 
         // _isUserView is driven by the ACTIVE role, not the underlying
