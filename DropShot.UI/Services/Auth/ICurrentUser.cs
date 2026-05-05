@@ -32,8 +32,8 @@ public interface ICurrentUser
     /// <summary>
     /// Whether the user can create a competition without a host club. Mirrors
     /// <c>ClubAuthorizationService.CanCreateUserCompetition</c> for the UI:
-    /// admin/superadmin always; otherwise only when "User" is the sole granted
-    /// role and the user has an active subscription.
+    /// admin/superadmin always; otherwise only when the active role is "User"
+    /// and the user has an active subscription.
     /// </summary>
     bool CanCreateUserCompetition { get; }
 
