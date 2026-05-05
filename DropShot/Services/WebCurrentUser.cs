@@ -213,10 +213,11 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
         get
         {
             if (HasRole("SuperAdmin") || HasRole("Admin")) return true;
-            // Plain User mode AND subscribed
-            return _grantedRoles.Count == 1
-                && _grantedRoles[0].Equals("User", StringComparison.OrdinalIgnoreCase)
-                && _isSubscribed;
+            // Acting as plain User (active role) AND subscribed. Mirrors
+            // ClubAuthorizationService.CanCreateUserCompetition, which gates
+            // on the *active* role — a ClubAdmin who's toggled into User
+            // mode and subscribed is allowed too.
+            return ActiveRole is "User" && _isSubscribed;
         }
     }
 
