@@ -51,7 +51,12 @@ public static class NavCatalog
 
         new("rulessets", "Rules Sets",
             Icons.Material.Filled.Gavel,
-            "Match rules templates"),
+            "Match rules templates",
+            // Plain users don't manage or browse rules-set templates —
+            // those are an admin / club-admin concern, mirrored on the
+            // /rulessets page itself where Edit / Rules / Delete are
+            // already CurrentUser.IsAdmin gated.
+            RequiredRoles: "ClubAdmin,Admin,SuperAdmin"),
 
         new("players", "Players",
             Icons.Material.Filled.People,
