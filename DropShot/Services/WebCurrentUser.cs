@@ -212,11 +212,22 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
     {
         get
         {
+            // Admin escape hatch — check the snapshot first, then fall back
+            // to the live principal. _grantedRoles can be empty when
+            // ApplyStateAsync's await on FindByIdAsync threw "A second
+            // operation was started on this context" — UserManager and the
+            // constructor's fire-and-forget RefreshAsync both share the
+            // scoped DbContext. The HTTP principal carries every granted
+            // Role claim regardless of which task won the race, so it's a
+            // reliable fallback during prerender.
             if (HasRole("SuperAdmin") || HasRole("Admin")) return true;
-            // Acting as plain User (active role) AND subscribed. Mirrors
-            // ClubAuthorizationService.CanCreateUserCompetition, which gates
-            // on the *active* role — a ClubAdmin who's toggled into User
-            // mode and subscribed is allowed too.
+            if (ApiPrincipal is { } u && (u.IsInRole("SuperAdmin") || u.IsInRole("Admin")))
+                return true;
+
+            // Otherwise: acting as plain User (active role) AND subscribed.
+            // Mirrors ClubAuthorizationService.CanCreateUserCompetition,
+            // which gates on the *active* role — a ClubAdmin who's toggled
+            // into User mode and subscribed is allowed too.
             //
             // Use the _activeRole *field* (set from the filtered Blazor
             // AuthenticationState) rather than the ActiveRole *property*:
