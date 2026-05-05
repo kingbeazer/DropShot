@@ -39,4 +39,14 @@ public interface ICurrentUser
 
     /// <summary>Raised after the underlying auth state changes (login, logout, role switch, session restore).</summary>
     event Action? Changed;
+
+    /// <summary>
+    /// Forces the user-state snapshot (UserId, ActiveRole, GrantedRoles,
+    /// AdminClubIds) to be populated before property reads return stable
+    /// values. Pages call this in OnInitializedAsync before branching on
+    /// IsAdmin / AdminClubIds / CanEditCompetition so they don't race the
+    /// constructor's fire-and-forget snapshot load. Idempotent — safe to
+    /// call repeatedly.
+    /// </summary>
+    Task EnsureLoadedAsync(CancellationToken ct = default);
 }

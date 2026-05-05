@@ -64,6 +64,8 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
 
     private async Task RefreshAsync() => await ApplyStateAsync(await _authState.GetAuthenticationStateAsync());
 
+    public Task EnsureLoadedAsync(CancellationToken ct = default) => RefreshAsync();
+
     private async Task ApplyStateAsync(AuthenticationState state)
     {
         var user = state.User;
