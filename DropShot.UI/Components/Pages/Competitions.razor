@@ -1,4 +1,5 @@
 @using DropShot.Shared.Extensions
+@using Microsoft.AspNetCore.Components
 @implements IDisposable
 
 @inject NavigationManager Nav
@@ -8,6 +9,7 @@
 @inject ICurrentUser CurrentUser
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject PersistentComponentState AppState
 
 @if (_isUserView)
 {
@@ -468,6 +470,22 @@ else
         public bool IsExpanded { get; set; } = true;
     }
 
+    // Snapshot persisted from prerender → interactive so the interactive
+    // run can skip refetching, eliminating the page-load flicker.
+    private sealed record PersistedState(
+        bool IsUserView,
+        bool HasEditableClubs,
+        bool HasPlayer,
+        List<CompetitionDto> Competitions,
+        List<CompetitionDto> UngroupedCompetitions,
+        List<EventDto> EventGroups,
+        Dictionary<int, List<CompetitionDto>> CompsByEventId,
+        List<CompetitionDto> MyEnteredComps,
+        List<CompetitionDto> AvailableComps,
+        List<CompetitionFixtureDto> PendingFixtures);
+
+    private PersistingComponentStateSubscription _persistSubscription;
+
     private bool FilterCompetitions(CompetitionDto c) =>
         (_showArchived || !c.IsArchived) &&
         (string.IsNullOrWhiteSpace(_searchText) ||
@@ -480,6 +498,18 @@ else
         // triggers a reload of the list automatically.
         CurrentUser.Changed += OnCurrentUserChanged;
 
+        _persistSubscription = AppState.RegisterOnPersisting(PersistStateAsync);
+
+        // If the prerender pass already loaded the data, restore it and
+        // skip the fetch. This is the only point at which the persisted
+        // state is consumed (subsequent navigations within the same
+        // circuit fall through to the normal LoadAsync path).
+        if (AppState.TryTakeFromJson<PersistedState>(nameof(Competitions), out var snap) && snap is not null)
+        {
+            ApplySnapshot(snap);
+            return;
+        }
+
         // Force the snapshot to be populated BEFORE branching on IsAdmin /
         // AdminClubIds / UserId. WebCurrentUser kicks off its snapshot
         // load as fire-and-forget in its constructor — without this await
@@ -488,6 +518,42 @@ else
         // (My Competitions empty even though the user has entries).
         await CurrentUser.EnsureLoadedAsync();
         await LoadAsync();
+    }
+
+    private void ApplySnapshot(PersistedState snap)
+    {
+        _isUserView = snap.IsUserView;
+        _hasEditableClubs = snap.HasEditableClubs;
+        _hasPlayer = snap.HasPlayer;
+        _competitions = snap.Competitions;
+        _ungroupedCompetitions = snap.UngroupedCompetitions;
+        _myEnteredComps = snap.MyEnteredComps;
+        _availableComps = snap.AvailableComps;
+        _pendingFixtures = snap.PendingFixtures;
+        _events = snap.EventGroups
+            .Select(e => new EventGroup
+            {
+                Event = e,
+                Competitions = snap.CompsByEventId.GetValueOrDefault(e.EventId, [])
+            })
+            .ToList();
+    }
+
+    private Task PersistStateAsync()
+    {
+        var snap = new PersistedState(
+            _isUserView,
+            _hasEditableClubs,
+            _hasPlayer,
+            _competitions,
+            _ungroupedCompetitions,
+            _events.Select(g => g.Event).ToList(),
+            _events.ToDictionary(g => g.Event.EventId, g => g.Competitions),
+            _myEnteredComps,
+            _availableComps,
+            _pendingFixtures);
+        AppState.PersistAsJson(nameof(Competitions), snap);
+        return Task.CompletedTask;
     }
 
     private void OnCurrentUserChanged()
@@ -502,6 +568,7 @@ else
     public void Dispose()
     {
         CurrentUser.Changed -= OnCurrentUserChanged;
+        _persistSubscription.Dispose();
     }
 
     private async Task LoadAsync()
