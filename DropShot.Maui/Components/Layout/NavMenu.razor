@@ -122,6 +122,16 @@
         Snackbar.Add(
             ok ? $"Switched to {role}." : $"Failed to switch to {role}.",
             ok ? Severity.Success : Severity.Error);
+        if (!ok) return;
+
+        // Force a hard reload of the current page so any role-gated UI
+        // (admin sections, nav links, page-level @attribute [Authorize]
+        // route guards) re-evaluates against the new ActiveRole instead
+        // of showing stale state from before the switch. forceLoad: true
+        // is needed because Blazor's normal router-based navigation
+        // doesn't tear down the existing component tree.
+        var currentUri = Nav.Uri;
+        Nav.NavigateTo(currentUri, forceLoad: true);
     }
 
     private async Task LogoutAsync()
