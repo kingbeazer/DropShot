@@ -75,6 +75,8 @@ public sealed class MauiCurrentUser : ICurrentUser, IDisposable
 
     public bool CanCreateUserCompetition => IsAdmin;
 
+    public Task EnsureLoadedAsync(CancellationToken ct = default) => RefreshAsync();
+
     public void Dispose()
     {
         _auth.AuthenticationStateChanged -= OnAuthStateChanged;

@@ -476,13 +476,17 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Subscribe to CurrentUser changes so a late-arriving auth-state
-        // snapshot (Blazor circuits load it asynchronously after circuit
-        // start) or a role switch (drawer "Switch role") triggers a reload
-        // of the list. Without this, OnInitializedAsync may run with a
-        // half-populated WebCurrentUser snapshot and the user sees an
-        // empty list that never recovers without a hard refresh.
+        // Subscribe to CurrentUser changes so a role switch via the drawer
+        // triggers a reload of the list automatically.
         CurrentUser.Changed += OnCurrentUserChanged;
+
+        // Force the snapshot to be populated BEFORE branching on IsAdmin /
+        // AdminClubIds / UserId. WebCurrentUser kicks off its snapshot
+        // load as fire-and-forget in its constructor — without this await
+        // the page can race ahead and read null UserId, which makes the
+        // server's GetMyCompetitionsViewAsync return an empty list
+        // (My Competitions empty even though the user has entries).
+        await CurrentUser.EnsureLoadedAsync();
         await LoadAsync();
     }
 
