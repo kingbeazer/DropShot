@@ -217,7 +217,15 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
             // ClubAuthorizationService.CanCreateUserCompetition, which gates
             // on the *active* role — a ClubAdmin who's toggled into User
             // mode and subscribed is allowed too.
-            return ActiveRole is "User" && _isSubscribed;
+            //
+            // Use the _activeRole *field* (set from the filtered Blazor
+            // AuthenticationState) rather than the ActiveRole *property*:
+            // during prerender the property reads from HttpContext.User,
+            // which carries every granted Role claim, so for multi-role
+            // accounts FindFirstValue(Role) is whichever claim happens to
+            // be first in DB order — not the role the user is currently
+            // acting as.
+            return _activeRole is "User" && _isSubscribed;
         }
     }
 
