@@ -132,9 +132,22 @@ html:not([data-theme="light"]) .mud-appbar {
         top: env(safe-area-inset-top) !important;
     }
 
+    /* The .status-bar-safe-area div above is in flow and takes
+       env(safe-area-inset-top) of body height; with body overflow:hidden
+       and .mud-main-content { height: 100vh } the bottom safe-inset gets
+       clipped, hiding ~47px of scrollable content (and the home-indicator
+       padding inside it) on iPhone 13 / 15 Plus. Subtract the top inset
+       so the scroll container fits the actual visible area below the
+       status-bar div.
+
+       padding-top is just the 64px AppBar height — the AppBar is already
+       offset by env(safe-area-inset-top) above (top: env(...)), and
+       .mud-main-content's own top sits below the status-bar-safe-area
+       div, so adding the inset here would double-count it. */
     .mud-main-content {
-        padding-top: calc(64px + env(safe-area-inset-top)) !important;
-        padding-bottom: max(2rem, env(safe-area-inset-bottom)) !important;
+        height: calc(100dvh - env(safe-area-inset-top)) !important;
+        padding-top: 64px !important;
+        padding-bottom: calc(2rem + env(safe-area-inset-bottom)) !important;
     }
 
     .mud-drawer-fixed {
