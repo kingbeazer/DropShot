@@ -4,6 +4,7 @@ using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -20,10 +21,36 @@ public sealed class WebCompetitionService(
     IDbContextFactory<MyDbContext> dbFactory,
     ClubAuthorizationService authzService,
     IHttpContextAccessor httpContextAccessor,
+    AuthenticationStateProvider authStateProvider,
     ICurrentUser currentUser,
     BackgroundTaskQueue backgroundTasks,
     RubberResolutionService rubberResolver) : ICompetitionService
 {
+    /// <summary>
+    /// Best-available principal: HttpContext.User on prerender, controllers,
+    /// and JWT-bearer (MAUI) requests; AuthenticationStateProvider's user
+    /// for Blazor Server SignalR circuits where HttpContext is null. Without
+    /// this fallback, every visibility check on an interactive Blazor
+    /// circuit ran against an anonymous principal, returning empty lists
+    /// even for Admin / SuperAdmin / ClubAdmin.
+    /// </summary>
+    private async Task<ClaimsPrincipal> GetPrincipalAsync()
+    {
+        var http = httpContextAccessor.HttpContext?.User;
+        if (http?.Identity?.IsAuthenticated == true) return http;
+        try
+        {
+            var state = await authStateProvider.GetAuthenticationStateAsync();
+            if (state.User.Identity?.IsAuthenticated == true) return state.User;
+        }
+        catch
+        {
+            // ServerAuthenticationStateProvider can throw if its scope's
+            // auth-state task hasn't been initialised yet; fall through.
+        }
+        return http ?? new ClaimsPrincipal();
+    }
+
     public async Task<List<CompetitionDto>> GetCompetitionsAsync(bool includeArchived = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -36,7 +63,7 @@ public sealed class WebCompetitionService(
         if (!includeArchived)
             baseQuery = baseQuery.Where(c => !c.IsArchived);
 
-        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        var user = await GetPrincipalAsync();
         var visCtx = await authzService.GetVisibilityContextAsync(user);
         var query = authzService.ApplyVisibilityFilter(baseQuery, db, visCtx);
 
@@ -80,7 +107,7 @@ public sealed class WebCompetitionService(
 
         if (c is null) return null;
 
-        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        var user = await GetPrincipalAsync();
         if (!await authzService.CanViewCompetitionAsync(user, id))
             return null;
 
@@ -613,7 +640,7 @@ public sealed class WebCompetitionService(
 
     public async Task<List<CompetitionFixtureDto>> GetPendingVerificationFixturesAsync(CancellationToken ct = default)
     {
-        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        var user = await GetPrincipalAsync();
         var isAdmin = await authzService.IsAdminAsync(user);
         var editableClubIds = new HashSet<int>(await authzService.GetAdminClubIdsAsync(user));
         var competitionAdminIds = await authzService.GetEditableCompetitionIdsAsync(user);
@@ -727,7 +754,7 @@ public sealed class WebCompetitionService(
 
     public async Task ToggleArchiveAsync(int competitionId, CancellationToken ct = default)
     {
-        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        var user = await GetPrincipalAsync();
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var entity = await db.Competition.FindAsync(new object?[] { competitionId }, ct)
             ?? throw new KeyNotFoundException($"Competition {competitionId} not found.");
@@ -740,7 +767,7 @@ public sealed class WebCompetitionService(
 
     public async Task DeleteCompetitionAsync(int competitionId, CancellationToken ct = default)
     {
-        var user = httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
+        var user = await GetPrincipalAsync();
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var entity = await db.Competition.FindAsync(new object?[] { competitionId }, ct)
             ?? throw new KeyNotFoundException($"Competition {competitionId} not found.");
