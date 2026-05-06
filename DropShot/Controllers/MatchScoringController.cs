@@ -1,5 +1,7 @@
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -80,6 +82,8 @@ public class MatchScoringController(IMatchScoringService scoring) : ControllerBa
     public async Task<ActionResult<UpsertLiveMatchResponse>> UpsertLiveMatch(
         [FromBody] UpsertLiveMatchRequest req, CancellationToken ct)
     {
+        await TrySurfaceBearerIdentityAsync();
+
         try
         {
             var id = await scoring.UpsertLiveMatchAsync(req, ct);
@@ -102,11 +106,35 @@ public class MatchScoringController(IMatchScoringService scoring) : ControllerBa
     public async Task<IActionResult> DiscardLiveMatch(
         int savedMatchId, [FromQuery] string? deviceToken, CancellationToken ct)
     {
+        await TrySurfaceBearerIdentityAsync();
+
         try
         {
             await scoring.DiscardLiveMatchAsync(savedMatchId, deviceToken, ct);
             return NoContent();
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
+    /// <summary>
+    /// The anonymous scoring endpoints stay <c>[AllowAnonymous]</c> so a
+    /// logged-out casual user can score on a device-token. But MAUI / iOS
+    /// clients send a JWT bearer when logged in, and on an
+    /// <c>[AllowAnonymous]</c> action the Bearer scheme is not invoked
+    /// automatically — leaving <c>HttpContext.User</c> unauthenticated and
+    /// <c>WebCurrentUser.UserId</c> null, so the SavedMatch ownership
+    /// check in <see cref="WebMatchScoringService"/> falls into the
+    /// device-token branch and 403s (the authenticated client doesn't
+    /// send a DeviceToken). Run the Bearer handler opportunistically:
+    /// when a token is present we surface the identity; when it isn't,
+    /// the request stays anonymous and the device-token branch handles
+    /// it as before.
+    /// </summary>
+    private async Task TrySurfaceBearerIdentityAsync()
+    {
+        if (HttpContext.User?.Identity?.IsAuthenticated == true) return;
+        var auth = await HttpContext.AuthenticateAsync(JwtBearerDefaults.AuthenticationScheme);
+        if (auth.Succeeded && auth.Principal is not null)
+            HttpContext.User = auth.Principal;
     }
 }
