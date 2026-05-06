@@ -1106,23 +1106,34 @@
             winnerPlayerId = userSideWon ? _player1Id : _player2Id;
         }
 
-        _savedMatchId = await Scoring.UpsertLiveMatchAsync(new UpsertLiveMatchRequest(
-            SavedMatchId: _savedMatchId > 0 ? _savedMatchId : null,
-            MatchJson: JsonConvert.SerializeObject(CurrentMatch),
-            Complete: CurrentMatch.Complete,
-            Player1: CurrentMatch.Player1,
-            Player2: CurrentMatch.Player2,
-            Player3: CurrentMatch.Player3,
-            Player4: CurrentMatch.Player4,
-            Player1Id: _player1Id,
-            Player2Id: _player2Id,
-            Player3Id: _player3Id,
-            Player4Id: _player4Id,
-            WinnerName: _state.IsMatchEnded ? _winner : null,
-            WinnerPlayerId: winnerPlayerId,
-            CourtId: (_selectedCourtId is > 0) ? _selectedCourtId : null,
-            DeviceToken: _currentUserId == null ? _deviceToken : null,
-            LinkedFixtureId: null));
+        try
+        {
+            _savedMatchId = await Scoring.UpsertLiveMatchAsync(new UpsertLiveMatchRequest(
+                SavedMatchId: _savedMatchId > 0 ? _savedMatchId : null,
+                MatchJson: JsonConvert.SerializeObject(CurrentMatch),
+                Complete: CurrentMatch.Complete,
+                Player1: CurrentMatch.Player1,
+                Player2: CurrentMatch.Player2,
+                Player3: CurrentMatch.Player3,
+                Player4: CurrentMatch.Player4,
+                Player1Id: _player1Id,
+                Player2Id: _player2Id,
+                Player3Id: _player3Id,
+                Player4Id: _player4Id,
+                WinnerName: _state.IsMatchEnded ? _winner : null,
+                WinnerPlayerId: winnerPlayerId,
+                CourtId: (_selectedCourtId is > 0) ? _selectedCourtId : null,
+                DeviceToken: _currentUserId == null ? _deviceToken : null,
+                LinkedFixtureId: null));
+        }
+        catch (Exception ex)
+        {
+            // Don't let a serialize/network failure tear down the renderer
+            // — keep the in-memory score, surface the cause so the next tap
+            // can be diagnosed instead of triggering Blazor's reload bar.
+            Snackbar.Add($"Couldn't save score: {ex.GetType().Name} — {ex.Message}", Severity.Error);
+            return;
+        }
 
         if (hubConnection is not null
             && hubConnection.State == HubConnectionState.Connected

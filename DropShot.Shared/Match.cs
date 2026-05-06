@@ -9,6 +9,14 @@ public class Match
 {
     public Stack<GameState> History { get; set; } = new Stack<GameState>();
     public List<GameState> HistoryList { get; set; } = new List<GameState>();
+
+    // History is a Stack<T>. Newtonsoft.Json under the iOS Mono AOT linker
+    // can fail to enumerate it (the linker strips Stack<GameState>'s
+    // IEnumerable instantiation), which previously took the app down on
+    // every tap. HistoryList carries the same data, so skip writing
+    // History and let it round-trip only on the deserialize path for
+    // legacy saved matches that pre-date HistoryList.
+    public bool ShouldSerializeHistory() => false;
     public string Player1 { get; set; } = string.Empty;
     public string Player2 { get; set; } = string.Empty;
     public string Player3 { get; set; } = string.Empty;
