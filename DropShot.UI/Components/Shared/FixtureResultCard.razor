@@ -114,9 +114,16 @@
 
     private static List<(string P1, string P2)> ParseResultSummary(string? summary)
     {
+        // Canonical format is space-separated, en-dash between scores
+        // ("6–3 3–6 6–2"). The legacy comma-separated hyphenated format
+        // ("6-3, 3-6, 6-2") was migrated to canonical in
+        // 20260506_NormaliseResultSummary; we still accept both shapes
+        // here so a stray pre-migration row never renders as one giant
+        // overflowing cell.
         if (string.IsNullOrWhiteSpace(summary)) return [];
         var result = new List<(string, string)>();
-        foreach (var part in summary.Split(',', StringSplitOptions.TrimEntries))
+        var parts = summary.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
         {
             var scores = part.Split(['-', '–'], 2);
             if (scores.Length == 2)

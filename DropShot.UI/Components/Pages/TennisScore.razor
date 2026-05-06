@@ -1165,7 +1165,7 @@
                 new FinaliseLiveFixtureRequest(
                     SavedMatchId: _savedMatchId,
                     WinnerPlayerId: userSideWon ? _competitionFixture.Player1Id : _competitionFixture.Player2Id,
-                    ResultSummary: string.Join(", ", _state.SetScores.Select(s => $"{s.UserGames}-{s.OpponentGames}")),
+                    ResultSummary: string.Join(" ", _state.SetScores.Select(s => $"{s.UserGames}–{s.OpponentGames}")),
                     HomeSetsWon: _state.UserSets,
                     AwaySetsWon: _state.OppSets,
                     HomeGamesTotal: _state.SetScores.Sum(s => s.UserGames),
