@@ -1,0 +1,36 @@
+.site-alert-host {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 240ms ease;
+}
+
+.site-alert-host.is-visible {
+    grid-template-rows: 1fr;
+}
+
+.site-alert-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.site-alert-inner ::deep .site-alert-banner {
+    border-radius: 0;
+    margin: 0;
+}
+
+.site-alert-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.site-alert-message {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.site-alert-action {
+    flex: 0 0 auto;
+}

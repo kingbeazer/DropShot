@@ -12,7 +12,7 @@
 @inject IRulesSetService RulesSetService
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDialogService DialogService
 @inject IJSRuntime JS
@@ -2076,7 +2076,7 @@ else
                 _templateWindowsApplied = false;
             }
 
-            Snackbar.Add("Competition saved.", Severity.Success);
+            SiteAlerts.Add("Competition saved.", Severity.Success);
         }
         catch (InvalidOperationException ex) { _serverError = ex.Message; }
         catch (Exception ex) { _serverError = ex.Message; }
@@ -2093,7 +2093,7 @@ else
     private async Task ToggleStartedAsync()
     {
         _isStarted = await Admin.ToggleStartedAsync(Id);
-        Snackbar.Add(_isStarted ? "Competition started." : "Competition stopped.", Severity.Success);
+        SiteAlerts.Add(_isStarted ? "Competition started." : "Competition stopped.", Severity.Success);
     }
 
     // ── Add New Entity Helpers ─────────────────────────────────────────────
@@ -2107,7 +2107,7 @@ else
     private void SaveNewClub()
     {
         _showAddClubDialog = false;
-        Snackbar.Add("Adding clubs from this page is no longer supported — use Admin → Clubs.", Severity.Warning);
+        SiteAlerts.Add("Adding clubs from this page is no longer supported — use Admin → Clubs.", Severity.Warning);
     }
 
     private async Task OnHostClubChanged(int? clubId)
@@ -2164,7 +2164,7 @@ else
         // Defensive: + button is gated on HostClubId so this should always pass.
         if (Model.HostClubId is null)
         {
-            Snackbar.Add("Select a host club first — rules sets are club-scoped.", Severity.Warning);
+            SiteAlerts.Add("Select a host club first — rules sets are club-scoped.", Severity.Warning);
             return;
         }
 
@@ -2208,7 +2208,7 @@ else
     private void SaveNewEvent()
     {
         _showAddEventDialog = false;
-        Snackbar.Add("Adding events from this page is no longer supported — use Admin → Events.", Severity.Warning);
+        SiteAlerts.Add("Adding events from this page is no longer supported — use Admin → Events.", Severity.Warning);
     }
 
     private void AutoGenerateName()
@@ -2270,7 +2270,7 @@ else
         var available = GetAvailableStageTypes();
         if (available.Count == 0)
         {
-            Snackbar.Add("All stage types have been added.", Severity.Info);
+            SiteAlerts.Add("All stage types have been added.", Severity.Info);
             return;
         }
         _stageForm = new StageForm { StageType = available[0] };
@@ -2283,7 +2283,7 @@ else
         await ReloadAfterServerMutationAsync();
         _showStageDialog = false;
         var addedOrder = _stages.FirstOrDefault(s => s.StageType == _stageForm.StageType)?.StageOrder ?? 0;
-        Snackbar.Add("Stage added.", Severity.Success);
+        SiteAlerts.Add("Stage added.", Severity.Success);
         OfferFollowOnStages(_stageForm.StageType, addedOrder);
     }
 
@@ -2369,7 +2369,7 @@ else
         await Admin.ApplyStageFollowUpAsync(Id, new ApplyStageFollowUpRequest(stages.Select(s => s.Type).ToList()));
         await ReloadAfterServerMutationAsync();
         _showStageFollowUpDialog = false;
-        Snackbar.Add($"{stages.Count} stage(s) added.", Severity.Success);
+        SiteAlerts.Add($"{stages.Count} stage(s) added.", Severity.Success);
     }
 
     private async Task DeleteStage(CompetitionStageDto stage)
@@ -2378,7 +2378,7 @@ else
         // mutation surface is ApplyStageFollowUp (additive). Until that
         // changes, surface a snackbar — admin needs to delete via DB.
         await Task.CompletedTask;
-        Snackbar.Add($"Stage delete is not yet wired into the admin service.", Severity.Warning);
+        SiteAlerts.Add($"Stage delete is not yet wired into the admin service.", Severity.Warning);
     }
 
     // ── Participants ─────────────────────────────────────────────────────────
@@ -2447,7 +2447,7 @@ else
 
         await ReloadAfterServerMutationAsync();
         _showNewPlayerDialog = false;
-        Snackbar.Add("Player updated.", Severity.Success);
+        SiteAlerts.Add("Player updated.", Severity.Success);
     }
 
     private async Task CreateAndAddClubPlayer()
@@ -2466,7 +2466,7 @@ else
 
         await ReloadAfterServerMutationAsync();
         _showNewPlayerDialog = false;
-        Snackbar.Add($"{_newPlayerForm.DisplayName} added to club and competition.", Severity.Success);
+        SiteAlerts.Add($"{_newPlayerForm.DisplayName} added to club and competition.", Severity.Success);
     }
 
     private async Task AddParticipant(PlayerSearchResultDto? player)
@@ -2475,7 +2475,7 @@ else
 
         if (Model.MaxParticipants.HasValue && _participants.Count >= Model.MaxParticipants.Value)
         {
-            Snackbar.Add($"Maximum of {Model.MaxParticipants.Value} participants reached.", Severity.Warning);
+            SiteAlerts.Add($"Maximum of {Model.MaxParticipants.Value} participants reached.", Severity.Warning);
             if (_participantAutocomplete != null)
                 await _participantAutocomplete.ClearAsync();
             return;
@@ -2511,7 +2511,7 @@ else
             new UpdateParticipantStatusRequest(_addParticipantStatus));
 
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add($"{player.DisplayName} added as {ParticipantStatusLabel(_addParticipantStatus)}.", Severity.Success);
+        SiteAlerts.Add($"{player.DisplayName} added as {ParticipantStatusLabel(_addParticipantStatus)}.", Severity.Success);
         if (_participantAutocomplete != null)
             await _participantAutocomplete.ClearAsync();
     }
@@ -2527,7 +2527,7 @@ else
     {
         await Admin.RemoveParticipantAsync(Id, cp.PlayerId);
         _participants.Remove(cp);
-        Snackbar.Add("Participant removed.", Severity.Warning);
+        SiteAlerts.Add("Participant removed.", Severity.Warning);
     }
 
     private async Task AssignTeam(CompetitionParticipantDto cp, int? teamId)
@@ -2568,7 +2568,7 @@ else
     {
         var assigned = await Admin.AutoAssignCaptainsAsync(Id);
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add($"Assigned {assigned} captain(s).", Severity.Success);
+        SiteAlerts.Add($"Assigned {assigned} captain(s).", Severity.Success);
     }
 
     private async Task AssignParticipantDivision(CompetitionParticipantDto cp, int? divisionId)
@@ -2633,7 +2633,7 @@ else
         }
         catch (InvalidOperationException ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
             return;
         }
 
@@ -2673,7 +2673,7 @@ else
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Failed to clone competition: {ex.Message}", Severity.Error);
+            SiteAlerts.Add($"Failed to clone competition: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -2713,12 +2713,12 @@ else
             await ReloadAfterServerMutationAsync();
             Model.HasDivisions = true;
             Model.SeededFromCompetitionId = _seedSourceCompetitionId.Value;
-            Snackbar.Add($"Divisions seeded.", Severity.Success);
+            SiteAlerts.Add($"Divisions seeded.", Severity.Success);
             _showSeedDivisionsDialog = false;
         }
         catch (InvalidOperationException ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
         finally
         {
@@ -2730,9 +2730,9 @@ else
     {
         var result = await Admin.ValidateTeamAsync(Id, team.CompetitionTeamId);
         if (result.Errors.Count == 0 && result.Warnings.Count == 0)
-            Snackbar.Add($"{team.Name}: Valid", Severity.Success);
+            SiteAlerts.Add($"{team.Name}: Valid", Severity.Success);
         else
-            Snackbar.Add($"{team.Name}: {string.Join("; ", result.Errors.Concat(result.Warnings))}", Severity.Warning);
+            SiteAlerts.Add($"{team.Name}: {string.Join("; ", result.Errors.Concat(result.Warnings))}", Severity.Warning);
     }
 
     // ── Teams ────────────────────────────────────────────────────────────────
@@ -2756,7 +2756,7 @@ else
         if (string.IsNullOrWhiteSpace(_teamName)) return;
         await Admin.SaveTeamAsync(Id, _editingTeam?.CompetitionTeamId, new SaveTeamRequest(_teamName.Trim()));
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add(_editingTeam == null ? "Team added." : "Team updated.", Severity.Success);
+        SiteAlerts.Add(_editingTeam == null ? "Team added." : "Team updated.", Severity.Success);
         _showTeamDialog = false;
     }
 
@@ -2764,7 +2764,7 @@ else
     {
         await Admin.DeleteTeamAsync(Id, team.CompetitionTeamId);
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add("Team removed.", Severity.Warning);
+        SiteAlerts.Add("Team removed.", Severity.Warning);
     }
 
     private async Task DeleteAllTeams()
@@ -2774,7 +2774,7 @@ else
         var removed = _teams.Count;
         await Admin.DeleteAllTeamsAsync(Id);
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add($"Deleted {removed} team(s).", Severity.Warning);
+        SiteAlerts.Add($"Deleted {removed} team(s).", Severity.Warning);
     }
 
     private bool IsDoublesFormat() =>
@@ -2849,7 +2849,7 @@ else
             await ReloadAfterServerMutationAsync();
             _showGenerateDialog = false;
             var label = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "pairings" : "teams";
-            Snackbar.Add($"{_generatedPreview.Count} {label} created.", Severity.Success);
+            SiteAlerts.Add($"{_generatedPreview.Count} {label} created.", Severity.Success);
         }
         finally
         {
@@ -2896,7 +2896,7 @@ else
             .Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
         if (side1.Overlaps(side2))
         {
-            Snackbar.Add("A player cannot appear on both sides of a fixture.", Severity.Error);
+            SiteAlerts.Add("A player cannot appear on both sides of a fixture.", Severity.Error);
             return;
         }
 
@@ -2920,7 +2920,7 @@ else
 
         await Admin.SaveFixtureAsync(Id, _editingFixture?.CompetitionFixtureId, saveRequest);
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add(_editingFixture == null ? "Fixture added." : "Fixture updated.", Severity.Success);
+        SiteAlerts.Add(_editingFixture == null ? "Fixture added." : "Fixture updated.", Severity.Success);
         _showFixtureDialog = false;
     }
 
@@ -3008,7 +3008,7 @@ else
     private async Task CopyQrUrl()
     {
         await JS.InvokeVoidAsync("copyToClipboard", _qrUrl);
-        Snackbar.Add("Link copied to clipboard.", Severity.Success);
+        SiteAlerts.Add("Link copied to clipboard.", Severity.Success);
     }
 
     // ── Fixture helpers used by the per-division Fixtures table ──────────
@@ -3072,11 +3072,11 @@ else
             }
             catch (InvalidOperationException ex)
             {
-                Snackbar.Add(ex.Message, Severity.Error);
+                SiteAlerts.Add(ex.Message, Severity.Error);
                 return;
             }
             await ReloadAfterServerMutationAsync();
-            Snackbar.Add("Result deleted. Match returned to upcoming.", Severity.Success);
+            SiteAlerts.Add("Result deleted. Match returned to upcoming.", Severity.Success);
         }
         else
         {
@@ -3088,7 +3088,7 @@ else
 
             await Admin.DeleteFixtureAsync(Id, fixture.CompetitionFixtureId);
             _fixtures.Remove(fixture);
-            Snackbar.Add("Fixture removed.", Severity.Warning);
+            SiteAlerts.Add("Fixture removed.", Severity.Warning);
         }
     }
 
@@ -3098,7 +3098,7 @@ else
         var count = _fixtures.Count;
         await Admin.DeleteAllFixturesAsync(Id);
         _fixtures.Clear();
-        Snackbar.Add($"{count} fixture(s) deleted.", Severity.Warning);
+        SiteAlerts.Add($"{count} fixture(s) deleted.", Severity.Warning);
     }
 
     private async Task SimulateRoundRobinAsync()
@@ -3110,15 +3110,15 @@ else
         {
             var result = await Admin.SimulateRoundRobinAsync(Id);
             if (result.FixturesUpdated > 0)
-                Snackbar.Add($"Simulated {result.FixturesUpdated} round-robin fixture(s).", Severity.Success);
+                SiteAlerts.Add($"Simulated {result.FixturesUpdated} round-robin fixture(s).", Severity.Success);
             else
-                Snackbar.Add("No eligible round-robin fixtures to simulate.", Severity.Info);
+                SiteAlerts.Add("No eligible round-robin fixtures to simulate.", Severity.Info);
 
             await OnParametersSetAsync();
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Simulation failed: {ex.Message}", Severity.Error);
+            SiteAlerts.Add($"Simulation failed: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -3141,7 +3141,7 @@ else
             catch (KeyNotFoundException)
             {
                 _editingMatchWindowId = null;
-                Snackbar.Add("That window no longer exists.", Severity.Warning);
+                SiteAlerts.Add("That window no longer exists.", Severity.Warning);
                 return;
             }
             await Admin.AddMatchWindowAsync(Id, new SaveMatchWindowRequest(
@@ -3152,7 +3152,7 @@ else
                 CompetitionDivisionId: null));
             await ReloadAfterServerMutationAsync();
             _editingMatchWindowId = null;
-            Snackbar.Add("Window updated.", Severity.Success);
+            SiteAlerts.Add("Window updated.", Severity.Success);
             return;
         }
 
@@ -3165,7 +3165,7 @@ else
         await ReloadAfterServerMutationAsync();
         // Intentionally do NOT clear the form — admins often add multiple similar
         // windows differing in only one field (different day, different court).
-        Snackbar.Add("Window added.", Severity.Success);
+        SiteAlerts.Add("Window added.", Severity.Success);
     }
 
     private void CopyMatchWindowToForm(CompetitionMatchWindowDto w)
@@ -3202,7 +3202,7 @@ else
         {
             form.EditingId = null;
         }
-        Snackbar.Add("Window removed.", Severity.Warning);
+        SiteAlerts.Add("Window removed.", Severity.Warning);
     }
 
     // ── Per-division match windows ──────────────────────────────────────────
@@ -3232,7 +3232,7 @@ else
             catch (KeyNotFoundException)
             {
                 form.EditingId = null;
-                Snackbar.Add("That window no longer exists.", Severity.Warning);
+                SiteAlerts.Add("That window no longer exists.", Severity.Warning);
                 return;
             }
         }
@@ -3245,7 +3245,7 @@ else
             CompetitionDivisionId: divisionId));
         await ReloadAfterServerMutationAsync();
         form.EditingId = null;
-        Snackbar.Add(form.EditingId.HasValue ? "Window updated." : "Division window added.", Severity.Success);
+        SiteAlerts.Add(form.EditingId.HasValue ? "Window updated." : "Division window added.", Severity.Success);
     }
 
     private void CopyDivisionMatchWindowToForm(CompetitionMatchWindowDto w)
@@ -3285,9 +3285,9 @@ else
         _selectedTemplateId = null;
         await ReloadAfterServerMutationAsync();
         if (imported == 0)
-            Snackbar.Add("All windows from that template are already present.", Severity.Info);
+            SiteAlerts.Add("All windows from that template are already present.", Severity.Info);
         else
-            Snackbar.Add($"Imported {imported} window(s) from template.", Severity.Success);
+            SiteAlerts.Add($"Imported {imported} window(s) from template.", Severity.Success);
     }
 
     // ── Competition Templates ────────────────────────────────────────────────
@@ -3326,11 +3326,11 @@ else
                 StartTime: w.StartTime,
                 EndTime: w.EndTime)).ToList();
             _templateWindowsApplied = true;
-            Snackbar.Add($"Template '{t.Name}' applied. Save to persist.", Severity.Info);
+            SiteAlerts.Add($"Template '{t.Name}' applied. Save to persist.", Severity.Info);
         }
         else
         {
-            Snackbar.Add($"Template '{t.Name}' applied.", Severity.Success);
+            SiteAlerts.Add($"Template '{t.Name}' applied.", Severity.Success);
         }
     }
 
@@ -3350,7 +3350,7 @@ else
     {
         await Admin.ApplyRubberPresetAsync(Id, new ApplyRubberPresetRequest(string.IsNullOrWhiteSpace(key) ? null : key));
         await ReloadRubberTemplateAsync();
-        Snackbar.Add("Rubber preset applied.", Severity.Success);
+        SiteAlerts.Add("Rubber preset applied.", Severity.Success);
     }
 
     private async Task ConvertToCustomTemplate()
@@ -3358,7 +3358,7 @@ else
         if (_rubberTemplateDefs.Count == 0) return;
         await Admin.ConvertToCustomTemplateAsync(Id);
         await ReloadRubberTemplateAsync();
-        Snackbar.Add("Template snapshot saved. You can now edit it.", Severity.Success);
+        SiteAlerts.Add("Template snapshot saved. You can now edit it.", Severity.Success);
     }
 
     private async Task AddCustomRubberRow()
@@ -3406,7 +3406,7 @@ else
     {
         await Admin.RevertToDefaultTemplateAsync(Id);
         await ReloadRubberTemplateAsync();
-        Snackbar.Add("Reverted to default rubber template.", Severity.Info);
+        SiteAlerts.Add("Reverted to default rubber template.", Severity.Info);
     }
 
     private static List<string> ParseRoles(string csv) =>
@@ -3433,19 +3433,19 @@ else
         {
             await Admin.AddCompetitionAdminAsync(Id, new AddCompetitionAdminRequest(_newAdminEmail.Trim()));
         }
-        catch (KeyNotFoundException) { Snackbar.Add("No user found with that email.", Severity.Warning); return; }
-        catch (InvalidOperationException) { Snackbar.Add("Already an admin.", Severity.Info); return; }
+        catch (KeyNotFoundException) { SiteAlerts.Add("No user found with that email.", Severity.Warning); return; }
+        catch (InvalidOperationException) { SiteAlerts.Add("Already an admin.", Severity.Info); return; }
 
         _newAdminEmail = "";
         _competitionAdmins = (await Admin.GetCompetitionAdminsAsync(Id)).ToList();
-        Snackbar.Add("Admin added.", Severity.Success);
+        SiteAlerts.Add("Admin added.", Severity.Success);
     }
 
     private async Task RemoveCompetitionAdmin(CompetitionAdminRowDto row)
     {
         await Admin.RemoveCompetitionAdminAsync(Id, row.UserId);
         _competitionAdmins.RemoveAll(a => a.UserId == row.UserId);
-        Snackbar.Add("Admin removed.", Severity.Warning);
+        SiteAlerts.Add("Admin removed.", Severity.Warning);
     }
 
     // ── Send Email ───────────────────────────────────────────────────────────
@@ -3475,7 +3475,7 @@ else
             FixtureId: _emailFixtureId.Value,
             Subject: _emailSubject,
             Body: _emailBody));
-        Snackbar.Add("Emails sent to fixture players.", Severity.Success);
+        SiteAlerts.Add("Emails sent to fixture players.", Severity.Success);
     }
 
     private async Task SendCompetitionEmail()
@@ -3484,7 +3484,7 @@ else
         await Admin.SendCompetitionEmailAsync(Id, new SendCompetitionEmailRequest(
             Subject: _compEmailSubject,
             Body: _compEmailBody));
-        Snackbar.Add($"Emails sent to participants.", Severity.Success);
+        SiteAlerts.Add($"Emails sent to participants.", Severity.Success);
     }
 
     private void OpenScheduleConfirm()
@@ -3502,22 +3502,22 @@ else
         await ReloadAfterServerMutationAsync();
 
         if (result.FixturesSkipped > 0)
-            Snackbar.Add($"{result.FixturesScheduled} fixtures scheduled. {result.FixturesSkipped} could not be scheduled — not enough available slots in the match windows.", Severity.Warning);
+            SiteAlerts.Add($"{result.FixturesScheduled} fixtures scheduled. {result.FixturesSkipped} could not be scheduled — not enough available slots in the match windows.", Severity.Warning);
         else
-            Snackbar.Add($"{result.FixturesScheduled} fixtures scheduled.", Severity.Success);
+            SiteAlerts.Add($"{result.FixturesScheduled} fixtures scheduled.", Severity.Success);
 
         // Headline summary first when nothing got scheduled — gives the user
         // immediate context for the per-participant warnings that follow.
         if (result.FixturesScheduled == 0 && result.Warnings.Count > 0)
         {
-            Snackbar.Add(
+            SiteAlerts.Add(
                 $"No fixtures scheduled — {result.Warnings.Count} participant(s) skipped because they are not Full Players. See per-player warnings below.",
                 Severity.Warning,
-                c => c.VisibleStateDuration = 20000);
+                autoDismissAfter: TimeSpan.FromSeconds(20));
         }
 
         foreach (var w in result.Warnings)
-            Snackbar.Add(w, Severity.Warning, c => c.VisibleStateDuration = 12000);
+            SiteAlerts.Add(w, Severity.Warning, autoDismissAfter: TimeSpan.FromSeconds(12));
     }
 
     private async Task SeedKnockoutFromStandingsAsync()
@@ -3527,11 +3527,11 @@ else
         await ReloadAfterServerMutationAsync();
         if (result.FixturesSeeded == 0 && result.Warnings.Count > 0)
         {
-            foreach (var w in result.Warnings) Snackbar.Add(w, Severity.Warning);
+            foreach (var w in result.Warnings) SiteAlerts.Add(w, Severity.Warning);
         }
         else
         {
-            Snackbar.Add($"Quarter-final fixtures seeded from standings.", Severity.Success);
+            SiteAlerts.Add($"Quarter-final fixtures seeded from standings.", Severity.Success);
         }
     }
 

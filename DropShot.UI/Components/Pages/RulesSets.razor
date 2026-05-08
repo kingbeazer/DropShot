@@ -4,7 +4,7 @@
 @inject IRulesSetService RulesSetService
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject IDialogService Dialog
 
 @* Routing + auth + MudProviders supplied by host shims. *@
@@ -135,7 +135,7 @@ else
     {
         if (_selectedClubId is null)
         {
-            Snackbar.Add("Pick a club first — rules sets are club-scoped.", Severity.Warning);
+            SiteAlerts.Add("Pick a club first — rules sets are club-scoped.", Severity.Warning);
             return;
         }
         // Use the shared RulesSetCreateDialog (also driven by CompetitionPage's
@@ -186,11 +186,11 @@ else
                     if (idx >= 0) _rulesSets![idx] = dto;
                 }
             }
-            Snackbar.Add(id == 0 ? "Rules set created." : "Rules set updated.", Severity.Success);
+            SiteAlerts.Add(id == 0 ? "Rules set created." : "Rules set updated.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
     }
 
@@ -218,11 +218,11 @@ else
         {
             await RulesSetService.DeleteRulesSetAsync(rs.RulesSetId);
             _rulesSets?.Remove(rs);
-            Snackbar.Add("Rules set deleted.", Severity.Success);
+            SiteAlerts.Add("Rules set deleted.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
     }
 }

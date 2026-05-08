@@ -2,7 +2,7 @@
 @using DropShot.UI.Services
 @using Microsoft.AspNetCore.Components.Web
 @inject IRulesSetService RulesSets
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 
 <MudDialog>
     <DialogContent>
@@ -97,7 +97,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
         finally
         {
@@ -113,11 +113,11 @@
                 RulesSetId, new AddRulesSetItemRequest(_newRule.Trim()));
             _items.Add(added);
             _newRule = "";
-            Snackbar.Add("Rule added.", Severity.Success);
+            SiteAlerts.Add("Rule added.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
     }
 
@@ -164,11 +164,11 @@
                 RulesSetId, item.RulesSetItemId, new AddRulesSetItemRequest(text));
             var idx = _items.FindIndex(i => i.RulesSetItemId == item.RulesSetItemId);
             if (idx >= 0) _items[idx] = updated;
-            Snackbar.Add("Rule updated.", Severity.Success);
+            SiteAlerts.Add("Rule updated.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
         finally
         {
@@ -182,11 +182,11 @@
         {
             await RulesSets.DeleteRulesSetItemAsync(RulesSetId, item.RulesSetItemId);
             _items.Remove(item);
-            Snackbar.Add("Rule deleted.", Severity.Success);
+            SiteAlerts.Add("Rule deleted.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
     }
 }

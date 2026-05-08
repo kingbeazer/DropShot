@@ -1,0 +1,104 @@
+@implements IDisposable
+@inject ISiteAlertService SiteAlerts
+@using DropShot.UI.Services
+
+@* Site-wide alert banner. Renders inline at the top of the page so alerts
+   push content down rather than overlaying it. The grid wrapper stays mounted
+   at all times so the open/close height transition runs. Multiple alerts
+   stack vertically and dismiss independently. *@
+
+<div class="site-alert-host @(_visible ? "is-visible" : "")">
+    <div class="site-alert-inner">
+        @foreach (var entry in _rendered)
+        {
+            <MudAlert @key="entry.Id"
+                      Severity="@entry.Severity"
+                      ShowCloseIcon="true"
+                      CloseIconClicked="@(() => SiteAlerts.Dismiss(entry.Id))"
+                      Class="site-alert-banner"
+                      Square="true"
+                      Variant="Variant.Filled">
+                <div class="site-alert-row">
+                    <span class="site-alert-message">@entry.Message</span>
+                    @if (!string.IsNullOrEmpty(entry.ActionLabel) && entry.ActionCallback is not null)
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OnAction(entry))"
+                                   Class="site-alert-action">
+                            @entry.ActionLabel
+                        </MudButton>
+                    }
+                </div>
+            </MudAlert>
+        }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<SiteAlertEntry> _rendered = Array.Empty<SiteAlertEntry>();
+    private bool _visible;
+    private CancellationTokenSource? _exitCts;
+
+    protected override void OnInitialized()
+    {
+        SiteAlerts.OnChange += HandleChange;
+        _rendered = SiteAlerts.Entries;
+        _visible = _rendered.Count > 0;
+    }
+
+    private void HandleChange()
+    {
+        _ = InvokeAsync(ApplyAsync);
+    }
+
+    private async Task ApplyAsync()
+    {
+        var next = SiteAlerts.Entries;
+
+        if (next.Count > 0)
+        {
+            _exitCts?.Cancel();
+            _rendered = next;
+            _visible = true;
+            StateHasChanged();
+            return;
+        }
+
+        if (_rendered.Count == 0) return;
+
+        _visible = false;
+        StateHasChanged();
+
+        _exitCts?.Cancel();
+        _exitCts = new CancellationTokenSource();
+        var token = _exitCts.Token;
+
+        try
+        {
+            await Task.Delay(260, token);
+        }
+        catch (TaskCanceledException) { return; }
+
+        if (token.IsCancellationRequested) return;
+        if (SiteAlerts.Entries.Count > 0) return;
+
+        _rendered = Array.Empty<SiteAlertEntry>();
+        StateHasChanged();
+    }
+
+    private async Task OnAction(SiteAlertEntry entry)
+    {
+        if (entry.ActionCallback is null) return;
+        SiteAlerts.Dismiss(entry.Id);
+        await entry.ActionCallback();
+    }
+
+    public void Dispose()
+    {
+        SiteAlerts.OnChange -= HandleChange;
+        _exitCts?.Cancel();
+        _exitCts?.Dispose();
+    }
+}

@@ -75,6 +75,7 @@ public static class MauiProgram
 
         // ── MudBlazor ────────────────────────────────────────────────────────
         builder.Services.AddMudServices();
+        builder.Services.AddScoped<ISiteAlertService, SiteAlertService>();
 
         return builder.Build();
     }

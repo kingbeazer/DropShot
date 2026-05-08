@@ -9,7 +9,7 @@
 @using DropShot.Shared.Dtos
 @using DropShot.Shared.Extensions
 @inject IDbContextFactory<MyDbContext> DbFactory
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject IDialogService DialogService
 
 @* The 14 admin-template / rules-management write paths stay web-only on this
@@ -439,7 +439,7 @@
         _newWindowStart[template.ClubSchedulingTemplateId] = null;
         _newWindowEnd[template.ClubSchedulingTemplateId] = null;
         _newTemplateName = "";
-        Snackbar.Add("Template added.", Severity.Success);
+        SiteAlerts.Add("Template added.", Severity.Success);
     }
 
     private async Task DeleteTemplate(ClubSchedulingTemplate template)
@@ -451,7 +451,7 @@
         _newWindowDay.Remove(template.ClubSchedulingTemplateId);
         _newWindowStart.Remove(template.ClubSchedulingTemplateId);
         _newWindowEnd.Remove(template.ClubSchedulingTemplateId);
-        Snackbar.Add("Template deleted.", Severity.Warning);
+        SiteAlerts.Add("Template deleted.", Severity.Warning);
     }
 
     private async Task AddTemplateWindow(ClubSchedulingTemplate template)
@@ -473,7 +473,7 @@
         template.Windows.Add(window);
         _newWindowStart[template.ClubSchedulingTemplateId] = null;
         _newWindowEnd[template.ClubSchedulingTemplateId] = null;
-        Snackbar.Add("Window added.", Severity.Success);
+        SiteAlerts.Add("Window added.", Severity.Success);
     }
 
     private async Task DeleteTemplateWindow(ClubSchedulingTemplate template, ClubSchedulingTemplateWindow window)
@@ -482,7 +482,7 @@
         var w = await dbc.ClubSchedulingTemplateWindows.FindAsync(window.ClubSchedulingTemplateWindowId);
         if (w != null) { dbc.ClubSchedulingTemplateWindows.Remove(w); await dbc.SaveChangesAsync(); }
         template.Windows.Remove(window);
-        Snackbar.Add("Window removed.", Severity.Warning);
+        SiteAlerts.Add("Window removed.", Severity.Warning);
     }
 
     private async Task OpenRules(ClubDto club)
@@ -540,7 +540,7 @@
         r.Description = NullIfEmpty(_editRulesSetForm.Description);
         await dbc.SaveChangesAsync();
         _showEditRulesSetDialog = false;
-        Snackbar.Add("Rules set updated.", Severity.Success);
+        SiteAlerts.Add("Rules set updated.", Severity.Success);
         await LoadRulesSets();
     }
 
@@ -549,7 +549,7 @@
         await using var dbc = DbFactory.CreateDbContext();
         var r = await dbc.RulesSets.FindAsync(set.RulesSetId);
         if (r != null) { dbc.RulesSets.Remove(r); await dbc.SaveChangesAsync(); }
-        Snackbar.Add("Rules set deleted.", Severity.Warning);
+        SiteAlerts.Add("Rules set deleted.", Severity.Warning);
         await LoadRulesSets();
     }
 
@@ -573,7 +573,7 @@
         });
         await dbc.SaveChangesAsync();
         _newRuleTextByRulesSet[set.RulesSetId] = "";
-        Snackbar.Add("Rule added.", Severity.Success);
+        SiteAlerts.Add("Rule added.", Severity.Success);
         await LoadRulesSets();
     }
 
@@ -582,7 +582,7 @@
         await using var dbc = DbFactory.CreateDbContext();
         var i = await dbc.RulesSetItems.FindAsync(item.RulesSetItemId);
         if (i != null) { dbc.RulesSetItems.Remove(i); await dbc.SaveChangesAsync(); }
-        Snackbar.Add("Rule removed.", Severity.Warning);
+        SiteAlerts.Add("Rule removed.", Severity.Warning);
         await LoadRulesSets();
     }
 
@@ -619,7 +619,7 @@
         _newCTWindowStart[t.CompetitionTemplateId] = null;
         _newCTWindowEnd[t.CompetitionTemplateId] = null;
         _newCompTemplateName = "";
-        Snackbar.Add("Template added.", Severity.Success);
+        SiteAlerts.Add("Template added.", Severity.Success);
     }
 
     private async Task SaveCompetitionTemplate(CompetitionTemplate t)
@@ -633,7 +633,7 @@
         dbT.EligibleSex = t.EligibleSex;
         dbT.RulesSetId = t.RulesSetId;
         await dbc.SaveChangesAsync();
-        Snackbar.Add("Template saved.", Severity.Success);
+        SiteAlerts.Add("Template saved.", Severity.Success);
     }
 
     private async Task DeleteCompetitionTemplate(CompetitionTemplate t)
@@ -645,15 +645,15 @@
         _newCTWindowDay.Remove(t.CompetitionTemplateId);
         _newCTWindowStart.Remove(t.CompetitionTemplateId);
         _newCTWindowEnd.Remove(t.CompetitionTemplateId);
-        Snackbar.Add("Template deleted.", Severity.Warning);
+        SiteAlerts.Add("Template deleted.", Severity.Warning);
     }
 
     private async Task AddCTWindow(CompetitionTemplate t)
     {
         var start = _newCTWindowStart.GetValueOrDefault(t.CompetitionTemplateId);
         var end = _newCTWindowEnd.GetValueOrDefault(t.CompetitionTemplateId);
-        if (start == null || end == null) { Snackbar.Add("Please set both start and end times.", Severity.Warning); return; }
-        if (end <= start) { Snackbar.Add("End time must be after start time.", Severity.Warning); return; }
+        if (start == null || end == null) { SiteAlerts.Add("Please set both start and end times.", Severity.Warning); return; }
+        if (end <= start) { SiteAlerts.Add("End time must be after start time.", Severity.Warning); return; }
         await using var dbc = DbFactory.CreateDbContext();
         var w = new CompetitionTemplateWindow
         {
@@ -667,7 +667,7 @@
         ((ICollection<CompetitionTemplateWindow>)t.Windows).Add(w);
         _newCTWindowStart[t.CompetitionTemplateId] = null;
         _newCTWindowEnd[t.CompetitionTemplateId] = null;
-        Snackbar.Add("Window added.", Severity.Success);
+        SiteAlerts.Add("Window added.", Severity.Success);
     }
 
     private async Task DeleteCTWindow(CompetitionTemplate t, CompetitionTemplateWindow w)
@@ -676,7 +676,7 @@
         var dbW = await dbc.CompetitionTemplateWindows.FindAsync(w.CompetitionTemplateWindowId);
         if (dbW != null) { dbc.CompetitionTemplateWindows.Remove(dbW); await dbc.SaveChangesAsync(); }
         ((ICollection<CompetitionTemplateWindow>)t.Windows).Remove(w);
-        Snackbar.Add("Window removed.", Severity.Warning);
+        SiteAlerts.Add("Window removed.", Severity.Warning);
     }
 
     private async Task OpenEmailTemplates(ClubDto club)
@@ -710,7 +710,7 @@
         _newEmailTemplateName = "";
         _newEmailTemplateSubject = "";
         _newEmailTemplateBody = "";
-        Snackbar.Add("Email template added.", Severity.Success);
+        SiteAlerts.Add("Email template added.", Severity.Success);
     }
 
     private async Task DeleteEmailTemplate(ClubEmailTemplate t)
@@ -719,7 +719,7 @@
         var dbT = await dbc.ClubEmailTemplates.FindAsync(t.ClubEmailTemplateId);
         if (dbT != null) { dbc.ClubEmailTemplates.Remove(dbT); await dbc.SaveChangesAsync(); }
         _emailTemplatesList.Remove(t);
-        Snackbar.Add("Email template deleted.", Severity.Warning);
+        SiteAlerts.Add("Email template deleted.", Severity.Warning);
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

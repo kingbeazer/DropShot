@@ -1,5 +1,5 @@
 @inject ISiteSettingsService Settings
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 
 @* Routing + auth + MudProviders supplied by host shims. *@
 
@@ -54,11 +54,11 @@
         try
         {
             await Settings.SetContentMaxWidthPxAsync(_contentMaxWidthPx);
-            Snackbar.Add($"Content max width set to {_contentMaxWidthPx}px.", Severity.Success);
+            SiteAlerts.Add($"Content max width set to {_contentMaxWidthPx}px.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
         finally
         {

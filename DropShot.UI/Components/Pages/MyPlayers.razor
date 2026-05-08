@@ -1,7 +1,7 @@
 @inject IPlayerService PlayerService
 @inject IInvitationService InvitationService
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject IDialogService DialogService
 @inject IJSRuntime JS
 
@@ -369,7 +369,7 @@
                     new UpdateMyLightPlayerRequest(
                         _form.DisplayName.Trim(), _form.FirstName, _form.LastName,
                         _form.Email, _form.MobileNumber, _form.CompetitionCategory));
-                Snackbar.Add("Player updated.", Severity.Success);
+                SiteAlerts.Add("Player updated.", Severity.Success);
             }
             else
             {
@@ -377,12 +377,12 @@
                     new CreateMyLightPlayerRequest(
                         _form.DisplayName.Trim(), _form.FirstName, _form.LastName,
                         _form.Email, _form.MobileNumber, _form.CompetitionCategory));
-                Snackbar.Add("Player added.", Severity.Success);
+                SiteAlerts.Add("Player added.", Severity.Success);
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
             return;
         }
 
@@ -402,12 +402,12 @@
         try
         {
             await PlayerService.DeleteMyLightPlayerAsync(player.PlayerId);
-            Snackbar.Add("Player deleted.", Severity.Warning);
+            SiteAlerts.Add("Player deleted.", Severity.Warning);
             await LoadPlayers();
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Warning);
+            SiteAlerts.Add(ex.Message, Severity.Warning);
         }
     }
 
@@ -453,11 +453,11 @@
         try
         {
             await PlayerService.LinkLightToVerifiedAsync(_linkingPlayer.PlayerId, _selectedLinkPlayer.PlayerId);
-            Snackbar.Add($"Linked to \"{_selectedLinkPlayer.DisplayName}\". Match history transferred.", Severity.Success);
+            SiteAlerts.Add($"Linked to \"{_selectedLinkPlayer.DisplayName}\". Match history transferred.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
             return;
         }
 
@@ -479,11 +479,11 @@
         try
         {
             await PlayerService.LinkLightToVerifiedAsync(_editingPlayerId.Value, verified.PlayerId);
-            Snackbar.Add($"Linked to \"{verified.DisplayName}\". Match history transferred.", Severity.Success);
+            SiteAlerts.Add($"Linked to \"{verified.DisplayName}\". Match history transferred.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
             return;
         }
 
@@ -506,7 +506,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
     }
 
@@ -516,11 +516,11 @@
         try
         {
             await JS.InvokeVoidAsync("navigator.clipboard.writeText", _inviteLink);
-            Snackbar.Add("Invite link copied to clipboard.", Severity.Success);
+            SiteAlerts.Add("Invite link copied to clipboard.", Severity.Success);
         }
         catch
         {
-            Snackbar.Add("Couldn't copy automatically — please copy the link manually.", Severity.Warning);
+            SiteAlerts.Add("Couldn't copy automatically — please copy the link manually.", Severity.Warning);
         }
     }
 
@@ -532,12 +532,12 @@
         try
         {
             await InvitationService.SendInvitationEmailAsync(_inviteToken, _inviteEmail.Trim());
-            Snackbar.Add($"Invite sent to {_inviteEmail.Trim()}.", Severity.Success);
+            SiteAlerts.Add($"Invite sent to {_inviteEmail.Trim()}.", Severity.Success);
             _showInviteDialog = false;
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Failed to send email: {ex.Message}", Severity.Error);
+            SiteAlerts.Add($"Failed to send email: {ex.Message}", Severity.Error);
         }
         finally
         {

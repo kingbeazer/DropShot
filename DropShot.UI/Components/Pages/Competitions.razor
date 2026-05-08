@@ -8,7 +8,7 @@
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
 @inject IDialogService DialogService
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject PersistentComponentState AppState
 
 @if (_isUserView)
@@ -643,11 +643,11 @@ else
         }
         catch (InvalidOperationException ex)
         {
-            Snackbar.Add(ex.Message, Severity.Warning);
+            SiteAlerts.Add(ex.Message, Severity.Warning);
             return;
         }
 
-        Snackbar.Add($"Entered '{comp.CompetitionName}'.", Severity.Success);
+        SiteAlerts.Add($"Entered '{comp.CompetitionName}'.", Severity.Success);
 
         _availableComps.RemoveAll(c => c.CompetitionId == comp.CompetitionId);
         _myEnteredComps.Add(comp);
@@ -686,12 +686,12 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Failed to approve. Please try again.", Severity.Error);
+            SiteAlerts.Add("Failed to approve. Please try again.", Severity.Error);
             return;
         }
 
         _pendingFixtures.Remove(fixture);
-        Snackbar.Add("Result approved.", Severity.Success);
+        SiteAlerts.Add("Result approved.", Severity.Success);
     }
 
     private async Task OpenReviewDialogAsync(CompetitionFixtureDto fixture)
@@ -714,7 +714,7 @@ else
         if (result is not null && !result.Canceled)
         {
             _pendingFixtures.Remove(fixture);
-            Snackbar.Add("Result verified.", Severity.Success);
+            SiteAlerts.Add("Result verified.", Severity.Success);
         }
     }
 
@@ -738,7 +738,7 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Failed to create the event. Please try again.", Severity.Error);
+            SiteAlerts.Add("Failed to create the event. Please try again.", Severity.Error);
             return;
         }
 
@@ -754,7 +754,7 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Event created, but adding the competitions failed.", Severity.Warning);
+            SiteAlerts.Add("Event created, but adding the competitions failed.", Severity.Warning);
             return;
         }
 
@@ -764,7 +764,7 @@ else
         }
         _events.Add(new EventGroup { Event = ev, Competitions = created });
 
-        Snackbar.Add($"Event '{ev.Name}' created with {created.Count} competition(s).", Severity.Success);
+        SiteAlerts.Add($"Event '{ev.Name}' created with {created.Count} competition(s).", Severity.Success);
         _activeTab = 1;
     }
 
@@ -776,7 +776,7 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Failed to update. Please try again.", Severity.Error);
+            SiteAlerts.Add("Failed to update. Please try again.", Severity.Error);
             return;
         }
 
@@ -784,7 +784,7 @@ else
         var updated = comp with { IsArchived = !comp.IsArchived };
         ReplaceCompetition(comp, updated);
 
-        Snackbar.Add(updated.IsArchived
+        SiteAlerts.Add(updated.IsArchived
             ? $"'{updated.CompetitionName}' archived."
             : $"'{updated.CompetitionName}' restored.", Severity.Success);
     }
@@ -818,7 +818,7 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Failed to delete. Please try again.", Severity.Error);
+            SiteAlerts.Add("Failed to delete. Please try again.", Severity.Error);
             return;
         }
 
@@ -827,6 +827,6 @@ else
             ev.Competitions.RemoveAll(c => c.CompetitionId == comp.CompetitionId);
         _ungroupedCompetitions.Remove(comp);
 
-        Snackbar.Add($"'{comp.CompetitionName}' deleted.", Severity.Success);
+        SiteAlerts.Add($"'{comp.CompetitionName}' deleted.", Severity.Success);
     }
 }
