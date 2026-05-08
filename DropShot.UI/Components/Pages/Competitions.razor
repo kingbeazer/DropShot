@@ -210,7 +210,7 @@ RenderFragment allCompetitionsGrid =
                         }
                     </CellTemplate>
                 </TemplateColumn>
-                <TemplateColumn CellClass="d-flex justify-end gap-2">
+                <TemplateColumn CellClass="d-flex flex-wrap justify-end align-center gap-1">
                     <CellTemplate>
                         @if (!context.Item.IsStarted)
                         {
@@ -220,39 +220,37 @@ RenderFragment allCompetitionsGrid =
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
                         }
-                        <MudButton Size="@Size.Small"
-                                   Variant="@Variant.Outlined"
-                                   Color="@Color.Info"
-                                   OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionId}/view"))">
-                            View
-                        </MudButton>
+                        <MudTooltip Text="View">
+                            <MudIconButton Size="@Size.Small"
+                                           Icon="@Icons.Material.Filled.Visibility"
+                                           Color="@Color.Info"
+                                           OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionId}/view"))" />
+                        </MudTooltip>
                         @if (CanEdit(context.Item))
                         {
                             @if (!context.Item.IsArchived)
                             {
-                                <MudButton Size="@Size.Small"
-                                           Variant="@Variant.Filled"
-                                           Color="@Color.Primary"
-                                           OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionId}"))">
-                                    Edit
-                                </MudButton>
+                                <MudTooltip Text="Edit">
+                                    <MudIconButton Size="@Size.Small"
+                                                   Icon="@Icons.Material.Filled.Edit"
+                                                   Color="@Color.Primary"
+                                                   OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionId}"))" />
+                                </MudTooltip>
                             }
-                            <MudButton Size="@Size.Small"
-                                       Variant="@Variant.Outlined"
-                                       Color="@(context.Item.IsArchived ? Color.Success : Color.Warning)"
-                                       StartIcon="@(context.Item.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
-                                       OnClick="@(() => ToggleArchiveAsync(context.Item))">
-                                @(context.Item.IsArchived ? "Unarchive" : "Archive")
-                            </MudButton>
+                            <MudTooltip Text="@(context.Item.IsArchived ? "Unarchive" : "Archive")">
+                                <MudIconButton Size="@Size.Small"
+                                               Icon="@(context.Item.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                               Color="@(context.Item.IsArchived ? Color.Success : Color.Warning)"
+                                               OnClick="@(() => ToggleArchiveAsync(context.Item))" />
+                            </MudTooltip>
                             @if (context.Item.IsArchived)
                             {
-                                <MudButton Size="@Size.Small"
-                                           Variant="@Variant.Filled"
-                                           Color="@Color.Error"
-                                           StartIcon="@Icons.Material.Filled.Delete"
-                                           OnClick="@(() => DeleteCompetitionAsync(context.Item))">
-                                    Delete
-                                </MudButton>
+                                <MudTooltip Text="Delete">
+                                    <MudIconButton Size="@Size.Small"
+                                                   Icon="@Icons.Material.Filled.Delete"
+                                                   Color="@Color.Error"
+                                                   OnClick="@(() => DeleteCompetitionAsync(context.Item))" />
+                                </MudTooltip>
                             }
                         }
                     </CellTemplate>
@@ -318,31 +316,32 @@ RenderFragment allCompetitionsGrid =
                                             }
                                         </td>
                                         <td>@comp.CompetitionFormat.ToDisplayName()</td>
-                                        <td class="d-flex justify-end gap-2">
-                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
-                                                       OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}/view"))">
-                                                View
-                                            </MudButton>
+                                        <td class="d-flex flex-wrap justify-end align-center gap-1">
+                                            <MudTooltip Text="View">
+                                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Visibility" Color="Color.Info"
+                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}/view"))" />
+                                            </MudTooltip>
                                             @if (CanEdit(comp))
                                             {
                                                 @if (!comp.IsArchived)
                                                 {
-                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}"))">
-                                                        Edit
-                                                    </MudButton>
+                                                    <MudTooltip Text="Edit">
+                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit" Color="Color.Primary"
+                                                                       OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}"))" />
+                                                    </MudTooltip>
                                                 }
-                                                <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                                                           Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
-                                                           OnClick="@(() => ToggleArchiveAsync(comp))">
-                                                    @(comp.IsArchived ? "Unarchive" : "Archive")
-                                                </MudButton>
+                                                <MudTooltip Text="@(comp.IsArchived ? "Unarchive" : "Archive")">
+                                                    <MudIconButton Size="Size.Small"
+                                                                   Icon="@(comp.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                                                   Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
+                                                                   OnClick="@(() => ToggleArchiveAsync(comp))" />
+                                                </MudTooltip>
                                                 @if (comp.IsArchived)
                                                 {
-                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                                                               OnClick="@(() => DeleteCompetitionAsync(comp))">
-                                                        Delete
-                                                    </MudButton>
+                                                    <MudTooltip Text="Delete">
+                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                                                       OnClick="@(() => DeleteCompetitionAsync(comp))" />
+                                                    </MudTooltip>
                                                 }
                                             }
                                         </td>
@@ -387,31 +386,32 @@ RenderFragment allCompetitionsGrid =
                                             }
                                         </td>
                                         <td>@comp.CompetitionFormat.ToDisplayName()</td>
-                                        <td class="d-flex justify-end gap-2">
-                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
-                                                       OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}/view"))">
-                                                View
-                                            </MudButton>
+                                        <td class="d-flex flex-wrap justify-end align-center gap-1">
+                                            <MudTooltip Text="View">
+                                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Visibility" Color="Color.Info"
+                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}/view"))" />
+                                            </MudTooltip>
                                             @if (CanEdit(comp))
                                             {
                                                 @if (!comp.IsArchived)
                                                 {
-                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}"))">
-                                                        Edit
-                                                    </MudButton>
+                                                    <MudTooltip Text="Edit">
+                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit" Color="Color.Primary"
+                                                                       OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}"))" />
+                                                    </MudTooltip>
                                                 }
-                                                <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                                                           Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
-                                                           OnClick="@(() => ToggleArchiveAsync(comp))">
-                                                    @(comp.IsArchived ? "Unarchive" : "Archive")
-                                                </MudButton>
+                                                <MudTooltip Text="@(comp.IsArchived ? "Unarchive" : "Archive")">
+                                                    <MudIconButton Size="Size.Small"
+                                                                   Icon="@(comp.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                                                   Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
+                                                                   OnClick="@(() => ToggleArchiveAsync(comp))" />
+                                                </MudTooltip>
                                                 @if (comp.IsArchived)
                                                 {
-                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                                                               OnClick="@(() => DeleteCompetitionAsync(comp))">
-                                                        Delete
-                                                    </MudButton>
+                                                    <MudTooltip Text="Delete">
+                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                                                       OnClick="@(() => DeleteCompetitionAsync(comp))" />
+                                                    </MudTooltip>
                                                 }
                                             }
                                         </td>
