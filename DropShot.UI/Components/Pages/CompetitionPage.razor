@@ -29,34 +29,35 @@ else
     <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
     <div style="position: relative; z-index: 1; padding: 1rem 0.5rem 2rem;">
 
-<MudStack Class="mb-4" Spacing="2">
-    @* ── Title row ───────────────────────────────────────────── *@
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-        @if (_nameOverride)
-        {
-            <MudTextField T="string" @bind-Value="Model.CompetitionName" Variant="Variant.Text"
-                          Typo="Typo.h4" Class="competition-title" Style="flex:1" Immediate="true" Placeholder="Competition Name"
-                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Check"
-                          OnAdornmentClick="@(() => _nameOverride = false)" />
-        }
-        else
-        {
-            <MudText Typo="Typo.h4" Class="competition-title" Style="flex:1" Color="@(string.IsNullOrWhiteSpace(Model.CompetitionName) ? Color.Secondary : Color.Default)">
-                @(string.IsNullOrWhiteSpace(Model.CompetitionName) ? "New Competition" : Model.CompetitionName)
-            </MudText>
-            <MudTooltip Text="Edit name manually">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => { _nameOverride = true; _nameManuallySet = true; })" />
-            </MudTooltip>
-        }
-    </MudStack>
-</MudStack>
-
 <CascadingValue Value="this" IsFixed="true">
 @* ── Sticky header ─────────────────────────────────────────────
-   Pins the action buttons + section nav to the top of the page so
-   the user can scroll the detail sections below and still navigate
-   between tabs. *@
+   Pins the title, action buttons + section nav to the top of the
+   page so the user can scroll the detail sections below and still
+   navigate between tabs. *@
 <div class="competition-sticky-header mb-6">
+    @* ── Title row ───────────────────────────────────────────── *@
+    <MudPaper Elevation="0" Class="frosted-card mb-3 competition-title-card"
+              Style="border-radius: 12px; padding: 0.75rem;">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            @if (_nameOverride)
+            {
+                <MudTextField T="string" @bind-Value="Model.CompetitionName" Variant="Variant.Text"
+                              Typo="Typo.h4" Class="competition-title" Style="flex:1" Immediate="true" Placeholder="Competition Name"
+                              Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Check"
+                              OnAdornmentClick="@(() => _nameOverride = false)" />
+            }
+            else
+            {
+                <MudText Typo="Typo.h4" Class="competition-title" Style="flex:1" Color="@(string.IsNullOrWhiteSpace(Model.CompetitionName) ? Color.Secondary : Color.Default)">
+                    @(string.IsNullOrWhiteSpace(Model.CompetitionName) ? "New Competition" : Model.CompetitionName)
+                </MudText>
+                <MudTooltip Text="Edit name manually">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => { _nameOverride = true; _nameManuallySet = true; })" />
+                </MudTooltip>
+            }
+        </MudStack>
+    </MudPaper>
+
     @* ── Action button row ───────────────────────────────────── *@
     @* AlignItems=Stretch + height:100% on each button ensures the Clone
        button (and its tooltip wrapper) grows to match the tallest sibling
@@ -786,7 +787,10 @@ else
                     OnSaveDivision="SaveDivisionDialog"
                     OnStartInlineEditDivision="StartInlineEditDivision"
                     OnCancelInlineEditDivision="CancelInlineEditDivision"
-                    OnDeleteDivision="DeleteDivision"
+                    OnDeleteDivision="RequestDeleteDivision"
+                    PendingDeleteDivisionId="_pendingDeleteDivisionId"
+                    OnConfirmDeleteDivision="ConfirmDeleteDivision"
+                    OnCancelDeleteDivision="CancelDeleteDivision"
                     OnOpenSeedDivisionsDialog="OpenSeedDivisionsDialog"
                     OnRunSeedDivisions="RunSeedDivisions"
                     OnOpenGenerateDialog="OpenGenerateDialog"
@@ -1687,6 +1691,7 @@ else
     private CompetitionTeamDto? _editingTeam;
     private string _teamName = "";
     private bool _showDeleteAllTeamsConfirm;
+    private int? _pendingDeleteDivisionId;
 
     // Auto-generate teams/pairings dialog
     private bool _showGenerateDialog;
@@ -2643,11 +2648,45 @@ else
         _editingDivision = null;
     }
 
-    private async Task DeleteDivision(CompetitionDivisionDto d)
+    private void RequestDeleteDivision(CompetitionDivisionDto d)
     {
-        await Admin.DeleteDivisionAsync(Id, d.CompetitionDivisionId);
-        _divisionWindowForms.Remove(d.CompetitionDivisionId);
+        _pendingDeleteDivisionId = d.CompetitionDivisionId;
+    }
+
+    private void CancelDeleteDivision()
+    {
+        _pendingDeleteDivisionId = null;
+    }
+
+    private async Task ConfirmDeleteDivision()
+    {
+        if (!_pendingDeleteDivisionId.HasValue) return;
+        var divisionId = _pendingDeleteDivisionId.Value;
+        _pendingDeleteDivisionId = null;
+
+        var teamsInDivision = _teams
+            .Where(t => t.CompetitionDivisionId == divisionId)
+            .ToList();
+        foreach (var team in teamsInDivision)
+        {
+            await Admin.DeleteTeamAsync(Id, team.CompetitionTeamId);
+        }
+
+        await Admin.DeleteDivisionAsync(Id, divisionId);
+        _divisionWindowForms.Remove(divisionId);
         await ReloadAfterServerMutationAsync();
+
+        if (teamsInDivision.Count > 0)
+        {
+            var label = IsDoublesFormat()
+                ? (teamsInDivision.Count == 1 ? "pairing" : "pairings")
+                : (teamsInDivision.Count == 1 ? "team" : "teams");
+            SiteAlerts.Add($"Division deleted along with {teamsInDivision.Count} {label}.", Severity.Warning);
+        }
+        else
+        {
+            SiteAlerts.Add("Division deleted.", Severity.Warning);
+        }
     }
 
     // ── Clone competition ───────────────────────────────────────────────────

@@ -51,13 +51,36 @@
 }
 
 /* ── Competition setup sticky header ───────────────────────────────────
-   Pins the action buttons + section nav to the top of the viewport so the
-   user can scroll through detail sections below and still navigate
+   Pins the title, action buttons + section nav to the top of the viewport
+   so the user can scroll through detail sections below and still navigate
    between Setup / Roster / Fixtures tabs. The top offset clears the web
    host's top navbar (3.5rem) and the MAUI MudAppBar (~4rem); a small gap
-   on web is preferable to overlap on MAUI. */
+   on web is preferable to overlap on MAUI.
+
+   The tennis-theme bg + dark overlay mirrors the page's own backdrop so
+   detail content scrolling behind the sticky band stays hidden. Negative
+   horizontal margins break out of the page-content wrapper's 0.5rem
+   padding so the band spans the full content width. */
 .competition-sticky-header {
     position: sticky;
     top: 4rem;
     z-index: 5;
+    background-image:
+        linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
+        url('../images/background.png');
+    background-size: cover, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+    padding: 0.5rem;
+}
+
+/* On web, multi-role users get a sticky `.role-banner` (~1.6rem tall)
+   below the navbar. Push the competition sticky header down so it
+   parks below the banner instead of underneath it. Hardcoded for the
+   single-line banner case; multi-line wrapping on very narrow viewports
+   will produce a small overlap. */
+body:has(.role-banner) .competition-sticky-header {
+    top: 5.5rem;
 }
