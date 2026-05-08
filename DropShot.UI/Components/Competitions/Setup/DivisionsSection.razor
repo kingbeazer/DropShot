@@ -27,6 +27,35 @@
         Rank 1 is the top division. Teams and match windows for each division are configured within the panels below. Fixtures for each division are managed on the <b>Fixtures</b> tab.
     </MudText>
 
+    @if (PendingDeleteDivisionId.HasValue)
+    {
+        var pending = Divisions.FirstOrDefault(x => x.CompetitionDivisionId == PendingDeleteDivisionId.Value);
+        if (pending is not null)
+        {
+            var pendingTeamCount = Teams.Count(t => t.CompetitionDivisionId == pending.CompetitionDivisionId);
+            var pendingTeamLabel = (Format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles) ? "pairing" : "team";
+            <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                      CloseIconClicked="@(() => OnCancelDeleteDivision.InvokeAsync())">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudText Typo="Typo.body2">
+                        Delete division <b>@pending.Name</b>?
+                        @if (pendingTeamCount > 0)
+                        {
+                            <text> All @pendingTeamCount @(pendingTeamCount == 1 ? pendingTeamLabel : pendingTeamLabel + "s") in this division will also be deleted, and any participants assigned to those @(pendingTeamLabel)s will be unassigned.</text>
+                        }
+                        else
+                        {
+                            <text> Participants in this division will be unassigned from it.</text>
+                        }
+                        This cannot be undone.
+                    </MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                               OnClick="@(() => OnConfirmDeleteDivision.InvokeAsync())">Confirm Delete</MudButton>
+                </MudStack>
+            </MudAlert>
+        }
+    }
+
     @if (AddingDivision)
     {
         <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.2); border-radius: 8px;">
@@ -360,6 +389,9 @@
     [Parameter] public EventCallback<CompetitionDivisionDto> OnStartInlineEditDivision { get; set; }
     [Parameter] public EventCallback OnCancelInlineEditDivision { get; set; }
     [Parameter] public EventCallback<CompetitionDivisionDto> OnDeleteDivision { get; set; }
+    [Parameter] public int? PendingDeleteDivisionId { get; set; }
+    [Parameter] public EventCallback OnConfirmDeleteDivision { get; set; }
+    [Parameter] public EventCallback OnCancelDeleteDivision { get; set; }
     [Parameter] public EventCallback OnOpenSeedDivisionsDialog { get; set; }
     [Parameter] public EventCallback OnRunSeedDivisions { get; set; }
     [Parameter] public EventCallback OnOpenGenerateDialog { get; set; }
