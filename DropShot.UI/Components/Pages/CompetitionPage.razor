@@ -100,9 +100,6 @@ else
    Tab indices preserved: 0=Setup, 1=Roster, 2=Fixtures, 3=Email.
    Wraps onto multiple lines on narrow screens instead of forcing
    a horizontal scroll. *@
-@{
-    bool _emailDisabled = !IsEdit || !_canEdit;
-}
 <MudPaper Elevation="0" Class="frosted-card mb-6 competition-section-nav"
           Style="border-radius: 12px; padding: 0.75rem;">
     <MudStack Row="true" Spacing="2" Style="flex-wrap: wrap;">
@@ -124,12 +121,16 @@ else
                      Variant="@(_activeTabIndex == 2 ? Variant.Filled : Variant.Outlined)"
                      OnClick="@(() => _activeTabIndex = 2)">Fixtures/Results</MudChip>
         }
+        @* Email chip hidden for now — feature not yet in use. Restore by
+           re-enabling this block (and the _emailDisabled flag above). *@
+        @*
         <MudChip T="int" Value="3"
                  Icon="@Icons.Material.Filled.Email"
                  Disabled="@_emailDisabled"
                  Color="@(_activeTabIndex == 3 ? Color.Primary : Color.Default)"
                  Variant="@(_activeTabIndex == 3 ? Variant.Filled : Variant.Outlined)"
                  OnClick="@(() => { if (!_emailDisabled) _activeTabIndex = 3; })">Email</MudChip>
+        *@
     </MudStack>
 </MudPaper>
 
