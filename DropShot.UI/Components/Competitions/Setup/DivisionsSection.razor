@@ -174,7 +174,7 @@
                     <MudDivider Class="my-3" />
                     <MudText Typo="Typo.subtitle1" Class="mb-2">Match Windows</MudText>
                     <MudGrid Spacing="1" Class="mb-2">
-                        <MudItem xs="3">
+                        <MudItem xs="12" sm="3">
                             <MudSelect @bind-Value="windowForm.Day" Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
                                 @foreach (DayOfWeek dow in Enum.GetValues<DayOfWeek>())
                                 {
@@ -182,7 +182,7 @@
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="3">
+                        <MudItem xs="12" sm="3">
                             <MudSelect @bind-Value="windowForm.CourtId" Label="Court" Variant="Variant.Outlined"
                                        Margin="Margin.Dense" Clearable="true">
                                 @foreach (var c in Courts)
@@ -191,15 +191,15 @@
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="2">
+                        <MudItem xs="12" sm="2">
                             <MudTimePicker @bind-Time="windowForm.Start" Label="From" Variant="Variant.Outlined"
                                            Margin="Margin.Dense" AmPm="false" />
                         </MudItem>
-                        <MudItem xs="2">
+                        <MudItem xs="12" sm="2">
                             <MudTimePicker @bind-Time="windowForm.End" Label="To" Variant="Variant.Outlined"
                                            Margin="Margin.Dense" AmPm="false" />
                         </MudItem>
-                        <MudItem xs="2" Class="d-flex align-center">
+                        <MudItem xs="12" sm="2" Class="d-flex align-center">
                             <MudStack Row="true" Spacing="1">
                                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                                            OnClick="@(() => OnAddDivisionMatchWindow.InvokeAsync(divId))">
