@@ -24,7 +24,7 @@
 @inject ICompetitionService Competitions
 @inject IScoreboardHubFactory ScoreboardHubFactory
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject IJSRuntime JS
 
 @* FixtureId is passed as a query param when starting a match from a competition fixture *@
@@ -427,7 +427,7 @@
         if (_currentUserId != null)
         {
             await Scoring.SavePreferredGameScoringAsync(_state.GameScoring);
-            Snackbar.Add("Scoring preference saved.", Severity.Success);
+            SiteAlerts.Add("Scoring preference saved.", Severity.Success);
         }
     }
 
@@ -442,23 +442,18 @@
         // Server-side SendFriendRequestAsync is idempotent (skips if a request
         // already exists in either direction), so it's safe to offer the
         // snackbar based on the in-memory accepted-friend set alone.
-        Snackbar.Add(
+        SiteAlerts.Add(
             $"Add {displayName} as a friend?",
             Severity.Info,
-            options =>
-            {
-                options.Action = "Add";
-                options.ActionColor = Color.Primary;
-                options.ActionVariant = Variant.Filled;
-                options.OnClick = async _ => await SendFriendRequest(selectedId, displayName);
-            });
+            actionLabel: "Add",
+            actionCallback: () => SendFriendRequest(selectedId, displayName));
     }
 
     private async Task SendFriendRequest(int targetPlayerId, string displayName)
     {
         if (_myPlayerId == null) return;
         await Scoring.SendFriendRequestAsync(targetPlayerId);
-        Snackbar.Add($"Friend request sent to {displayName}.", Severity.Success);
+        SiteAlerts.Add($"Friend request sent to {displayName}.", Severity.Success);
     }
 
     private readonly DialogOptions _maxWidth = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
@@ -583,19 +578,19 @@
     {
         if (string.IsNullOrWhiteSpace(_value) || string.IsNullOrWhiteSpace(_value2))
         {
-            Snackbar.Add("Please select both players before starting.", Severity.Warning);
+            SiteAlerts.Add("Please select both players before starting.", Severity.Warning);
             return;
         }
 
         if (Label_Switch1 && (string.IsNullOrWhiteSpace(_value3) || string.IsNullOrWhiteSpace(_value4)))
         {
-            Snackbar.Add("Please select all four players for a doubles match.", Severity.Warning);
+            SiteAlerts.Add("Please select all four players for a doubles match.", Severity.Warning);
             return;
         }
 
         if (!Label_Switch1 && _value.Equals(_value2, StringComparison.OrdinalIgnoreCase))
         {
-            Snackbar.Add("Player 1 and Player 2 must be different.", Severity.Warning);
+            SiteAlerts.Add("Player 1 and Player 2 must be different.", Severity.Warning);
             return;
         }
 
@@ -604,7 +599,7 @@
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { _value, _value2, _value3, _value4 };
             if (names.Count < 4)
             {
-                Snackbar.Add("All four players must be different.", Severity.Warning);
+                SiteAlerts.Add("All four players must be different.", Severity.Warning);
                 return;
             }
         }
@@ -766,12 +761,12 @@
             if (answer)
             {
                 await CourtClaim.ExtendGraceAsync(savedMatchId);
-                Snackbar.Add("Court held for a few more minutes.", Severity.Info);
+                SiteAlerts.Add("Court held for a few more minutes.", Severity.Info);
             }
             else
             {
                 await CourtClaim.EndMatchAsync(savedMatchId);
-                Snackbar.Add("Match ended — court released.", Severity.Info);
+                SiteAlerts.Add("Match ended — court released.", Severity.Info);
                 await SetScoringFullscreen(false);
                 Navigation.NavigateTo("/", forceLoad: false);
             }
@@ -1131,7 +1126,7 @@
             // Don't let a serialize/network failure tear down the renderer
             // — keep the in-memory score, surface the cause so the next tap
             // can be diagnosed instead of triggering Blazor's reload bar.
-            Snackbar.Add($"Couldn't save score: {ex.GetType().Name} — {ex.Message}", Severity.Error);
+            SiteAlerts.Add($"Couldn't save score: {ex.GetType().Name} — {ex.Message}", Severity.Error);
             return;
         }
 

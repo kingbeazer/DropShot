@@ -1,5 +1,5 @@
 @inject IPlayerService PlayerService
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 
 @* Routing + auth + MudProviders supplied by host shims (web:
    DropShot/Components/Pages/Players.razor; MAUI:
@@ -259,7 +259,7 @@
             IsLight: true));
 
         _showAddDialog = false;
-        Snackbar.Add("Player added.", Severity.Success);
+        SiteAlerts.Add("Player added.", Severity.Success);
         await LoadPlayers();
     }
 
@@ -291,14 +291,14 @@
             _form.ContactPreferences, _form.MobileNumber));
 
         _showEditDialog = false;
-        Snackbar.Add("Player updated.", Severity.Success);
+        SiteAlerts.Add("Player updated.", Severity.Success);
         await LoadPlayers();
     }
 
     private async Task DeletePlayer(PlayerWithClubsDto player)
     {
         await PlayerService.DeletePlayerAsync(player.PlayerId);
-        Snackbar.Add("Player deleted.", Severity.Warning);
+        SiteAlerts.Add("Player deleted.", Severity.Warning);
         await LoadPlayers();
     }
 
@@ -315,7 +315,7 @@
         if (_linkingPlayer is null) return;
         await PlayerService.LinkPlayerAccountAsync(_linkingPlayer.PlayerId, _selectedUserId);
         _showLinkDialog = false;
-        Snackbar.Add("Account link updated.", Severity.Success);
+        SiteAlerts.Add("Account link updated.", Severity.Success);
         await LoadPlayers();
     }
 }

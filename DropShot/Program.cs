@@ -152,6 +152,7 @@ builder.Services.AddScoped<CompetitionSchedulerService>();
 builder.Services.AddSingleton<QrLoginService>();
 builder.Services.AddHostedService<QrSessionCleanupService>();
 builder.Services.AddMudServices();
+builder.Services.AddScoped<ISiteAlertService, SiteAlertService>();
 
 var app = builder.Build();
 

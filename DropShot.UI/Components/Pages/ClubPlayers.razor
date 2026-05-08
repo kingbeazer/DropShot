@@ -1,7 +1,7 @@
 @inject IPlayerService PlayerService
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 
 @* Routing + auth + MudProviders supplied by host shims. The page used
    to wrap content in its own background-image + dark overlay layer
@@ -324,7 +324,7 @@ else
                 new UpdateLightPlayerRequest(
                     _form.DisplayName.Trim(), _form.FirstName, _form.LastName,
                     _form.Email, _form.MobileNumber, dob, _form.CompetitionCategory));
-            Snackbar.Add("Player updated.", Severity.Success);
+            SiteAlerts.Add("Player updated.", Severity.Success);
         }
         else
         {
@@ -332,7 +332,7 @@ else
                 new CreateLightPlayerRequest(
                     _form.DisplayName.Trim(), _form.FirstName, _form.LastName,
                     _form.Email, _form.MobileNumber, dob, _form.CompetitionCategory));
-            Snackbar.Add("Player added to club.", Severity.Success);
+            SiteAlerts.Add("Player added to club.", Severity.Success);
         }
 
         _showPlayerDialog = false;
@@ -361,7 +361,7 @@ else
     {
         if (_activeClubId is null) return;
         await PlayerService.LinkExistingPlayerToClubAsync(_activeClubId.Value, p.PlayerId);
-        Snackbar.Add($"{p.DisplayName} added to club.", Severity.Success);
+        SiteAlerts.Add($"{p.DisplayName} added to club.", Severity.Success);
         _showAddExistingDialog = false;
         await LoadPlayers();
     }
@@ -370,7 +370,7 @@ else
     {
         if (_activeClubId is null) return;
         await PlayerService.RemovePlayerFromClubAsync(_activeClubId.Value, row.PlayerId);
-        Snackbar.Add("Player removed from club.", Severity.Info);
+        SiteAlerts.Add("Player removed from club.", Severity.Info);
         await LoadPlayers();
     }
 }

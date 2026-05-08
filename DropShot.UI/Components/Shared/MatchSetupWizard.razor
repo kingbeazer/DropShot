@@ -6,7 +6,7 @@
 @inject IPlayerService PlayerService
 @inject ICourtClaimService CourtClaim
 @inject FuzzySearchService FuzzySearch
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject IDialogService DialogService
 
 <MudStack Spacing="3">
@@ -672,7 +672,7 @@
 
             case CourtClaimOutcome.InGrace:
                 var mins = RemainingMinutes(result.GraceUntilUtc);
-                Snackbar.Add(
+                SiteAlerts.Add(
                     $"Court is held by {result.OccupantLabel} for another {mins} minute{(mins == 1 ? "" : "s")}.",
                     Severity.Warning);
                 return;
@@ -681,7 +681,7 @@
                 // The match is still being actively scored (within the
                 // abandon threshold). Rather than interrupt the current
                 // scorer, tell the new user to pick another court.
-                Snackbar.Add(
+                SiteAlerts.Add(
                     $"{result.OccupantLabel ?? "Another match"} is currently on this court. Please pick another.",
                     Severity.Warning);
                 return;
@@ -781,7 +781,7 @@
         // Prevent duplicates
         if (val.PlayerId.HasValue && _players.Any(p => p.PlayerId == val.PlayerId))
         {
-            Snackbar.Add("This player is already in the match.", Severity.Warning);
+            SiteAlerts.Add("This player is already in the match.", Severity.Warning);
             return;
         }
 
@@ -951,7 +951,7 @@
         // Prevent duplicates
         if (_players.Any(p => p.PlayerId == suggestion.PlayerId))
         {
-            Snackbar.Add("This player is already in the match.", Severity.Warning);
+            SiteAlerts.Add("This player is already in the match.", Severity.Warning);
             _showInlineCreate = false;
             return;
         }
@@ -995,7 +995,7 @@
         await FuzzySearch.UpdateCollectionAsync(items);
 
         _showInlineCreate = false;
-        Snackbar.Add("Player created.", Severity.Success);
+        SiteAlerts.Add("Player created.", Severity.Success);
     }
 
     // ── Court ───────────────────────────────────────────────

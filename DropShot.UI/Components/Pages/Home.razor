@@ -3,7 +3,7 @@
 @inject ICompetitionService CompetitionService
 @inject ICourtClaimService CourtClaim
 @inject IDialogService DialogService
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
@@ -518,12 +518,12 @@
         }
         catch
         {
-            Snackbar.Add("Failed to approve. Please try again.", Severity.Error);
+            SiteAlerts.Add("Failed to approve. Please try again.", Severity.Error);
             return;
         }
 
         _pendingReviews.Remove(fixture);
-        Snackbar.Add("Result approved.", Severity.Success);
+        SiteAlerts.Add("Result approved.", Severity.Success);
     }
 
     private async Task OpenReviewDialogAsync(CompetitionFixtureDto fixture)
@@ -543,7 +543,7 @@
         if (result is not null && !result.Canceled)
         {
             _pendingReviews.Remove(fixture);
-            Snackbar.Add("Result verified.", Severity.Success);
+            SiteAlerts.Add("Result verified.", Severity.Success);
         }
     }
 }

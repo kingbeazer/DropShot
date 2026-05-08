@@ -3,7 +3,7 @@
 @using DropShot.UI.Services.Auth
 @inject AuthService Auth
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject NavigationManager Nav
 @inject ThemeState Theme
 
@@ -135,7 +135,7 @@
     private async Task SwitchRoleAsync(string role)
     {
         var ok = await Auth.SwitchRoleAsync(role);
-        Snackbar.Add(
+        SiteAlerts.Add(
             ok ? $"Switched to {role}." : $"Failed to switch to {role}.",
             ok ? Severity.Success : Severity.Error);
         // Pages that need to react to a role change subscribe to

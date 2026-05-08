@@ -1,6 +1,6 @@
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 
 @* Routing + auth + MudProviders supplied by host shims. *@
 
@@ -67,11 +67,11 @@ else
             await ClubService.ApproveLinkRequestAsync(request.ClubLinkRequestId);
             _requests.Remove(request);
             var who = string.IsNullOrEmpty(request.UserDisplayName) ? request.UserName : request.UserDisplayName;
-            Snackbar.Add($"Approved {who} → {request.ClubName}.", Severity.Success);
+            SiteAlerts.Add($"Approved {who} → {request.ClubName}.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
     }
 
@@ -82,11 +82,11 @@ else
             await ClubService.RejectLinkRequestAsync(request.ClubLinkRequestId);
             _requests.Remove(request);
             var who = string.IsNullOrEmpty(request.UserDisplayName) ? request.UserName : request.UserDisplayName;
-            Snackbar.Add($"Rejected {who}.", Severity.Warning);
+            SiteAlerts.Add($"Rejected {who}.", Severity.Warning);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
     }
 }

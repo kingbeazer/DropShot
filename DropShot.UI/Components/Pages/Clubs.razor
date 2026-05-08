@@ -1,6 +1,6 @@
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject IDialogService DialogService
 
 @* Routing + auth + MudProviders supplied by host shims. The 14 admin-template /
@@ -318,7 +318,7 @@
     {
         if (!CurrentUser.IsAuthenticated)
         {
-            Snackbar.Add("You must be signed in to request a link.", Severity.Warning);
+            SiteAlerts.Add("You must be signed in to request a link.", Severity.Warning);
             return;
         }
 
@@ -333,7 +333,7 @@
 
         await ClubService.RequestClubLinkAsync(club.ClubId);
         _pendingLinkClubIds.Add(club.ClubId);
-        Snackbar.Add($"Request sent to {club.Name}.", Severity.Success);
+        SiteAlerts.Add($"Request sent to {club.Name}.", Severity.Success);
     }
 
     private async Task CancelRequest(ClubDto club)
@@ -347,7 +347,7 @@
 
         await ClubService.CancelMyClubLinkRequestAsync(club.ClubId);
         _pendingLinkClubIds.Remove(club.ClubId);
-        Snackbar.Add($"Request to {club.Name} cancelled.", Severity.Success);
+        SiteAlerts.Add($"Request to {club.Name} cancelled.", Severity.Success);
     }
 
     private void OpenAddDialog()
@@ -390,12 +390,12 @@
         if (_editingClubId is null)
         {
             await ClubService.CreateClubAsync(req);
-            Snackbar.Add("Club added.", Severity.Success);
+            SiteAlerts.Add("Club added.", Severity.Success);
         }
         else
         {
             await ClubService.UpdateClubAsync(_editingClubId.Value, req);
-            Snackbar.Add("Club updated.", Severity.Success);
+            SiteAlerts.Add("Club updated.", Severity.Success);
         }
 
         _showClubDialog = false;
@@ -405,7 +405,7 @@
     private async Task DeleteClub(ClubDto club)
     {
         await ClubService.DeleteClubAsync(club.ClubId);
-        Snackbar.Add("Club deleted.", Severity.Warning);
+        SiteAlerts.Add("Club deleted.", Severity.Warning);
         await LoadClubs();
     }
 
@@ -426,7 +426,7 @@
             new AddCourtRequest(_courtForm.Name.Trim(), _courtForm.Surface, _courtForm.IsIndoor));
         _courtForm = new CourtForm();
         await ReloadCourts();
-        Snackbar.Add("Court added.", Severity.Success);
+        SiteAlerts.Add("Court added.", Severity.Success);
     }
 
     private void StartEditCourt(CourtDto court)
@@ -447,7 +447,7 @@
             new UpdateCourtRequest(_courtEditForm.Name.Trim(), _courtEditForm.Surface, _courtEditForm.IsIndoor));
         _editingCourtId = null;
         await ReloadCourts();
-        Snackbar.Add("Court updated.", Severity.Success);
+        SiteAlerts.Add("Court updated.", Severity.Success);
     }
 
     private async Task DeleteCourt(CourtDto court)
@@ -455,7 +455,7 @@
         if (_courtsClub is null) return;
         await ClubService.DeleteCourtAsync(_courtsClub.ClubId, court.CourtId);
         await ReloadCourts();
-        Snackbar.Add("Court deleted.", Severity.Info);
+        SiteAlerts.Add("Court deleted.", Severity.Info);
     }
 
     private async Task ReloadCourts()
