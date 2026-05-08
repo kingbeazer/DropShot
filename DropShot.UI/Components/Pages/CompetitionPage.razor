@@ -602,35 +602,37 @@ else
                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                                   Style="min-width:280px" />
-                    <MudSelect T="ParticipantStatus?" @bind-Value="_filterStatus" Label="Status"
-                               Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                    <MudSelect T="ParticipantStatus" MultiSelection="true" @bind-SelectedValues="_filterStatuses"
+                               Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                               ToStringFunc="@(s => ParticipantStatusLabel(s))"
                                Style="min-width:140px">
                         @foreach (ParticipantStatus s in Enum.GetValues<ParticipantStatus>())
                         {
-                            <MudSelectItem T="ParticipantStatus?" Value="@((ParticipantStatus?)s)">@ParticipantStatusLabel(s)</MudSelectItem>
+                            <MudSelectItem T="ParticipantStatus" Value="@s">@ParticipantStatusLabel(s)</MudSelectItem>
                         }
                     </MudSelect>
                     @if (hasTeamCol)
                     {
-                        <MudSelect T="int?" @bind-Value="_filterTeamId" Label="@teamColLabel"
-                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                        <MudSelect T="int" MultiSelection="true" @bind-SelectedValues="_filterTeamIds"
+                                   Label="@teamColLabel" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   ToStringFunc="@(id => _teams.FirstOrDefault(t => t.CompetitionTeamId == id)?.Name ?? id.ToString())"
                                    Style="min-width:160px">
                             @foreach (var t in _teams)
                             {
-                                <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                                <MudSelectItem T="int" Value="@t.CompetitionTeamId">@t.Name</MudSelectItem>
                             }
                         </MudSelect>
                     }
                     @if (isTeamMatchFmt)
                     {
-                        <MudSelect T="PlayerSex?" @bind-Value="_filterSex" Label="Sex"
-                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                        <MudSelect T="PlayerSex" MultiSelection="true" @bind-SelectedValues="_filterSexes"
+                                   Label="Sex" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
                                    Style="min-width:120px">
-                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Male)">Male</MudSelectItem>
-                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Female)">Female</MudSelectItem>
+                            <MudSelectItem T="PlayerSex" Value="@PlayerSex.Male">Male</MudSelectItem>
+                            <MudSelectItem T="PlayerSex" Value="@PlayerSex.Female">Female</MudSelectItem>
                         </MudSelect>
-                        <MudSelect T="string" @bind-Value="_filterRole" Label="Role"
-                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                        <MudSelect T="string" MultiSelection="true" @bind-SelectedValues="_filterRoles"
+                                   Label="Role" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
                                    Style="min-width:130px">
                             @foreach (var r in _availableRoles)
                             {
@@ -640,12 +642,13 @@ else
                     }
                     @if (Model.HasDivisions)
                     {
-                        <MudSelect T="int?" @bind-Value="_filterDivisionId" Label="Division"
-                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                        <MudSelect T="int" MultiSelection="true" @bind-SelectedValues="_filterDivisionIds"
+                                   Label="Division" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   ToStringFunc="@(id => _divisions.FirstOrDefault(d => d.CompetitionDivisionId == id)?.Name ?? id.ToString())"
                                    Style="min-width:160px">
                             @foreach (var d in _divisions)
                             {
-                                <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                                <MudSelectItem T="int" Value="@d.CompetitionDivisionId">@d.Name</MudSelectItem>
                             }
                         </MudSelect>
                     }
@@ -1560,21 +1563,23 @@ else
     private List<CourtPairDto> _courtPairs = [];
     private List<CompetitionDivisionDto> _divisions = [];
 
-    // Participants grid — sort/filter state
+    // Participants grid — sort/filter state. Filter selects are multi-select,
+    // so each filter is an "OR within / AND across" set: a participant passes
+    // when their value is in every active set (empty set = filter inactive).
     private string? _participantSearch;
-    private ParticipantStatus? _filterStatus;
-    private int? _filterTeamId;
-    private PlayerSex? _filterSex;
-    private string? _filterRole;
-    private int? _filterDivisionId;
+    private IReadOnlyCollection<ParticipantStatus> _filterStatuses = new HashSet<ParticipantStatus>();
+    private IReadOnlyCollection<int> _filterTeamIds = new HashSet<int>();
+    private IReadOnlyCollection<PlayerSex> _filterSexes = new HashSet<PlayerSex>();
+    private IReadOnlyCollection<string> _filterRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyCollection<int> _filterDivisionIds = new HashSet<int>();
 
     private bool FilterParticipant(CompetitionParticipantDto cp)
     {
-        if (_filterStatus.HasValue && cp.Status != _filterStatus.Value) return false;
-        if (_filterTeamId.HasValue && cp.TeamId != _filterTeamId.Value) return false;
-        if (_filterSex.HasValue && cp.Sex != _filterSex.Value) return false;
-        if (!string.IsNullOrEmpty(_filterRole) && !string.Equals(cp.Role, _filterRole, StringComparison.OrdinalIgnoreCase)) return false;
-        if (_filterDivisionId.HasValue && cp.CompetitionDivisionId != _filterDivisionId.Value) return false;
+        if (_filterStatuses.Any() && !_filterStatuses.Contains(cp.Status)) return false;
+        if (_filterTeamIds.Any() && (cp.TeamId is null || !_filterTeamIds.Contains(cp.TeamId.Value))) return false;
+        if (_filterSexes.Any() && (cp.Sex is null || !_filterSexes.Contains(cp.Sex.Value))) return false;
+        if (_filterRoles.Any() && !_filterRoles.Contains(cp.Role ?? "", StringComparer.OrdinalIgnoreCase)) return false;
+        if (_filterDivisionIds.Any() && (cp.CompetitionDivisionId is null || !_filterDivisionIds.Contains(cp.CompetitionDivisionId.Value))) return false;
 
         if (!string.IsNullOrWhiteSpace(_participantSearch))
         {
@@ -1596,11 +1601,11 @@ else
     private void ClearParticipantFilters()
     {
         _participantSearch = null;
-        _filterStatus = null;
-        _filterTeamId = null;
-        _filterSex = null;
-        _filterRole = null;
-        _filterDivisionId = null;
+        _filterStatuses = new HashSet<ParticipantStatus>();
+        _filterTeamIds = new HashSet<int>();
+        _filterSexes = new HashSet<PlayerSex>();
+        _filterRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _filterDivisionIds = new HashSet<int>();
     }
 
     // Division form state — inline add at the top of the Divisions section
