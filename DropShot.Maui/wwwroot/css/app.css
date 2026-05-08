@@ -21,10 +21,14 @@ html:not([data-theme="light"]) .mud-appbar {
     color: #fff !important;
 }
 
-/* Pill the hamburger icon to match the web's contrast look. */
+/* Rectangular hamburger to match the web's .navbar-toggler shape. */
 .mud-appbar .appbar-hamburger {
-    background-color: rgba(255, 255, 255, 0.12);
-    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.375rem;
+    width: 3.5rem;
+    height: 2.5rem;
+    padding: 0;
 }
 
 .mud-appbar .appbar-logo {
