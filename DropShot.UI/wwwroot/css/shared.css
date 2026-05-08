@@ -49,3 +49,15 @@
     background: transparent !important;
     background-color: transparent !important;
 }
+
+/* ── Competition setup sticky header ───────────────────────────────────
+   Pins the action buttons + section nav to the top of the viewport so the
+   user can scroll through detail sections below and still navigate
+   between Setup / Roster / Fixtures tabs. The top offset clears the web
+   host's top navbar (3.5rem) and the MAUI MudAppBar (~4rem); a small gap
+   on web is preferable to overlap on MAUI. */
+.competition-sticky-header {
+    position: sticky;
+    top: 4rem;
+    z-index: 5;
+}

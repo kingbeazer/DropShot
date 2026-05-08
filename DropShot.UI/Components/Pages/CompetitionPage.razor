@@ -49,59 +49,67 @@ else
             </MudTooltip>
         }
     </MudStack>
+</MudStack>
 
+<CascadingValue Value="this" IsFixed="true">
+@* ── Sticky header ─────────────────────────────────────────────
+   Pins the action buttons + section nav to the top of the page so
+   the user can scroll the detail sections below and still navigate
+   between tabs. *@
+<div class="competition-sticky-header mb-6">
     @* ── Action button row ───────────────────────────────────── *@
     @* AlignItems=Stretch + height:100% on each button ensures the Clone
        button (and its tooltip wrapper) grows to match the tallest sibling
        when text wraps onto two lines on narrow viewports. *@
     @if (IsEdit)
     {
-        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Stretch" Class="competition-action-row" Style="flex-wrap: wrap;">
-            @if (_canEdit)
-            {
-                <MudButton Variant="@(_isStarted ? Variant.Outlined : Variant.Filled)"
-                           Color="@(_isStarted ? Color.Warning : Color.Success)"
-                           StartIcon="@(_isStarted ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
-                           Class="px-4"
-                           Style="height: 100%;"
-                           OnClick="ToggleStartedAsync">
-                    @(_isStarted ? "Stop Competition" : "Start Competition")
-                </MudButton>
-            }
-            else if (!_isStarted)
-            {
-                <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
-            }
-            @if (_canEdit && IsEdit)
-            {
-                <MudTooltip Text="Create a new competition based on this one" Style="display: flex; align-self: stretch;">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                               StartIcon="@Icons.Material.Filled.ContentCopy"
+        <MudPaper Elevation="0" Class="frosted-card mb-3 competition-action-row"
+                  Style="border-radius: 12px; padding: 0.75rem;">
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Stretch" Style="flex-wrap: wrap;">
+                @if (_canEdit)
+                {
+                    <MudButton Variant="@(_isStarted ? Variant.Outlined : Variant.Filled)"
+                               Color="@(_isStarted ? Color.Warning : Color.Success)"
+                               StartIcon="@(_isStarted ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
                                Class="px-4"
                                Style="height: 100%;"
-                               OnClick="OpenCloneDialog">
-                        Clone
+                               OnClick="ToggleStartedAsync">
+                        @(_isStarted ? "Stop Competition" : "Start Competition")
                     </MudButton>
-                </MudTooltip>
-            }
-            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
-                       Class="px-4"
-                       Style="height: 100%;"
-                       OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
-                View Competition
-            </MudButton>
-        </MudStack>
+                }
+                else if (!_isStarted)
+                {
+                    <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
+                }
+                @if (_canEdit && IsEdit)
+                {
+                    <MudTooltip Text="Create a new competition based on this one" Style="display: flex; align-self: stretch;">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.ContentCopy"
+                                   Class="px-4"
+                                   Style="height: 100%;"
+                                   OnClick="OpenCloneDialog">
+                            Clone
+                        </MudButton>
+                    </MudTooltip>
+                }
+                <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
+                           Class="px-4"
+                           Style="height: 100%;"
+                           OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
+                    View Competition
+                </MudButton>
+            </MudStack>
+        </MudPaper>
     }
-</MudStack>
 
-<CascadingValue Value="this" IsFixed="true">
-@* ── Section nav (replaces MudTabs) ──────────────────────────
-   Chip / pill row with the same frosted look as the list cards.
-   Tab indices preserved: 0=Setup, 1=Roster, 2=Fixtures, 3=Email.
-   Wraps onto multiple lines on narrow screens instead of forcing
-   a horizontal scroll. *@
-<MudPaper Elevation="0" Class="frosted-card mb-6 competition-section-nav"
-          Style="border-radius: 12px; padding: 0.75rem;">
+    @* ── Section nav (replaces MudTabs) ──────────────────────────
+       Chip / pill row with the same frosted look as the list cards.
+       Tab indices preserved: 0=Setup, 1=Roster, 2=Fixtures, 3=Email.
+       Wraps onto multiple lines on narrow screens instead of forcing
+       a horizontal scroll. *@
+    <MudPaper Elevation="0" Class="frosted-card competition-section-nav"
+              Style="border-radius: 12px; padding: 0.75rem;">
     <MudStack Row="true" Spacing="2" Style="flex-wrap: wrap;">
         <MudChip T="int" Value="0"
                  Icon="@Icons.Material.Filled.Settings"
@@ -132,7 +140,8 @@ else
                  OnClick="@(() => { if (!_emailDisabled) _activeTabIndex = 3; })">Email</MudChip>
         *@
     </MudStack>
-</MudPaper>
+    </MudPaper>
+</div>
 
 @if (_activeTabIndex == 0)
 {
