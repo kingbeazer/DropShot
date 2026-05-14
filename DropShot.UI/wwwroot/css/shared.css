@@ -84,3 +84,86 @@
 body:has(.role-banner) .competition-sticky-header {
     top: 5.5rem;
 }
+
+/* ── Competition control bar (action row + section nav) ────────────────
+   Mobile: no styling — children render as two stacked frosted cards
+   exactly as before (action row on top, section nav below). Desktop:
+   collapse the two MudPapers into a single combined band with the nav
+   chips left and the action buttons right. We hide the children's own
+   frosted-card chrome and apply the frosted look to the wrapper instead
+   so the band looks like one card rather than two pressed together. */
+@media (min-width: 768px) {
+    .competition-control-bar {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.75rem;
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 0.5rem 0.75rem;
+    }
+
+    [data-theme="light"] .competition-control-bar {
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    /* Children drop their own card chrome inside the wrapper. */
+    .competition-control-bar > .competition-action-row,
+    .competition-control-bar > .competition-section-nav {
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Order: nav left, actions right. Markup order is action-then-nav so
+       mobile (block flow) keeps the existing top-to-bottom arrangement;
+       on desktop we flip the visual order with `order` and push the
+       action group to the trailing edge with `margin-left: auto`. */
+    .competition-control-bar > .competition-section-nav { order: 0; }
+    .competition-control-bar > .competition-action-row {
+        order: 1;
+        margin-left: auto !important;
+    }
+}
+
+/* ── Pill-style action buttons ──────────────────────────────────────────
+   Round the Start / Stop / Clone / View buttons to match the section-nav
+   chips so the combined desktop band reads as a single coordinated
+   control surface — and so the buttons keep the same pill look when they
+   wrap onto their own row on mobile. */
+.competition-action-button {
+    border-radius: 9999px !important;
+    text-transform: none !important;
+    min-height: 32px;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+/* ── Section-nav scroll anchors ─────────────────────────────────────────
+   The section-nav chips smooth-scroll one of these zero-height anchors
+   into view. scroll-margin-top reserves space for the sticky header so
+   the section title isn't hidden behind it after the scroll lands. The
+   sticky band is taller on mobile (action row + nav row stacked), so we
+   reserve a bit more room there. */
+.section-anchor {
+    height: 0;
+    scroll-margin-top: 230px;
+}
+
+@media (max-width: 767.98px) {
+    .section-anchor {
+        scroll-margin-top: 280px;
+    }
+}

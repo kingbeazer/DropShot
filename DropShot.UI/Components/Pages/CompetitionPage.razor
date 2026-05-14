@@ -58,94 +58,104 @@ else
         </MudStack>
     </MudPaper>
 
-    @* ── Action button row ───────────────────────────────────── *@
-    @* AlignItems=Stretch + height:100% on each button ensures the Clone
-       button (and its tooltip wrapper) grows to match the tallest sibling
-       when text wraps onto two lines on narrow viewports. *@
-    @if (IsEdit)
-    {
-        <MudPaper Elevation="0" Class="frosted-card mb-3 competition-action-row"
-                  Style="border-radius: 12px; padding: 0.75rem;">
-            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Stretch" Style="flex-wrap: wrap;">
-                @if (_canEdit)
-                {
-                    <MudButton Variant="@(_isStarted ? Variant.Outlined : Variant.Filled)"
-                               Color="@(_isStarted ? Color.Warning : Color.Success)"
-                               StartIcon="@(_isStarted ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
-                               Class="px-4"
-                               Style="height: 100%;"
-                               OnClick="ToggleStartedAsync">
-                        @(_isStarted ? "Stop Competition" : "Start Competition")
-                    </MudButton>
-                }
-                else if (!_isStarted)
-                {
-                    <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
-                }
-                @if (_canEdit && IsEdit)
-                {
-                    <MudTooltip Text="Create a new competition based on this one" Style="display: flex; align-self: stretch;">
-                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                                   StartIcon="@Icons.Material.Filled.ContentCopy"
-                                   Class="px-4"
-                                   Style="height: 100%;"
-                                   OnClick="OpenCloneDialog">
-                            Clone
-                        </MudButton>
-                    </MudTooltip>
-                }
-                <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
-                           Class="px-4"
-                           Style="height: 100%;"
-                           OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
-                    View Competition
-                </MudButton>
-            </MudStack>
-        </MudPaper>
-    }
-
-    @* ── Section nav (replaces MudTabs) ──────────────────────────
-       Chip / pill row with the same frosted look as the list cards.
-       Tab indices preserved: 0=Setup, 1=Roster, 2=Fixtures, 3=Email.
-       Wraps onto multiple lines on narrow screens instead of forcing
-       a horizontal scroll. *@
-    <MudPaper Elevation="0" Class="frosted-card competition-section-nav"
-              Style="border-radius: 12px; padding: 0.75rem;">
-    <MudStack Row="true" Spacing="2" Style="flex-wrap: wrap;">
-        <MudChip T="int" Value="0"
-                 Icon="@Icons.Material.Filled.Settings"
-                 Color="@(_activeTabIndex == 0 ? Color.Primary : Color.Default)"
-                 Variant="@(_activeTabIndex == 0 ? Variant.Filled : Variant.Outlined)"
-                 OnClick="@(() => _activeTabIndex = 0)">Setup</MudChip>
+    @* ── Combined control bar ─────────────────────────────────
+       Wraps the action buttons + section nav. On desktop they sit in
+       a single combined band (nav chips on the left, action buttons on
+       the right). On mobile the wrapper drops back to normal flow so
+       each MudPaper renders as its own frosted card — preserving the
+       two-section look but keeping the chip-styled buttons. *@
+    <div class="competition-control-bar mb-3">
+        @* ── Action button row ───────────────────────────────────
+           Buttons share the pill / chip styling via .competition-action-button
+           so they read as a coordinated set with the section nav chips.
+           AlignItems=Center keeps the pills vertically centred next to the
+           chip row when both sit in the desktop combined band. *@
         @if (IsEdit)
         {
-            <MudChip T="int" Value="1"
-                     Icon="@Icons.Material.Filled.Group"
-                     Color="@(_activeTabIndex == 1 ? Color.Primary : Color.Default)"
-                     Variant="@(_activeTabIndex == 1 ? Variant.Filled : Variant.Outlined)"
-                     OnClick="@(() => _activeTabIndex = 1)">Roster</MudChip>
-            <MudChip T="int" Value="2"
-                     Icon="@Icons.Material.Filled.EventNote"
-                     Color="@(_activeTabIndex == 2 ? Color.Primary : Color.Default)"
-                     Variant="@(_activeTabIndex == 2 ? Variant.Filled : Variant.Outlined)"
-                     OnClick="@(() => _activeTabIndex = 2)">Fixtures/Results</MudChip>
+            <MudPaper Elevation="0" Class="frosted-card competition-action-row"
+                      Style="border-radius: 12px; padding: 0.75rem;">
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="flex-wrap: wrap;">
+                    @if (_canEdit)
+                    {
+                        <MudButton Variant="@(_isStarted ? Variant.Outlined : Variant.Filled)"
+                                   Color="@(_isStarted ? Color.Warning : Color.Success)"
+                                   StartIcon="@(_isStarted ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
+                                   Class="competition-action-button"
+                                   OnClick="ToggleStartedAsync">
+                            @(_isStarted ? "Stop Competition" : "Start Competition")
+                        </MudButton>
+                    }
+                    else if (!_isStarted)
+                    {
+                        <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
+                    }
+                    @if (_canEdit && IsEdit)
+                    {
+                        <MudTooltip Text="Create a new competition based on this one">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                                       StartIcon="@Icons.Material.Filled.ContentCopy"
+                                       Class="competition-action-button"
+                                       OnClick="OpenCloneDialog">
+                                Clone
+                            </MudButton>
+                        </MudTooltip>
+                    }
+                    <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
+                               Class="competition-action-button"
+                               OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
+                        View Competition
+                    </MudButton>
+                </MudStack>
+            </MudPaper>
         }
-        @* Email chip hidden for now — feature not yet in use. Restore by
-           re-enabling this block (and the _emailDisabled flag above). *@
-        @*
-        <MudChip T="int" Value="3"
-                 Icon="@Icons.Material.Filled.Email"
-                 Disabled="@_emailDisabled"
-                 Color="@(_activeTabIndex == 3 ? Color.Primary : Color.Default)"
-                 Variant="@(_activeTabIndex == 3 ? Variant.Filled : Variant.Outlined)"
-                 OnClick="@(() => { if (!_emailDisabled) _activeTabIndex = 3; })">Email</MudChip>
-        *@
-    </MudStack>
-    </MudPaper>
+
+        @* ── Section nav (replaces MudTabs) ──────────────────────────
+           Chip / pill row with the same frosted look as the list cards.
+           Tab indices preserved: 0=Setup, 1=Roster, 2=Fixtures, 3=Email.
+           Clicking a chip smooth-scrolls the matching anchor into view;
+           all sections render simultaneously so users can also scroll
+           manually between them. *@
+        <MudPaper Elevation="0" Class="frosted-card competition-section-nav"
+                  Style="border-radius: 12px; padding: 0.75rem;">
+            <MudStack Row="true" Spacing="2" Style="flex-wrap: wrap;">
+                <MudChip T="int" Value="0"
+                         Icon="@Icons.Material.Filled.Settings"
+                         Color="@(_activeTabIndex == 0 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeTabIndex == 0 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(0, "nav-anchor-setup"))">Setup</MudChip>
+                @if (IsEdit)
+                {
+                    <MudChip T="int" Value="1"
+                             Icon="@Icons.Material.Filled.Group"
+                             Color="@(_activeTabIndex == 1 ? Color.Primary : Color.Default)"
+                             Variant="@(_activeTabIndex == 1 ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => ScrollToSectionAsync(1, "nav-anchor-roster"))">Roster</MudChip>
+                    <MudChip T="int" Value="2"
+                             Icon="@Icons.Material.Filled.EventNote"
+                             Color="@(_activeTabIndex == 2 ? Color.Primary : Color.Default)"
+                             Variant="@(_activeTabIndex == 2 ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => ScrollToSectionAsync(2, "nav-anchor-fixtures"))">Fixtures/Results</MudChip>
+                }
+                @* Email chip hidden for now — feature not yet in use. Restore by
+                   re-enabling this block (and the _emailDisabled flag above). *@
+                @*
+                <MudChip T="int" Value="3"
+                         Icon="@Icons.Material.Filled.Email"
+                         Disabled="@_emailDisabled"
+                         Color="@(_activeTabIndex == 3 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeTabIndex == 3 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => { if (!_emailDisabled) ScrollToSectionAsync(3, "nav-anchor-email"); })">Email</MudChip>
+                *@
+            </MudStack>
+        </MudPaper>
+    </div>
 </div>
 
-@if (_activeTabIndex == 0)
-{
+@* All sections render simultaneously; the section nav chips smooth-scroll
+   the matching `nav-anchor-*` div into view (sticky-header offset is handled
+   by .section-anchor's scroll-margin-top). Edit-only sections retain their
+   IsEdit / _canEdit guards below. *@
+<div id="nav-anchor-setup" class="section-anchor"></div>
     @* ── Details form ───────────────────────────────────────── *@
     <MudPaper id="section-details" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -520,9 +530,9 @@ else
                     OnApplyTemplate="ApplyCompetitionTemplate" />
             }
         }
-}
 
-@if (_activeTabIndex == 1 && IsEdit)
+<div id="nav-anchor-roster" class="section-anchor"></div>
+@if (IsEdit)
 {
             @* ── Participants ────────────────────────────────── *@
             <MudPaper id="section-participants" Class="pa-4 mb-4 setup-section frosted-card" Elevation="0"
@@ -832,7 +842,8 @@ else
             }
 }
 
-@if (_activeTabIndex == 2 && IsEdit)
+<div id="nav-anchor-fixtures" class="section-anchor"></div>
+@if (IsEdit)
 {
             @if (!Model.HasDivisions)
             {
@@ -1563,6 +1574,17 @@ else
     private bool _nameManuallySet;
     private bool _isStarted;
     private int _activeTabIndex;
+
+    // Section-nav chips no longer hide/show sections — every section renders
+    // at once and clicking a chip smooth-scrolls its anchor div into view.
+    // _activeTabIndex still drives the chip's filled/outlined highlight so
+    // users see which section they last navigated to.
+    private async Task ScrollToSectionAsync(int idx, string anchorId)
+    {
+        _activeTabIndex = idx;
+        await JS.InvokeVoidAsync("eval",
+            $"document.getElementById('{anchorId}')?.scrollIntoView({{behavior:'smooth',block:'start'}})");
+    }
 
     private CompetitionFormModel Model { get; set; } = new();
 
