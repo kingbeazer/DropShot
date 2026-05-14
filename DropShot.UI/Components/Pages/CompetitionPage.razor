@@ -843,8 +843,8 @@ else
                                format where participants carry roles. *@
                             @if (isTeamMatchFmt)
                             {
-                                var rowPromote = GetPromotionTarget(context.CompetitionDivisionId, context.Role, +1);
-                                var rowDemote = GetPromotionTarget(context.CompetitionDivisionId, context.Role, -1);
+                                var rowPromote = GetPromotionTarget(context, +1);
+                                var rowDemote = GetPromotionTarget(context, -1);
                                 <MudTooltip Text="@(rowPromote is {} p ? $"Promote to {DescribeLadderPos(p.DivisionId, p.Role)}" : "Already at top of ladder")">
                                     <MudIconButton Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" Size="Size.Small"
                                                    Color="Color.Success"
@@ -2761,25 +2761,62 @@ else
     // carries up to the next-higher division and resets to the bottom role
     // (so Div 2 A → Div 1 B); demoting past the bottom carries down and
     // resets to the top role.
+    //
+    // Entry cases (only when promoting):
+    //   - Participant has no role yet → place them at the bottom of the
+    //     ladder. Lane is inferred from Sex (M/F prefix match) when the
+    //     role naming supports it, else falls back to all roles.
+    //   - Participant has a role but no division while divisions are
+    //     enabled → drop them into the lowest division at their current
+    //     role so the normal ladder applies from there.
     private (int? DivisionId, string Role)? GetPromotionTarget(
-        int? currentDivisionId, string? currentRole, int direction)
+        CompetitionParticipantDto cp, int direction)
     {
-        if (string.IsNullOrEmpty(currentRole)) return null;
-        var lane = RoleLaneFor(currentRole);
-        var roleIdx = lane.IndexOf(currentRole);
+        if (string.IsNullOrEmpty(cp.Role))
+        {
+            if (direction < 0) return null;
+            var entryLane = InferEntryLane(cp);
+            if (entryLane.Count == 0) return null;
+
+            int? entryDiv;
+            if (cp.CompetitionDivisionId.HasValue)
+            {
+                entryDiv = cp.CompetitionDivisionId;
+            }
+            else if (Model.HasDivisions && _divisions.Count > 0)
+            {
+                entryDiv = _divisions.OrderByDescending(d => d.Rank).First().CompetitionDivisionId;
+            }
+            else
+            {
+                entryDiv = null;
+            }
+            return (entryDiv, entryLane[^1]);
+        }
+
+        if (direction > 0 && Model.HasDivisions && cp.CompetitionDivisionId is null && _divisions.Count > 0)
+        {
+            // Has a role but isn't in any division yet — promote drops them
+            // into the lowest division at their existing role.
+            var bottomDiv = _divisions.OrderByDescending(d => d.Rank).First();
+            return (bottomDiv.CompetitionDivisionId, cp.Role!);
+        }
+
+        var lane = RoleLaneFor(cp.Role);
+        var roleIdx = lane.IndexOf(cp.Role!);
         if (roleIdx < 0) return null;
 
         var newRoleIdx = roleIdx - direction;
         if (newRoleIdx >= 0 && newRoleIdx < lane.Count)
         {
-            return (currentDivisionId, lane[newRoleIdx]);
+            return (cp.CompetitionDivisionId, lane[newRoleIdx]);
         }
 
         // Out of lane bounds → carry across divisions (only meaningful when
         // divisions are enabled and the participant is already in one).
         if (!Model.HasDivisions) return null;
         var divisions = _divisions.OrderBy(d => d.Rank).ToList();
-        var divIdx = divisions.FindIndex(d => d.CompetitionDivisionId == currentDivisionId);
+        var divIdx = divisions.FindIndex(d => d.CompetitionDivisionId == cp.CompetitionDivisionId);
         if (divIdx < 0) return null;
 
         if (newRoleIdx < 0)
@@ -2791,6 +2828,27 @@ else
         // newRoleIdx >= lane.Count: demoting past the bottom role.
         if (divIdx >= divisions.Count - 1) return null;
         return (divisions[divIdx + 1].CompetitionDivisionId, lane[0]);
+    }
+
+    // Picks the lane a role-less participant should enter on promote. The
+    // ladder doesn't know which lane they belong to, so we lean on Sex: an
+    // M-prefixed role exists in _availableRoles → male players enter that
+    // lane; F-prefixed → female. When the role naming has no gender prefix
+    // (e.g. County Doubles' D1*/D2*) or Sex isn't set, we fall back to all
+    // available roles — bottom-of-ladder will be the alphabetically-last
+    // role, which the admin can re-target with further promotes.
+    private List<string> InferEntryLane(CompetitionParticipantDto cp)
+    {
+        if (cp.Sex is { } sex)
+        {
+            var letter = sex == PlayerSex.Male ? "M" : "F";
+            var gendered = _availableRoles
+                .Where(r => r.StartsWith(letter, StringComparison.Ordinal))
+                .OrderBy(r => r, StringComparer.Ordinal)
+                .ToList();
+            if (gendered.Count > 0) return gendered;
+        }
+        return _availableRoles.OrderBy(r => r, StringComparer.Ordinal).ToList();
     }
 
     private string DescribeLadderPos(int? divisionId, string role)
@@ -2805,7 +2863,7 @@ else
 
     private async Task PromoteParticipantAsync(CompetitionParticipantDto cp, int direction)
     {
-        var target = GetPromotionTarget(cp.CompetitionDivisionId, cp.Role, direction);
+        var target = GetPromotionTarget(cp, direction);
         if (target is null) return;
         var (newDivisionId, newRole) = target.Value;
 
