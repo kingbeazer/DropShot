@@ -86,18 +86,24 @@ body:has(.role-banner) .competition-sticky-header {
 }
 
 /* ── Competition control bar (action row + section nav) ────────────────
-   Mobile: no styling — children render as two stacked frosted cards
-   exactly as before (action row on top, section nav below). Desktop:
-   collapse the two MudPapers into a single combined band with the nav
-   chips left and the action buttons right. We hide the children's own
-   frosted-card chrome and apply the frosted look to the wrapper instead
-   so the band looks like one card rather than two pressed together. */
+   Mobile: column flex with a 0.75rem gap so the two stacked frosted
+   cards (action row on top, section nav below) have the same breathing
+   room as the .mb-3 used between the title row and the first content
+   section — keeping every gap in the sticky band visually equal.
+   Desktop (>= 768px): collapse the two MudPapers into a single
+   combined band with nav chips left and action buttons right. The
+   children's own frosted-card chrome is hidden so the band reads as
+   one card. */
+.competition-control-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
 @media (min-width: 768px) {
     .competition-control-bar {
-        display: flex;
         flex-direction: row;
         align-items: center;
-        gap: 0.75rem;
         background: rgba(255, 255, 255, 0.08);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
@@ -152,18 +158,11 @@ body:has(.role-banner) .competition-sticky-header {
 }
 
 /* ── Section-nav scroll anchors ─────────────────────────────────────────
-   The section-nav chips smooth-scroll one of these zero-height anchors
-   into view. scroll-margin-top reserves space for the sticky header so
-   the section title isn't hidden behind it after the scroll lands. The
-   sticky band is taller on mobile (action row + nav row stacked), so we
-   reserve a bit more room there. */
+   Zero-height marker divs that ScrollToSectionAsync targets. The Y
+   offset is computed in JS from the live .competition-sticky-header
+   bottom rather than via scroll-margin-top, because the band height
+   varies with viewport (mobile stacks action + nav into two cards) and
+   with the role banner. */
 .section-anchor {
     height: 0;
-    scroll-margin-top: 230px;
-}
-
-@media (max-width: 767.98px) {
-    .section-anchor {
-        scroll-margin-top: 280px;
-    }
 }
