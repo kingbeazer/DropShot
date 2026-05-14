@@ -721,29 +721,39 @@ else
                             <MudSelectItem T="ParticipantStatus" Value="@s">@ParticipantStatusLabel(s)</MudSelectItem>
                         }
                     </MudSelect>
+                    @* Each multi-select carries an "(Unassigned)" option so the admin can
+                       isolate participants missing a team / sex / role / division. Filter
+                       set element types are nullable so null is the natural sentinel — the
+                       Role filter sticks with empty-string instead because Role is itself
+                       a nullable string already coerced via `cp.Role ?? ""`. *@
                     @if (hasTeamCol)
                     {
-                        <MudSelect T="int" MultiSelection="true" @bind-SelectedValues="_filterTeamIds"
+                        <MudSelect T="int?" MultiSelection="true" @bind-SelectedValues="_filterTeamIds"
                                    Label="@teamColLabel" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
-                                   ToStringFunc="@(id => _teams.FirstOrDefault(t => t.CompetitionTeamId == id)?.Name ?? id.ToString())"
+                                   ToStringFunc="@(id => id.HasValue ? (_teams.FirstOrDefault(t => t.CompetitionTeamId == id.Value)?.Name ?? id.Value.ToString()) : "(Unassigned)")"
                                    Style="min-width:160px">
+                            <MudSelectItem T="int?" Value="@((int?)null)">(Unassigned)</MudSelectItem>
                             @foreach (var t in _teams)
                             {
-                                <MudSelectItem T="int" Value="@t.CompetitionTeamId">@t.Name</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
                             }
                         </MudSelect>
                     }
                     @if (isTeamMatchFmt)
                     {
-                        <MudSelect T="PlayerSex" MultiSelection="true" @bind-SelectedValues="_filterSexes"
+                        <MudSelect T="PlayerSex?" MultiSelection="true" @bind-SelectedValues="_filterSexes"
                                    Label="Sex" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   ToStringFunc="@(s => s?.ToString() ?? "(Unassigned)")"
                                    Style="min-width:120px">
-                            <MudSelectItem T="PlayerSex" Value="@PlayerSex.Male">Male</MudSelectItem>
-                            <MudSelectItem T="PlayerSex" Value="@PlayerSex.Female">Female</MudSelectItem>
+                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)null)">(Unassigned)</MudSelectItem>
+                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Male)">Male</MudSelectItem>
+                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Female)">Female</MudSelectItem>
                         </MudSelect>
                         <MudSelect T="string" MultiSelection="true" @bind-SelectedValues="_filterRoles"
                                    Label="Role" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   ToStringFunc="@(r => string.IsNullOrEmpty(r) ? "(Unassigned)" : r)"
                                    Style="min-width:130px">
+                            <MudSelectItem T="string" Value="@("")">(Unassigned)</MudSelectItem>
                             @foreach (var r in _availableRoles)
                             {
                                 <MudSelectItem T="string" Value="@r">@r</MudSelectItem>
@@ -752,13 +762,14 @@ else
                     }
                     @if (Model.HasDivisions)
                     {
-                        <MudSelect T="int" MultiSelection="true" @bind-SelectedValues="_filterDivisionIds"
+                        <MudSelect T="int?" MultiSelection="true" @bind-SelectedValues="_filterDivisionIds"
                                    Label="Division" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
-                                   ToStringFunc="@(id => _divisions.FirstOrDefault(d => d.CompetitionDivisionId == id)?.Name ?? id.ToString())"
+                                   ToStringFunc="@(id => id.HasValue ? (_divisions.FirstOrDefault(d => d.CompetitionDivisionId == id.Value)?.Name ?? id.Value.ToString()) : "(Unassigned)")"
                                    Style="min-width:160px">
+                            <MudSelectItem T="int?" Value="@((int?)null)">(Unassigned)</MudSelectItem>
                             @foreach (var d in _divisions)
                             {
-                                <MudSelectItem T="int" Value="@d.CompetitionDivisionId">@d.Name</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
                             }
                         </MudSelect>
                     }
@@ -1724,18 +1735,25 @@ else
     // when their value is in every active set (empty set = filter inactive).
     private string? _participantSearch;
     private IReadOnlyCollection<ParticipantStatus> _filterStatuses = new HashSet<ParticipantStatus>();
-    private IReadOnlyCollection<int> _filterTeamIds = new HashSet<int>();
-    private IReadOnlyCollection<PlayerSex> _filterSexes = new HashSet<PlayerSex>();
+    // Nullable element types let null act as the "(Unassigned)" sentinel — selecting it
+    // matches participants whose corresponding field is null. Role keeps a non-nullable
+    // string set because the existing filter coerces `cp.Role ?? ""` and we use "" as the
+    // unassigned sentinel there.
+    private IReadOnlyCollection<int?> _filterTeamIds = new HashSet<int?>();
+    private IReadOnlyCollection<PlayerSex?> _filterSexes = new HashSet<PlayerSex?>();
     private IReadOnlyCollection<string> _filterRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    private IReadOnlyCollection<int> _filterDivisionIds = new HashSet<int>();
+    private IReadOnlyCollection<int?> _filterDivisionIds = new HashSet<int?>();
 
     private bool FilterParticipant(CompetitionParticipantDto cp)
     {
         if (_filterStatuses.Any() && !_filterStatuses.Contains(cp.Status)) return false;
-        if (_filterTeamIds.Any() && (cp.TeamId is null || !_filterTeamIds.Contains(cp.TeamId.Value))) return false;
-        if (_filterSexes.Any() && (cp.Sex is null || !_filterSexes.Contains(cp.Sex.Value))) return false;
+        // Nullable filter sets let `Contains(cp.Field)` work for both populated values
+        // and null — selecting the "(Unassigned)" option in the UI puts null in the set
+        // and matches participants whose field is null.
+        if (_filterTeamIds.Any() && !_filterTeamIds.Contains(cp.TeamId)) return false;
+        if (_filterSexes.Any() && !_filterSexes.Contains(cp.Sex)) return false;
         if (_filterRoles.Any() && !_filterRoles.Contains(cp.Role ?? "", StringComparer.OrdinalIgnoreCase)) return false;
-        if (_filterDivisionIds.Any() && (cp.CompetitionDivisionId is null || !_filterDivisionIds.Contains(cp.CompetitionDivisionId.Value))) return false;
+        if (_filterDivisionIds.Any() && !_filterDivisionIds.Contains(cp.CompetitionDivisionId)) return false;
 
         if (!string.IsNullOrWhiteSpace(_participantSearch))
         {
@@ -1758,10 +1776,10 @@ else
     {
         _participantSearch = null;
         _filterStatuses = new HashSet<ParticipantStatus>();
-        _filterTeamIds = new HashSet<int>();
-        _filterSexes = new HashSet<PlayerSex>();
+        _filterTeamIds = new HashSet<int?>();
+        _filterSexes = new HashSet<PlayerSex?>();
         _filterRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        _filterDivisionIds = new HashSet<int>();
+        _filterDivisionIds = new HashSet<int?>();
     }
 
     // Division form state — inline add at the top of the Divisions section
