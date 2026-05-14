@@ -537,21 +537,29 @@ else
             @* ── Participants ────────────────────────────────── *@
             <MudPaper id="section-participants" Class="pa-4 mb-4 setup-section frosted-card" Elevation="0"
                  Style="color: white;">
-                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
-                    <MudText Typo="Typo.h6" Style="flex:1">Participants</MudText>
-                    <MudAutocomplete T="PlayerSearchResultDto" Label="Add player" SearchFunc="SearchPlayers"
-                                     @ref="_participantAutocomplete"
-                                     ToStringFunc="@(p => p?.DisplayName ?? "")"
-                                     ValueChanged="AddParticipant" ResetValueOnEmptyText="true"
-                                     MaxItems="null"
-                                     Variant="Variant.Outlined" Dense="true" Style="max-width:260px" />
-                    <MudSelect T="ParticipantStatus" @bind-Value="_addParticipantStatus"
-                               Label="Add as" Variant="Variant.Outlined" Dense="true"
-                               Style="max-width:160px">
-                        <MudSelectItem Value="@ParticipantStatus.Registered">Registered</MudSelectItem>
-                        <MudSelectItem Value="@ParticipantStatus.FullPlayer">Full Player</MudSelectItem>
-                        <MudSelectItem Value="@ParticipantStatus.Substitute">Substitute</MudSelectItem>
-                    </MudSelect>
+                @* Header is split into three vertical rows so the title, the
+                   add-player + add-as pair, and the "Add new" button each get
+                   their own line and stop competing for width in narrow
+                   viewports. AlignItems.Start on the outer stack keeps the
+                   "Add new" button at its natural width instead of stretching
+                   to fill the row. *@
+                <MudStack Spacing="2" AlignItems="AlignItems.Start" Class="mb-3">
+                    <MudText Typo="Typo.h6">Participants</MudText>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="flex-wrap: wrap;">
+                        <MudAutocomplete T="PlayerSearchResultDto" Label="Add player" SearchFunc="SearchPlayers"
+                                         @ref="_participantAutocomplete"
+                                         ToStringFunc="@(p => p?.DisplayName ?? "")"
+                                         ValueChanged="AddParticipant" ResetValueOnEmptyText="true"
+                                         MaxItems="null"
+                                         Variant="Variant.Outlined" Dense="true" Style="max-width:260px" />
+                        <MudSelect T="ParticipantStatus" @bind-Value="_addParticipantStatus"
+                                   Label="Add as" Variant="Variant.Outlined" Dense="true"
+                                   Style="max-width:160px">
+                            <MudSelectItem Value="@ParticipantStatus.Registered">Registered</MudSelectItem>
+                            <MudSelectItem Value="@ParticipantStatus.FullPlayer">Full Player</MudSelectItem>
+                            <MudSelectItem Value="@ParticipantStatus.Substitute">Substitute</MudSelectItem>
+                        </MudSelect>
+                    </MudStack>
                     @if (Model.HostClubId.HasValue)
                     {
                         <MudTooltip Text="Add a new light player to this club and competition">
@@ -883,8 +891,12 @@ else
                 @* ── Divisional fixtures: scheduling controls + per-division grouping ─────── *@
                 <MudPaper Class="pa-4 mb-4 setup-section" Elevation="0"
                      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
-                        <MudText Typo="Typo.h6" Style="flex:1">Fixtures/Results</MudText>
+                    @* Title sits on its own row and each action button drops onto its
+                       own line below it (mirrors FixturesSection.razor for the
+                       non-divisions branch). AlignItems.Start keeps each button at
+                       its natural content width. *@
+                    <MudStack Spacing="2" AlignItems="AlignItems.Start" Class="mb-3">
+                        <MudText Typo="Typo.h6">Fixtures/Results</MudText>
                         @if (_isSuperAdmin && _stages.Any(s => s.StageType == StageType.RoundRobin))
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary"
