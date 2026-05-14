@@ -625,6 +625,87 @@ else
                     var teamColLabel = pFormat is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pair" : "Team";
                 }
 
+                @* Role-mix summary: counts FullPlayer participants per role per
+                   division so the admin sees at a glance whether the pool is
+                   balanced enough to generate teams. Validity chip is green when
+                   every role has the same count >= 1 (the team generator needs
+                   one of each role per team); amber otherwise with the missing
+                   counts spelled out. *@
+                @if (isTeamMatchFmt && _availableRoles.Count > 0)
+                {
+                    var summaryFullPlayers = _participants
+                        .Where(p => p.Status == ParticipantStatus.FullPlayer)
+                        .ToList();
+                    var summaryBuckets = Model.HasDivisions
+                        ? _divisions.OrderBy(d => d.Rank)
+                            .Select(d => ((int?)d.CompetitionDivisionId, d.Name))
+                            .ToList()
+                        : new List<(int?, string)> { (null, "All participants") };
+                    if (Model.HasDivisions && summaryFullPlayers.Any(p => p.CompetitionDivisionId is null))
+                    {
+                        summaryBuckets.Add((null, "No division"));
+                    }
+                    <MudPaper Class="pa-3 mb-3" Elevation="0"
+                              Style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Pool by role</MudText>
+                        <MudStack Spacing="2">
+                            @foreach (var (bucketDivId, bucketName) in summaryBuckets)
+                            {
+                                var bucketPlayers = summaryFullPlayers
+                                    .Where(p => p.CompetitionDivisionId == bucketDivId)
+                                    .ToList();
+                                var bucketCounts = _availableRoles
+                                    .Select(r => (Role: r, Count: bucketPlayers.Count(p => string.Equals(p.Role, r, StringComparison.Ordinal))))
+                                    .ToList();
+                                var bucketNoRole = bucketPlayers.Count(p => string.IsNullOrEmpty(p.Role));
+                                var bucketAllZero = bucketCounts.All(rc => rc.Count == 0);
+                                var bucketMax = bucketCounts.Max(rc => rc.Count);
+                                var bucketAllEqual = !bucketAllZero && bucketCounts.All(rc => rc.Count == bucketMax);
+
+                                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="flex-wrap: wrap;">
+                                    <MudText Typo="Typo.body2" Style="min-width:110px; font-weight:500;">@bucketName</MudText>
+                                    @foreach (var (role, count) in bucketCounts)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                                            @role × @count
+                                        </MudChip>
+                                    }
+                                    @if (bucketAllZero)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                                            No full players yet
+                                        </MudChip>
+                                    }
+                                    else if (bucketAllEqual)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                                 Icon="@Icons.Material.Filled.CheckCircle">
+                                            @bucketMax team@(bucketMax == 1 ? "" : "s") possible
+                                        </MudChip>
+                                    }
+                                    else
+                                    {
+                                        var bucketShortages = bucketCounts
+                                            .Where(rc => rc.Count < bucketMax)
+                                            .Select(rc => $"{bucketMax - rc.Count} more {rc.Role}")
+                                            .ToList();
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
+                                                 Icon="@Icons.Material.Filled.Warning">
+                                            Imbalanced — needs @string.Join(", ", bucketShortages)
+                                        </MudChip>
+                                    }
+                                    @if (bucketNoRole > 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Style="opacity:0.75;">
+                                            @bucketNoRole without role
+                                        </MudText>
+                                    }
+                                </MudStack>
+                            }
+                        </MudStack>
+                    </MudPaper>
+                }
+
                 <MudStack Row="true" Spacing="2" Class="mb-2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
                     <MudTextField T="string" @bind-Value="_participantSearch" DebounceInterval="150"
                                   Placeholder="Search player / team / role / division"
@@ -757,6 +838,26 @@ else
                             </MudTd>
                         }
                         <MudTd>
+                            @* Promote / demote walks the (division, role) ladder built in
+                               GetPromotionTarget. TeamMatch-only because that's the only
+                               format where participants carry roles. *@
+                            @if (isTeamMatchFmt)
+                            {
+                                var rowPromote = GetPromotionTarget(context.CompetitionDivisionId, context.Role, +1);
+                                var rowDemote = GetPromotionTarget(context.CompetitionDivisionId, context.Role, -1);
+                                <MudTooltip Text="@(rowPromote is {} p ? $"Promote to {DescribeLadderPos(p.DivisionId, p.Role)}" : "Already at top of ladder")">
+                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" Size="Size.Small"
+                                                   Color="Color.Success"
+                                                   Disabled="@(rowPromote is null)"
+                                                   OnClick="@(() => PromoteParticipantAsync(context, +1))" />
+                                </MudTooltip>
+                                <MudTooltip Text="@(rowDemote is {} d ? $"Demote to {DescribeLadderPos(d.DivisionId, d.Role)}" : "Already at bottom of ladder")">
+                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardDoubleArrowDown" Size="Size.Small"
+                                                   Color="Color.Default"
+                                                   Disabled="@(rowDemote is null)"
+                                                   OnClick="@(() => PromoteParticipantAsync(context, -1))" />
+                                </MudTooltip>
+                            }
                             @* Light-player edit chip — DTO doesn't surface IsLight, so always show.
                                Server-side SaveLightPlayerAsync rejects non-light players. *@
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
@@ -2626,6 +2727,106 @@ else
                 ? _divisions.FirstOrDefault(d => d.CompetitionDivisionId == divisionId)?.Name
                 : null;
             _participants[idx] = cp with { CompetitionDivisionId = divisionId, DivisionName = divName };
+        }
+    }
+
+    // ── Participant promote / demote ───────────────────────────────────────
+    // The ladder walks (division rank, role rank within a "lane") where a
+    // lane is the subset of _availableRoles sharing the same prefix (every
+    // char except the last) as the participant's current role. For MTT
+    // (roles MA/MB/FA/FB) this keeps male players on {MA, MB} and female on
+    // {FA, FB}; for County Doubles (D1A/D1B/D2A/D2B) it keeps pair-1 players
+    // on {D1A, D1B} and pair-2 on {D2A, D2B}. Within a lane, the role with
+    // the alphabetically earlier suffix is the higher rank (A < B). Across
+    // lanes we never cross — a male player cannot promote into FA.
+    //
+    // Suffix-letter ordering is implicit in the role strings shipped by the
+    // built-in rubber presets; a custom template that breaks the convention
+    // (e.g. roles "Captain"/"Reserve") would put each player in their own
+    // singleton lane and the promote/demote buttons would simply stay
+    // disabled — safe fallback, not silently wrong.
+    private List<string> RoleLaneFor(string? role)
+    {
+        if (string.IsNullOrEmpty(role)) return [];
+        var prefix = role[..^1];
+        return _availableRoles
+            .Where(r => r.Length == role.Length && r.StartsWith(prefix, StringComparison.Ordinal))
+            .OrderBy(r => r, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    // Returns the (division, role) one step in the given direction along
+    // the ladder, or null if already at the end. direction = +1 promotes
+    // (higher rank), -1 demotes. Promoting past the top role in a division
+    // carries up to the next-higher division and resets to the bottom role
+    // (so Div 2 A → Div 1 B); demoting past the bottom carries down and
+    // resets to the top role.
+    private (int? DivisionId, string Role)? GetPromotionTarget(
+        int? currentDivisionId, string? currentRole, int direction)
+    {
+        if (string.IsNullOrEmpty(currentRole)) return null;
+        var lane = RoleLaneFor(currentRole);
+        var roleIdx = lane.IndexOf(currentRole);
+        if (roleIdx < 0) return null;
+
+        var newRoleIdx = roleIdx - direction;
+        if (newRoleIdx >= 0 && newRoleIdx < lane.Count)
+        {
+            return (currentDivisionId, lane[newRoleIdx]);
+        }
+
+        // Out of lane bounds → carry across divisions (only meaningful when
+        // divisions are enabled and the participant is already in one).
+        if (!Model.HasDivisions) return null;
+        var divisions = _divisions.OrderBy(d => d.Rank).ToList();
+        var divIdx = divisions.FindIndex(d => d.CompetitionDivisionId == currentDivisionId);
+        if (divIdx < 0) return null;
+
+        if (newRoleIdx < 0)
+        {
+            // Promoting past the top role → up to next-higher division, bottom role.
+            if (divIdx == 0) return null;
+            return (divisions[divIdx - 1].CompetitionDivisionId, lane[^1]);
+        }
+        // newRoleIdx >= lane.Count: demoting past the bottom role.
+        if (divIdx >= divisions.Count - 1) return null;
+        return (divisions[divIdx + 1].CompetitionDivisionId, lane[0]);
+    }
+
+    private string DescribeLadderPos(int? divisionId, string role)
+    {
+        if (Model.HasDivisions && divisionId.HasValue)
+        {
+            var divName = _divisions.FirstOrDefault(d => d.CompetitionDivisionId == divisionId)?.Name ?? "Division";
+            return $"{divName} • {role}";
+        }
+        return role;
+    }
+
+    private async Task PromoteParticipantAsync(CompetitionParticipantDto cp, int direction)
+    {
+        var target = GetPromotionTarget(cp.CompetitionDivisionId, cp.Role, direction);
+        if (target is null) return;
+        var (newDivisionId, newRole) = target.Value;
+
+        if (newDivisionId != cp.CompetitionDivisionId)
+        {
+            await Admin.AssignParticipantDivisionAsync(Id, cp.PlayerId, new SetParticipantDivisionRequest(newDivisionId));
+        }
+        await Admin.AssignParticipantRoleAsync(Id, cp.PlayerId, new SetParticipantRoleRequest(newRole));
+
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            var divName = newDivisionId.HasValue
+                ? _divisions.FirstOrDefault(d => d.CompetitionDivisionId == newDivisionId)?.Name
+                : null;
+            _participants[idx] = cp with
+            {
+                CompetitionDivisionId = newDivisionId,
+                DivisionName = divName,
+                Role = newRole,
+            };
         }
     }
 
