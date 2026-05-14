@@ -1579,11 +1579,17 @@ else
     // at once and clicking a chip smooth-scrolls its anchor div into view.
     // _activeTabIndex still drives the chip's filled/outlined highlight so
     // users see which section they last navigated to.
+    //
+    // Why JS measures the sticky band live instead of using CSS
+    // `scroll-margin-top`: the sticky header height varies (mobile splits the
+    // band into two stacked cards; long competition titles wrap; the role
+    // banner pushes everything down). A live measurement keeps the landed
+    // section flush below the band on every layout.
     private async Task ScrollToSectionAsync(int idx, string anchorId)
     {
         _activeTabIndex = idx;
         await JS.InvokeVoidAsync("eval",
-            $"document.getElementById('{anchorId}')?.scrollIntoView({{behavior:'smooth',block:'start'}})");
+            $"(()=>{{const a=document.getElementById('{anchorId}');if(!a)return;const s=document.querySelector('.competition-sticky-header');const o=s?s.getBoundingClientRect().bottom:0;window.scrollTo({{top:a.getBoundingClientRect().top+window.scrollY-o-12,behavior:'smooth'}});}})()");
     }
 
     private CompetitionFormModel Model { get; set; } = new();
