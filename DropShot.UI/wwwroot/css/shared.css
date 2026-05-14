@@ -73,7 +73,11 @@
     background-repeat: no-repeat, no-repeat;
     margin-left: -0.5rem;
     margin-right: -0.5rem;
-    padding: 0.5rem;
+    /* Vertical 0.75rem matches the .mb-3 already on the title paper and the
+       .competition-control-bar's internal gap, so all four bands (title ->
+       action -> nav -> first content section) sit at a uniform 12px apart.
+       Horizontal 0.5rem cancels the negative side margins above. */
+    padding: 0.75rem 0.5rem;
 }
 
 /* On web, multi-role users get a sticky `.role-banner` (~1.6rem tall)
