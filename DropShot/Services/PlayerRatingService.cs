@@ -395,14 +395,16 @@ public sealed class PlayerRatingService(IDbContextFactory<MyDbContext> dbFactory
     public record RolePlacement(int PlayerId, string SuggestedRole);
 
     /// <summary>
-    /// Sort participants by rating-desc and partition them across the
-    /// competition's divisions (ranked 1 = top). Equal partitioning; remainder
-    /// players go to the top divisions so the strongest tier is slightly
-    /// larger when it doesn't divide evenly. Only returns entries where the
-    /// suggested division differs from the participant's current division.
-    /// Players without an explicit rating snapshot are treated as the default
-    /// (1500), so a brand-new roster still gets a useful auto-assignment
-    /// (admin overrides row-by-row).
+    /// Partition each sex independently across the competition's divisions
+    /// (ranked 1 = top), so each division ends up with a balanced sex mix —
+    /// critical for TeamMatch/MixedDoubles where a team needs both sexes.
+    /// Within each sex, players are sorted by rating-desc and split into
+    /// equal-sized groups, with any remainder going to the top divisions.
+    /// Players without a rating snapshot are treated as the default (1500);
+    /// players with no sex set are pooled together and partitioned the same
+    /// way (they'll usually end up unteamed but at least land in a division).
+    /// Only entries where the suggested division differs from the
+    /// participant's current division are returned.
     /// </summary>
     public async Task<IReadOnlyList<DivisionPlacement>> SuggestDivisionPlacementsAsync(
         int competitionId, CancellationToken ct = default)
@@ -418,34 +420,48 @@ public sealed class PlayerRatingService(IDbContextFactory<MyDbContext> dbFactory
         var participants = await db.CompetitionParticipants
             .AsNoTracking()
             .Where(p => p.CompetitionId == competitionId)
-            .Select(p => new { p.PlayerId, p.CompetitionDivisionId })
+            .Select(p => new
+            {
+                p.PlayerId,
+                p.CompetitionDivisionId,
+                Sex = p.Player == null ? (PlayerSex?)null : p.Player.Sex
+            })
             .ToListAsync(ct);
         if (participants.Count == 0) return Array.Empty<DivisionPlacement>();
 
         var ratings = await GetRosterRatingsAsync(competitionId, ct);
 
-        var ranked = participants
-            .OrderByDescending(p => ratings.TryGetValue(p.PlayerId, out var r) ? r.Value : DefaultRating)
-            .ThenBy(p => p.PlayerId)
-            .ToList();
-
-        int perDivision = ranked.Count / divisions.Count;
-        int remainder = ranked.Count % divisions.Count;
-        // Distribute the remainder into the top divisions so the strongest
-        // tier is slightly larger if it doesn't divide evenly. Admin can
-        // override row-by-row regardless.
-        var result = new List<DivisionPlacement>();
-        int cursor = 0;
-        for (int i = 0; i < divisions.Count; i++)
+        // Sex-balanced partition: each sex group is sorted by rating-desc and
+        // split into N equal-ish slices independently, so every division gets
+        // roughly the same number of men and women regardless of how rating
+        // skews across sexes. Remainders go to the top divisions.
+        var assignments = new Dictionary<int, int>();
+        foreach (var group in participants.GroupBy(p => p.Sex))
         {
-            int take = perDivision + (i < remainder ? 1 : 0);
-            for (int j = 0; j < take && cursor < ranked.Count; j++, cursor++)
+            var sorted = group
+                .OrderByDescending(p => ratings.TryGetValue(p.PlayerId, out var r) ? r.Value : DefaultRating)
+                .ThenBy(p => p.PlayerId)
+                .ToList();
+            int perDivision = sorted.Count / divisions.Count;
+            int remainder = sorted.Count % divisions.Count;
+            int cursor = 0;
+            for (int i = 0; i < divisions.Count; i++)
             {
-                var p = ranked[cursor];
-                if (p.CompetitionDivisionId == divisions[i].CompetitionDivisionId) continue;
-                result.Add(new DivisionPlacement(p.PlayerId,
-                    divisions[i].CompetitionDivisionId, divisions[i].Name));
+                int take = perDivision + (i < remainder ? 1 : 0);
+                for (int j = 0; j < take && cursor < sorted.Count; j++, cursor++)
+                {
+                    assignments[sorted[cursor].PlayerId] = divisions[i].CompetitionDivisionId;
+                }
             }
+        }
+
+        var divNameById = divisions.ToDictionary(d => d.CompetitionDivisionId, d => d.Name);
+        var result = new List<DivisionPlacement>();
+        foreach (var p in participants)
+        {
+            if (!assignments.TryGetValue(p.PlayerId, out var divId)) continue;
+            if (p.CompetitionDivisionId == divId) continue;
+            result.Add(new DivisionPlacement(p.PlayerId, divId, divNameById[divId]));
         }
         return result;
     }
