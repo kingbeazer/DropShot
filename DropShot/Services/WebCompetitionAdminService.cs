@@ -1568,6 +1568,46 @@ public sealed class WebCompetitionAdminService(
         var existingTeams = await db.CompetitionTeams.Where(t => t.CompetitionId == competitionId).ToListAsync(ct);
         if (existingTeams.Count > 0)
         {
+            // Fixtures hold FK references (HomeTeamId / AwayTeamId / WinnerTeamId)
+            // to the teams we're about to delete, so a straight RemoveRange on
+            // CompetitionTeams trips a "DELETE conflicted with REFERENCE constraint
+            // FK_CompetitionFixtures_CompetitionTeams_HomeTeamId". Regenerating the
+            // team pool invalidates any fixtures based on the previous teams, so
+            // delete the team-referencing fixtures (and their rubbers + saved
+            // matches) here using the same cleanup pattern as DeleteAllFixturesAsync.
+            // Fixtures unrelated to teams (e.g. singles/doubles with only PlayerN
+            // refs) are left in place.
+            var teamFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == competitionId
+                            && (f.HomeTeamId != null || f.AwayTeamId != null))
+                .ToListAsync(ct);
+            if (teamFixtures.Count > 0)
+            {
+                var fixtureIds = teamFixtures.Select(f => f.CompetitionFixtureId).ToList();
+                var rubbers = await db.Rubbers
+                    .Where(r => fixtureIds.Contains(r.CompetitionFixtureId))
+                    .ToListAsync(ct);
+                var rubberSavedMatchIds = rubbers
+                    .Where(r => r.SavedMatchId.HasValue)
+                    .Select(r => r.SavedMatchId!.Value);
+                if (rubbers.Count > 0) db.Rubbers.RemoveRange(rubbers);
+
+                var directSavedMatchIds = teamFixtures
+                    .Where(f => f.SavedMatchId.HasValue)
+                    .Select(f => f.SavedMatchId!.Value);
+                var savedMatchIds = directSavedMatchIds.Concat(rubberSavedMatchIds).Distinct().ToList();
+                if (savedMatchIds.Count > 0)
+                {
+                    var savedMatches = await db.SavedMatch
+                        .Where(m => savedMatchIds.Contains(m.SavedMatchId))
+                        .ToListAsync(ct);
+                    if (savedMatches.Count > 0) db.SavedMatch.RemoveRange(savedMatches);
+                }
+
+                db.CompetitionFixtures.RemoveRange(teamFixtures);
+                await db.SaveChangesAsync(ct);
+            }
+
             var existingMembers = await db.CompetitionParticipants
                 .Where(cp => cp.CompetitionId == competitionId && cp.TeamId != null)
                 .ToListAsync(ct);
