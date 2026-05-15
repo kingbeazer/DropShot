@@ -507,18 +507,40 @@ public sealed class WebCompetitionService(
         if (fx.HomeTeamId.HasValue && fx.AwayTeamId.HasValue
             && RubberResolutionService.AllComplete(allRubbers))
         {
-            var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
+            var (homeRubbers, awayRubbers) = RubberResolutionService.ComputeScore(
                 allRubbers, fx.HomeTeamId.Value, fx.AwayTeamId.Value);
+
+            // ResultSummary should reflect the competition's LeagueScoring mode
+            // rather than always showing rubber count. For SetsWon, this keeps
+            // the displayed "X-Y" in line with the totalled sets across all
+            // rubbers (so a fixture with three tied 1-1 rubbers and one 2-0
+            // shows as "5-3" sets, not "1-0" rubbers).
+            var scoringMode = fx.Competition?.LeagueScoring ?? LeagueScoringMode.WinPoints;
+            var (homeScore, awayScore, _) = RubberResolutionService.ComputeLeagueScore(
+                allRubbers, fx.HomeTeamId.Value, fx.AwayTeamId.Value, scoringMode);
 
             bool alreadyFinalised = fx.Status == FixtureStatus.AwaitingVerification
                 || fx.Status == FixtureStatus.Completed;
 
             fx.ResultSummary = $"{homeScore}-{awayScore}";
-            int? winner = homeScore > awayScore ? fx.HomeTeamId
-                        : awayScore > homeScore ? fx.AwayTeamId
+
+            // Persist fixture-level aggregates so downstream consumers (rating
+            // replay, league table, result cards) don't have to re-walk the
+            // rubber rows. Match FixtureSimulationService which already does this.
+            fx.HomeSetsWon = allRubbers.Sum(r => r.HomeSetsWon ?? 0);
+            fx.AwaySetsWon = allRubbers.Sum(r => r.AwaySetsWon ?? 0);
+            fx.HomeGamesTotal = allRubbers.Sum(r => r.HomeGamesTotal ?? 0);
+            fx.AwayGamesTotal = allRubbers.Sum(r => r.AwayGamesTotal ?? 0);
+
+            // Winner is still determined by RUBBER count — that's what the team
+            // league table uses for W/D/L (the LeagueScoring metric only drives
+            // points). Keeping these aligned avoids "won the table row but lost
+            // the fixture" weirdness.
+            int? winner = homeRubbers > awayRubbers ? fx.HomeTeamId
+                        : awayRubbers > homeRubbers ? fx.AwayTeamId
                         : null;
 
-            if (!winner.HasValue && homeScore == awayScore)
+            if (!winner.HasValue && homeRubbers == awayRubbers)
             {
                 var mode = fx.Competition?.RubberTieBreak ?? DropShot.Shared.RubberTieBreakMode.AdminDecides;
                 winner = await RubberResolutionService.ResolveTieBreakAsync(db, fx, allRubbers, mode);
