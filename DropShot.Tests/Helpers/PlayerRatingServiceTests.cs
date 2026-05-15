@@ -537,25 +537,44 @@ public class PlayerRatingServiceTests
     }
 
     [Fact]
-    public async Task SuggestDivisions_NoRatings_ReturnsEmpty()
+    public async Task SuggestDivisions_NoRatings_DefaultsAllPlayersAndPartitions()
     {
+        // With everyone at the default 1500, partitioning is by secondary
+        // sort (PlayerId asc). Critically, the engine must still produce a
+        // suggestion for every participant whose current division differs —
+        // otherwise the "Apply all placement suggestions" button never appears
+        // on a brand-new roster.
         var factory = new TestDbContextFactory();
         using (var db = factory.CreateDbContext())
         {
-            db.Players.Add(new Player { PlayerId = 1, DisplayName = "P1" });
+            db.Players.AddRange(
+                new Player { PlayerId = 1, DisplayName = "P1" },
+                new Player { PlayerId = 2, DisplayName = "P2" },
+                new Player { PlayerId = 3, DisplayName = "P3" },
+                new Player { PlayerId = 4, DisplayName = "P4" });
             db.Competition.Add(new Competition { CompetitionID = 100, CompetitionName = "C" });
             db.CompetitionDivisions.AddRange(
                 new CompetitionDivision { CompetitionDivisionId = 1, CompetitionId = 100, Rank = 1, Name = "A" },
                 new CompetitionDivision { CompetitionDivisionId = 2, CompetitionId = 100, Rank = 2, Name = "B" });
-            db.CompetitionParticipants.Add(
-                new CompetitionParticipant { CompetitionId = 100, PlayerId = 1 });
+            db.CompetitionParticipants.AddRange(
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 1 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 2 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 3 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 4 });
             await db.SaveChangesAsync();
         }
 
         var svc = BuildService(factory);
-        var placements = await svc.SuggestDivisionPlacementsAsync(competitionId: 100);
+        var placements = (await svc.SuggestDivisionPlacementsAsync(competitionId: 100))
+            .ToDictionary(p => p.PlayerId);
 
-        Assert.Empty(placements);
+        // 4 players / 2 divisions → 2 each. PlayerId ascending breaks the
+        // all-equal tie, so P1+P2 land in Div 1, P3+P4 in Div 2.
+        Assert.Equal(4, placements.Count);
+        Assert.Equal(1, placements[1].SuggestedDivisionId);
+        Assert.Equal(1, placements[2].SuggestedDivisionId);
+        Assert.Equal(2, placements[3].SuggestedDivisionId);
+        Assert.Equal(2, placements[4].SuggestedDivisionId);
     }
 
     [Fact]
@@ -627,8 +646,12 @@ public class PlayerRatingServiceTests
     }
 
     [Fact]
-    public async Task SuggestRoles_TeamWithMissingRating_Skipped()
+    public async Task SuggestRoles_PartialRatings_StillAssignsUsingDefault()
     {
+        // Only P1 has an explicit rating; P2 takes the 1500 default. The
+        // engine must still produce role suggestions for the team — the
+        // rating-aware assigner sorts P1 (1700) above P2 (1500), so the
+        // higher-rated male gets MA.
         var factory = new TestDbContextFactory();
         using (var db = factory.CreateDbContext())
         {
@@ -645,21 +668,21 @@ public class PlayerRatingServiceTests
                 CompetitionTeamId = 10, CompetitionId = 100, Name = "T1"
             });
             db.CompetitionParticipants.AddRange(
-                new CompetitionParticipant { CompetitionId = 100, PlayerId = 1, TeamId = 10 },
-                new CompetitionParticipant { CompetitionId = 100, PlayerId = 2, TeamId = 10 });
-            // Only P1 has a rating — team is incomplete, so we skip role
-            // suggestions for the whole team.
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 1, TeamId = 10, Role = "MB" },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 2, TeamId = 10, Role = "MA" });
             db.PlayerRatingSnapshots.Add(new PlayerRatingSnapshot
             {
-                PlayerId = 1, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1500
+                PlayerId = 1, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1700
             });
             await db.SaveChangesAsync();
         }
 
         var svc = BuildService(factory);
-        var placements = await svc.SuggestRolePlacementsAsync(competitionId: 100);
+        var placements = (await svc.SuggestRolePlacementsAsync(competitionId: 100))
+            .ToDictionary(p => p.PlayerId);
 
-        Assert.Empty(placements);
+        Assert.Equal("MA", placements[1].SuggestedRole);
+        Assert.Equal("MB", placements[2].SuggestedRole);
     }
 
     [Fact]
