@@ -164,6 +164,49 @@ public interface ICompetitionAdminService
         int competitionId, int playerId, SetParticipantDivisionRequest request, CancellationToken ct = default);
 
     /// <summary>
+    /// Set or update a participant's admin-entered initial Elo rating for this
+    /// competition. Writes a <c>SeasonStart</c> snapshot — idempotent on re-call.
+    /// Used to bootstrap a brand-new (non-cloned) competition before any Elo
+    /// replay is possible.
+    /// </summary>
+    Task SetParticipantInitialRatingAsync(
+        int competitionId, int playerId, SetParticipantInitialRatingRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Accept the Elo-replay rating suggestion for one participant. Writes the
+    /// SeasonEnd snapshot on the previous competition and the SeasonStart on
+    /// this one. Returns the suggestion that was applied, or null if there
+    /// wasn't one (e.g. brand-new competition, or player didn't play in parent).
+    /// </summary>
+    Task<PlayerRatingSuggestionDto?> AcceptParticipantRatingAsync(
+        int competitionId, int playerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Accept every visible rating suggestion in a single round. Returns the
+    /// list of applied suggestions for UI confirmation.
+    /// </summary>
+    Task<List<PlayerRatingSuggestionDto>> AcceptAllParticipantRatingsAsync(
+        int competitionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Apply the rating-driven division suggestion for one participant.
+    /// </summary>
+    Task ApplyDivisionPlacementAsync(
+        int competitionId, int playerId, ApplyDivisionPlacementRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Apply the rating-driven role suggestion for one participant (TeamMatch).
+    /// </summary>
+    Task ApplyRolePlacementAsync(
+        int competitionId, int playerId, ApplyRolePlacementRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Apply every pending division + role placement suggestion in one round.
+    /// Returns the count of rows written.
+    /// </summary>
+    Task<int> ApplyAllPlacementsAsync(int competitionId, CancellationToken ct = default);
+
+    /// <summary>
     /// Create a "light" Player (no user account) and immediately enrol them as
     /// a participant. Returns the new playerId. <see cref="CreateLightPlayerForCompetitionRequest.HostClubId"/>
     /// is required because light players are scoped to a club.

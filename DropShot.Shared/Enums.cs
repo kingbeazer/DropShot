@@ -78,6 +78,12 @@ public enum SetWinMode : byte
     FirstTo = 1
 }
 
+public enum PlayerRatingSnapshotKind : byte
+{
+    SeasonStart = 1,
+    SeasonEnd   = 2
+}
+
 /// <summary>
 /// How to resolve a knockout team-match when the rubbers are tied.
 /// Applied by <c>RubberResolutionService.ResolveTieBreakAsync</c> after

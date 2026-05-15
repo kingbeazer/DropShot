@@ -775,6 +775,22 @@ else
                     }
                     <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FilterAltOff"
                                OnClick="ClearParticipantFilters">Clear</MudButton>
+                    @if (_participants.Any(p => p.RatingSuggestion is not null))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                   OnClick="AcceptAllParticipantRatings">
+                            Apply all rating suggestions
+                        </MudButton>
+                    }
+                    @if (_participants.Any(p => p.PlacementSuggestion is not null))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.GridOn"
+                                   OnClick="ApplyAllPlacements">
+                            Apply all placement suggestions
+                        </MudButton>
+                    }
                 </MudStack>
 
                 <MudTable T="CompetitionParticipantDto" Items="@_participants" Dense="true" Hover="true"
@@ -783,6 +799,7 @@ else
                         <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => x.DisplayName)">Player</MudTableSortLabel></MudTh>
                         <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => x.Status)">Status</MudTableSortLabel></MudTh>
                         <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => x.RegisteredAt)">Registered</MudTableSortLabel></MudTh>
+                        <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => x.Rating?.CurrentRating ?? double.MinValue)">Rating</MudTableSortLabel></MudTh>
                         @if (hasTeamCol)
                         {
                             <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => _teams.FirstOrDefault(t => t.CompetitionTeamId == x.TeamId)?.Name ?? "")">@teamColLabel</MudTableSortLabel></MudTh>
@@ -811,6 +828,37 @@ else
                             </MudSelect>
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
+                        <MudTd>
+                            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                <MudNumericField T="int?"
+                                                 Value="@(context.Rating is { } r ? (int)Math.Round(r.CurrentRating) : (int?)null)"
+                                                 ValueChanged="@((int? v) => SetParticipantInitialRating(context, v))"
+                                                 Placeholder="—"
+                                                 Min="0" Max="4000" Step="10"
+                                                 Variant="Variant.Text" Margin="Margin.Dense" HideSpinButtons="true"
+                                                 Style="max-width: 80px;" />
+                                @if (context.Rating is { IsProvisional: true } && context.RatingSuggestion is null)
+                                {
+                                    <MudTooltip Text="Provisional rating — fewer than 10 completed rubbers, or the default starting rating. Type a number to set the initial rating.">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">prov</MudChip>
+                                    </MudTooltip>
+                                }
+                                @if (context.RatingSuggestion is { } sug)
+                                {
+                                    var up = sug.Delta > 0;
+                                    var down = sug.Delta < 0;
+                                    var arrow = up ? "↑" : down ? "↓" : "→";
+                                    var color = up ? Color.Success : down ? Color.Error : Color.Default;
+                                    <MudTooltip Text="@($"Suggested from previous season — {sug.RubbersPlayed} rubber(s) played. Click Apply to lock in {sug.SuggestedRating:0}.")">
+                                        <MudChip T="string" Size="Size.Small" Color="@color" Variant="Variant.Outlined">
+                                            @arrow @sug.SuggestedRating.ToString("0") (@((sug.Delta >= 0 ? "+" : "") + sug.Delta.ToString("0")))
+                                        </MudChip>
+                                    </MudTooltip>
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                               OnClick="@(() => AcceptParticipantRating(context))">Apply</MudButton>
+                                }
+                            </MudStack>
+                        </MudTd>
                         @if (hasTeamCol)
                         {
                             <MudTd>
@@ -828,24 +876,48 @@ else
                         {
                             <MudTd>@(context.Sex?.ToString() ?? "—")</MudTd>
                             <MudTd>
-                                <MudAutocomplete T="string" Value="context.Role" Dense="true" Variant="Variant.Text"
-                                                 Clearable="true" CoerceValue="true"
-                                                 SearchFunc="SearchRoles"
-                                                 ValueChanged="@((string? r) => AssignRole(context, r))"
-                                                 ShowProgressIndicator="false" DebounceInterval="0" />
+                                <MudStack Row="false" Spacing="0">
+                                    <MudAutocomplete T="string" Value="context.Role" Dense="true" Variant="Variant.Text"
+                                                     Clearable="true" CoerceValue="true"
+                                                     SearchFunc="SearchRoles"
+                                                     ValueChanged="@((string? r) => AssignRole(context, r))"
+                                                     ShowProgressIndicator="false" DebounceInterval="0" />
+                                    @if (context.PlacementSuggestion is { SuggestedRole: { } sr } && sr != context.Role)
+                                    {
+                                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                                → @sr
+                                            </MudChip>
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                                       OnClick="@(() => ApplyRolePlacement(context))">Apply</MudButton>
+                                        </MudStack>
+                                    }
+                                </MudStack>
                             </MudTd>
                         }
                         @if (Model.HasDivisions)
                         {
                             <MudTd>
-                                <MudSelect T="int?" Value="context.CompetitionDivisionId" Dense="true" Variant="Variant.Text"
-                                           Clearable="true"
-                                           ValueChanged="@((int? did) => AssignParticipantDivision(context, did))">
-                                    @foreach (var d in _divisions)
+                                <MudStack Row="false" Spacing="0">
+                                    <MudSelect T="int?" Value="context.CompetitionDivisionId" Dense="true" Variant="Variant.Text"
+                                               Clearable="true"
+                                               ValueChanged="@((int? did) => AssignParticipantDivision(context, did))">
+                                        @foreach (var d in _divisions)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                    @if (context.PlacementSuggestion is { SuggestedDivisionId: { } sdid } && sdid != context.CompetitionDivisionId)
                                     {
-                                        <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                                → @context.PlacementSuggestion.SuggestedDivisionName
+                                            </MudChip>
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                                       OnClick="@(() => ApplyDivisionPlacement(context))">Apply</MudButton>
+                                        </MudStack>
                                     }
-                                </MudSelect>
+                                </MudStack>
                             </MudTd>
                         }
                         <MudTd>
@@ -2791,6 +2863,98 @@ else
                 : null;
             _participants[idx] = cp with { CompetitionDivisionId = divisionId, DivisionName = divName };
         }
+    }
+
+    private async Task SetParticipantInitialRating(CompetitionParticipantDto cp, int? rating)
+    {
+        if (rating is null) return;
+        await Admin.SetParticipantInitialRatingAsync(
+            Id, cp.PlayerId, new SetParticipantInitialRatingRequest(rating.Value));
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            _participants[idx] = cp with
+            {
+                Rating = new PlayerRatingDto(rating.Value, IsProvisional: false),
+                RatingSuggestion = null,
+            };
+        }
+    }
+
+    private async Task AcceptParticipantRating(CompetitionParticipantDto cp)
+    {
+        var s = await Admin.AcceptParticipantRatingAsync(Id, cp.PlayerId);
+        if (s is null) return;
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            _participants[idx] = cp with
+            {
+                Rating = new PlayerRatingDto(s.SuggestedRating, IsProvisional: s.RubbersPlayed < 10),
+                RatingSuggestion = null,
+            };
+        }
+    }
+
+    private async Task AcceptAllParticipantRatings()
+    {
+        var applied = await Admin.AcceptAllParticipantRatingsAsync(Id);
+        if (applied.Count == 0)
+        {
+            SiteAlerts.Add("No rating suggestions to apply.", Severity.Info);
+            return;
+        }
+        await ReloadAfterServerMutationAsync();
+        SiteAlerts.Add($"Applied {applied.Count} rating suggestion(s).", Severity.Success);
+    }
+
+    private async Task ApplyDivisionPlacement(CompetitionParticipantDto cp)
+    {
+        if (cp.PlacementSuggestion?.SuggestedDivisionId is not int did) return;
+        await Admin.ApplyDivisionPlacementAsync(Id, cp.PlayerId, new ApplyDivisionPlacementRequest(did));
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            var name = _divisions.FirstOrDefault(d => d.CompetitionDivisionId == did)?.Name;
+            _participants[idx] = cp with
+            {
+                CompetitionDivisionId = did,
+                DivisionName = name,
+                PlacementSuggestion = cp.PlacementSuggestion with { SuggestedDivisionId = null, SuggestedDivisionName = null },
+            };
+            // Drop the whole suggestion if both fields are now empty.
+            if (_participants[idx].PlacementSuggestion is { SuggestedDivisionId: null, SuggestedRole: null })
+                _participants[idx] = _participants[idx] with { PlacementSuggestion = null };
+        }
+    }
+
+    private async Task ApplyRolePlacement(CompetitionParticipantDto cp)
+    {
+        if (cp.PlacementSuggestion?.SuggestedRole is not string role) return;
+        await Admin.ApplyRolePlacementAsync(Id, cp.PlayerId, new ApplyRolePlacementRequest(role));
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            _participants[idx] = cp with
+            {
+                Role = role,
+                PlacementSuggestion = cp.PlacementSuggestion with { SuggestedRole = null },
+            };
+            if (_participants[idx].PlacementSuggestion is { SuggestedDivisionId: null, SuggestedRole: null })
+                _participants[idx] = _participants[idx] with { PlacementSuggestion = null };
+        }
+    }
+
+    private async Task ApplyAllPlacements()
+    {
+        var count = await Admin.ApplyAllPlacementsAsync(Id);
+        if (count == 0)
+        {
+            SiteAlerts.Add("No placement suggestions to apply.", Severity.Info);
+            return;
+        }
+        await ReloadAfterServerMutationAsync();
+        SiteAlerts.Add($"Applied {count} placement suggestion(s).", Severity.Success);
     }
 
     // ── Participant promote / demote ───────────────────────────────────────

@@ -44,6 +44,7 @@ namespace DropShot.Data
         public DbSet<PlayerInvitation> PlayerInvitations { get; set; }
         public DbSet<ClubLinkRequest> ClubLinkRequests { get; set; }
         public DbSet<CompetitionAllowedPlayer> CompetitionAllowedPlayers { get; set; }
+        public DbSet<PlayerRatingSnapshot> PlayerRatingSnapshots { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -652,6 +653,24 @@ namespace DropShot.Data
                       .WithMany(t => t.Rubbers)
                       .HasForeignKey(r => r.CompetitionRubberTemplateId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── PlayerRatingSnapshot ────────────────────────────────────────────
+            builder.Entity<PlayerRatingSnapshot>(entity =>
+            {
+                entity.Property(s => s.Kind).HasConversion<byte>();
+                entity.Property(s => s.AcceptedByUserId).HasMaxLength(450);
+                entity.HasIndex(s => new { s.PlayerId, s.CompetitionId, s.Kind }).IsUnique();
+
+                entity.HasOne(s => s.Player)
+                      .WithMany()
+                      .HasForeignKey(s => s.PlayerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(s => s.Competition)
+                      .WithMany()
+                      .HasForeignKey(s => s.CompetitionId)
+                      .OnDelete(DeleteBehavior.NoAction);
             });
 
             // ── RoleSwitchLog ───────────────────────────────────────────────────

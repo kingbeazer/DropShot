@@ -24,7 +24,8 @@ public sealed class WebCompetitionService(
     AuthenticationStateProvider authStateProvider,
     ICurrentUser currentUser,
     BackgroundTaskQueue backgroundTasks,
-    RubberResolutionService rubberResolver) : ICompetitionService
+    RubberResolutionService rubberResolver,
+    PlayerRatingService ratings) : ICompetitionService
 {
     /// <summary>
     /// Best-available principal: HttpContext.User on prerender, controllers,
@@ -126,6 +127,14 @@ public sealed class WebCompetitionService(
                 .FirstOrDefault(p => p.Player?.UserId == currentUser.UserId)?.PlayerId;
         }
 
+        var ratingsByPlayer = await ratings.GetRosterRatingsAsync(id, ct);
+        var ratingSuggestions = (await ratings.GetVisibleSuggestionsAsync(id, ct))
+            .ToDictionary(s => s.PlayerId);
+        var divisionPlacements = (await ratings.SuggestDivisionPlacementsAsync(id, ct))
+            .ToDictionary(p => p.PlayerId);
+        var rolePlacements = (await ratings.SuggestRolePlacementsAsync(id, ct))
+            .ToDictionary(p => p.PlayerId);
+
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
             c.CompetitionFormat,
@@ -144,7 +153,14 @@ public sealed class WebCompetitionService(
                 p.Role,
                 p.Player?.Sex,
                 p.CompetitionDivisionId,
-                p.Division?.Name)).ToList(),
+                p.Division?.Name,
+                ratingsByPlayer.TryGetValue(p.PlayerId, out var r)
+                    ? new PlayerRatingDto(r.Value, r.IsProvisional)
+                    : null,
+                ratingSuggestions.TryGetValue(p.PlayerId, out var rs)
+                    ? new PlayerRatingSuggestionDto(rs.PreviousRating, rs.SuggestedRating, rs.Delta, rs.RubbersPlayed)
+                    : null,
+                BuildPlacementSuggestion(p.PlayerId, divisionPlacements, rolePlacements))).ToList(),
             c.IsArchived,
             c.IsStarted,
             c.CreatorUserId,
@@ -171,6 +187,20 @@ public sealed class WebCompetitionService(
                 cp.Name)).ToList(),
             c.LeagueScoring,
             myPlayerId);
+    }
+
+    private static PlacementSuggestionDto? BuildPlacementSuggestion(
+        int playerId,
+        Dictionary<int, PlayerRatingService.DivisionPlacement> divisions,
+        Dictionary<int, PlayerRatingService.RolePlacement> roles)
+    {
+        var hasDivision = divisions.TryGetValue(playerId, out var d);
+        var hasRole = roles.TryGetValue(playerId, out var r);
+        if (!hasDivision && !hasRole) return null;
+        return new PlacementSuggestionDto(
+            SuggestedDivisionId: hasDivision ? d!.SuggestedDivisionId : null,
+            SuggestedDivisionName: hasDivision ? d!.SuggestedDivisionName : null,
+            SuggestedRole: hasRole ? r!.SuggestedRole : null);
     }
 
     private static CompetitionFixtureDto ToFixtureDto(DropShot.Models.CompetitionFixture f) => new(

@@ -70,7 +70,23 @@ public record CompetitionParticipantDto(
     string? Role = null,
     PlayerSex? Sex = null,
     int? CompetitionDivisionId = null,
-    string? DivisionName = null);
+    string? DivisionName = null,
+    PlayerRatingDto? Rating = null,
+    PlayerRatingSuggestionDto? RatingSuggestion = null,
+    PlacementSuggestionDto? PlacementSuggestion = null);
+
+public record PlayerRatingDto(double CurrentRating, bool IsProvisional);
+
+public record PlayerRatingSuggestionDto(
+    double PreviousRating,
+    double SuggestedRating,
+    double Delta,
+    int RubbersPlayed);
+
+public record PlacementSuggestionDto(
+    int? SuggestedDivisionId,
+    string? SuggestedDivisionName,
+    string? SuggestedRole);
 
 public record CompetitionFixtureDto(
     int CompetitionFixtureId,
@@ -317,6 +333,12 @@ public record TeamLeagueTableEntryDto(
 public record SaveCourtPairRequest(int Court1Id, int Court2Id, string Name);
 
 public record SetParticipantRoleRequest(string? Role);
+
+public record SetParticipantInitialRatingRequest(double Rating);
+
+public record ApplyDivisionPlacementRequest(int CompetitionDivisionId);
+
+public record ApplyRolePlacementRequest(string Role);
 
 // ── Divisions (multi-tier within a competition) ──────────────────────────────
 

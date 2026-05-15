@@ -147,6 +147,7 @@ builder.Services.AddSingleton<ContactRateLimiter>();
 builder.Services.AddScoped<FuzzySearchService>();
 builder.Services.AddScoped<ICompetitionRubberTemplateProvider, CompetitionRubberTemplateProvider>();
 builder.Services.AddScoped<RubberResolutionService>();
+builder.Services.AddScoped<PlayerRatingService>();
 builder.Services.AddScoped<FixtureSimulationService>();
 builder.Services.AddScoped<CompetitionSchedulerService>();
 builder.Services.AddSingleton<QrLoginService>();

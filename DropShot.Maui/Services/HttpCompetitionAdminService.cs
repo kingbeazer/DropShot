@@ -243,6 +243,58 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task SetParticipantInitialRatingAsync(
+        int competitionId, int playerId, SetParticipantInitialRatingRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/initial-rating", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<PlayerRatingSuggestionDto?> AcceptParticipantRatingAsync(
+        int competitionId, int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/accept-rating", content: null, ct);
+        resp.EnsureSuccessStatusCode();
+        if (resp.StatusCode == System.Net.HttpStatusCode.NoContent) return null;
+        return await resp.Content.ReadFromJsonAsync<PlayerRatingSuggestionDto>(cancellationToken: ct);
+    }
+
+    public async Task<List<PlayerRatingSuggestionDto>> AcceptAllParticipantRatingsAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/ratings/apply-all", content: null, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<List<PlayerRatingSuggestionDto>>(cancellationToken: ct)
+            ?? new List<PlayerRatingSuggestionDto>();
+    }
+
+    public async Task ApplyDivisionPlacementAsync(
+        int competitionId, int playerId, ApplyDivisionPlacementRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/division-placement", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task ApplyRolePlacementAsync(
+        int competitionId, int playerId, ApplyRolePlacementRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/role-placement", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<int> ApplyAllPlacementsAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/placements/apply-all", content: null, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
     public async Task<int> CreateLightPlayerAsync(
         int competitionId, CreateLightPlayerForCompetitionRequest request, CancellationToken ct = default)
     {

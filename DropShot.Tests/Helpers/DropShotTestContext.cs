@@ -134,6 +134,7 @@ public class DropShotTestContext : BunitContext
         Services.AddSingleton<BackgroundTaskQueue>();
         Services.AddScoped<ICompetitionRubberTemplateProvider, CompetitionRubberTemplateProvider>();
         Services.AddScoped<RubberResolutionService>();
+        Services.AddScoped<PlayerRatingService>();
         Services.AddScoped<FixtureSimulationService>();
         Services.AddScoped<CompetitionSchedulerService>();
         Services.AddScoped<FuzzySearchService>();
