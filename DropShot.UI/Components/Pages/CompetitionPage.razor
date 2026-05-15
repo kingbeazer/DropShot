@@ -3212,7 +3212,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to preview generated teams for competition {CompetitionId}.", Id);
-            _generateError = $"Failed to preview teams: {ex.Message}";
+            _generateError = $"Failed to preview teams: {FormatExceptionChain(ex)}";
         }
     }
 
@@ -3241,12 +3241,31 @@ else
             // the previous fix look like "nothing happens" when it actually
             // failed.
             Logger.LogError(ex, "Failed to confirm team generation for competition {CompetitionId}.", Id);
-            _generateError = $"Failed to create teams: {ex.Message}";
+            _generateError = $"Failed to create teams: {FormatExceptionChain(ex)}";
         }
         finally
         {
             _generating = false;
         }
+    }
+
+    // EF Core's DbUpdateException wraps the actual SQL failure (FK violation,
+    // unique constraint, etc.) in its InnerException — the outer message is
+    // just "An error occurred while saving the entity changes." which tells
+    // the admin nothing actionable. Walk the chain so the inline alert
+    // includes the real reason.
+    private static string FormatExceptionChain(Exception ex)
+    {
+        var parts = new List<string>();
+        Exception? current = ex;
+        var seen = new HashSet<Exception>();
+        while (current != null && seen.Add(current))
+        {
+            if (!string.IsNullOrWhiteSpace(current.Message))
+                parts.Add(current.Message);
+            current = current.InnerException;
+        }
+        return parts.Count > 0 ? string.Join(" → ", parts) : ex.GetType().Name;
     }
 
     // ── Fixtures ─────────────────────────────────────────────────────────────
