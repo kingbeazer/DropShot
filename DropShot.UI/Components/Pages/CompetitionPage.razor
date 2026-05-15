@@ -1504,6 +1504,14 @@ else
                 }
             }
 
+            @if (!string.IsNullOrEmpty(_generateError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" ShowCloseIcon="true"
+                          CloseIconClicked="@(() => _generateError = null)">
+                    @_generateError
+                </MudAlert>
+            }
+
             @if (_generateWarnings.Count > 0)
             {
                 <MudAlert Severity="Severity.Warning" Dense="true">
@@ -1857,6 +1865,11 @@ else
     private int _generateTeamSize = 4;
     private bool _generateGenderBalance = true;
     private List<string> _generateWarnings = [];
+    // Surfaced inline inside the generate dialog so failure messages stay
+    // visible — the SiteAlertHost banner is covered by the dialog's modal
+    // overlay, which made the previous "create teams failed" alert
+    // invisible to the user.
+    private string? _generateError;
     private List<GeneratedTeamPreviewDto> _generatedPreview = [];
     private bool _generating;
 
@@ -3159,6 +3172,7 @@ else
 
         _generateWarnings = [];
         _generatedPreview = [];
+        _generateError = null;
         _generating = false;
         _showGenerateDialog = true;
     }
@@ -3167,6 +3181,7 @@ else
     {
         _generateWarnings = [];
         _generatedPreview = [];
+        _generateError = null;
 
         // The admin service generates per-division. When divisions are off,
         // pass null and use the global pool.
@@ -3197,7 +3212,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to preview generated teams for competition {CompetitionId}.", Id);
-            SiteAlerts.Add($"Failed to preview teams: {ex.Message}", Severity.Error);
+            _generateError = $"Failed to preview teams: {ex.Message}";
         }
     }
 
@@ -3205,6 +3220,7 @@ else
     {
         if (_generatedPreview.Count == 0 || _generating) return;
         _generating = true;
+        _generateError = null;
 
         try
         {
@@ -3217,13 +3233,15 @@ else
         }
         catch (Exception ex)
         {
-            // Without this, the service-layer exception escapes the handler entirely
-            // and the user just sees an empty MudBlazor error bar from the circuit
-            // boundary. Logging the full exception (with stack trace) plus surfacing
-            // ex.Message via SiteAlerts mirrors the pattern used by the other admin
-            // handlers in this page (e.g. clone competition).
+            // Surface the error both inline (visible inside the still-open
+            // dialog) and via Logger.LogError (full stack trace in the server
+            // log). The SiteAlertHost banner sits above the page content and
+            // is covered by the modal dialog overlay, so an alert there is
+            // invisible to the user while the dialog is open — which made
+            // the previous fix look like "nothing happens" when it actually
+            // failed.
             Logger.LogError(ex, "Failed to confirm team generation for competition {CompetitionId}.", Id);
-            SiteAlerts.Add($"Failed to create teams: {ex.Message}", Severity.Error);
+            _generateError = $"Failed to create teams: {ex.Message}";
         }
         finally
         {
