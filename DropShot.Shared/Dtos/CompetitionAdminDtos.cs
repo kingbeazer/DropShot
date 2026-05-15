@@ -290,6 +290,19 @@ public record SearchPlayersForAddRequest(
     int? HostClubId,
     int? MaxResults = 20);
 
+/// <summary>
+/// Bulk-add multiple players to a competition in one round-trip. Each player is
+/// enrolled with <see cref="Status"/>; players already in the competition or
+/// who don't exist are silently skipped (counted via the result DTO).
+/// Eligibility violations are bypassed because the calling UI shows only
+/// eligible candidates in the picker.
+/// </summary>
+public record BulkAddParticipantsRequest(
+    IReadOnlyList<int> PlayerIds,
+    ParticipantStatus Status = ParticipantStatus.Registered);
+
+public record BulkAddParticipantsResultDto(int Added, int Skipped);
+
 // ── Phase 7O additions: roster / divisions / teams / fixtures / match windows ──
 //
 // Several admin requests reuse DTOs already defined in CompetitionDtos.cs

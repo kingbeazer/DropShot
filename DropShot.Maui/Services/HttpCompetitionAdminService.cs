@@ -205,6 +205,20 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
         }
     }
 
+    public async Task<BulkAddParticipantsResultDto> BulkAddParticipantsAsync(
+        int competitionId, BulkAddParticipantsRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/bulk-add", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to bulk-add participants." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<BulkAddParticipantsResultDto>(cancellationToken: ct)
+            ?? new BulkAddParticipantsResultDto(0, 0);
+    }
+
     public async Task RemoveParticipantAsync(int competitionId, int playerId, CancellationToken ct = default)
     {
         var resp = await http.DeleteAsync($"api/competitions/admin/{competitionId}/participants/{playerId}", ct);

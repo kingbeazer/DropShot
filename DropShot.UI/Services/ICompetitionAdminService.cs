@@ -149,6 +149,15 @@ public interface ICompetitionAdminService
         int competitionId, SearchPlayersForAddRequest request, CancellationToken ct = default);
 
     Task AddParticipantAsync(int competitionId, AddParticipantRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Add a list of players to the competition in one round-trip. Players who
+    /// are already enrolled or who push the roster over <c>MaxParticipants</c>
+    /// are silently skipped; the result DTO reports counts.
+    /// </summary>
+    Task<BulkAddParticipantsResultDto> BulkAddParticipantsAsync(
+        int competitionId, BulkAddParticipantsRequest request, CancellationToken ct = default);
+
     Task RemoveParticipantAsync(int competitionId, int playerId, CancellationToken ct = default);
 
     Task UpdateParticipantStatusAsync(

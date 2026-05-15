@@ -231,6 +231,16 @@ public class CompetitionsAdminController(
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    [HttpPost("{id:int}/participants/bulk-add")]
+    public async Task<ActionResult<BulkAddParticipantsResultDto>> BulkAddParticipants(
+        int id, [FromBody] BulkAddParticipantsRequest req, CancellationToken ct)
+    {
+        try { return await admin.BulkAddParticipantsAsync(id, req, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpDelete("{id:int}/participants/{playerId:int}")]
     public async Task<IActionResult> RemoveParticipant(int id, int playerId, CancellationToken ct)
     {
