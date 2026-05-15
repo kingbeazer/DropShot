@@ -906,17 +906,25 @@ else
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
                         <MudTd>
+                            @{
+                                var displayedRating = context.Rating is { } r
+                                    ? (int)Math.Round(r.CurrentRating)
+                                    : DefaultStartingRating;
+                                var isDefaultDisplay = context.Rating is null;
+                                var isProvisional = context.Rating?.IsProvisional ?? false;
+                            }
                             <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
                                 <MudNumericField T="int?"
-                                                 Value="@(context.Rating is { } r ? (int)Math.Round(r.CurrentRating) : (int?)null)"
+                                                 Value="@((int?)displayedRating)"
                                                  ValueChanged="@((int? v) => SetParticipantInitialRating(context, v))"
-                                                 Placeholder="—"
                                                  Min="0" Max="4000" Step="10"
                                                  Variant="Variant.Text" Margin="Margin.Dense" HideSpinButtons="true"
                                                  Style="max-width: 80px;" />
-                                @if (context.Rating is { IsProvisional: true } && context.RatingSuggestion is null)
+                                @if ((isDefaultDisplay || isProvisional) && context.RatingSuggestion is null)
                                 {
-                                    <MudTooltip Text="Provisional rating — fewer than 10 completed rubbers, or the default starting rating. Type a number to set the initial rating.">
+                                    <MudTooltip Text="@(isDefaultDisplay
+                                        ? "Default starting rating (1500). Type a number to set the initial rating for this player."
+                                        : "Provisional rating — fewer than 10 completed rubbers.")">
                                         <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">prov</MudChip>
                                     </MudTooltip>
                                 }
@@ -2773,6 +2781,12 @@ else
         _newPlayerForm = new NewPlayerForm();
         _showNewPlayerDialog = true;
     }
+
+    // Display-side mirror of PlayerRatingService.DefaultRating — used when a
+    // participant has no recorded rating, so the roster cell shows 1500 with a
+    // "prov" chip rather than a blank field. Server-side default lives on
+    // PlayerRatingService and is the source of truth for math/persistence.
+    private const int DefaultStartingRating = 1500;
 
     // ── Bulk-add dialog ──────────────────────────────────────────────────────
     private bool _showBulkAddDialog;
