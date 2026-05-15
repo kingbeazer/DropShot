@@ -3170,26 +3170,34 @@ else
 
         // The admin service generates per-division. When divisions are off,
         // pass null and use the global pool.
-        if (Model.HasDivisions && _divisions.Count > 0)
+        try
         {
-            foreach (var div in _divisions.OrderBy(d => d.Rank))
+            if (Model.HasDivisions && _divisions.Count > 0)
+            {
+                foreach (var div in _divisions.OrderBy(d => d.Rank))
+                {
+                    var result = await Admin.GenerateTeamsPreviewAsync(Id, new GenerateTeamsRequest(
+                        TeamSize: _generateTeamSize,
+                        BalanceByGender: _generateGenderBalance,
+                        CompetitionDivisionId: div.CompetitionDivisionId));
+                    _generatedPreview.AddRange(result.Preview);
+                    foreach (var w in result.Warnings) _generateWarnings.Add($"[{div.Name}] {w}");
+                }
+            }
+            else
             {
                 var result = await Admin.GenerateTeamsPreviewAsync(Id, new GenerateTeamsRequest(
                     TeamSize: _generateTeamSize,
                     BalanceByGender: _generateGenderBalance,
-                    CompetitionDivisionId: div.CompetitionDivisionId));
+                    CompetitionDivisionId: null));
                 _generatedPreview.AddRange(result.Preview);
-                foreach (var w in result.Warnings) _generateWarnings.Add($"[{div.Name}] {w}");
+                _generateWarnings.AddRange(result.Warnings);
             }
         }
-        else
+        catch (Exception ex)
         {
-            var result = await Admin.GenerateTeamsPreviewAsync(Id, new GenerateTeamsRequest(
-                TeamSize: _generateTeamSize,
-                BalanceByGender: _generateGenderBalance,
-                CompetitionDivisionId: null));
-            _generatedPreview.AddRange(result.Preview);
-            _generateWarnings.AddRange(result.Warnings);
+            Logger.LogError(ex, "Failed to preview generated teams for competition {CompetitionId}.", Id);
+            SiteAlerts.Add($"Failed to preview teams: {ex.Message}", Severity.Error);
         }
     }
 
@@ -3206,6 +3214,16 @@ else
             _showGenerateDialog = false;
             var label = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "pairings" : "teams";
             SiteAlerts.Add($"{_generatedPreview.Count} {label} created.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            // Without this, the service-layer exception escapes the handler entirely
+            // and the user just sees an empty MudBlazor error bar from the circuit
+            // boundary. Logging the full exception (with stack trace) plus surfacing
+            // ex.Message via SiteAlerts mirrors the pattern used by the other admin
+            // handlers in this page (e.g. clone competition).
+            Logger.LogError(ex, "Failed to confirm team generation for competition {CompetitionId}.", Id);
+            SiteAlerts.Add($"Failed to create teams: {ex.Message}", Severity.Error);
         }
         finally
         {
