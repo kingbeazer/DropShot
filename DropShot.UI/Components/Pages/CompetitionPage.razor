@@ -564,6 +564,12 @@ else
                                        StartIcon="@Icons.Material.Filled.GroupAdd"
                                        OnClick="OpenBulkAddDialog">Add multiple</MudButton>
                         </MudTooltip>
+                        @if (_participants.Count > 0)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                                       OnClick="@(() => _showDeleteAllParticipantsConfirm = true)">Delete All Participants</MudButton>
+                        }
                     </MudStack>
                     @if (Model.HostClubId.HasValue)
                     {
@@ -574,6 +580,18 @@ else
                         </MudTooltip>
                     }
                 </MudStack>
+
+                @if (_showDeleteAllParticipantsConfirm)
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                              CloseIconClicked="@(() => _showDeleteAllParticipantsConfirm = false)">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Typo="Typo.body2">Delete all @_participants.Count participant(s)? This cannot be undone.</MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                       OnClick="DeleteAllParticipants">Confirm Delete</MudButton>
+                        </MudStack>
+                    </MudAlert>
+                }
 
                 <MudDialog @bind-Visible="_showNewPlayerDialog">
                     <TitleContent>@(_editingLightPlayerId.HasValue ? "Edit Player" : "Add New Club Player")</TitleContent>
@@ -2035,6 +2053,7 @@ else
     // Schedule confirm dialog
     private bool _showScheduleConfirm;
     private bool _showDeleteAllFixturesConfirm;
+    private bool _showDeleteAllParticipantsConfirm;
     private bool _showSeedConfirm;
 
     // Fixture dialog
@@ -2971,6 +2990,18 @@ else
         await Admin.RemoveParticipantAsync(Id, cp.PlayerId);
         _participants.Remove(cp);
         SiteAlerts.Add("Participant removed.", Severity.Warning);
+    }
+
+    private async Task DeleteAllParticipants()
+    {
+        _showDeleteAllParticipantsConfirm = false;
+        var count = _participants.Count;
+        foreach (var cp in _participants.ToList())
+        {
+            await Admin.RemoveParticipantAsync(Id, cp.PlayerId);
+        }
+        _participants.Clear();
+        SiteAlerts.Add($"{count} participant(s) removed.", Severity.Warning);
     }
 
     private async Task AssignTeam(CompetitionParticipantDto cp, int? teamId)
