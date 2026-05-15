@@ -989,6 +989,46 @@ public sealed class WebCompetitionAdminService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task<BulkAddParticipantsResultDto> BulkAddParticipantsAsync(
+        int competitionId, BulkAddParticipantsRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var comp = await db.Competition
+            .Include(c => c.Participants)
+            .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
+            ?? throw new KeyNotFoundException("Competition not found.");
+        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
+            throw new UnauthorizedAccessException("You can't edit this competition.");
+
+        if (request.PlayerIds.Count == 0)
+            return new BulkAddParticipantsResultDto(0, 0);
+
+        var existingIds = comp.Participants.Select(p => p.PlayerId).ToHashSet();
+        int remainingCapacity = comp.MaxParticipants.HasValue
+            ? Math.Max(0, comp.MaxParticipants.Value - comp.Participants.Count)
+            : int.MaxValue;
+
+        int added = 0;
+        int skipped = 0;
+        var now = DateTime.UtcNow;
+        foreach (var playerId in request.PlayerIds.Distinct())
+        {
+            if (existingIds.Contains(playerId)) { skipped++; continue; }
+            if (added >= remainingCapacity) { skipped++; continue; }
+
+            db.CompetitionParticipants.Add(new CompetitionParticipant
+            {
+                CompetitionId = competitionId,
+                PlayerId      = playerId,
+                RegisteredAt  = now,
+                Status        = request.Status,
+            });
+            added++;
+        }
+        if (added > 0) await db.SaveChangesAsync(ct);
+        return new BulkAddParticipantsResultDto(added, skipped);
+    }
+
     public async Task RemoveParticipantAsync(int competitionId, int playerId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
