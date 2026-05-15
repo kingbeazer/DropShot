@@ -451,12 +451,18 @@ public sealed class PlayerRatingService(IDbContextFactory<MyDbContext> dbFactory
     }
 
     /// <summary>
-    /// For each team, run the rating-aware MTT assigner over its members and
-    /// surface any role that would differ from the participant's current role.
-    /// TeamMatch competitions only — returns empty for other formats. Players
-    /// without an explicit rating snapshot are treated as the default (1500)
-    /// so a fresh roster gets a usable assignment (with all-equal ratings
-    /// the assigner falls back to alphabetical, matching the legacy AssignMtt).
+    /// Assign every TeamMatch participant a role based on rating rank within
+    /// their division (or across the whole roster if the competition isn't
+    /// divisioned). Within each sex bucket the top half goes to the A slot
+    /// (MA / FA), the bottom half to the B slot (MB / FB); odd counts give
+    /// the extra slot to A. Players without a rating snapshot are treated
+    /// as the default (1500) — with all-equal ratings ties break on
+    /// DisplayName so the output stays deterministic. Suggestions are only
+    /// returned where the resulting role differs from the participant's
+    /// current Role, so the caller's "any change?" check stays simple.
+    /// Roles are *not* coupled to team membership: a player gets a role
+    /// suggestion regardless of whether they're on a team yet, which lets
+    /// the admin role-balance the pool before generating teams.
     /// </summary>
     public async Task<IReadOnlyList<RolePlacement>> SuggestRolePlacementsAsync(
         int competitionId, CancellationToken ct = default)
@@ -473,31 +479,50 @@ public sealed class PlayerRatingService(IDbContextFactory<MyDbContext> dbFactory
         var participants = await db.CompetitionParticipants
             .AsNoTracking()
             .Include(p => p.Player)
-            .Where(p => p.CompetitionId == competitionId && p.TeamId.HasValue)
+            .Where(p => p.CompetitionId == competitionId)
             .ToListAsync(ct);
         if (participants.Count == 0) return Array.Empty<RolePlacement>();
 
-        var assigner = RubberTemplateRegistry.GetRoleAssigner(RubberTemplateRegistry.MttRatedKey);
-        if (assigner is null) return Array.Empty<RolePlacement>();
-
         var result = new List<RolePlacement>();
-        foreach (var teamGroup in participants.GroupBy(p => p.TeamId!.Value))
+        var groups = comp.HasDivisions
+            ? participants.GroupBy(p => p.CompetitionDivisionId)
+            : new[] { participants.GroupBy(_ => (int?)null).First() };
+
+        foreach (var group in groups)
         {
-            var members = teamGroup.ToList();
-            var candidates = members.Select(m => new RubberTemplateRegistry.AssignmentCandidate(
-                m.PlayerId,
-                m.Player?.DisplayName ?? "",
-                m.Player?.Sex,
-                ratings.TryGetValue(m.PlayerId, out var r) ? r.Value : DefaultRating)).ToList();
-            var assignments = assigner(candidates);
-            foreach (var m in members)
-            {
-                if (!assignments.TryGetValue(m.PlayerId, out var suggested)) continue;
-                if (m.Role == suggested) continue;
-                result.Add(new RolePlacement(m.PlayerId, suggested));
-            }
+            var inGroup = group.ToList();
+            AssignSlotsByRating(inGroup, PlayerSex.Male,
+                RubberTemplateRegistry.Roles.MA, RubberTemplateRegistry.Roles.MB,
+                ratings, result);
+            AssignSlotsByRating(inGroup, PlayerSex.Female,
+                RubberTemplateRegistry.Roles.FA, RubberTemplateRegistry.Roles.FB,
+                ratings, result);
         }
         return result;
+    }
+
+    private static void AssignSlotsByRating(
+        List<CompetitionParticipant> group, PlayerSex sex,
+        string aSlot, string bSlot,
+        IReadOnlyDictionary<int, Rating> ratings,
+        List<RolePlacement> result)
+    {
+        var sorted = group
+            .Where(p => p.Player?.Sex == sex)
+            .OrderByDescending(p => ratings.TryGetValue(p.PlayerId, out var r) ? r.Value : DefaultRating)
+            .ThenBy(p => p.Player?.DisplayName ?? "", StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (sorted.Count == 0) return;
+
+        // Odd counts give the extra slot to A — the top tier — so a division
+        // with 5 men ends up 3 MA + 2 MB, not 2 MA + 3 MB.
+        int aCount = (sorted.Count + 1) / 2;
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            var role = i < aCount ? aSlot : bSlot;
+            if (sorted[i].Role != role)
+                result.Add(new RolePlacement(sorted[i].PlayerId, role));
+        }
     }
 
     /// <summary>

@@ -1640,29 +1640,82 @@ public sealed class WebCompetitionAdminService(
 
         if (splitByGender)
         {
-            var males   = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Male).OrderBy(_ => rng.Next()).ToList();
-            var females = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Female).OrderBy(_ => rng.Next()).ToList();
-            var noSex   = bucketMembers.Where(p => p.Player?.Sex is null or PlayerSex.Other).ToList();
+            var malesAll   = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Male).ToList();
+            var femalesAll = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Female).ToList();
+            var noSex      = bucketMembers.Where(p => p.Player?.Sex is null or PlayerSex.Other).ToList();
 
             if (noSex.Count > 0)
                 warnings.Add($"{BucketPrefix()}{noSex.Count} player(s) have no gender set and will be skipped.");
+
+            // Pre-assigned-roles path: when every M/F player already has a
+            // valid MTT role, form teams by drawing one of each role rather
+            // than shuffling and re-assigning. Preserves the admin's role
+            // placements (typically set via SuggestRolePlacementsAsync) so
+            // the act of generating teams doesn't undo a deliberate balance.
+            bool isMtt = format == CompetitionFormat.TeamMatch && teamSize == 4;
+            string MA = RubberTemplateRegistry.Roles.MA;
+            string MB = RubberTemplateRegistry.Roles.MB;
+            string FA = RubberTemplateRegistry.Roles.FA;
+            string FB = RubberTemplateRegistry.Roles.FB;
+            bool allRolesSet = isMtt
+                && malesAll.Count > 0 && femalesAll.Count > 0
+                && malesAll.All(m => m.Role == MA || m.Role == MB)
+                && femalesAll.All(f => f.Role == FA || f.Role == FB);
+
+            if (allRolesSet)
+            {
+                var maPool = malesAll.Where(m => m.Role == MA).OrderBy(_ => rng.Next()).ToList();
+                var mbPool = malesAll.Where(m => m.Role == MB).OrderBy(_ => rng.Next()).ToList();
+                var faPool = femalesAll.Where(f => f.Role == FA).OrderBy(_ => rng.Next()).ToList();
+                var fbPool = femalesAll.Where(f => f.Role == FB).OrderBy(_ => rng.Next()).ToList();
+
+                int teamCount = new[] { maPool.Count, mbPool.Count, faPool.Count, fbPool.Count }.Min();
+                if (teamCount == 0)
+                {
+                    warnings.Add($"{BucketPrefix()}Not enough role coverage to form teams (MA:{maPool.Count} MB:{mbPool.Count} FA:{faPool.Count} FB:{fbPool.Count}).");
+                    return;
+                }
+                int leftover = maPool.Count + mbPool.Count + faPool.Count + fbPool.Count - 4 * teamCount;
+                if (leftover > 0)
+                    warnings.Add($"{BucketPrefix()}{leftover} player(s) will be unassigned due to uneven role counts.");
+
+                for (int i = 0; i < teamCount; i++)
+                {
+                    var memberIds = new[] { maPool[i].PlayerId, mbPool[i].PlayerId, faPool[i].PlayerId, fbPool[i].PlayerId };
+                    var roles = new Dictionary<int, string>
+                    {
+                        [maPool[i].PlayerId] = MA,
+                        [mbPool[i].PlayerId] = MB,
+                        [faPool[i].PlayerId] = FA,
+                        [fbPool[i].PlayerId] = FB,
+                    };
+                    preview.Add(new GeneratedTeamPreviewDto(
+                        TeamName(i), memberIds.ToList(), roles, divisionId, divisionName));
+                }
+                return;
+            }
+
+            // Legacy path: roles not pre-set (or not MTT) — shuffle and let
+            // the assigner pick roles after team formation.
+            var males   = malesAll.OrderBy(_ => rng.Next()).ToList();
+            var females = femalesAll.OrderBy(_ => rng.Next()).ToList();
 
             var perGender = teamSize / 2;
             if (teamSize % 2 != 0)
                 warnings.Add($"{BucketPrefix()}Team size {teamSize} is odd — using {perGender} of each gender.");
 
-            var teamCount = Math.Min(males.Count / perGender, females.Count / perGender);
-            if (teamCount == 0)
+            var legacyTeamCount = Math.Min(males.Count / perGender, females.Count / perGender);
+            if (legacyTeamCount == 0)
             {
                 warnings.Add($"{BucketPrefix()}Not enough players: {males.Count} male(s), {females.Count} female(s) for teams of {teamSize}.");
                 return;
             }
-            var leftoverM = males.Count - (teamCount * perGender);
-            var leftoverF = females.Count - (teamCount * perGender);
+            var leftoverM = males.Count - (legacyTeamCount * perGender);
+            var leftoverF = females.Count - (legacyTeamCount * perGender);
             if (leftoverM > 0 || leftoverF > 0)
                 warnings.Add($"{BucketPrefix()}{leftoverM + leftoverF} player(s) will be unassigned ({leftoverM} male, {leftoverF} female).");
 
-            for (int i = 0; i < teamCount; i++)
+            for (int i = 0; i < legacyTeamCount; i++)
             {
                 var members = new List<CompetitionParticipant>();
                 members.AddRange(males.Skip(i * perGender).Take(perGender));
