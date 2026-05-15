@@ -537,6 +537,122 @@ public class PlayerRatingServiceTests
     }
 
     [Fact]
+    public async Task SuggestDivisions_BalancesEachSexAcrossDivisions()
+    {
+        // 4 men + 4 women, 2 divisions. Pure rating-desc would put the top 4
+        // overall (whichever sex) in Div 1 — easily skewing the split. The
+        // sex-balanced partition gives Div 1 the top 2 men AND the top 2
+        // women; Div 2 gets the bottom 2 of each.
+        var factory = new TestDbContextFactory();
+        using (var db = factory.CreateDbContext())
+        {
+            db.Players.AddRange(
+                new Player { PlayerId = 1, DisplayName = "M1", Sex = PlayerSex.Male },
+                new Player { PlayerId = 2, DisplayName = "M2", Sex = PlayerSex.Male },
+                new Player { PlayerId = 3, DisplayName = "M3", Sex = PlayerSex.Male },
+                new Player { PlayerId = 4, DisplayName = "M4", Sex = PlayerSex.Male },
+                new Player { PlayerId = 5, DisplayName = "F1", Sex = PlayerSex.Female },
+                new Player { PlayerId = 6, DisplayName = "F2", Sex = PlayerSex.Female },
+                new Player { PlayerId = 7, DisplayName = "F3", Sex = PlayerSex.Female },
+                new Player { PlayerId = 8, DisplayName = "F4", Sex = PlayerSex.Female });
+            db.Competition.Add(new Competition { CompetitionID = 100, CompetitionName = "C" });
+            db.CompetitionDivisions.AddRange(
+                new CompetitionDivision { CompetitionDivisionId = 1, CompetitionId = 100, Rank = 1, Name = "Top" },
+                new CompetitionDivision { CompetitionDivisionId = 2, CompetitionId = 100, Rank = 2, Name = "Bot" });
+            db.CompetitionParticipants.AddRange(
+                Enumerable.Range(1, 8).Select(i => new CompetitionParticipant
+                {
+                    CompetitionId = 100, PlayerId = i
+                }));
+            // Men: M1=1800, M2=1700, M3=1600, M4=1500
+            // Women: F1=1750, F2=1650, F3=1550, F4=1450
+            // Pure rating-desc would interleave; sex-balanced should still
+            // give Div 1 = {M1, M2, F1, F2}, Div 2 = {M3, M4, F3, F4}.
+            db.PlayerRatingSnapshots.AddRange(
+                new PlayerRatingSnapshot { PlayerId = 1, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1800 },
+                new PlayerRatingSnapshot { PlayerId = 2, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1700 },
+                new PlayerRatingSnapshot { PlayerId = 3, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1600 },
+                new PlayerRatingSnapshot { PlayerId = 4, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1500 },
+                new PlayerRatingSnapshot { PlayerId = 5, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1750 },
+                new PlayerRatingSnapshot { PlayerId = 6, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1650 },
+                new PlayerRatingSnapshot { PlayerId = 7, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1550 },
+                new PlayerRatingSnapshot { PlayerId = 8, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1450 });
+            await db.SaveChangesAsync();
+        }
+
+        var svc = BuildService(factory);
+        var placements = (await svc.SuggestDivisionPlacementsAsync(competitionId: 100))
+            .ToDictionary(p => p.PlayerId);
+
+        // Top men + top women → Div 1.
+        Assert.Equal(1, placements[1].SuggestedDivisionId); // M1
+        Assert.Equal(1, placements[2].SuggestedDivisionId); // M2
+        Assert.Equal(1, placements[5].SuggestedDivisionId); // F1
+        Assert.Equal(1, placements[6].SuggestedDivisionId); // F2
+        // Bottom of each sex → Div 2.
+        Assert.Equal(2, placements[3].SuggestedDivisionId); // M3
+        Assert.Equal(2, placements[4].SuggestedDivisionId); // M4
+        Assert.Equal(2, placements[7].SuggestedDivisionId); // F3
+        Assert.Equal(2, placements[8].SuggestedDivisionId); // F4
+    }
+
+    [Fact]
+    public async Task SuggestDivisions_SkewedSexCounts_DistributesAcrossDivisions()
+    {
+        // 5 men + 3 women across 2 divisions. Each sex partitioned
+        // independently: men 5 → (3, 2), women 3 → (2, 1). Div 1 gets top
+        // 3 men + top 2 women; Div 2 gets bottom 2 men + bottom 1 woman.
+        var factory = new TestDbContextFactory();
+        using (var db = factory.CreateDbContext())
+        {
+            db.Players.AddRange(
+                new Player { PlayerId = 1, DisplayName = "M1", Sex = PlayerSex.Male },
+                new Player { PlayerId = 2, DisplayName = "M2", Sex = PlayerSex.Male },
+                new Player { PlayerId = 3, DisplayName = "M3", Sex = PlayerSex.Male },
+                new Player { PlayerId = 4, DisplayName = "M4", Sex = PlayerSex.Male },
+                new Player { PlayerId = 5, DisplayName = "M5", Sex = PlayerSex.Male },
+                new Player { PlayerId = 6, DisplayName = "F1", Sex = PlayerSex.Female },
+                new Player { PlayerId = 7, DisplayName = "F2", Sex = PlayerSex.Female },
+                new Player { PlayerId = 8, DisplayName = "F3", Sex = PlayerSex.Female });
+            db.Competition.Add(new Competition { CompetitionID = 100, CompetitionName = "C" });
+            db.CompetitionDivisions.AddRange(
+                new CompetitionDivision { CompetitionDivisionId = 1, CompetitionId = 100, Rank = 1, Name = "Top" },
+                new CompetitionDivision { CompetitionDivisionId = 2, CompetitionId = 100, Rank = 2, Name = "Bot" });
+            db.CompetitionParticipants.AddRange(
+                Enumerable.Range(1, 8).Select(i => new CompetitionParticipant
+                {
+                    CompetitionId = 100, PlayerId = i
+                }));
+            // M ratings 1800..1400 (desc by PlayerId), F ratings 1750..1550.
+            db.PlayerRatingSnapshots.AddRange(
+                new PlayerRatingSnapshot { PlayerId = 1, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1800 },
+                new PlayerRatingSnapshot { PlayerId = 2, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1700 },
+                new PlayerRatingSnapshot { PlayerId = 3, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1600 },
+                new PlayerRatingSnapshot { PlayerId = 4, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1500 },
+                new PlayerRatingSnapshot { PlayerId = 5, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1400 },
+                new PlayerRatingSnapshot { PlayerId = 6, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1750 },
+                new PlayerRatingSnapshot { PlayerId = 7, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1650 },
+                new PlayerRatingSnapshot { PlayerId = 8, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1550 });
+            await db.SaveChangesAsync();
+        }
+
+        var svc = BuildService(factory);
+        var placements = (await svc.SuggestDivisionPlacementsAsync(competitionId: 100))
+            .ToDictionary(p => p.PlayerId);
+
+        // 5 men: 3 to Div 1, 2 to Div 2 (remainder to top).
+        Assert.Equal(1, placements[1].SuggestedDivisionId); // M1
+        Assert.Equal(1, placements[2].SuggestedDivisionId); // M2
+        Assert.Equal(1, placements[3].SuggestedDivisionId); // M3
+        Assert.Equal(2, placements[4].SuggestedDivisionId); // M4
+        Assert.Equal(2, placements[5].SuggestedDivisionId); // M5
+        // 3 women: 2 to Div 1, 1 to Div 2.
+        Assert.Equal(1, placements[6].SuggestedDivisionId); // F1
+        Assert.Equal(1, placements[7].SuggestedDivisionId); // F2
+        Assert.Equal(2, placements[8].SuggestedDivisionId); // F3
+    }
+
+    [Fact]
     public async Task SuggestDivisions_NoRatings_DefaultsAllPlayersAndPartitions()
     {
         // With everyone at the default 1500, partitioning is by secondary
