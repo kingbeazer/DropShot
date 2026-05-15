@@ -20,7 +20,8 @@ public sealed class WebCompetitionAdminService(
     ICompetitionRubberTemplateProvider rubberTemplateProvider,
     AdminEmailService adminEmailService,
     CompetitionSchedulerService scheduler,
-    FixtureSimulationService fixtureSimulator) : ICompetitionAdminService
+    FixtureSimulationService fixtureSimulator,
+    PlayerRatingService playerRatings) : ICompetitionAdminService
 {
     // IHttpContextAccessor.HttpContext is null in interactive Blazor Server mode (SignalR
     // circuit). Fall back to AuthenticationStateProvider, which works in both SSR and
@@ -1042,6 +1043,75 @@ public sealed class WebCompetitionAdminService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task SetParticipantInitialRatingAsync(
+        int competitionId, int playerId, SetParticipantInitialRatingRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        _ = await db.CompetitionParticipants.FindAsync([competitionId, playerId], ct)
+            ?? throw new KeyNotFoundException("Participant not found.");
+        var userId = userManager.GetUserId(await GetCurrentPrincipalAsync());
+        await playerRatings.SetInitialRatingAsync(competitionId, playerId, request.Rating, userId, ct);
+    }
+
+    public async Task<PlayerRatingSuggestionDto?> AcceptParticipantRatingAsync(
+        int competitionId, int playerId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        var userId = userManager.GetUserId(await GetCurrentPrincipalAsync());
+        var s = await playerRatings.AcceptSuggestionAsync(competitionId, playerId, userId, ct);
+        return s is null ? null : new PlayerRatingSuggestionDto(
+            s.PreviousRating, s.SuggestedRating, s.Delta, s.RubbersPlayed);
+    }
+
+    public async Task<List<PlayerRatingSuggestionDto>> AcceptAllParticipantRatingsAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        var userId = userManager.GetUserId(await GetCurrentPrincipalAsync());
+        var ss = await playerRatings.AcceptAllSuggestionsAsync(competitionId, userId, ct);
+        return ss.Select(s => new PlayerRatingSuggestionDto(
+                s.PreviousRating, s.SuggestedRating, s.Delta, s.RubbersPlayed)).ToList();
+    }
+
+    public async Task ApplyDivisionPlacementAsync(
+        int competitionId, int playerId, ApplyDivisionPlacementRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        await playerRatings.ApplyDivisionPlacementAsync(competitionId, playerId, request.CompetitionDivisionId, ct);
+    }
+
+    public async Task ApplyRolePlacementAsync(
+        int competitionId, int playerId, ApplyRolePlacementRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        await playerRatings.ApplyRolePlacementAsync(competitionId, playerId, request.Role, ct);
+    }
+
+    public async Task<int> ApplyAllPlacementsAsync(int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        var divs = await playerRatings.SuggestDivisionPlacementsAsync(competitionId, ct);
+        var roles = await playerRatings.SuggestRolePlacementsAsync(competitionId, ct);
+        int applied = 0;
+        foreach (var d in divs)
+        {
+            await playerRatings.ApplyDivisionPlacementAsync(competitionId, d.PlayerId, d.SuggestedDivisionId, ct);
+            applied++;
+        }
+        foreach (var r in roles)
+        {
+            await playerRatings.ApplyRolePlacementAsync(competitionId, r.PlayerId, r.SuggestedRole, ct);
+            applied++;
+        }
+        return applied;
+    }
+
     public async Task<int> CreateLightPlayerAsync(
         int competitionId, CreateLightPlayerForCompetitionRequest request, CancellationToken ct = default)
     {
@@ -1423,14 +1493,24 @@ public sealed class WebCompetitionAdminService(
         // For TeamMatch, derive role assigner from the persisted preset key (or
         // the format default). The page also looks at the in-memory rubber
         // template state; here we use the source-of-truth columns on Competition.
+        // When the resolved preset is plain MTT, swap to the rating-aware
+        // variant — AssignMttByRating degrades to alphabetical ordering when
+        // no players have ratings, so the output is unchanged in that case,
+        // but the A slot goes to the higher-rated player when ratings exist.
         RubberTemplateRegistry.RoleAssigner? assigner = null;
         if (isTeamMatch)
         {
             var presetKey = !string.IsNullOrEmpty(comp.RubberTemplateKey)
                 ? comp.RubberTemplateKey
                 : RubberTemplateRegistry.GetFormatDefaultKey(format);
+            if (presetKey == RubberTemplateRegistry.MttKey)
+                presetKey = RubberTemplateRegistry.MttRatedKey;
             assigner = RubberTemplateRegistry.GetRoleAssigner(presetKey);
         }
+
+        var ratingsByPlayer = isTeamMatch
+            ? await playerRatings.GetRosterRatingsAsync(competitionId, ct)
+            : new Dictionary<int, PlayerRatingService.Rating>();
 
         var useMttSplit = isTeamMatch
             && (comp.RubberTemplateKey == RubberTemplateRegistry.MttKey
@@ -1469,7 +1549,7 @@ public sealed class WebCompetitionAdminService(
         {
             GenerateBucket(bucketMembers, divId, divName, format,
                 useMttSplit || (request.BalanceByGender && format == CompetitionFormat.MixedDoubles),
-                teamSize, itemLabel, assigner, rng, preview, warnings);
+                teamSize, itemLabel, assigner, ratingsByPlayer, rng, preview, warnings);
         }
         return new GenerateTeamsResultDto(preview, warnings);
     }
@@ -1479,7 +1559,9 @@ public sealed class WebCompetitionAdminService(
         int? divisionId, string? divisionName,
         CompetitionFormat? format, bool splitByGender,
         int teamSize, string itemLabel,
-        RubberTemplateRegistry.RoleAssigner? assigner, Random rng,
+        RubberTemplateRegistry.RoleAssigner? assigner,
+        IReadOnlyDictionary<int, PlayerRatingService.Rating> ratingsByPlayer,
+        Random rng,
         List<GeneratedTeamPreviewDto> preview, List<string> warnings)
     {
         string TeamName(int idx) => $"{itemLabel} {(char)('A' + idx)}";
@@ -1517,7 +1599,7 @@ public sealed class WebCompetitionAdminService(
                 preview.Add(new GeneratedTeamPreviewDto(
                     TeamName(i),
                     members.Select(m => m.PlayerId).ToList(),
-                    AssignRoles(assigner, members),
+                    AssignRoles(assigner, members, ratingsByPlayer),
                     divisionId, divisionName));
             }
         }
@@ -1539,19 +1621,22 @@ public sealed class WebCompetitionAdminService(
                 preview.Add(new GeneratedTeamPreviewDto(
                     TeamName(i),
                     members.Select(m => m.PlayerId).ToList(),
-                    AssignRoles(assigner, members),
+                    AssignRoles(assigner, members, ratingsByPlayer),
                     divisionId, divisionName));
             }
         }
     }
 
     private static IReadOnlyDictionary<int, string> AssignRoles(
-        RubberTemplateRegistry.RoleAssigner? assigner, List<CompetitionParticipant> members)
+        RubberTemplateRegistry.RoleAssigner? assigner,
+        List<CompetitionParticipant> members,
+        IReadOnlyDictionary<int, PlayerRatingService.Rating> ratingsByPlayer)
     {
         if (assigner is null) return new Dictionary<int, string>();
         var candidates = members
             .Select(m => new RubberTemplateRegistry.AssignmentCandidate(
-                m.PlayerId, m.Player?.DisplayName ?? "", m.Player?.Sex))
+                m.PlayerId, m.Player?.DisplayName ?? "", m.Player?.Sex,
+                ratingsByPlayer.TryGetValue(m.PlayerId, out var r) ? r.Value : (double?)null))
             .ToList();
         return assigner(candidates).ToDictionary(kv => kv.Key, kv => kv.Value);
     }

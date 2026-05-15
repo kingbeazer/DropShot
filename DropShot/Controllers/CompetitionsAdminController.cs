@@ -275,6 +275,63 @@ public class CompetitionsAdminController(
         catch (KeyNotFoundException) { return NotFound(); }
     }
 
+    [HttpPut("{id:int}/participants/{playerId:int}/initial-rating")]
+    public async Task<IActionResult> SetParticipantInitialRating(
+        int id, int playerId, [FromBody] SetParticipantInitialRatingRequest req, CancellationToken ct)
+    {
+        try { await admin.SetParticipantInitialRatingAsync(id, playerId, req, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("{id:int}/participants/{playerId:int}/accept-rating")]
+    public async Task<ActionResult<PlayerRatingSuggestionDto>> AcceptParticipantRating(
+        int id, int playerId, CancellationToken ct)
+    {
+        try
+        {
+            var s = await admin.AcceptParticipantRatingAsync(id, playerId, ct);
+            return s is null ? NoContent() : Ok(s);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("{id:int}/ratings/apply-all")]
+    public async Task<ActionResult<List<PlayerRatingSuggestionDto>>> AcceptAllParticipantRatings(
+        int id, CancellationToken ct)
+    {
+        try { return await admin.AcceptAllParticipantRatingsAsync(id, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPut("{id:int}/participants/{playerId:int}/division-placement")]
+    public async Task<IActionResult> ApplyDivisionPlacement(
+        int id, int playerId, [FromBody] ApplyDivisionPlacementRequest req, CancellationToken ct)
+    {
+        try { await admin.ApplyDivisionPlacementAsync(id, playerId, req, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPut("{id:int}/participants/{playerId:int}/role-placement")]
+    public async Task<IActionResult> ApplyRolePlacement(
+        int id, int playerId, [FromBody] ApplyRolePlacementRequest req, CancellationToken ct)
+    {
+        try { await admin.ApplyRolePlacementAsync(id, playerId, req, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("{id:int}/placements/apply-all")]
+    public async Task<ActionResult<int>> ApplyAllPlacements(int id, CancellationToken ct)
+    {
+        try { return await admin.ApplyAllPlacementsAsync(id, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
     [HttpPost("{id:int}/light-players")]
     public async Task<ActionResult<int>> CreateLightPlayer(
         int id, [FromBody] CreateLightPlayerForCompetitionRequest req, CancellationToken ct)

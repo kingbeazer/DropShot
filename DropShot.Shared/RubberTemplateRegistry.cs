@@ -23,6 +23,7 @@ public static class RubberTemplateRegistry
     }
 
     public const string MttKey = "mtt";
+    public const string MttRatedKey = "mtt-rated";
     public const string CountyDoublesKey = "county-doubles";
 
     // One rubber per matchup, played as the competition's configured
@@ -59,9 +60,12 @@ public static class RubberTemplateRegistry
 
     /// <summary>
     /// Player attributes the assigner needs. Kept as a plain record so the registry
-    /// stays decoupled from EF models.
+    /// stays decoupled from EF models. <see cref="Rating"/> is optional — assigners
+    /// that don't use it ignore the field; the rating-aware MTT variant prefers
+    /// the higher-rated player within a sex bucket for the A slot.
     /// </summary>
-    public record AssignmentCandidate(int PlayerId, string DisplayName, PlayerSex? Sex);
+    public record AssignmentCandidate(
+        int PlayerId, string DisplayName, PlayerSex? Sex, double? Rating = null);
 
     /// <summary>
     /// Maps players to the roles of a team. Returns a dictionary keyed by PlayerId.
@@ -73,6 +77,7 @@ public static class RubberTemplateRegistry
     private static readonly Dictionary<string, RoleAssigner> Assigners = new()
     {
         [MttKey]           = AssignMtt,
+        [MttRatedKey]      = AssignMttByRating,
         [CountyDoublesKey] = AssignSequential,
     };
 
@@ -122,6 +127,26 @@ public static class RubberTemplateRegistry
         var result = new Dictionary<int, string>();
         var males = players.Where(p => p.Sex == PlayerSex.Male).OrderBy(p => p.DisplayName).ToList();
         var females = players.Where(p => p.Sex == PlayerSex.Female).OrderBy(p => p.DisplayName).ToList();
+        if (males.Count >= 1)   result[males[0].PlayerId]   = Roles.MA;
+        if (males.Count >= 2)   result[males[1].PlayerId]   = Roles.MB;
+        if (females.Count >= 1) result[females[0].PlayerId] = Roles.FA;
+        if (females.Count >= 2) result[females[1].PlayerId] = Roles.FB;
+        return result;
+    }
+
+    private static IReadOnlyDictionary<int, string> AssignMttByRating(
+        IReadOnlyList<AssignmentCandidate> players)
+    {
+        // Within each sex bucket the higher-rated player takes the A slot
+        // (MA / FA) and the lower-rated takes B (MB / FB). Ties break on
+        // DisplayName so the output stays deterministic when ratings match.
+        var result = new Dictionary<int, string>();
+        var males = players.Where(p => p.Sex == PlayerSex.Male)
+            .OrderByDescending(p => p.Rating ?? double.MinValue)
+            .ThenBy(p => p.DisplayName).ToList();
+        var females = players.Where(p => p.Sex == PlayerSex.Female)
+            .OrderByDescending(p => p.Rating ?? double.MinValue)
+            .ThenBy(p => p.DisplayName).ToList();
         if (males.Count >= 1)   result[males[0].PlayerId]   = Roles.MA;
         if (males.Count >= 2)   result[males[1].PlayerId]   = Roles.MB;
         if (females.Count >= 1) result[females[0].PlayerId] = Roles.FA;

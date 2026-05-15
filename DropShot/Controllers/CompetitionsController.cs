@@ -22,6 +22,7 @@ public class CompetitionsController(
     ICompetitionRubberTemplateProvider rubberTemplateProvider,
     CompetitionSchedulerService scheduler,
     ICompetitionService competitionService,
+    PlayerRatingService ratings,
     ILogger<CompetitionsController> logger) : ControllerBase
 {
     [HttpGet]
@@ -105,6 +106,14 @@ public class CompetitionsController(
             .OrderBy(cp => cp.Name)
             .ToListAsync();
 
+        var ratingsByPlayer = await ratings.GetRosterRatingsAsync(id);
+        var ratingSuggestions = (await ratings.GetVisibleSuggestionsAsync(id))
+            .ToDictionary(s => s.PlayerId);
+        var divisionPlacements = (await ratings.SuggestDivisionPlacementsAsync(id))
+            .ToDictionary(p => p.PlayerId);
+        var rolePlacements = (await ratings.SuggestRolePlacementsAsync(id))
+            .ToDictionary(p => p.PlayerId);
+
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
             c.CompetitionFormat,
@@ -123,7 +132,14 @@ public class CompetitionsController(
                 p.Role,
                 p.Player?.Sex,
                 p.CompetitionDivisionId,
-                p.Division?.Name)).ToList(),
+                p.Division?.Name,
+                ratingsByPlayer.TryGetValue(p.PlayerId, out var r)
+                    ? new PlayerRatingDto(r.Value, r.IsProvisional)
+                    : null,
+                ratingSuggestions.TryGetValue(p.PlayerId, out var rs)
+                    ? new PlayerRatingSuggestionDto(rs.PreviousRating, rs.SuggestedRating, rs.Delta, rs.RubbersPlayed)
+                    : null,
+                BuildPlacementSuggestion(p.PlayerId, divisionPlacements, rolePlacements))).ToList(),
             c.IsArchived,
             c.IsStarted,
             c.CreatorUserId,
@@ -1301,6 +1317,20 @@ public class CompetitionsController(
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
         c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted,
         c.CreatorUserId, c.IsRestricted, c.RegisterByDate);
+
+    private static PlacementSuggestionDto? BuildPlacementSuggestion(
+        int playerId,
+        Dictionary<int, PlayerRatingService.DivisionPlacement> divisions,
+        Dictionary<int, PlayerRatingService.RolePlacement> roles)
+    {
+        var hasDivision = divisions.TryGetValue(playerId, out var d);
+        var hasRole = roles.TryGetValue(playerId, out var r);
+        if (!hasDivision && !hasRole) return null;
+        return new PlacementSuggestionDto(
+            SuggestedDivisionId: hasDivision ? d!.SuggestedDivisionId : null,
+            SuggestedDivisionName: hasDivision ? d!.SuggestedDivisionName : null,
+            SuggestedRole: hasRole ? r!.SuggestedRole : null);
+    }
 
     private static CompetitionFixtureDto ToFixtureDto(CompetitionFixture f) => new(
         f.CompetitionFixtureId, f.CompetitionId,
