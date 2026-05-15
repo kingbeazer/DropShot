@@ -2,6 +2,15 @@
     display: grid;
     grid-template-rows: 0fr;
     transition: grid-template-rows 240ms ease;
+    /* Sticky just below the navbar (web .top-navbar is 3.5rem, MAUI MudAppBar
+       ~4rem) so the alert stays visible regardless of scroll position. Pages
+       with their own sticky bands read --site-alert-height (set by
+       site-alert-host.js from a ResizeObserver) and offset their own top by it
+       so they slide down out of the alert's way. z-index sits above the
+       competition title bar (5) and below the navbar (100). */
+    position: sticky;
+    top: 4rem;
+    z-index: 10;
 }
 
 .site-alert-host.is-visible {

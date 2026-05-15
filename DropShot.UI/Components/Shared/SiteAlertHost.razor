@@ -1,13 +1,15 @@
-@implements IDisposable
+@implements IAsyncDisposable
 @inject ISiteAlertService SiteAlerts
+@inject IJSRuntime JS
 @using DropShot.UI.Services
+@using Microsoft.JSInterop
 
 @* Site-wide alert banner. Renders inline at the top of the page so alerts
    push content down rather than overlaying it. The grid wrapper stays mounted
    at all times so the open/close height transition runs. Multiple alerts
    stack vertically and dismiss independently. *@
 
-<div class="site-alert-host @(_visible ? "is-visible" : "")">
+<div @ref="_hostRef" class="site-alert-host @(_visible ? "is-visible" : "")">
     <div class="site-alert-inner">
         @foreach (var entry in _rendered)
         {
@@ -40,12 +42,32 @@
     private IReadOnlyList<SiteAlertEntry> _rendered = Array.Empty<SiteAlertEntry>();
     private bool _visible;
     private CancellationTokenSource? _exitCts;
+    private ElementReference _hostRef;
+    private bool _observerAttached;
 
     protected override void OnInitialized()
     {
         SiteAlerts.OnChange += HandleChange;
         _rendered = SiteAlerts.Entries;
         _visible = _rendered.Count > 0;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_observerAttached)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("dropshotSiteAlert.attach", _hostRef);
+                _observerAttached = true;
+            }
+            catch (JSException)
+            {
+                // Site-alert-host.js isn't loaded yet (or the host page doesn't
+                // include it). Silently no-op: alerts still render, they just
+                // won't push other sticky bands down.
+            }
+        }
     }
 
     private void HandleChange()
@@ -95,10 +117,21 @@
         await entry.ActionCallback();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         SiteAlerts.OnChange -= HandleChange;
         _exitCts?.Cancel();
         _exitCts?.Dispose();
+
+        if (_observerAttached)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("dropshotSiteAlert.detach", _hostRef);
+            }
+            catch (JSException) { }
+            catch (JSDisconnectedException) { }
+            catch (TaskCanceledException) { }
+        }
     }
 }
