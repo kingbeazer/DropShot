@@ -195,6 +195,18 @@ public sealed class WebCompetitionAdminService(
         var admins = await GetCompetitionAdminsInternalAsync(db, id, ct);
         var rubberTemplate = await LoadRubberTemplateStateInternalAsync(db, comp, ct);
 
+        // Roster decoration: ratings, post-season rating suggestions, and
+        // division+role placement suggestions. Mirrors the wiring in
+        // WebCompetitionService.GetCompetitionAsync so the admin edit page
+        // sees the same fields as the player-facing detail page.
+        var ratingsByPlayer = await playerRatings.GetRosterRatingsAsync(id, ct);
+        var ratingSuggestions = (await playerRatings.GetVisibleSuggestionsAsync(id, ct))
+            .ToDictionary(s => s.PlayerId);
+        var divisionPlacements = (await playerRatings.SuggestDivisionPlacementsAsync(id, ct))
+            .ToDictionary(p => p.PlayerId);
+        var rolePlacements = (await playerRatings.SuggestRolePlacementsAsync(id, ct))
+            .ToDictionary(p => p.PlayerId);
+
         return new CompetitionEditDto(
             CompetitionId: comp.CompetitionID,
             CompetitionName: comp.CompetitionName,
@@ -215,7 +227,17 @@ public sealed class WebCompetitionAdminService(
             HasDivisions: comp.HasDivisions,
             SeededFromCompetitionId: comp.SeededFromCompetitionId,
             Stages: comp.Stages.Select(ToStageDto).ToList(),
-            Participants: comp.Participants.Select(ToParticipantDto).ToList(),
+            Participants: comp.Participants.Select(p => new CompetitionParticipantDto(
+                p.PlayerId, p.Player?.DisplayName ?? "", p.Status, p.RegisteredAt,
+                p.TeamId, p.Team?.Name, p.Player?.MobileNumber, p.Role, p.Player?.Sex,
+                p.CompetitionDivisionId, p.Division?.Name,
+                ratingsByPlayer.TryGetValue(p.PlayerId, out var r)
+                    ? new PlayerRatingDto(r.Value, r.IsProvisional)
+                    : null,
+                ratingSuggestions.TryGetValue(p.PlayerId, out var rs)
+                    ? new PlayerRatingSuggestionDto(rs.PreviousRating, rs.SuggestedRating, rs.Delta, rs.RubbersPlayed)
+                    : null,
+                BuildPlacementSuggestion(p.PlayerId, divisionPlacements, rolePlacements))).ToList(),
             Divisions: comp.Divisions.OrderBy(d => d.Rank).Select(ToDivisionDto).ToList(),
             Teams: comp.Teams.OrderBy(t => t.Name).Select(ToTeamDto).ToList(),
             Fixtures: comp.Fixtures
@@ -807,10 +829,19 @@ public sealed class WebCompetitionAdminService(
     private static CompetitionStageDto ToStageDto(CompetitionStage s) =>
         new(s.CompetitionStageId, s.Name, s.StageOrder, s.StageType);
 
-    private static CompetitionParticipantDto ToParticipantDto(CompetitionParticipant p) =>
-        new(p.PlayerId, p.Player?.DisplayName ?? "", p.Status, p.RegisteredAt,
-            p.TeamId, p.Team?.Name, p.Player?.MobileNumber, p.Role, p.Player?.Sex,
-            p.CompetitionDivisionId, p.Division?.Name);
+    private static PlacementSuggestionDto? BuildPlacementSuggestion(
+        int playerId,
+        Dictionary<int, PlayerRatingService.DivisionPlacement> divisions,
+        Dictionary<int, PlayerRatingService.RolePlacement> roles)
+    {
+        var hasDivision = divisions.TryGetValue(playerId, out var d);
+        var hasRole = roles.TryGetValue(playerId, out var r);
+        if (!hasDivision && !hasRole) return null;
+        return new PlacementSuggestionDto(
+            SuggestedDivisionId: hasDivision ? d!.SuggestedDivisionId : null,
+            SuggestedDivisionName: hasDivision ? d!.SuggestedDivisionName : null,
+            SuggestedRole: hasRole ? r!.SuggestedRole : null);
+    }
 
     private static CompetitionDivisionDto ToDivisionDto(CompetitionDivision d) =>
         new(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name);
