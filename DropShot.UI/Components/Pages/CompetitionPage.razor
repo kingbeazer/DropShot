@@ -1524,6 +1524,38 @@ else
                 </MudAlert>
             }
 
+            @* Regenerating teams replaces the current team pool, which invalidates
+               any fixtures that reference the old teams via HomeTeamId / AwayTeamId.
+               Surface the impact before the admin clicks Create so completed
+               results aren't deleted by surprise. *@
+            @{
+                var teamFixtureCount = _fixtures.Count(f => f.HomeTeamId.HasValue || f.AwayTeamId.HasValue);
+                var completedTeamFixtureCount = _fixtures.Count(f =>
+                    (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+                    && f.Status is FixtureStatus.Completed or FixtureStatus.AwaitingVerification);
+            }
+            @if (teamFixtureCount > 0)
+            {
+                <MudAlert Severity="@(completedTeamFixtureCount > 0 ? Severity.Warning : Severity.Info)" Dense="true">
+                    @if (completedTeamFixtureCount > 0)
+                    {
+                        <text>
+                            <b>@completedTeamFixtureCount completed</b> of @teamFixtureCount existing
+                            team fixture@(teamFixtureCount == 1 ? "" : "s") will be deleted —
+                            <b>this wipes the recorded results</b>. Continue only if you intend to
+                            start scoring from scratch.
+                        </text>
+                    }
+                    else
+                    {
+                        <text>
+                            @teamFixtureCount existing team fixture@(teamFixtureCount == 1 ? "" : "s")
+                            will be deleted when the new teams are created.
+                        </text>
+                    }
+                </MudAlert>
+            }
+
             @if (_generatedPreview.Count > 0)
             {
                 var showDivColumn = Model.HasDivisions && _generatedPreview.Any(t => t.DivisionId.HasValue);
