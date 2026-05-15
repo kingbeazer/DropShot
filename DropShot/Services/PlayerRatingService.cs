@@ -395,11 +395,14 @@ public sealed class PlayerRatingService(IDbContextFactory<MyDbContext> dbFactory
     public record RolePlacement(int PlayerId, string SuggestedRole);
 
     /// <summary>
-    /// Sort participants who have a rating by rating-desc and partition them
-    /// across the competition's divisions (ranked 1 = top). Equal partitioning;
-    /// remainder players go to the bottom division. Only returns entries where
-    /// the suggested division differs from the participant's current division.
-    /// Players without a rating are excluded — admin must assign manually.
+    /// Sort participants by rating-desc and partition them across the
+    /// competition's divisions (ranked 1 = top). Equal partitioning; remainder
+    /// players go to the top divisions so the strongest tier is slightly
+    /// larger when it doesn't divide evenly. Only returns entries where the
+    /// suggested division differs from the participant's current division.
+    /// Players without an explicit rating snapshot are treated as the default
+    /// (1500), so a brand-new roster still gets a useful auto-assignment
+    /// (admin overrides row-by-row).
     /// </summary>
     public async Task<IReadOnlyList<DivisionPlacement>> SuggestDivisionPlacementsAsync(
         int competitionId, CancellationToken ct = default)
@@ -422,11 +425,9 @@ public sealed class PlayerRatingService(IDbContextFactory<MyDbContext> dbFactory
         var ratings = await GetRosterRatingsAsync(competitionId, ct);
 
         var ranked = participants
-            .Where(p => ratings.ContainsKey(p.PlayerId))
-            .OrderByDescending(p => ratings[p.PlayerId].Value)
+            .OrderByDescending(p => ratings.TryGetValue(p.PlayerId, out var r) ? r.Value : DefaultRating)
             .ThenBy(p => p.PlayerId)
             .ToList();
-        if (ranked.Count == 0) return Array.Empty<DivisionPlacement>();
 
         int perDivision = ranked.Count / divisions.Count;
         int remainder = ranked.Count % divisions.Count;
@@ -452,8 +453,10 @@ public sealed class PlayerRatingService(IDbContextFactory<MyDbContext> dbFactory
     /// <summary>
     /// For each team, run the rating-aware MTT assigner over its members and
     /// surface any role that would differ from the participant's current role.
-    /// TeamMatch competitions only — returns empty for other formats. Teams
-    /// where any member lacks a rating are skipped so we don't half-assign.
+    /// TeamMatch competitions only — returns empty for other formats. Players
+    /// without an explicit rating snapshot are treated as the default (1500)
+    /// so a fresh roster gets a usable assignment (with all-equal ratings
+    /// the assigner falls back to alphabetical, matching the legacy AssignMtt).
     /// </summary>
     public async Task<IReadOnlyList<RolePlacement>> SuggestRolePlacementsAsync(
         int competitionId, CancellationToken ct = default)
@@ -481,13 +484,11 @@ public sealed class PlayerRatingService(IDbContextFactory<MyDbContext> dbFactory
         foreach (var teamGroup in participants.GroupBy(p => p.TeamId!.Value))
         {
             var members = teamGroup.ToList();
-            if (members.Any(m => !ratings.ContainsKey(m.PlayerId))) continue;
-
             var candidates = members.Select(m => new RubberTemplateRegistry.AssignmentCandidate(
                 m.PlayerId,
                 m.Player?.DisplayName ?? "",
                 m.Player?.Sex,
-                ratings[m.PlayerId].Value)).ToList();
+                ratings.TryGetValue(m.PlayerId, out var r) ? r.Value : DefaultRating)).ToList();
             var assignments = assigner(candidates);
             foreach (var m in members)
             {
