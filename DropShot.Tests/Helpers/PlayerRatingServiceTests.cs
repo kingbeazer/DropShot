@@ -623,6 +623,135 @@ public class PlayerRatingServiceTests
     }
 
     [Fact]
+    public async Task SuggestRoles_UnteamedPlayers_StillGetSuggestions()
+    {
+        // Players don't have to be on a team yet — role assignment is per
+        // division, not per team — so the admin can role-balance the pool
+        // before generating teams.
+        var factory = new TestDbContextFactory();
+        using (var db = factory.CreateDbContext())
+        {
+            db.Players.AddRange(
+                new Player { PlayerId = 1, DisplayName = "M-Strong", Sex = PlayerSex.Male },
+                new Player { PlayerId = 2, DisplayName = "M-Weak",   Sex = PlayerSex.Male },
+                new Player { PlayerId = 3, DisplayName = "F-Strong", Sex = PlayerSex.Female },
+                new Player { PlayerId = 4, DisplayName = "F-Weak",   Sex = PlayerSex.Female });
+            db.Competition.Add(new Competition
+            {
+                CompetitionID = 100, CompetitionName = "C",
+                CompetitionFormat = CompetitionFormat.TeamMatch
+            });
+            // No teams. Participants have no TeamId.
+            db.CompetitionParticipants.AddRange(
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 1 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 2 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 3 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 4 });
+            db.PlayerRatingSnapshots.AddRange(
+                new PlayerRatingSnapshot { PlayerId = 1, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1700 },
+                new PlayerRatingSnapshot { PlayerId = 2, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1400 },
+                new PlayerRatingSnapshot { PlayerId = 3, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1650 },
+                new PlayerRatingSnapshot { PlayerId = 4, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1450 });
+            await db.SaveChangesAsync();
+        }
+
+        var svc = BuildService(factory);
+        var placements = (await svc.SuggestRolePlacementsAsync(competitionId: 100))
+            .ToDictionary(p => p.PlayerId);
+
+        Assert.Equal("MA", placements[1].SuggestedRole);
+        Assert.Equal("MB", placements[2].SuggestedRole);
+        Assert.Equal("FA", placements[3].SuggestedRole);
+        Assert.Equal("FB", placements[4].SuggestedRole);
+    }
+
+    [Fact]
+    public async Task SuggestRoles_PerDivision_AssignedSeparately()
+    {
+        // Two divisions, each with its own MA/MB split. P1+P2 in Div 1
+        // (one MA, one MB regardless of cross-division ratings); P3+P4
+        // in Div 2 (same).
+        var factory = new TestDbContextFactory();
+        using (var db = factory.CreateDbContext())
+        {
+            db.Players.AddRange(
+                new Player { PlayerId = 1, DisplayName = "Div1-Strong", Sex = PlayerSex.Male },
+                new Player { PlayerId = 2, DisplayName = "Div1-Weak",   Sex = PlayerSex.Male },
+                new Player { PlayerId = 3, DisplayName = "Div2-Strong", Sex = PlayerSex.Male },
+                new Player { PlayerId = 4, DisplayName = "Div2-Weak",   Sex = PlayerSex.Male });
+            db.Competition.Add(new Competition
+            {
+                CompetitionID = 100, CompetitionName = "C",
+                CompetitionFormat = CompetitionFormat.TeamMatch,
+                HasDivisions = true,
+            });
+            db.CompetitionDivisions.AddRange(
+                new CompetitionDivision { CompetitionDivisionId = 1, CompetitionId = 100, Rank = 1, Name = "Top" },
+                new CompetitionDivision { CompetitionDivisionId = 2, CompetitionId = 100, Rank = 2, Name = "Bot" });
+            db.CompetitionParticipants.AddRange(
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 1, CompetitionDivisionId = 1 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 2, CompetitionDivisionId = 1 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 3, CompetitionDivisionId = 2 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 4, CompetitionDivisionId = 2 });
+            // Cross-division ratings: P3 (Div 2) is rated higher than P2 (Div 1)
+            // — proves that role assignment is scoped by division, not global.
+            db.PlayerRatingSnapshots.AddRange(
+                new PlayerRatingSnapshot { PlayerId = 1, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1900 },
+                new PlayerRatingSnapshot { PlayerId = 2, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1400 },
+                new PlayerRatingSnapshot { PlayerId = 3, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1700 },
+                new PlayerRatingSnapshot { PlayerId = 4, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1200 });
+            await db.SaveChangesAsync();
+        }
+
+        var svc = BuildService(factory);
+        var placements = (await svc.SuggestRolePlacementsAsync(competitionId: 100))
+            .ToDictionary(p => p.PlayerId);
+
+        // Div 1: P1 > P2 → P1 MA, P2 MB.
+        // Div 2: P3 > P4 → P3 MA, P4 MB. P3 gets MA despite being weaker than P1.
+        Assert.Equal("MA", placements[1].SuggestedRole);
+        Assert.Equal("MB", placements[2].SuggestedRole);
+        Assert.Equal("MA", placements[3].SuggestedRole);
+        Assert.Equal("MB", placements[4].SuggestedRole);
+    }
+
+    [Fact]
+    public async Task SuggestRoles_OddCount_GivesExtraToASlot()
+    {
+        // 3 males in a single (no-division) pool: top 2 → MA, bottom 1 → MB.
+        var factory = new TestDbContextFactory();
+        using (var db = factory.CreateDbContext())
+        {
+            db.Players.AddRange(
+                new Player { PlayerId = 1, DisplayName = "Strong", Sex = PlayerSex.Male },
+                new Player { PlayerId = 2, DisplayName = "Mid",    Sex = PlayerSex.Male },
+                new Player { PlayerId = 3, DisplayName = "Weak",   Sex = PlayerSex.Male });
+            db.Competition.Add(new Competition
+            {
+                CompetitionID = 100, CompetitionName = "C",
+                CompetitionFormat = CompetitionFormat.TeamMatch,
+            });
+            db.CompetitionParticipants.AddRange(
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 1 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 2 },
+                new CompetitionParticipant { CompetitionId = 100, PlayerId = 3 });
+            db.PlayerRatingSnapshots.AddRange(
+                new PlayerRatingSnapshot { PlayerId = 1, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1800 },
+                new PlayerRatingSnapshot { PlayerId = 2, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1500 },
+                new PlayerRatingSnapshot { PlayerId = 3, CompetitionId = 100, Kind = PlayerRatingSnapshotKind.SeasonStart, Rating = 1200 });
+            await db.SaveChangesAsync();
+        }
+
+        var svc = BuildService(factory);
+        var placements = (await svc.SuggestRolePlacementsAsync(competitionId: 100))
+            .ToDictionary(p => p.PlayerId);
+
+        Assert.Equal("MA", placements[1].SuggestedRole);
+        Assert.Equal("MA", placements[2].SuggestedRole);
+        Assert.Equal("MB", placements[3].SuggestedRole);
+    }
+
+    [Fact]
     public void AssignMttByRating_DegradesToAlphabetical_WhenNoRatings()
     {
         // When no ratings are set, ordering must fall back to DisplayName so
