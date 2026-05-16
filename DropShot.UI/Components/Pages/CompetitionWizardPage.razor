@@ -1,0 +1,735 @@
+@using System.ComponentModel.DataAnnotations
+@using DropShot.Shared
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Components.Competitions
+@using DropShot.UI.Services
+@using DropShot.UI.Services.Auth
+
+@inject ICompetitionAdminService Admin
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject Microsoft.Extensions.Logging.ILogger<CompetitionWizardPage> Logger
+
+@if (!_loaded)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+}
+else
+{
+<div style="position: relative; min-height: 100vh; background-image: url('images/background.png'); background-repeat: no-repeat; background-size: cover; background-position: center; margin: -24px; padding: 0;">
+    <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
+    <div style="position: relative; z-index: 1; padding: 1rem 0.5rem 2rem;">
+
+        <MudStack Spacing="2" Class="mb-4">
+            <MudText Typo="Typo.h4" Class="competition-title"
+                     Color="@(string.IsNullOrWhiteSpace(Model.CompetitionName) ? Color.Secondary : Color.Default)">
+                @(string.IsNullOrWhiteSpace(Model.CompetitionName) ? "New Competition" : Model.CompetitionName)
+            </MudText>
+            <MudText Typo="Typo.body2" Style="opacity:0.75">
+                Step @(_currentStep + 1) of @TotalSteps — @StepTitle(_currentStep)
+            </MudText>
+            <MudProgressLinear Value="@StepProgress" Color="Color.Primary" Class="mt-1" />
+        </MudStack>
+
+        <MudStack Spacing="3">
+
+            @* ── Step 0: Name + Category ───────────────────── *@
+            @if (_currentStep > 0)
+            {
+                <StepSummary Label="Name & Category"
+                             Icon="@Icons.Material.Filled.Person"
+                             AccentColor="#26a69a"
+                             Summary="@($"{(string.IsNullOrWhiteSpace(Model.CompetitionName) ? "Unnamed" : Model.CompetitionName)} — {Model.Category}")"
+                             OnEdit="@(() => GoToStep(0))" />
+            }
+            else
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Name & Category</MudText>
+                    @StepIntro("Category controls who is considered for entry and who will be offered a spot. Male / Female restricts by registered sex; Mixed is open to all.")
+
+                    <MudTextField T="string" @bind-Value="Model.CompetitionName"
+                                  Label="Competition name" Variant="Variant.Outlined"
+                                  Required="true" RequiredError="Please enter a name."
+                                  Class="mt-3" />
+
+                    <MudField Label="Category" Variant="Variant.Text" Class="mt-3"
+                              Error="@(_categoryError != null)" ErrorText="@_categoryError">
+                        <MudRadioGroup T="CompetitionCategoryUi?" Value="Model.Category"
+                                       ValueChanged="OnCategoryChanged">
+                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Male)" Color="Color.Primary">Male</MudRadio>
+                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Female)" Color="Color.Primary">Female</MudRadio>
+                            <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Mixed)" Color="Color.Primary">Mixed</MudRadio>
+                        </MudRadioGroup>
+                    </MudField>
+
+                    @StepActions(canBack: false, advance: TryAdvanceFromCategory)
+                </MudPaper>
+            }
+
+            @* ── Step 1: Age ────────────────────────────────── *@
+            @if (_currentStep > 1)
+            {
+                <StepSummary Label="Age range"
+                             Icon="@Icons.Material.Filled.Cake"
+                             AccentColor="#7c4dff"
+                             Summary="@AgeSummary()"
+                             OnEdit="@(() => GoToStep(1))" />
+            }
+            else if (_currentStep == 1)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Age options</MudText>
+                    @StepIntro("Set the age range for eligible players. Leave either field blank for no upper or lower limit.")
+
+                    <MudGrid Spacing="2" Class="mt-3">
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int?" Label="Min Age (optional)"
+                                             Min="1" Max="120" Variant="Variant.Outlined"
+                                             @bind-Value="Model.MinAge" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int?" Label="Max Age (optional)"
+                                             Min="1" Max="120" Variant="Variant.Outlined"
+                                             @bind-Value="Model.MaxAge" />
+                        </MudItem>
+                    </MudGrid>
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 2: Format ─────────────────────────────── *@
+            @if (_currentStep > 2)
+            {
+                <StepSummary Label="Format"
+                             Icon="@Icons.Material.Filled.SportsTennis"
+                             AccentColor="#00b4d8"
+                             Summary="@(Model.Format?.ToString() ?? "Not set")"
+                             OnEdit="@(() => GoToStep(2))" />
+            }
+            else if (_currentStep == 2)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Format</MudText>
+                    @StepIntro("Singles is 1 vs 1. Doubles is 2 vs 2 fixed pairs. Team is a squad-vs-squad format with multiple rubbers in each fixture.")
+
+                    <MudSelect T="CompetitionFormatUi?" Label="Format" Variant="Variant.Outlined"
+                               Required="true" RequiredError="Please pick a format."
+                               Value="Model.Format"
+                               ValueChanged="@(v => Model.Format = v)"
+                               Class="mt-3">
+                        @foreach (var f in CompetitionFormHelpers.AllowedFormats(Model.Category))
+                        {
+                            <MudSelectItem T="CompetitionFormatUi?" Value="@((CompetitionFormatUi?)f)">@FormatLabel(f)</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    @if (Model.Format == CompetitionFormatUi.Singles)
+                    {
+                        <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.75">
+                            Singles: each player faces every other player one-on-one.
+                        </MudText>
+                    }
+                    else if (Model.Format == CompetitionFormatUi.Doubles)
+                    {
+                        <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.75">
+                            Doubles: fixed pairs play other pairs. Each pairing acts as a single competitor.
+                        </MudText>
+                    }
+                    else if (Model.Format == CompetitionFormatUi.Team)
+                    {
+                        <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.75">
+                            Team: squads play head-to-head fixtures made up of several rubbers. Rubber roles and scoring are configured later via the rubber template.
+                        </MudText>
+                    }
+
+                    @StepActions(canBack: true, advance: TryAdvanceFromFormat)
+                </MudPaper>
+            }
+
+            @* ── Step 3: Rule set ──────────────────────────── *@
+            @if (_currentStep > 3)
+            {
+                <StepSummary Label="Rule set"
+                             Icon="@Icons.Material.Filled.Gavel"
+                             AccentColor="#f77f00"
+                             Summary="@RuleSetSummary()"
+                             OnEdit="@(() => GoToStep(3))" />
+            }
+            else if (_currentStep == 3)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Rule set</MudText>
+                    @StepIntro("Pick the host club (whose courts and admins apply) and an optional rules set that defines defaults like tie-break rules and ball type. Linking the comp to an event is also optional.")
+
+                    @if (!_hideHostClub)
+                    {
+                        <MudSelect T="int?" Value="Model.HostClubId"
+                                   ValueChanged="OnHostClubChanged"
+                                   Label="@(_lockHostClub ? "Host Club" : "Host Club (optional)")"
+                                   Variant="Variant.Outlined"
+                                   Clearable="@(!_lockHostClub)"
+                                   ReadOnly="@_lockHostClub"
+                                   Disabled="@_lockHostClub"
+                                   Class="mt-3">
+                            @foreach (var c in _clubs)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)c.ClubId)">@c.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+
+                    <MudSelect @bind-Value="Model.RulesSetId" Label="Rules Set (optional)"
+                               Variant="Variant.Outlined" Clearable="true" Class="mt-3"
+                               Disabled="@(Model.HostClubId == null)">
+                        @foreach (var r in VisibleRulesSets())
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)r.RulesSetId)">@r.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudSelect @bind-Value="Model.EventId" Label="Event (optional)"
+                               Variant="Variant.Outlined" Clearable="true" Class="mt-3">
+                        @foreach (var e in _events)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)e.EventId)">@e.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 4: Dates + max participants ──────────── *@
+            @if (_currentStep > 4)
+            {
+                <StepSummary Label="Dates & participants"
+                             Icon="@Icons.Material.Filled.CalendarMonth"
+                             AccentColor="#26a69a"
+                             Summary="@DatesSummary()"
+                             OnEdit="@(() => GoToStep(4))" />
+            }
+            else if (_currentStep == 4)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Dates and participants</MudText>
+                    @StepIntro("When the competition runs, when registrations close, and the cap on how many players can join. All dates are optional.")
+
+                    <MudGrid Spacing="2" Class="mt-3">
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="Model.StartDateDt" Label="Start Date (optional)" DateFormat="dd/MM/yyyy" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="Model.EndDateDt" Label="End Date (optional)" DateFormat="dd/MM/yyyy" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="Model.RegisterByDateDt" Label="Register By (optional)" DateFormat="dd/MM/yyyy" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants (optional)"
+                                     Min="2" Variant="Variant.Outlined" Class="mt-3" />
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 5: Divisions ─────────────────────────── *@
+            @if (_currentStep > 5)
+            {
+                <StepSummary Label="Divisions"
+                             Icon="@Icons.Material.Filled.AccountTree"
+                             AccentColor="#9c27b0"
+                             Summary="@(Model.HasDivisions ? "Split into ranked divisions" : "Single field, no divisions")"
+                             OnEdit="@(() => GoToStep(5))" />
+            }
+            else if (_currentStep == 5)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Split into divisions?</MudText>
+                    @StepIntro("Divisions let you tier the field (for example Premier / A / B). Teams only play others in their own division and league tables render per-division. You'll create each division after the competition is saved.")
+
+                    <MudCheckBox @bind-Value="Model.HasDivisions"
+                                 Label="Split this competition into ranked divisions"
+                                 Class="mt-3" />
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 6: Match/rubber scoring ──────────────── *@
+            @if (_currentStep > 6)
+            {
+                <StepSummary Label="Match scoring"
+                             Icon="@Icons.Material.Filled.EmojiEvents"
+                             AccentColor="#0077b6"
+                             Summary="@ScoringSummary()"
+                             OnEdit="@(() => GoToStep(6))" />
+            }
+            else if (_currentStep == 6)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Match / rubber scoring</MudText>
+                    @StepIntro("How each individual match is scored. For Team competitions, this controls the format of each rubber inside a fixture.")
+
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Match format</MudText>
+                    <MudRadioGroup @bind-Value="Model.MatchFormat">
+                        <MudStack Row="true" Spacing="2">
+                            <MudRadio Value="MatchFormatType.BestOf" Color="Color.Primary">Best of</MudRadio>
+                            <MudRadio Value="MatchFormatType.FixedSets" Color="Color.Primary">Fixed sets</MudRadio>
+                        </MudStack>
+                    </MudRadioGroup>
+                    @if (Model.MatchFormat == MatchFormatType.BestOf)
+                    {
+                        <MudSelect @bind-Value="Model.BestOf" Label="Best of (sets)" Variant="Variant.Outlined"
+                                   Style="max-width: 160px;" Class="mt-1">
+                            <MudSelectItem T="int" Value="1">1</MudSelectItem>
+                            <MudSelectItem T="int" Value="3">3</MudSelectItem>
+                            <MudSelectItem T="int" Value="5">5</MudSelectItem>
+                            <MudSelectItem T="int" Value="7">7</MudSelectItem>
+                        </MudSelect>
+                    }
+                    else
+                    {
+                        <MudNumericField @bind-Value="Model.NumberOfSets" Label="Number of sets to play"
+                                         Variant="Variant.Outlined" Min="1" Max="20"
+                                         Style="max-width: 160px;" Class="mt-1" />
+                    }
+
+                    <MudNumericField @bind-Value="Model.GamesPerSet" Label="Games per set"
+                                     Variant="Variant.Outlined" Min="1" Max="12"
+                                     Style="max-width: 160px;" Class="mt-3" />
+
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Set wins on</MudText>
+                    <MudRadioGroup @bind-Value="Model.SetWinMode">
+                        <MudStack Row="true" Spacing="2">
+                            <MudTooltip Text="Must win by 2 clear games; tie-break at games-all.">
+                                <MudRadio Value="SetWinMode.WinBy2" Color="Color.Primary">Win by 2</MudRadio>
+                            </MudTooltip>
+                            <MudTooltip Text="First player to reach the games-per-set target wins the set.">
+                                <MudRadio Value="SetWinMode.FirstTo" Color="Color.Primary">First to</MudRadio>
+                            </MudTooltip>
+                        </MudStack>
+                    </MudRadioGroup>
+
+                    @if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) == CompetitionFormat.TeamMatch)
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Rubber tie-break</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                            How to resolve knockout fixtures when rubbers are tied.
+                        </MudText>
+                        <MudRadioGroup @bind-Value="Model.RubberTieBreak">
+                            <MudStack Spacing="1">
+                                <MudRadio Value="RubberTieBreakMode.AdminDecides" Color="Color.Primary">Admin picks the winner</MudRadio>
+                                <MudRadio Value="RubberTieBreakMode.MostGamesWon" Color="Color.Primary">Most games won across all rubbers</MudRadio>
+                                <MudRadio Value="RubberTieBreakMode.HeadToHeadRoundRobin" Color="Color.Primary">Winner of the round-robin meeting</MudRadio>
+                                <MudRadio Value="RubberTieBreakMode.MostGamesThenHeadToHead" Color="Color.Primary">Most games won, then round-robin head-to-head</MudRadio>
+                            </MudStack>
+                        </MudRadioGroup>
+                    }
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 7: League scoring ─────────────────────── *@
+            @if (_currentStep > 7)
+            {
+                <StepSummary Label="League scoring"
+                             Icon="@Icons.Material.Filled.Leaderboard"
+                             AccentColor="#d62828"
+                             Summary="@LeagueScoringLabel(Model.LeagueScoring)"
+                             OnEdit="@(() => GoToStep(7))" />
+            }
+            else if (_currentStep == 7)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">League scoring</MudText>
+                    @StepIntro("How standings are calculated across the competition. Win Points rewards results; Sets / Games Won reward dominance in close matches. For Team competitions, sets and games aggregate across every rubber in the fixture.")
+
+                    <MudRadioGroup @bind-Value="Model.LeagueScoring" Class="mt-3">
+                        <MudStack Spacing="1">
+                            <MudRadio Value="LeagueScoringMode.WinPoints" Color="Color.Primary">3 points for a win, 1 for a draw</MudRadio>
+                            <MudRadio Value="LeagueScoringMode.SetsWon" Color="Color.Primary">1 point per set won</MudRadio>
+                            <MudRadio Value="LeagueScoringMode.GamesWon" Color="Color.Primary">1 point per game won</MudRadio>
+                        </MudStack>
+                    </MudRadioGroup>
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 8: Misc settings ──────────────────────── *@
+            @if (_currentStep > 8)
+            {
+                <StepSummary Label="Misc"
+                             Icon="@Icons.Material.Filled.Tune"
+                             AccentColor="#4caf50"
+                             Summary="@MiscSummary()"
+                             OnEdit="@(() => GoToStep(8))" />
+            }
+            else if (_currentStep == 8)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Misc settings</MudText>
+                    @StepIntro("Fine controls — minimum gap between a player's matches when auto-scheduling, and whether results need an admin to verify them before counting toward the standings.")
+
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Minimum days between matches</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                        Auto-scheduling tries to keep each player's matches this many days apart. Leave blank for no restriction.
+                    </MudText>
+                    <MudNumericField T="int?" @bind-Value="Model.MinDaysBetweenPlayerMatches"
+                                     Label="Days" Min="0" Max="30" Variant="Variant.Outlined"
+                                     Style="max-width: 160px" />
+
+                    <MudCheckBox @bind-Value="Model.RequireVerification"
+                                 Label="Require admin verification of results"
+                                 Class="mt-3" />
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 9: Review & create ────────────────────── *@
+            @if (_currentStep == 9)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Review &amp; create</MudText>
+                    @StepIntro("Review your competition. After creating, you'll land on the edit page where you can add admins, stages, the rubber template (for Team competitions), participants, and fixtures.")
+
+                    @if (!string.IsNullOrWhiteSpace(_serverError))
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mt-3">@_serverError</MudAlert>
+                    }
+
+                    <div class="d-flex justify-space-between mt-4">
+                        <MudButton Variant="Variant.Text" Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   Disabled="@_isSaving"
+                                   OnClick="GoBack">Back</MudButton>
+                        <MudStack Row="true" Spacing="2">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                                       Disabled="@_isSaving"
+                                       OnClick="@(() => Nav.NavigateTo("/Competitions"))">Cancel</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       EndIcon="@Icons.Material.Filled.Check"
+                                       Disabled="@_isSaving"
+                                       OnClick="CreateAsync">
+                                @if (_isSaving)
+                                {
+                                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                                }
+                                Create competition
+                            </MudButton>
+                        </MudStack>
+                    </div>
+                </MudPaper>
+            }
+
+        </MudStack>
+    </div>
+</div>
+}
+
+@code {
+    private const int TotalSteps = 10;
+
+    private CompetitionFormModel Model { get; set; } = new();
+
+    private int _currentStep = 0;
+    private bool _loaded;
+    private bool _isSaving;
+    private string? _serverError;
+    private string? _categoryError;
+
+    // Lookup data
+    private List<ClubDto> _clubs = new();
+    private List<RulesSetDto> _rulesSets = new();
+    private List<EventDto> _events = new();
+
+    // Host-club gating mirrors CompetitionPage create flow.
+    private bool _lockHostClub;
+    private bool _hideHostClub;
+
+    private double StepProgress => ((_currentStep + 1) / (double)TotalSteps) * 100;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var view = await Admin.GetCompetitionForEditAsync(null);
+            if (view is null || !view.CanEdit)
+            {
+                Nav.NavigateTo("/", replace: true);
+                return;
+            }
+
+            _clubs = view.Clubs.ToList();
+            _rulesSets = view.RulesSets.OrderBy(r => r.Name).ToList();
+            _events = view.Events.ToList();
+
+            Model = new CompetitionFormModel();
+
+            // Same role-aware seeding the existing create flow uses:
+            //  • ClubAdmin (single seeded HostClubId): lock to that club.
+            //  • Premium user (no clubs visible): hide host club entirely.
+            if (view.HostClubId.HasValue)
+            {
+                _lockHostClub = true;
+                Model.HostClubId = view.HostClubId;
+            }
+            else if (_clubs.Count == 0)
+            {
+                _hideHostClub = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load competition wizard.");
+            _serverError = "Could not load setup data.";
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private void GoToStep(int step)
+    {
+        if (step < 0 || step >= TotalSteps) return;
+        _currentStep = step;
+        _serverError = null;
+    }
+
+    private void GoBack()
+    {
+        if (_currentStep > 0) _currentStep--;
+        _serverError = null;
+    }
+
+    private void TryAdvance()
+    {
+        if (_currentStep < TotalSteps - 1) _currentStep++;
+    }
+
+    private void TryAdvanceFromCategory()
+    {
+        if (string.IsNullOrWhiteSpace(Model.CompetitionName))
+        {
+            Snackbar.Add("Please enter a competition name.", Severity.Warning);
+            return;
+        }
+        if (Model.Category == null)
+        {
+            _categoryError = "Please select a category.";
+            return;
+        }
+        _categoryError = null;
+        TryAdvance();
+    }
+
+    private void TryAdvanceFromFormat()
+    {
+        if (Model.Format == null)
+        {
+            Snackbar.Add("Please pick a format.", Severity.Warning);
+            return;
+        }
+        TryAdvance();
+    }
+
+    private void OnCategoryChanged(CompetitionCategoryUi? value)
+    {
+        Model.Category = value;
+        _categoryError = value == null ? "Please select a category." : null;
+        // Mixed doesn't allow Singles; clear an incompatible selection.
+        if (Model.Format.HasValue && !CompetitionFormHelpers.AllowedFormats(value).Contains(Model.Format.Value))
+            Model.Format = null;
+    }
+
+    private async Task OnHostClubChanged(int? clubId)
+    {
+        Model.HostClubId = clubId;
+        // Rules sets are club-scoped; the previously-selected one almost
+        // certainly doesn't belong to the new host club.
+        Model.RulesSetId = null;
+        await Task.CompletedTask;
+    }
+
+    private IEnumerable<RulesSetDto> VisibleRulesSets() =>
+        Model.HostClubId is null ? [] : _rulesSets.Where(r => r.ClubId == Model.HostClubId.Value);
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Model.CompetitionName))
+        {
+            _serverError = "Competition name is required.";
+            GoToStep(0);
+            return;
+        }
+        if (Model.Category == null)
+        {
+            _serverError = "Please select a category.";
+            GoToStep(0);
+            return;
+        }
+        if (Model.Format == null)
+        {
+            _serverError = "Please pick a format.";
+            GoToStep(2);
+            return;
+        }
+
+        _isSaving = true;
+        _serverError = null;
+        try
+        {
+            var request = new SaveCompetitionEditRequest(
+                CompetitionName: Model.CompetitionName.Trim(),
+                CompetitionFormat: CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) ?? CompetitionFormat.Singles,
+                EligibleSex: CompetitionFormHelpers.EffectiveEligibleSex(Model.Category),
+                MaxParticipants: Model.MaxParticipants,
+                StartDate: Model.StartDateDt,
+                EndDate: Model.EndDateDt,
+                RegisterByDate: Model.RegisterByDateDt,
+                MaxAge: Model.MaxAge,
+                MinAge: Model.MinAge,
+                HostClubId: Model.HostClubId,
+                RulesSetId: Model.RulesSetId,
+                EventId: Model.EventId,
+                BestOf: Model.BestOf,
+                RequireVerification: Model.RequireVerification,
+                TeamSize: Model.TeamSize,
+                RubberTemplateKey: null,
+                MatchFormat: Model.MatchFormat,
+                NumberOfSets: Model.NumberOfSets,
+                GamesPerSet: Model.GamesPerSet,
+                SetWinMode: Model.SetWinMode,
+                LeagueScoring: Model.LeagueScoring,
+                RubberTieBreak: Model.RubberTieBreak,
+                MinDaysBetweenPlayerMatches: Model.MinDaysBetweenPlayerMatches,
+                HasDivisions: Model.HasDivisions,
+                SeededFromCompetitionId: null,
+                IsRestricted: false,
+                AllowedPlayerIds: null);
+
+            var savedId = await Admin.SaveCompetitionAsync(null, request);
+            Snackbar.Add("Competition created.", Severity.Success);
+            Nav.NavigateTo($"/competition/{savedId}", forceLoad: true);
+        }
+        catch (InvalidOperationException ex) { _serverError = ex.Message; }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create competition from wizard.");
+            _serverError = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    // ── Summary helpers ─────────────────────────────────────────
+    private string AgeSummary()
+    {
+        if (Model.MinAge == null && Model.MaxAge == null) return "No age restriction";
+        if (Model.MinAge != null && Model.MaxAge != null) return $"{Model.MinAge}–{Model.MaxAge}";
+        if (Model.MinAge != null) return $"{Model.MinAge}+";
+        return $"Up to {Model.MaxAge}";
+    }
+
+    private string RuleSetSummary()
+    {
+        var club = _clubs.FirstOrDefault(c => c.ClubId == Model.HostClubId);
+        var rules = _rulesSets.FirstOrDefault(r => r.RulesSetId == Model.RulesSetId);
+        var clubLabel = club?.Name ?? "No host club";
+        var rulesLabel = rules?.Name ?? "No rules set";
+        return $"{clubLabel} · {rulesLabel}";
+    }
+
+    private string DatesSummary()
+    {
+        var start = Model.StartDateDt?.ToString("dd MMM yyyy") ?? "—";
+        var end = Model.EndDateDt?.ToString("dd MMM yyyy") ?? "—";
+        var max = Model.MaxParticipants?.ToString() ?? "no cap";
+        return $"{start} → {end} · {max} max";
+    }
+
+    private string ScoringSummary()
+    {
+        var fmt = Model.MatchFormat == MatchFormatType.BestOf
+            ? $"Best of {Model.BestOf}"
+            : $"{Model.NumberOfSets} fixed sets";
+        var win = Model.SetWinMode == SetWinMode.WinBy2 ? "win by 2" : "first to";
+        return $"{fmt} · {Model.GamesPerSet} games/set · {win}";
+    }
+
+    private string MiscSummary()
+    {
+        var gap = Model.MinDaysBetweenPlayerMatches.HasValue
+            ? $"{Model.MinDaysBetweenPlayerMatches}d between matches"
+            : "no gap";
+        var verify = Model.RequireVerification ? "admin verify" : "auto-accept";
+        return $"{gap} · {verify}";
+    }
+
+    private static string LeagueScoringLabel(LeagueScoringMode mode) => mode switch
+    {
+        LeagueScoringMode.WinPoints => "3 pts win / 1 pt draw",
+        LeagueScoringMode.SetsWon   => "1 pt per set won",
+        LeagueScoringMode.GamesWon  => "1 pt per game won",
+        _ => mode.ToString()
+    };
+
+    private static string FormatLabel(CompetitionFormatUi format) => format switch
+    {
+        CompetitionFormatUi.Singles => "Singles (1 vs 1)",
+        CompetitionFormatUi.Doubles => "Doubles (2 vs 2 fixed pairs)",
+        CompetitionFormatUi.Team    => "Team (squad-vs-squad with rubbers)",
+        _ => format.ToString()
+    };
+
+    private static string StepTitle(int step) => step switch
+    {
+        0 => "Name & Category",
+        1 => "Age options",
+        2 => "Format",
+        3 => "Rule set",
+        4 => "Dates & participants",
+        5 => "Divisions",
+        6 => "Match scoring",
+        7 => "League scoring",
+        8 => "Misc settings",
+        9 => "Review & create",
+        _ => ""
+    };
+
+    // ── Reusable render fragments ───────────────────────────────
+    private RenderFragment StepIntro(string text) => __builder =>
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Info" Class="mt-1">
+            <MudText Typo="Typo.body2">@text</MudText>
+        </MudAlert>
+    };
+
+    private RenderFragment StepActions(bool canBack, Action advance) => __builder =>
+    {
+        <div class="d-flex justify-space-between mt-4">
+            @if (canBack)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="GoBack">Back</MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Default"
+                           OnClick="@(() => Nav.NavigateTo("/Competitions"))">Cancel</MudButton>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       EndIcon="@Icons.Material.Filled.ArrowForward"
+                       OnClick="advance">Next</MudButton>
+        </div>
+    };
+}
