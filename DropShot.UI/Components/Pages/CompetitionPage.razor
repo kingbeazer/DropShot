@@ -2631,6 +2631,110 @@ else
         }
     }
 
+    // Computes how many male/female club players are needed to fill 7 teams per
+    // division for every division already created. Total is split 50/50; an odd
+    // remainder (e.g. Singles with an odd team count) goes to the male side.
+    private (int male, int female) ComputeSimulationTargets()
+    {
+        int divisions = _divisions.Count;
+        if (divisions == 0) return (0, 0);
+
+        int teamSize = Model.TeamSize ?? (Model.Format switch
+        {
+            CompetitionFormatUi.Team    => 4,
+            CompetitionFormatUi.Doubles => 2,
+            _                           => 1, // Singles
+        });
+
+        int totalPlayers = 7 * divisions * teamSize;
+        int male   = totalPlayers / 2 + (totalPlayers % 2);
+        int female = totalPlayers / 2;
+        return (male, female);
+    }
+
+    private async Task SimulateParticipantSelectionAsync()
+    {
+        if (_simulating) return;
+        if (!_isSuperAdmin)
+        {
+            SiteAlerts.Add("Only super admins can simulate participant selection.", Severity.Warning);
+            return;
+        }
+        if (!Model.HostClubId.HasValue)
+        {
+            SiteAlerts.Add("Competition must have a host club before simulating.", Severity.Warning);
+            return;
+        }
+        if (_divisions.Count == 0)
+        {
+            SiteAlerts.Add("Create at least one division before simulating.", Severity.Warning);
+            return;
+        }
+
+        var (targetMale, targetFemale) = ComputeSimulationTargets();
+        if (targetMale + targetFemale == 0) return;
+
+        _simulating = true;
+        try
+        {
+            // 1) Clear existing participants ("clear first" semantics).
+            foreach (var cp in _participants.ToList())
+            {
+                await Admin.RemoveParticipantAsync(Id, cp.PlayerId);
+            }
+            _participants.Clear();
+
+            // 2) Pull the host-club candidate pool. Server already filters by
+            //    HostClubId + eligibility (mirrors OpenBulkAddDialog).
+            var candidates = await Admin.SearchPlayersAsync(Id, new SearchPlayersForAddRequest(
+                Query: "", HostClubId: Model.HostClubId, MaxResults: 500));
+
+            // 3) Random sample per sex.
+            var rng = new Random();
+            var males = candidates.Where(p => p.Sex == PlayerSex.Male)
+                .OrderBy(_ => rng.Next()).Take(targetMale).ToList();
+            var females = candidates.Where(p => p.Sex == PlayerSex.Female)
+                .OrderBy(_ => rng.Next()).Take(targetFemale).ToList();
+
+            int shortM = targetMale - males.Count;
+            int shortF = targetFemale - females.Count;
+
+            var playerIds = males.Concat(females).Select(p => p.PlayerId).ToList();
+            if (playerIds.Count == 0)
+            {
+                SiteAlerts.Add("No eligible club players to draw from.", Severity.Warning);
+                return;
+            }
+
+            var result = await Admin.BulkAddParticipantsAsync(Id,
+                new BulkAddParticipantsRequest(playerIds, ParticipantStatus.FullPlayer));
+
+            // 4) Refresh view so PlacementSuggestion / Role suggestions appear,
+            //    which makes the existing "Apply all placement suggestions"
+            //    button visible above the participants table.
+            await ReloadAfterServerMutationAsync();
+
+            var msg = $"Simulated roster: {males.Count}M + {females.Count}F added (target {targetMale}M + {targetFemale}F).";
+            if (shortM > 0 || shortF > 0)
+            {
+                msg += $" Short by {shortM}M / {shortF}F - add more club players or fewer divisions.";
+                SiteAlerts.Add(msg, Severity.Warning);
+            }
+            else
+            {
+                SiteAlerts.Add(msg, Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add($"Simulation failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _simulating = false;
+        }
+    }
+
     private async Task AssignTeam(CompetitionParticipantDto cp, int? teamId)
     {
         await Admin.AssignParticipantTeamAsync(Id, cp.PlayerId, new AssignParticipantTeamRequest(teamId));
