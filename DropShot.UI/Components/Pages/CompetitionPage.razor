@@ -3091,7 +3091,7 @@ else
             }
 
             var result = await Admin.BulkAddParticipantsAsync(Id,
-                new BulkAddParticipantsRequest(playerIds, ParticipantStatus.Registered));
+                new BulkAddParticipantsRequest(playerIds, ParticipantStatus.FullPlayer));
 
             // 4) Refresh view so PlacementSuggestion / Role suggestions appear,
             //    which makes the existing "Apply all placement suggestions"
