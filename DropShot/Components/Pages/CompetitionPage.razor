@@ -1,4 +1,4 @@
-@page "/competition/{Id:int}"
+@page "/competition/{Id:int:min(1)}"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @rendermode InteractiveServer
