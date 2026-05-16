@@ -47,22 +47,77 @@ else
         </MudButton>
     </MudStack>
 
-    <MudTextField @bind-Value="_searchText" Placeholder="Search club players..."
-                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                  Immediate="true" Class="mb-4" />
+    @* Filter row: free-text search plus four multi-select filters mirroring the
+       Competition Roster pattern. Each select is "no filter" when empty so
+       admins can stack dimensions (AND across dimensions, OR within one). *@
+    <MudStack Row="true" Spacing="2" Class="mb-4" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+        <MudTextField T="string" @bind-Value="_searchText" DebounceInterval="150"
+                      Placeholder="Search club players..." Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Clearable="true"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Style="min-width:240px" />
+        <MudSelect T="PlayerSex?" MultiSelection="true" @bind-SelectedValues="_filterSexes"
+                   Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                   ToStringFunc="@(s => s?.ToString() ?? "(Unassigned)")"
+                   Style="min-width:140px">
+            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Male)">Male</MudSelectItem>
+            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Female)">Female</MudSelectItem>
+            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)null)">(Unassigned)</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="bool?" MultiSelection="true" @bind-SelectedValues="_filterTypes"
+                   Label="Player type" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                   ToStringFunc="@(b => b == true ? "Light" : b == false ? "Full" : "")"
+                   Style="min-width:140px">
+            <MudSelectItem T="bool?" Value="@((bool?)true)">Light</MudSelectItem>
+            <MudSelectItem T="bool?" Value="@((bool?)false)">Full</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="AgeBand" MultiSelection="true" @bind-SelectedValues="_filterAgeBands"
+                   Label="Age band" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                   ToStringFunc="@(b => AgeBandLabel(b))"
+                   Style="min-width:150px">
+            <MudSelectItem T="AgeBand" Value="@AgeBand.Junior">Junior (&lt; 18)</MudSelectItem>
+            <MudSelectItem T="AgeBand" Value="@AgeBand.Adult">Adult (18–49)</MudSelectItem>
+            <MudSelectItem T="AgeBand" Value="@AgeBand.Senior">Senior (50+)</MudSelectItem>
+            <MudSelectItem T="AgeBand" Value="@AgeBand.Unknown">Unknown DOB</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="MissingField" MultiSelection="true" @bind-SelectedValues="_filterMissing"
+                   Label="Missing contact" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                   ToStringFunc="@(m => m == MissingField.Email ? "No email" : "No mobile")"
+                   Style="min-width:160px">
+            <MudSelectItem T="MissingField" Value="@MissingField.Email">No email</MudSelectItem>
+            <MudSelectItem T="MissingField" Value="@MissingField.Mobile">No mobile</MudSelectItem>
+        </MudSelect>
+        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FilterAltOff"
+                   OnClick="ClearFilters">Clear</MudButton>
+    </MudStack>
+
+    @if (_selected.Count > 0)
+    {
+        <MudPaper Class="pa-2 mb-2 frosted-card" Elevation="0">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.body2">@_selected.Count selected</MudText>
+                <MudSpacer />
+                <MudButton Variant="Variant.Text" OnClick="ClearSelection">Clear</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="OpenBulkRemoveDialog">
+                    Remove @_selected.Count from club
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
 
     <MudTable Items="@_players" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
               Filter="@(row => FilterPlayers(row))"
+              MultiSelection="true" @bind-SelectedItems="_selected"
               Class="frosted-card" Elevation="0">
         <HeaderContent>
             <MudTh>Player</MudTh>
-            <MudTh>First Name</MudTh>
-            <MudTh>Last Name</MudTh>
             <MudTh>Age</MudTh>
             <MudTh>Category</MudTh>
             <MudTh>Email</MudTh>
             <MudTh>Mobile</MudTh>
-            <MudTh Style="width: 100px;">Actions</MudTh>
+            <MudTh Style="width: 120px;">Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Player">
@@ -89,14 +144,12 @@ else
                     <MudText>@context.DisplayName</MudText>
                 </MudStack>
             </MudTd>
-            <MudTd DataLabel="First Name">@(context.FirstName ?? "—")</MudTd>
-            <MudTd DataLabel="Last Name">@(context.LastName ?? "—")</MudTd>
             <MudTd DataLabel="Age">@(AgeFor(context.DateOfBirth)?.ToString() ?? "—")</MudTd>
             <MudTd DataLabel="Category">@(context.Sex?.ToString() ?? "—")</MudTd>
             <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
             <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
             <MudTd DataLabel="Actions">
-                <MudStack Row="true" Spacing="0">
+                <MudStack Row="true" Spacing="1">
                     @if (context.IsLight && context.IsClubOwned)
                     {
                         <MudTooltip Text="Edit">
@@ -209,6 +262,22 @@ else
     </DialogActions>
 </MudDialog>
 
+<MudDialog @bind-Visible="_showBulkRemoveDialog">
+    <TitleContent>Remove players from club</TitleContent>
+    <DialogContent>
+        <MudText>
+            Remove @_selected.Count @(_selected.Count == 1 ? "player" : "players") from this club?
+            They can be re-added later if needed.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showBulkRemoveDialog = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="ConfirmBulkRemove">
+            Remove
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private bool _loading = true;
     private List<ClubPlayerDto> _players = [];
@@ -225,6 +294,20 @@ else
     private string _existingSearch = "";
     private List<PlayerDto> _existingResults = [];
 
+    // Filter sets — empty == "no filter for this dimension". Matches the
+    // Roster filter pattern on CompetitionPage: AND across dimensions, OR
+    // within a dimension.
+    private IReadOnlyCollection<PlayerSex?> _filterSexes = new HashSet<PlayerSex?>();
+    private IReadOnlyCollection<bool?> _filterTypes = new HashSet<bool?>();
+    private IReadOnlyCollection<AgeBand> _filterAgeBands = new HashSet<AgeBand>();
+    private IReadOnlyCollection<MissingField> _filterMissing = new HashSet<MissingField>();
+
+    private HashSet<ClubPlayerDto> _selected = new();
+    private bool _showBulkRemoveDialog;
+
+    private enum AgeBand { Junior, Adult, Senior, Unknown }
+    private enum MissingField { Email, Mobile }
+
     private sealed class PlayerForm
     {
         public string DisplayName { get; set; } = "";
@@ -236,11 +319,60 @@ else
         public DateTime? DateOfBirth { get; set; }
     }
 
-    private bool FilterPlayers(ClubPlayerDto row) =>
-        string.IsNullOrWhiteSpace(_searchText) ||
-        row.DisplayName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
-        (row.FirstName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
-        (row.LastName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+    private bool FilterPlayers(ClubPlayerDto row)
+    {
+        if (!string.IsNullOrWhiteSpace(_searchText))
+        {
+            var matchesText =
+                row.DisplayName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                (row.FirstName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                (row.LastName ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+            if (!matchesText) return false;
+        }
+
+        if (_filterSexes.Count > 0 && !_filterSexes.Contains(row.Sex)) return false;
+        if (_filterTypes.Count > 0 && !_filterTypes.Contains(row.IsLight)) return false;
+        if (_filterAgeBands.Count > 0 && !_filterAgeBands.Contains(AgeBandFor(row.DateOfBirth))) return false;
+
+        if (_filterMissing.Count > 0)
+        {
+            // OR within the dimension: row passes if it matches ANY selected missing-field flag.
+            var anyMatch =
+                (_filterMissing.Contains(MissingField.Email) && string.IsNullOrWhiteSpace(row.Email)) ||
+                (_filterMissing.Contains(MissingField.Mobile) && string.IsNullOrWhiteSpace(row.MobileNumber));
+            if (!anyMatch) return false;
+        }
+
+        return true;
+    }
+
+    private void ClearFilters()
+    {
+        _searchText = "";
+        _filterSexes = new HashSet<PlayerSex?>();
+        _filterTypes = new HashSet<bool?>();
+        _filterAgeBands = new HashSet<AgeBand>();
+        _filterMissing = new HashSet<MissingField>();
+    }
+
+    private void ClearSelection() => _selected = new HashSet<ClubPlayerDto>();
+
+    private void OpenBulkRemoveDialog() => _showBulkRemoveDialog = true;
+
+    private async Task ConfirmBulkRemove()
+    {
+        _showBulkRemoveDialog = false;
+        if (_activeClubId is null || _selected.Count == 0) return;
+
+        var toRemove = _selected.ToList();
+        foreach (var p in toRemove)
+        {
+            await PlayerService.RemovePlayerFromClubAsync(_activeClubId.Value, p.PlayerId);
+        }
+        SiteAlerts.Add($"Removed {toRemove.Count} {(toRemove.Count == 1 ? "player" : "players")} from club.", Severity.Info);
+        _selected = new HashSet<ClubPlayerDto>();
+        await LoadPlayers();
+    }
 
     private static int? AgeFor(DateOnly? dob)
     {
@@ -250,6 +382,24 @@ else
         if (dob.Value > today.AddYears(-age)) age--;
         return age;
     }
+
+    private static AgeBand AgeBandFor(DateOnly? dob)
+    {
+        var age = AgeFor(dob);
+        if (age is null) return AgeBand.Unknown;
+        if (age < 18) return AgeBand.Junior;
+        if (age < 50) return AgeBand.Adult;
+        return AgeBand.Senior;
+    }
+
+    private static string AgeBandLabel(AgeBand b) => b switch
+    {
+        AgeBand.Junior => "Junior (< 18)",
+        AgeBand.Adult => "Adult (18–49)",
+        AgeBand.Senior => "Senior (50+)",
+        AgeBand.Unknown => "Unknown DOB",
+        _ => b.ToString()
+    };
 
     protected override async Task OnInitializedAsync()
     {
