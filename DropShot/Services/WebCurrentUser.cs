@@ -121,23 +121,50 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
 
         if (_userId is null) return;
 
-        var appUser = await _userManager.FindByIdAsync(_userId);
-        if (appUser is not null)
+        // ClubAdministrators is queried via the factory (its own scoped
+        // DbContext) so the "shared scoped DbContext" race that can take
+        // out the UserManager calls below never short-circuits it. Before
+        // this re-ordering, a transient UserManager failure left
+        // _adminClubIds empty and hid the Add Competition / New Event
+        // buttons on /competitions even for legitimate club admins.
+        try
         {
-            _email = appUser.Email;
-            _grantedRoles = (await _userManager.GetRolesAsync(appUser)).ToList();
-            _isSubscribed = appUser.IsSubscribed;
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            _adminClubIds = await db.ClubAdministrators
+                .Where(ca => ca.UserId == _userId)
+                .Select(ca => ca.ClubId)
+                .ToListAsync();
         }
-        else
+        catch
         {
-            _isSubscribed = false;
+            // Leave any previously-populated snapshot in place rather than
+            // wiping it on a transient DB hiccup.
         }
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        _adminClubIds = await db.ClubAdministrators
-            .Where(ca => ca.UserId == _userId)
-            .Select(ca => ca.ClubId)
-            .ToListAsync();
+        try
+        {
+            var appUser = await _userManager.FindByIdAsync(_userId);
+            if (appUser is not null)
+            {
+                _email = appUser.Email;
+                _grantedRoles = (await _userManager.GetRolesAsync(appUser)).ToList();
+                _isSubscribed = appUser.IsSubscribed;
+            }
+            else
+            {
+                _isSubscribed = false;
+            }
+        }
+        catch
+        {
+            // UserManager shares the scoped DbContext with whatever else
+            // is running in this circuit, and can throw "A second
+            // operation was started on this context" during prerender.
+            // CanCreateUserCompetition already falls back to the HTTP
+            // principal's Role claims when _grantedRoles is empty, so a
+            // failure here is recoverable — but only if AdminClubIds
+            // above isn't ALSO trapped behind the same throw.
+        }
     }
 
     /// <summary>
