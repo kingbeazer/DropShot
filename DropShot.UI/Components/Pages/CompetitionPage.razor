@@ -583,6 +583,18 @@ else
                     }
                 </MudStack>
 
+                @if (_showDeleteAllParticipantsConfirm)
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mb-3" ShowCloseIcon="true"
+                              CloseIconClicked="@(() => _showDeleteAllParticipantsConfirm = false)">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Typo="Typo.body2">Delete all @_participants.Count participant(s)? This cannot be undone.</MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                       OnClick="DeleteAllParticipants">Confirm Delete</MudButton>
+                        </MudStack>
+                    </MudAlert>
+                }
+
                 <MudDialog @bind-Visible="_showNewPlayerDialog">
                     <TitleContent>@(_editingLightPlayerId.HasValue ? "Edit Player" : "Add New Club Player")</TitleContent>
                     <DialogContent>
@@ -627,6 +639,78 @@ else
                                    Disabled="@(string.IsNullOrWhiteSpace(_newPlayerForm.DisplayName) || !_newPlayerForm.DateOfBirth.HasValue)"
                                    OnClick="@(_editingLightPlayerId.HasValue ? SaveLightPlayerEdit : CreateAndAddClubPlayer)">
                             @(_editingLightPlayerId.HasValue ? "Save" : "Add")
+                        </MudButton>
+                    </DialogActions>
+                </MudDialog>
+
+                @* Bulk-add dialog: full list of eligible players (already-enrolled
+                   excluded server-side), filterable, multi-select. The server-side
+                   SearchPlayers endpoint already applies club-scope + eligibility
+                   filters; we just pass a generous MaxResults and filter further
+                   by free-text + sex on the client. *@
+                <MudDialog @bind-Visible="_showBulkAddDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+                    <TitleContent>Add multiple players</TitleContent>
+                    <DialogContent>
+                        <MudStack Spacing="2">
+                            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="flex-wrap: wrap;">
+                                <MudTextField T="string" @bind-Value="_bulkAddSearch" DebounceInterval="150"
+                                              Placeholder="Search by name" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Clearable="true"
+                                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                              Style="min-width:240px" />
+                                <MudSelect T="PlayerSex?" @bind-Value="_bulkAddSexFilter"
+                                           Label="Sex" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                           ToStringFunc="@(s => s.HasValue ? s.Value.ToString() : "Any")"
+                                           Style="min-width:140px">
+                                    <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)null)">Any</MudSelectItem>
+                                    <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Male)">Male</MudSelectItem>
+                                    <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Female)">Female</MudSelectItem>
+                                </MudSelect>
+                                <MudSelect T="ParticipantStatus" @bind-Value="_bulkAddStatus"
+                                           Label="Add as" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                           Style="min-width:160px">
+                                    <MudSelectItem Value="@ParticipantStatus.Registered">Registered</MudSelectItem>
+                                    <MudSelectItem Value="@ParticipantStatus.FullPlayer">Full Player</MudSelectItem>
+                                    <MudSelectItem Value="@ParticipantStatus.Substitute">Substitute</MudSelectItem>
+                                </MudSelect>
+                            </MudStack>
+                            @if (_bulkAddLoading)
+                            {
+                                <MudProgressLinear Indeterminate="true" />
+                            }
+                            else if (_bulkAddCandidates.Count == 0)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">No eligible players found. (Already-enrolled players and ineligible ones are excluded.)</MudText>
+                            }
+                            else
+                            {
+                                <MudTable T="PlayerSearchResultDto" Items="@FilteredBulkAddCandidates" Dense="true" Hover="true"
+                                          MultiSelection="true" SelectOnRowClick="true"
+                                          @bind-SelectedItems="_bulkAddSelected"
+                                          FixedHeader="true" Height="380px">
+                                    <HeaderContent>
+                                        <MudTh>Name</MudTh>
+                                        <MudTh>Sex</MudTh>
+                                        <MudTh>DOB</MudTh>
+                                        <MudTh>Club</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@context.DisplayName @(context.IsLight ? " (light)" : "")</MudTd>
+                                        <MudTd>@(context.Sex?.ToString() ?? "—")</MudTd>
+                                        <MudTd>@(context.DateOfBirth?.ToString("dd MMM yyyy") ?? "—")</MudTd>
+                                        <MudTd>@(context.ClubName ?? "—")</MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@(_bulkAddSelected.Count) selected.</MudText>
+                            }
+                        </MudStack>
+                    </DialogContent>
+                    <DialogActions>
+                        <MudButton OnClick="@(() => _showBulkAddDialog = false)">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@(_bulkAddSelected.Count == 0 || _bulkAddSubmitting)"
+                                   OnClick="ConfirmBulkAddAsync">
+                            @($"Add {_bulkAddSelected.Count} player{(_bulkAddSelected.Count == 1 ? "" : "s")}")
                         </MudButton>
                     </DialogActions>
                 </MudDialog>
@@ -1659,8 +1743,9 @@ else
     private bool _addingDivision;
     private int? _inlineEditDivisionId;
 
-    // Add-participant status selector
-    private ParticipantStatus _addParticipantStatus = ParticipantStatus.Registered;
+    // Add-participant status selector. Defaults to FullPlayer so simulating /
+    // populating a roster lands players ready for team generation.
+    private ParticipantStatus _addParticipantStatus = ParticipantStatus.FullPlayer;
 
     // Clone competition dialog state
     private bool _showCloneDialog;
@@ -1707,8 +1792,25 @@ else
     // Schedule confirm dialog
     private bool _showScheduleConfirm;
     private bool _showDeleteAllFixturesConfirm;
+    private bool _showDeleteAllParticipantsConfirm;
     private bool _showSeedConfirm;
     private bool _simulating;
+
+    // ── Bulk-add dialog ──────────────────────────────────────────────────────
+    private bool _showBulkAddDialog;
+    private bool _bulkAddLoading;
+    private bool _bulkAddSubmitting;
+    private string _bulkAddSearch = "";
+    private PlayerSex? _bulkAddSexFilter;
+    private ParticipantStatus _bulkAddStatus = ParticipantStatus.FullPlayer;
+    private List<PlayerSearchResultDto> _bulkAddCandidates = new();
+    private HashSet<PlayerSearchResultDto> _bulkAddSelected = new();
+
+    private IEnumerable<PlayerSearchResultDto> FilteredBulkAddCandidates =>
+        _bulkAddCandidates.Where(p =>
+            (string.IsNullOrWhiteSpace(_bulkAddSearch)
+                || p.DisplayName.Contains(_bulkAddSearch, StringComparison.OrdinalIgnoreCase))
+            && (!_bulkAddSexFilter.HasValue || p.Sex == _bulkAddSexFilter));
 
     // Fixture dialog
     private bool _showFixtureDialog;
@@ -2527,6 +2629,73 @@ else
         Snackbar.Add("Participant removed.", Severity.Warning);
     }
 
+    private async Task DeleteAllParticipants()
+    {
+        _showDeleteAllParticipantsConfirm = false;
+        var count = _participants.Count;
+        foreach (var cp in _participants.ToList())
+        {
+            await Admin.RemoveParticipantAsync(Id, cp.PlayerId);
+        }
+        _participants.Clear();
+        Snackbar.Add($"{count} participant(s) removed.", Severity.Warning);
+    }
+
+    private async Task OpenBulkAddDialog()
+    {
+        _bulkAddSearch = "";
+        _bulkAddSexFilter = null;
+        _bulkAddStatus = ParticipantStatus.FullPlayer;
+        _bulkAddSelected = new();
+        _showBulkAddDialog = true;
+        _bulkAddLoading = true;
+        try
+        {
+            // Empty query + generous cap returns every eligible, not-yet-enrolled
+            // player. The server still applies club-scope and eligibility filters.
+            var results = await Admin.SearchPlayersAsync(Id, new SearchPlayersForAddRequest(
+                Query: "", HostClubId: Model.HostClubId, MaxResults: 500));
+            _bulkAddCandidates = results
+                .OrderBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load player list: {ex.Message}", Severity.Error);
+            _bulkAddCandidates = new();
+        }
+        finally
+        {
+            _bulkAddLoading = false;
+        }
+    }
+
+    private async Task ConfirmBulkAddAsync()
+    {
+        if (_bulkAddSelected.Count == 0) return;
+        _bulkAddSubmitting = true;
+        try
+        {
+            var playerIds = _bulkAddSelected.Select(p => p.PlayerId).ToList();
+            var result = await Admin.BulkAddParticipantsAsync(Id,
+                new BulkAddParticipantsRequest(playerIds, _bulkAddStatus));
+            _showBulkAddDialog = false;
+            await ReloadAfterServerMutationAsync();
+            var msg = result.Skipped > 0
+                ? $"Added {result.Added} player{(result.Added == 1 ? "" : "s")} ({result.Skipped} skipped)."
+                : $"Added {result.Added} player{(result.Added == 1 ? "" : "s")}.";
+            Snackbar.Add(msg, Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to add players: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _bulkAddSubmitting = false;
+        }
+    }
+
     // Computes how many male/female club players are needed to fill 7 teams per
     // division for every division already created. Total is split 50/50; an odd
     // remainder (e.g. Singles with an odd team count) goes to the male side.
@@ -2553,17 +2722,17 @@ else
         if (_simulating) return;
         if (!_isSuperAdmin)
         {
-            SiteAlerts.Add("Only super admins can simulate participant selection.", Severity.Warning);
+            Snackbar.Add("Only super admins can simulate participant selection.", Severity.Warning);
             return;
         }
         if (!Model.HostClubId.HasValue)
         {
-            SiteAlerts.Add("Competition must have a host club before simulating.", Severity.Warning);
+            Snackbar.Add("Competition must have a host club before simulating.", Severity.Warning);
             return;
         }
         if (_divisions.Count == 0)
         {
-            SiteAlerts.Add("Create at least one division before simulating.", Severity.Warning);
+            Snackbar.Add("Create at least one division before simulating.", Severity.Warning);
             return;
         }
 
@@ -2598,12 +2767,12 @@ else
             var playerIds = males.Concat(females).Select(p => p.PlayerId).ToList();
             if (playerIds.Count == 0)
             {
-                SiteAlerts.Add("No eligible club players to draw from.", Severity.Warning);
+                Snackbar.Add("No eligible club players to draw from.", Severity.Warning);
                 return;
             }
 
             var result = await Admin.BulkAddParticipantsAsync(Id,
-                new BulkAddParticipantsRequest(playerIds, ParticipantStatus.Registered));
+                new BulkAddParticipantsRequest(playerIds, ParticipantStatus.FullPlayer));
 
             // 4) Refresh view so PlacementSuggestion / Role suggestions appear,
             //    which makes the existing "Apply all placement suggestions"
@@ -2614,16 +2783,16 @@ else
             if (shortM > 0 || shortF > 0)
             {
                 msg += $" Short by {shortM}M / {shortF}F - add more club players or fewer divisions.";
-                SiteAlerts.Add(msg, Severity.Warning);
+                Snackbar.Add(msg, Severity.Warning);
             }
             else
             {
-                SiteAlerts.Add(msg, Severity.Success);
+                Snackbar.Add(msg, Severity.Success);
             }
         }
         catch (Exception ex)
         {
-            SiteAlerts.Add($"Simulation failed: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Simulation failed: {ex.Message}", Severity.Error);
         }
         finally
         {
