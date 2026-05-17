@@ -2173,9 +2173,7 @@ else
     public enum CompetitionFormatUi { Singles, Doubles, Team }
 
     private static IEnumerable<CompetitionFormatUi> AllowedFormats(CompetitionCategoryUi? category) =>
-        category == CompetitionCategoryUi.Mixed
-            ? new[] { CompetitionFormatUi.Doubles, CompetitionFormatUi.Team }
-            : new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team };
+        new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team };
 
     private CompetitionFormat? EffectivePersistedFormat() =>
         (Model.Category, Model.Format) switch
@@ -2226,9 +2224,6 @@ else
     {
         Model.Category = value;
         _categoryError = value == null ? "Please select a category." : null;
-        // Mixed doesn't allow Singles; clear an incompatible selection so the user re-picks.
-        if (Model.Format.HasValue && !AllowedFormats(value).Contains(Model.Format.Value))
-            Model.Format = null;
         AutoGenerateName();
     }
 

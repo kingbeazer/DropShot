@@ -67,48 +67,16 @@ else
                 </MudPaper>
             }
 
-            @* ── Step 1: Age ────────────────────────────────── *@
+            @* ── Step 1: Format ─────────────────────────────── *@
             @if (_currentStep > 1)
-            {
-                <StepSummary Label="Age range"
-                             Icon="@Icons.Material.Filled.Cake"
-                             AccentColor="#7c4dff"
-                             Summary="@AgeSummary()"
-                             OnEdit="@(() => GoToStep(1))" />
-            }
-            else if (_currentStep == 1)
-            {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Age options</MudText>
-                    @StepIntro("Set the age range for eligible players. Leave either field blank for no upper or lower limit.")
-
-                    <MudGrid Spacing="2" Class="mt-3">
-                        <MudItem xs="12" sm="6">
-                            <MudNumericField T="int?" Label="Min Age (optional)"
-                                             Min="1" Max="120" Variant="Variant.Outlined"
-                                             @bind-Value="Model.MinAge" />
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudNumericField T="int?" Label="Max Age (optional)"
-                                             Min="1" Max="120" Variant="Variant.Outlined"
-                                             @bind-Value="Model.MaxAge" />
-                        </MudItem>
-                    </MudGrid>
-
-                    @StepActions(canBack: true, advance: TryAdvance)
-                </MudPaper>
-            }
-
-            @* ── Step 2: Format ─────────────────────────────── *@
-            @if (_currentStep > 2)
             {
                 <StepSummary Label="Format"
                              Icon="@Icons.Material.Filled.SportsTennis"
                              AccentColor="#00b4d8"
                              Summary="@(Model.Format?.ToString() ?? "Not set")"
-                             OnEdit="@(() => GoToStep(2))" />
+                             OnEdit="@(() => GoToStep(1))" />
             }
-            else if (_currentStep == 2)
+            else if (_currentStep == 1)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Format</MudText>
@@ -145,6 +113,38 @@ else
                     }
 
                     @StepActions(canBack: true, advance: TryAdvanceFromFormat)
+                </MudPaper>
+            }
+
+            @* ── Step 2: Age ────────────────────────────────── *@
+            @if (_currentStep > 2)
+            {
+                <StepSummary Label="Age range"
+                             Icon="@Icons.Material.Filled.Cake"
+                             AccentColor="#7c4dff"
+                             Summary="@AgeSummary()"
+                             OnEdit="@(() => GoToStep(2))" />
+            }
+            else if (_currentStep == 2)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Age options</MudText>
+                    @StepIntro("Set the age range for eligible players. Leave either field blank for no upper or lower limit.")
+
+                    <MudGrid Spacing="2" Class="mt-3">
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int?" Label="Min Age (optional)"
+                                             Min="1" Max="120" Variant="Variant.Outlined"
+                                             @bind-Value="Model.MinAge" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int?" Label="Max Age (optional)"
+                                             Min="1" Max="120" Variant="Variant.Outlined"
+                                             @bind-Value="Model.MaxAge" />
+                        </MudItem>
+                    </MudGrid>
+
+                    @StepActions(canBack: true, advance: TryAdvance)
                 </MudPaper>
             }
 
@@ -543,9 +543,6 @@ else
     {
         Model.Category = value;
         _categoryError = value == null ? "Please select a category." : null;
-        // Mixed doesn't allow Singles; clear an incompatible selection.
-        if (Model.Format.HasValue && !CompetitionFormHelpers.AllowedFormats(value).Contains(Model.Format.Value))
-            Model.Format = null;
     }
 
     private async Task OnHostClubChanged(int? clubId)
@@ -577,7 +574,7 @@ else
         if (Model.Format == null)
         {
             _serverError = "Please pick a format.";
-            GoToStep(2);
+            GoToStep(1);
             return;
         }
 
@@ -693,8 +690,8 @@ else
     private static string StepTitle(int step) => step switch
     {
         0 => "Name & Category",
-        1 => "Age options",
-        2 => "Format",
+        1 => "Format",
+        2 => "Age options",
         3 => "Rule set",
         4 => "Dates & participants",
         5 => "Divisions",
