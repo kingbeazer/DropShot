@@ -2,7 +2,19 @@
 
 <MudPaper id="section-match-windows" Class="pa-4 mb-4 setup-section" Elevation="0"
      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-    <MudText Typo="Typo.h6" Class="mb-1">Match Windows</MudText>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
+        <MudText Typo="Typo.h6" Style="flex:1">Match Windows</MudText>
+        @if (IsSuperAdmin)
+        {
+            <MudTooltip Text="Super admin: create Mon 19:30-21:30 (Indoor 1+2), Thu 19:00-21:00 (Indoor 3+4), Sun 13:00-15:00 (Indoor 3+4)">
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                           OnClick="@(() => OnAutoGenerate.InvokeAsync())">
+                    Auto-generate
+                </MudButton>
+            </MudTooltip>
+        }
+    </MudStack>
 
     <MudGrid Spacing="1" Class="mb-2">
         <MudItem xs="12" sm="3">
@@ -128,4 +140,6 @@
     [Parameter] public EventCallback<CompetitionMatchWindowDto> OnEdit { get; set; }
     [Parameter] public EventCallback<CompetitionMatchWindowDto> OnDelete { get; set; }
     [Parameter] public EventCallback<int?> OnImportFromTemplate { get; set; }
+    [Parameter] public bool IsSuperAdmin { get; set; }
+    [Parameter] public EventCallback OnAutoGenerate { get; set; }
 }
