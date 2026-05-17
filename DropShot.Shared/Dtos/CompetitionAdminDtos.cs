@@ -202,7 +202,11 @@ public record SaveCompetitionEditRequest(
     int? SeededFromCompetitionId,
     bool IsRestricted = false,
     IReadOnlyList<int>? AllowedPlayerIds = null,
-    string? Description = null);
+    string? Description = null,
+    double LadderKFactor = 20.0,
+    double LadderStartingRating = 1000.0,
+    int LadderProvisionalMatches = 10,
+    bool LadderUseMarginOfVictory = true);
 
 public record ApplyStageFollowUpRequest(IReadOnlyList<StageType> StageTypes);
 

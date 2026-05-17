@@ -160,7 +160,11 @@ public sealed class WebCompetitionService(
                 ratingSuggestions.TryGetValue(p.PlayerId, out var rs)
                     ? new PlayerRatingSuggestionDto(rs.PreviousRating, rs.SuggestedRating, rs.Delta, rs.RubbersPlayed)
                     : null,
-                BuildPlacementSuggestion(p.PlayerId, divisionPlacements, rolePlacements))).ToList(),
+                BuildPlacementSuggestion(p.PlayerId, divisionPlacements, rolePlacements),
+                p.EloRating,
+                p.MatchesPlayed,
+                p.IsProvisional,
+                p.LastMatchAt)).ToList(),
             c.IsArchived,
             c.IsStarted,
             c.CreatorUserId,
@@ -187,7 +191,11 @@ public sealed class WebCompetitionService(
                 cp.Name)).ToList(),
             c.LeagueScoring,
             myPlayerId,
-            c.Description);
+            c.Description,
+            c.LadderKFactor,
+            c.LadderStartingRating,
+            c.LadderProvisionalMatches,
+            c.LadderUseMarginOfVictory);
     }
 
     private static PlacementSuggestionDto? BuildPlacementSuggestion(
@@ -232,7 +240,12 @@ public sealed class WebCompetitionService(
                 r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal,
                 r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList()))
             .ToList(),
-        f.CompletedAt, f.OriginalResultSummary, f.ResultModifiedByAdmin);
+        f.CompletedAt, f.OriginalResultSummary, f.ResultModifiedByAdmin,
+        CompetitionName: null,
+        Player1RatingBefore: f.Player1RatingBefore,
+        Player1RatingAfter: f.Player1RatingAfter,
+        Player2RatingBefore: f.Player2RatingBefore,
+        Player2RatingAfter: f.Player2RatingAfter);
 
     public async Task SelfRegisterAsync(int competitionId, DropShot.Shared.ParticipantStatus status, CancellationToken ct = default)
     {

@@ -32,27 +32,34 @@ public sealed class CompetitionFormModel
     public bool HasDivisions { get; set; }
     public int? SeededFromCompetitionId { get; set; }
     public string? Description { get; set; }
+
+    // SinglesLadder config (only meaningful when Format == SinglesLadder).
+    public double LadderKFactor { get; set; } = 20.0;
+    public double LadderStartingRating { get; set; } = 1000.0;
+    public int LadderProvisionalMatches { get; set; } = 10;
+    public bool LadderUseMarginOfVictory { get; set; } = true;
 }
 
 // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the
-// dropdown (Singles/Doubles/Team). The persisted CompetitionFormat + EligibleSex pair is
-// derived from these two on save.
+// dropdown (Singles/Doubles/Team/SinglesLadder). The persisted CompetitionFormat +
+// EligibleSex pair is derived from these two on save.
 public enum CompetitionCategoryUi { Male, Female, Mixed }
-public enum CompetitionFormatUi { Singles, Doubles, Team }
+public enum CompetitionFormatUi { Singles, Doubles, Team, SinglesLadder }
 
 public static class CompetitionFormHelpers
 {
     public static IEnumerable<CompetitionFormatUi> AllowedFormats(CompetitionCategoryUi? category) =>
-        new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team };
+        new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team, CompetitionFormatUi.SinglesLadder };
 
     public static CompetitionFormat? EffectivePersistedFormat(CompetitionCategoryUi? category, CompetitionFormatUi? format) =>
         (category, format) switch
         {
             (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Doubles) => CompetitionFormat.MixedDoubles,
             (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team)    => CompetitionFormat.TeamMatch,
-            (_, CompetitionFormatUi.Singles) => CompetitionFormat.Singles,
-            (_, CompetitionFormatUi.Doubles) => CompetitionFormat.Doubles,
-            (_, CompetitionFormatUi.Team)    => CompetitionFormat.Team,
+            (_, CompetitionFormatUi.Singles)       => CompetitionFormat.Singles,
+            (_, CompetitionFormatUi.Doubles)       => CompetitionFormat.Doubles,
+            (_, CompetitionFormatUi.Team)          => CompetitionFormat.Team,
+            (_, CompetitionFormatUi.SinglesLadder) => CompetitionFormat.SinglesLadder,
             _ => null
         };
 

@@ -1148,6 +1148,55 @@ public class CompetitionsController(
             .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
 
+        // SinglesLadder: standings are the live Elo rating order. Played/Won/Lost
+        // counted directly from completed ad-hoc fixtures; "Points" carries the
+        // Elo rating (rounded) so the standard table renderer can show it.
+        if (comp.CompetitionFormat == CompetitionFormat.SinglesLadder)
+        {
+            var ladderParticipants = await db.CompetitionParticipants
+                .Where(cp => cp.CompetitionId == id)
+                .Include(cp => cp.Player)
+                .ToListAsync();
+
+            var ladderFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == id
+                            && f.Status == FixtureStatus.Completed
+                            && f.WinnerPlayerId != null)
+                .Select(f => new { f.Player1Id, f.Player2Id, f.WinnerPlayerId })
+                .ToListAsync();
+
+            var ladderPlayed = ladderParticipants.ToDictionary(cp => cp.PlayerId, _ => 0);
+            var ladderWon = ladderParticipants.ToDictionary(cp => cp.PlayerId, _ => 0);
+            var ladderLost = ladderParticipants.ToDictionary(cp => cp.PlayerId, _ => 0);
+            foreach (var f in ladderFixtures)
+            {
+                if (f.Player1Id is int p1 && ladderPlayed.ContainsKey(p1))
+                {
+                    ladderPlayed[p1]++;
+                    if (f.WinnerPlayerId == p1) ladderWon[p1]++; else ladderLost[p1]++;
+                }
+                if (f.Player2Id is int p2 && ladderPlayed.ContainsKey(p2))
+                {
+                    ladderPlayed[p2]++;
+                    if (f.WinnerPlayerId == p2) ladderWon[p2]++; else ladderLost[p2]++;
+                }
+            }
+
+            var ladderEntries = ladderParticipants
+                .Select(cp => new LeagueTableEntryDto(
+                    cp.PlayerId,
+                    cp.Player?.DisplayName ?? "",
+                    ladderPlayed[cp.PlayerId],
+                    ladderWon[cp.PlayerId],
+                    ladderLost[cp.PlayerId],
+                    (int)Math.Round(cp.EloRating)))
+                .OrderByDescending(e => e.Points)
+                .ThenByDescending(e => e.Won)
+                .ThenBy(e => e.PlayerName)
+                .ToList();
+            return Ok(ladderEntries);
+        }
+
         // Find round-robin stage IDs for this competition
         var rrStageIds = await db.CompetitionStages
             .Where(s => s.CompetitionId == id && s.StageType == StageType.RoundRobin)

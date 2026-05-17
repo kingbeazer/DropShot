@@ -6,7 +6,8 @@ public enum CompetitionFormat : byte
     Doubles = 2,
     Team = 3,
     MixedDoubles = 4,
-    TeamMatch = 5
+    TeamMatch = 5,
+    SinglesLadder = 6
 }
 
 public enum PlayerSex : byte

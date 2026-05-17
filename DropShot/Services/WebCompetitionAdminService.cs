@@ -416,6 +416,10 @@ public sealed class WebCompetitionAdminService(
         comp.SeededFromCompetitionId = req.SeededFromCompetitionId;
         comp.IsRestricted = req.IsRestricted;
         comp.Description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description;
+        comp.LadderKFactor = req.LadderKFactor;
+        comp.LadderStartingRating = req.LadderStartingRating;
+        comp.LadderProvisionalMatches = req.LadderProvisionalMatches;
+        comp.LadderUseMarginOfVictory = req.LadderUseMarginOfVictory;
     }
 
     public async Task<CloneCompetitionResultDto> CloneCompetitionAsync(

@@ -1,9 +1,13 @@
 @inject ICompetitionService CompetitionService
 @inject IRulesSetService RulesSetService
+@inject IMatchScoringService MatchScoring
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
+@inject ISnackbar Snackbar
 @using DropShot.Shared.Extensions
 @using DropShot.Shared.Helpers
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Services
 
 @* Routing + auth + MudProviders supplied by host shims. *@
 
@@ -109,6 +113,38 @@ else
             </MudItem>
         }
     </MudGrid>
+
+    @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder
+         && _myParticipant?.Status == ParticipantStatus.FullPlayer)
+    {
+        <MudPaper Class="pa-3 mb-4" Elevation="0" Style="background: rgba(0,180,216,0.08);">
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Color="Color.Info" />
+                <MudText Typo="Typo.body2" Style="flex:1 1 auto;">
+                    Record a singles match against another participant — ratings update on the spot.
+                </MudText>
+                <MudSelect T="int?" @bind-Value="_ladderOpponentId" Variant="Variant.Outlined"
+                           Dense="true" Label="Opponent" Style="min-width:220px;">
+                    @foreach (var opp in _participants
+                                 .Where(p => p.Status == ParticipantStatus.FullPlayer
+                                             && p.PlayerId != _myParticipant.PlayerId)
+                                 .OrderBy(p => p.DisplayName))
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)opp.PlayerId)">@opp.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="@(!_ladderOpponentId.HasValue || _ladderCreating)"
+                           OnClick="StartLadderMatchAsync">
+                    Record match
+                </MudButton>
+            </MudStack>
+            @if (!string.IsNullOrEmpty(_ladderError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_ladderError</MudAlert>
+            }
+        </MudPaper>
+    }
 
     @if (!_canEdit && _myParticipant?.Status == ParticipantStatus.Registered)
     {
@@ -341,7 +377,10 @@ else
     }
     else if (_leagueTable.Any())
     {
-        <MudExpansionPanel Class="mb-2" Text="League Table">
+        var isLadder = _competition.CompetitionFormat == CompetitionFormat.SinglesLadder;
+        var pointsHeader = isLadder ? "Rating" : "Pts";
+        var panelTitle = isLadder ? "Ladder Standings" : "League Table";
+        <MudExpansionPanel Class="mb-2" Text="@panelTitle">
             <MudTable Items="@_leagueTable" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:600px">
                 <HeaderContent>
                     <MudTh>Pos</MudTh>
@@ -349,15 +388,21 @@ else
                     <MudTh>P</MudTh>
                     <MudTh>W</MudTh>
                     <MudTh>L</MudTh>
-                    <MudTh>Pts</MudTh>
+                    <MudTh>@pointsHeader</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Pos">@(_leagueTable.IndexOf(context) + 1)</MudTd>
-                    <MudTd DataLabel="Player" Style="font-weight:500">@context.PlayerName</MudTd>
+                    <MudTd DataLabel="Player" Style="font-weight:500">
+                        @context.PlayerName
+                        @if (isLadder && _participants.FirstOrDefault(p => p.PlayerId == context.PlayerId)?.LadderIsProvisional == true)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined" Class="ml-2">prov</MudChip>
+                        }
+                    </MudTd>
                     <MudTd DataLabel="P">@context.Played</MudTd>
                     <MudTd DataLabel="W">@context.Won</MudTd>
                     <MudTd DataLabel="L">@context.Lost</MudTd>
-                    <MudTd DataLabel="Pts" Style="font-weight:bold">@context.Points</MudTd>
+                    <MudTd DataLabel="@pointsHeader" Style="font-weight:bold">@context.Points</MudTd>
                 </RowTemplate>
             </MudTable>
         </MudExpansionPanel>
@@ -551,6 +596,34 @@ else
     private bool _selfRegisterSaving;
     private string? _selfRegisterError;
 
+    private int? _ladderOpponentId;
+    private bool _ladderCreating;
+    private string? _ladderError;
+
+    private async Task StartLadderMatchAsync()
+    {
+        if (_competition is null || _myParticipant is null) return;
+        if (_ladderOpponentId is not int opp) return;
+
+        _ladderCreating = true;
+        _ladderError = null;
+        try
+        {
+            var fxId = await MatchScoring.CreateLadderFixtureAsync(
+                new CreateLadderFixtureRequest(_competition.CompetitionId, opp));
+            Nav.NavigateTo($"/tennisscore?fixtureId={fxId}");
+        }
+        catch (Exception ex)
+        {
+            _ladderError = ex.Message;
+            Snackbar.Add("Could not start the match.", Severity.Error);
+        }
+        finally
+        {
+            _ladderCreating = false;
+        }
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
@@ -704,6 +777,43 @@ else
             {
                 _fixturesByDivision = [new DivisionFixtureGroup(null, BuildStageGroups(_fixtures))];
                 _teamsByDivision = [(null, _teams)];
+            }
+
+            // SinglesLadder: standings come from the live per-participant Elo
+            // rating; played/won/lost rolled up from completed ad-hoc fixtures.
+            if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder)
+            {
+                var played = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+                var won = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+                var lost = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+
+                foreach (var f in _fixtures.Where(f =>
+                    f.Status == FixtureStatus.Completed && f.WinnerPlayerId.HasValue))
+                {
+                    if (f.Player1Id is int p1 && played.ContainsKey(p1))
+                    {
+                        played[p1]++;
+                        if (f.WinnerPlayerId == p1) won[p1]++; else lost[p1]++;
+                    }
+                    if (f.Player2Id is int p2 && played.ContainsKey(p2))
+                    {
+                        played[p2]++;
+                        if (f.WinnerPlayerId == p2) won[p2]++; else lost[p2]++;
+                    }
+                }
+
+                _leagueTable = _participants
+                    .Select(p => new LeagueRow(
+                        p.PlayerId,
+                        p.DisplayName,
+                        played[p.PlayerId],
+                        won[p.PlayerId],
+                        lost[p.PlayerId],
+                        (int)Math.Round(p.LadderEloRating)))
+                    .OrderByDescending(r => r.Points)
+                    .ThenByDescending(r => r.Won)
+                    .ThenBy(r => r.PlayerName)
+                    .ToList();
             }
 
             var rrStageIds = _competition.Stages

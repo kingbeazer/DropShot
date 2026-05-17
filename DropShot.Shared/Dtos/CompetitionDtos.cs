@@ -52,7 +52,11 @@ public record CompetitionDetailDto(
     List<CourtPairDto>? CourtPairs = null,
     LeagueScoringMode LeagueScoring = LeagueScoringMode.WinPoints,
     int? MyPlayerId = null,
-    string? Description = null);
+    string? Description = null,
+    double LadderKFactor = 20.0,
+    double LadderStartingRating = 1000.0,
+    int LadderProvisionalMatches = 10,
+    bool LadderUseMarginOfVictory = true);
 
 public record CompetitionStageDto(
     int CompetitionStageId,
@@ -74,7 +78,11 @@ public record CompetitionParticipantDto(
     string? DivisionName = null,
     PlayerRatingDto? Rating = null,
     PlayerRatingSuggestionDto? RatingSuggestion = null,
-    PlacementSuggestionDto? PlacementSuggestion = null);
+    PlacementSuggestionDto? PlacementSuggestion = null,
+    double LadderEloRating = 1000.0,
+    int LadderMatchesPlayed = 0,
+    bool LadderIsProvisional = true,
+    DateTime? LadderLastMatchAt = null);
 
 public record PlayerRatingDto(double CurrentRating, bool IsProvisional);
 
@@ -121,7 +129,11 @@ public record CompetitionFixtureDto(
     DateTime? CompletedAt = null,
     string? OriginalResultSummary = null,
     bool ResultModifiedByAdmin = false,
-    string? CompetitionName = null);
+    string? CompetitionName = null,
+    double? Player1RatingBefore = null,
+    double? Player1RatingAfter = null,
+    double? Player2RatingBefore = null,
+    double? Player2RatingAfter = null);
 
 public record CompetitionTeamDto(
     int CompetitionTeamId,
@@ -166,7 +178,11 @@ public record SaveCompetitionRequest(
     bool IsRestricted = false,
     List<int>? AllowedPlayerIds = null,
     bool HasDivisions = false,
-    int? SeededFromCompetitionId = null);
+    int? SeededFromCompetitionId = null,
+    double LadderKFactor = 20.0,
+    double LadderStartingRating = 1000.0,
+    int LadderProvisionalMatches = 10,
+    bool LadderUseMarginOfVictory = true);
 
 public record AddStageRequest(StageType StageType, string? Name = null, int? StageOrder = null);
 
