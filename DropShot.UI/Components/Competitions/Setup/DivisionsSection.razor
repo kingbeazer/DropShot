@@ -9,6 +9,11 @@
                    OnClick="@(() => OnStartAddDivision.InvokeAsync())">Add Division</MudButton>
         @if (Divisions.Count > 0 && Format is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
         {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="@(() => OnOpenAddTeamDialog.InvokeAsync())">
+                Add @(Format is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pairing" : "Team")
+            </MudButton>
             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                        StartIcon="@Icons.Material.Filled.AutoFixHigh"
                        OnClick="@(() => OnOpenGenerateDialog.InvokeAsync())">
@@ -395,6 +400,7 @@
     [Parameter] public EventCallback OnOpenSeedDivisionsDialog { get; set; }
     [Parameter] public EventCallback OnRunSeedDivisions { get; set; }
     [Parameter] public EventCallback OnOpenGenerateDialog { get; set; }
+    [Parameter] public EventCallback OnOpenAddTeamDialog { get; set; }
     [Parameter] public EventCallback<int> OnAddDivisionMatchWindow { get; set; }
     [Parameter] public EventCallback<int> OnCancelEditDivisionMatchWindow { get; set; }
     [Parameter] public EventCallback<CompetitionMatchWindowDto> OnCopyDivisionMatchWindowToForm { get; set; }
