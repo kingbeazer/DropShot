@@ -42,9 +42,7 @@ public enum CompetitionFormatUi { Singles, Doubles, Team }
 public static class CompetitionFormHelpers
 {
     public static IEnumerable<CompetitionFormatUi> AllowedFormats(CompetitionCategoryUi? category) =>
-        category == CompetitionCategoryUi.Mixed
-            ? new[] { CompetitionFormatUi.Doubles, CompetitionFormatUi.Team }
-            : new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team };
+        new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team };
 
     public static CompetitionFormat? EffectivePersistedFormat(CompetitionCategoryUi? category, CompetitionFormatUi? format) =>
         (category, format) switch
