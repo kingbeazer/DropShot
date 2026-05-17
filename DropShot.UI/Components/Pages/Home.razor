@@ -12,6 +12,7 @@
    the web shim passes it via the AnonymousQrPanel render fragment; MAUI
    doesn't have a QR-login flow and omits the slot. *@
 
+@* TODO: re-enable upgrade promo banner when Premium ships.
 @if (_showUpgradeBanner)
 {
     <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mb-4"
@@ -28,6 +29,7 @@
         </MudStack>
     </MudAlert>
 }
+*@
 
 @if (LinkedPlayer)
 {
