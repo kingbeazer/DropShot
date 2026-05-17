@@ -391,12 +391,20 @@ else
                 </MudPaper>
             }
 
-            @* ── Step 9: Review & create ────────────────────── *@
-            @if (_currentStep == 9)
+            @* ── Step 9: Review & save ──────────────────────── *@
+            @if (_currentStep > 9 && _savedCompetitionId.HasValue)
+            {
+                <StepSummary Label="Saved"
+                             Icon="@Icons.Material.Filled.Save"
+                             AccentColor="#4caf50"
+                             Summary="@($"Competition created — finish optional setup below")"
+                             OnEdit="@(() => { })" />
+            }
+            else if (_currentStep == 9)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Review &amp; create</MudText>
-                    @StepIntro("Review your competition. After creating, you'll land on the edit page where you can add admins, stages, the rubber template (for Team competitions), participants, and fixtures.")
+                    <MudText Typo="Typo.h6" Class="mb-2">Review &amp; save</MudText>
+                    @StepIntro("Save the competition now. The next steps let you add admins, divisions, stages and rubber-template options — each one is optional and can be skipped.")
 
                     @if (!string.IsNullOrWhiteSpace(_serverError))
                     {
@@ -413,16 +421,185 @@ else
                                        Disabled="@_isSaving"
                                        OnClick="@(() => Nav.NavigateTo("/Competitions"))">Cancel</MudButton>
                             <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                       EndIcon="@Icons.Material.Filled.Check"
+                                       EndIcon="@Icons.Material.Filled.ArrowForward"
                                        Disabled="@_isSaving"
                                        OnClick="CreateAsync">
                                 @if (_isSaving)
                                 {
                                     <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
                                 }
-                                Create competition
+                                Save &amp; continue
                             </MudButton>
                         </MudStack>
+                    </div>
+                </MudPaper>
+            }
+
+            @* ── Step 10: Admins (optional, post-save) ────────── *@
+            @if (_currentStep == 10 && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Competition admins (optional)</MudText>
+                    @StepIntro("Grant other users admin rights to this competition by their account email. They can edit the competition without needing club-admin access.")
+
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mt-3">
+                        <MudTextField T="string" @bind-Value="_newAdminEmail" Label="User email"
+                                      Variant="Variant.Outlined" Style="max-width:300px" Margin="Margin.Dense" />
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   Disabled="@(string.IsNullOrWhiteSpace(_newAdminEmail) || _stepBusy)"
+                                   OnClick="AddWizardAdminAsync">Add admin</MudButton>
+                    </MudStack>
+
+                    @if (_addedAdmins.Count > 0)
+                    {
+                        <MudSimpleTable Dense="true" Class="mt-3">
+                            <thead><tr><th>User</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var a in _addedAdmins)
+                                {
+                                    <tr>
+                                        <td>@a.UserEmail</td>
+                                        <td>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                           Size="Size.Small" Color="Color.Error"
+                                                           Disabled="@_stepBusy"
+                                                           OnClick="@(() => RemoveWizardAdminAsync(a))" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+
+                    @StepSkipNext("Skip", advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 11: Divisions (optional, only when HasDivisions) ── *@
+            @if (_currentStep == 11 && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Divisions (optional)</MudText>
+                    @if (!Model.HasDivisions)
+                    {
+                        @StepIntro("This competition isn't split into divisions, so there's nothing to add here. Click Next to continue.")
+                    }
+                    else
+                    {
+                        @StepIntro("Add each division (e.g. Premier, A, B). Rank 1 is the highest. You can edit or seed divisions from the competition page later.")
+
+                        <MudGrid Spacing="2" Class="mt-3">
+                            <MudItem xs="12" sm="6">
+                                <MudTextField T="string" @bind-Value="_newDivisionName"
+                                              Label="Division name" Variant="Variant.Outlined"
+                                              Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField T="byte" @bind-Value="_newDivisionRank"
+                                                 Label="Rank" Min="1" Max="20"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                           Disabled="@(string.IsNullOrWhiteSpace(_newDivisionName) || _stepBusy)"
+                                           OnClick="AddWizardDivisionAsync">Add</MudButton>
+                            </MudItem>
+                        </MudGrid>
+
+                        @if (_addedDivisions.Count > 0)
+                        {
+                            <MudSimpleTable Dense="true" Class="mt-3">
+                                <thead><tr><th>Rank</th><th>Name</th></tr></thead>
+                                <tbody>
+                                    @foreach (var d in _addedDivisions.OrderBy(d => d.Rank))
+                                    {
+                                        <tr><td>@d.Rank</td><td>@d.Name</td></tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        }
+                    }
+
+                    @StepSkipNext("Skip", advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 12: Stages (optional) ─────────────────────── *@
+            @if (_currentStep == 12 && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Stages (optional)</MudText>
+                    @StepIntro("Pick the stages this competition runs through. Round Robin schedules everyone against each other; the knockout types create direct elimination brackets. You can add more later from the competition page.")
+
+                    <MudStack Spacing="1" Class="mt-3">
+                        @foreach (var t in Enum.GetValues<StageType>())
+                        {
+                            var selected = _selectedStages.Contains(t);
+                            <MudCheckBox T="bool" Value="@selected"
+                                         ValueChanged="@((bool v) => ToggleStage(t, v))"
+                                         Disabled="@_stepBusy"
+                                         Label="@StageDisplayLabel(t)" />
+                        }
+                    </MudStack>
+
+                    @StepSkipNext("Skip", advance: SaveStagesAndAdvanceAsync)
+                </MudPaper>
+            }
+
+            @* ── Step 13: Rubber template (optional, TeamMatch only) ──── *@
+            @if (_currentStep == 13 && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Rubber template (optional)</MudText>
+                    @if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) != CompetitionFormat.TeamMatch)
+                    {
+                        @StepIntro("Rubber templates only apply to Team competitions. Click Next to finish.")
+                    }
+                    else
+                    {
+                        @StepIntro("Pick a preset describing the rubbers in each fixture (e.g. 1st men's singles, 2nd men's singles, mixed doubles). You can switch presets or build a custom template later.")
+
+                        @if (_rubberPresets.Count == 0)
+                        {
+                            <MudText Typo="Typo.caption" Class="mt-3" Color="Color.Secondary">
+                                No presets are available for this competition.
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudRadioGroup T="string" Value="_selectedRubberPresetKey"
+                                           ValueChanged="OnRubberPresetChanged"
+                                           Class="mt-3">
+                                <MudStack Spacing="1">
+                                    @foreach (var p in _rubberPresets)
+                                    {
+                                        <MudRadio T="string" Value="@p.Key" Color="Color.Primary">@p.Label</MudRadio>
+                                    }
+                                </MudStack>
+                            </MudRadioGroup>
+                        }
+                    }
+
+                    @StepSkipNext("Skip", advance: SaveRubberPresetAndAdvanceAsync)
+                </MudPaper>
+            }
+
+            @* ── Step 14: Finish ───────────────────────────────── *@
+            @if (_currentStep == 14 && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">All done</MudText>
+                    @StepIntro("Your competition is ready. Click Finish to open the competition page — from there you can add participants, fixtures, and tweak anything you skipped.")
+
+                    <div class="d-flex justify-space-between mt-4">
+                        <MudButton Variant="Variant.Text" Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   OnClick="GoBack">Back</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.Check"
+                                   OnClick="@(() => Nav.NavigateTo($"/competition/{_savedCompetitionId}", forceLoad: true))">
+                            Finish &amp; open competition
+                        </MudButton>
                     </div>
                 </MudPaper>
             }
@@ -433,7 +610,7 @@ else
 }
 
 @code {
-    private const int TotalSteps = 10;
+    private const int TotalSteps = 15;
 
     private CompetitionFormModel Model { get; set; } = new();
 
@@ -451,6 +628,28 @@ else
     // Host-club gating mirrors CompetitionPage create flow.
     private bool _lockHostClub;
     private bool _hideHostClub;
+
+    // Post-save state — populated after the user clicks "Save & continue" on
+    // step 9. From this point optional config steps mutate the persisted
+    // competition directly via Admin.*.
+    private int? _savedCompetitionId;
+    private bool _stepBusy;
+
+    // Admins step
+    private string _newAdminEmail = "";
+    private List<CompetitionAdminRowDto> _addedAdmins = new();
+
+    // Divisions step
+    private string _newDivisionName = "";
+    private byte _newDivisionRank = 1;
+    private List<(int Id, string Name, byte Rank)> _addedDivisions = new();
+
+    // Stages step — checkbox selections persisted on Next
+    private HashSet<StageType> _selectedStages = new();
+
+    // Rubber template step
+    private List<RubberPresetDto> _rubberPresets = new();
+    private string? _selectedRubberPresetKey;
 
     private double StepProgress => ((_currentStep + 1) / (double)TotalSteps) * 100;
 
@@ -612,8 +811,26 @@ else
                 AllowedPlayerIds: null);
 
             var savedId = await Admin.SaveCompetitionAsync(null, request);
+            _savedCompetitionId = savedId;
             Snackbar.Add("Competition created.", Severity.Success);
-            Nav.NavigateTo($"/competition/{savedId}", forceLoad: true);
+
+            // Preload rubber presets so the rubber-template step has something
+            // to show without an extra wait when the user lands on it.
+            if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) == CompetitionFormat.TeamMatch)
+            {
+                try
+                {
+                    var rt = await Admin.LoadRubberTemplateStateAsync(savedId);
+                    _rubberPresets = rt.AvailablePresets.ToList();
+                    _selectedRubberPresetKey = rt.SelectedPresetKey;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Failed to preload rubber presets for new competition {Id}.", savedId);
+                }
+            }
+
+            TryAdvance();
         }
         catch (InvalidOperationException ex) { _serverError = ex.Message; }
         catch (Exception ex)
@@ -689,17 +906,193 @@ else
 
     private static string StepTitle(int step) => step switch
     {
-        0 => "Name & Category",
-        1 => "Format",
-        2 => "Age options",
-        3 => "Rule set",
-        4 => "Dates & participants",
-        5 => "Divisions",
-        6 => "Match scoring",
-        7 => "League scoring",
-        8 => "Misc settings",
-        9 => "Review & create",
-        _ => ""
+        0  => "Name & Category",
+        1  => "Format",
+        2  => "Age options",
+        3  => "Rule set",
+        4  => "Dates & participants",
+        5  => "Divisions",
+        6  => "Match scoring",
+        7  => "League scoring",
+        8  => "Misc settings",
+        9  => "Review & save",
+        10 => "Competition admins",
+        11 => "Divisions setup",
+        12 => "Stages",
+        13 => "Rubber template",
+        14 => "Finish",
+        _  => ""
+    };
+
+    private static string StageDisplayLabel(StageType t) => t switch
+    {
+        StageType.RoundRobin   => "Round Robin",
+        StageType.Knockout     => "Knockout",
+        StageType.QuarterFinal => "Quarter-Final",
+        StageType.SemiFinal    => "Semi-Final",
+        StageType.Final        => "Final",
+        _                      => t.ToString()
+    };
+
+    // ── Post-save step handlers ─────────────────────────────────
+
+    private async Task AddWizardAdminAsync()
+    {
+        if (_savedCompetitionId is not int compId) return;
+        var email = _newAdminEmail.Trim();
+        if (string.IsNullOrEmpty(email)) return;
+
+        _stepBusy = true;
+        try
+        {
+            await Admin.AddCompetitionAdminAsync(compId, new AddCompetitionAdminRequest(email));
+            // Refresh from server so we have the canonical row (UserId, AssignedAt).
+            var view = await Admin.GetCompetitionForEditAsync(compId);
+            if (view is not null) _addedAdmins = view.Admins.ToList();
+            _newAdminEmail = "";
+            Snackbar.Add($"Added admin {email}.", Severity.Success);
+        }
+        catch (KeyNotFoundException)
+        {
+            Snackbar.Add($"No user found for email '{email}'.", Severity.Warning);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wizard add admin failed for {Email}.", email);
+            Snackbar.Add("Failed to add admin.", Severity.Error);
+        }
+        finally { _stepBusy = false; }
+    }
+
+    private async Task RemoveWizardAdminAsync(CompetitionAdminRowDto row)
+    {
+        if (_savedCompetitionId is not int compId) return;
+        _stepBusy = true;
+        try
+        {
+            await Admin.RemoveCompetitionAdminAsync(compId, row.UserId);
+            _addedAdmins.RemoveAll(a => a.UserId == row.UserId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wizard remove admin failed for {UserId}.", row.UserId);
+            Snackbar.Add("Failed to remove admin.", Severity.Error);
+        }
+        finally { _stepBusy = false; }
+    }
+
+    private async Task AddWizardDivisionAsync()
+    {
+        if (_savedCompetitionId is not int compId) return;
+        var name = _newDivisionName.Trim();
+        if (string.IsNullOrEmpty(name)) return;
+
+        _stepBusy = true;
+        try
+        {
+            var id = await Admin.SaveDivisionAsync(compId, null,
+                new SaveDivisionRequest(name, _newDivisionRank));
+            _addedDivisions.Add((id, name, _newDivisionRank));
+            _newDivisionName = "";
+            _newDivisionRank = (byte)(_newDivisionRank + 1);
+            Snackbar.Add($"Added division {name}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wizard add division failed for {Name}.", name);
+            Snackbar.Add("Failed to add division.", Severity.Error);
+        }
+        finally { _stepBusy = false; }
+    }
+
+    private void ToggleStage(StageType t, bool selected)
+    {
+        if (selected) _selectedStages.Add(t);
+        else _selectedStages.Remove(t);
+    }
+
+    private async Task SaveStagesAndAdvanceAsync()
+    {
+        if (_savedCompetitionId is not int compId) { TryAdvance(); return; }
+        if (_selectedStages.Count == 0) { TryAdvance(); return; }
+
+        _stepBusy = true;
+        try
+        {
+            await Admin.ApplyStageFollowUpAsync(compId,
+                new ApplyStageFollowUpRequest(_selectedStages.ToList()));
+            Snackbar.Add($"Added {_selectedStages.Count} stage(s).", Severity.Success);
+            TryAdvance();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wizard add stages failed.");
+            Snackbar.Add("Failed to add stages.", Severity.Error);
+        }
+        finally { _stepBusy = false; }
+    }
+
+    private void OnRubberPresetChanged(string value)
+    {
+        _selectedRubberPresetKey = value;
+    }
+
+    private async Task SaveRubberPresetAndAdvanceAsync()
+    {
+        if (_savedCompetitionId is not int compId) { TryAdvance(); return; }
+        if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) != CompetitionFormat.TeamMatch
+            || string.IsNullOrEmpty(_selectedRubberPresetKey))
+        {
+            TryAdvance();
+            return;
+        }
+
+        _stepBusy = true;
+        try
+        {
+            await Admin.ApplyRubberPresetAsync(compId,
+                new ApplyRubberPresetRequest(_selectedRubberPresetKey));
+            Snackbar.Add("Rubber template applied.", Severity.Success);
+            TryAdvance();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wizard apply rubber preset failed.");
+            Snackbar.Add("Failed to apply rubber preset.", Severity.Error);
+        }
+        finally { _stepBusy = false; }
+    }
+
+    private RenderFragment StepSkipNext(string skipLabel, Func<Task> advance) => __builder =>
+    {
+        <div class="d-flex justify-space-between mt-4">
+            <MudButton Variant="Variant.Text" Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.SkipNext"
+                       Disabled="@_stepBusy"
+                       OnClick="TryAdvance">@skipLabel</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       EndIcon="@Icons.Material.Filled.ArrowForward"
+                       Disabled="@_stepBusy"
+                       OnClick="@advance">Next</MudButton>
+        </div>
+    };
+
+    private RenderFragment StepSkipNext(string skipLabel, Action advance) => __builder =>
+    {
+        <div class="d-flex justify-space-between mt-4">
+            <MudButton Variant="Variant.Text" Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.SkipNext"
+                       Disabled="@_stepBusy"
+                       OnClick="TryAdvance">@skipLabel</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       EndIcon="@Icons.Material.Filled.ArrowForward"
+                       Disabled="@_stepBusy"
+                       OnClick="@advance">Next</MudButton>
+        </div>
     };
 
     // ── Reusable render fragments ───────────────────────────────

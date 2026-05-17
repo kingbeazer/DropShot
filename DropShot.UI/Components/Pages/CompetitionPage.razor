@@ -452,6 +452,60 @@ else
                 OnRemoveAdmin="RemoveCompetitionAdmin" />
         }
 
+        @* ── Divisions ────────────────────────────────────── *@
+        @if (IsEdit && Model.HasDivisions)
+        {
+            <DivisionsSection
+                Divisions="_divisions"
+                Teams="_teams"
+                Participants="_participants"
+                MatchWindows="_matchWindows"
+                Courts="_courts"
+                SeedSourceCandidates="_seedSourceCandidates"
+                Format="EffectivePersistedFormat()"
+                AddingDivision="_addingDivision"
+                AddingDivisionChanged="@(v => _addingDivision = v)"
+                InlineEditDivisionId="_inlineEditDivisionId"
+                InlineEditDivisionIdChanged="@(v => _inlineEditDivisionId = v)"
+                DivisionName="@_divisionName"
+                DivisionNameChanged="@(v => _divisionName = v)"
+                DivisionRank="_divisionRank"
+                DivisionRankChanged="@(v => _divisionRank = v)"
+                ShowSeedDivisionsDialog="_showSeedDivisionsDialog"
+                ShowSeedDivisionsDialogChanged="@(v => _showSeedDivisionsDialog = v)"
+                SeedSourceCompetitionId="_seedSourceCompetitionId"
+                SeedSourceCompetitionIdChanged="@(v => _seedSourceCompetitionId = v)"
+                SeedApplyPromotion="_seedApplyPromotion"
+                SeedApplyPromotionChanged="@(v => _seedApplyPromotion = v)"
+                SeedPromoteCount="_seedPromoteCount"
+                SeedPromoteCountChanged="@(v => _seedPromoteCount = v)"
+                SeedDemoteCount="_seedDemoteCount"
+                SeedDemoteCountChanged="@(v => _seedDemoteCount = v)"
+                SeedingDivisions="_seedingDivisions"
+                GetDivisionWindowForm="GetDivisionWindowForm"
+                OnStartAddDivision="StartAddDivision"
+                OnCancelAddDivision="CancelAddDivision"
+                OnSaveDivision="SaveDivisionDialog"
+                OnStartInlineEditDivision="StartInlineEditDivision"
+                OnCancelInlineEditDivision="CancelInlineEditDivision"
+                OnDeleteDivision="RequestDeleteDivision"
+                PendingDeleteDivisionId="_pendingDeleteDivisionId"
+                OnConfirmDeleteDivision="ConfirmDeleteDivision"
+                OnCancelDeleteDivision="CancelDeleteDivision"
+                OnOpenSeedDivisionsDialog="OpenSeedDivisionsDialog"
+                OnRunSeedDivisions="RunSeedDivisions"
+                OnOpenGenerateDialog="OpenGenerateDialog"
+                OnAddDivisionMatchWindow="AddDivisionMatchWindow"
+                OnCancelEditDivisionMatchWindow="CancelEditDivisionMatchWindow"
+                OnCopyDivisionMatchWindowToForm="CopyDivisionMatchWindowToForm"
+                OnEditDivisionMatchWindow="EditDivisionMatchWindow"
+                OnDeleteMatchWindow="DeleteMatchWindow"
+                OnAssignCaptain="@((args) => AssignCaptain(args.Team, args.PlayerId))"
+                OnValidateTeam="ValidateTeam"
+                OnOpenEditTeamDialog="OpenEditTeamDialog"
+                OnDeleteTeam="DeleteTeam" />
+        }
+
         @* ── Stages ─────────────────────────────────────────── *@
         @if (IsEdit)
         {
@@ -1067,60 +1121,6 @@ else
                     <NoRecordsContent><MudText Typo="Typo.caption">No participants yet.</MudText></NoRecordsContent>
                 </MudTable>
             </MudPaper>
-
-            @* -- Divisions -- *@
-            @if (Model.HasDivisions)
-            {
-                <DivisionsSection
-                    Divisions="_divisions"
-                    Teams="_teams"
-                    Participants="_participants"
-                    MatchWindows="_matchWindows"
-                    Courts="_courts"
-                    SeedSourceCandidates="_seedSourceCandidates"
-                    Format="EffectivePersistedFormat()"
-                    AddingDivision="_addingDivision"
-                    AddingDivisionChanged="@(v => _addingDivision = v)"
-                    InlineEditDivisionId="_inlineEditDivisionId"
-                    InlineEditDivisionIdChanged="@(v => _inlineEditDivisionId = v)"
-                    DivisionName="@_divisionName"
-                    DivisionNameChanged="@(v => _divisionName = v)"
-                    DivisionRank="_divisionRank"
-                    DivisionRankChanged="@(v => _divisionRank = v)"
-                    ShowSeedDivisionsDialog="_showSeedDivisionsDialog"
-                    ShowSeedDivisionsDialogChanged="@(v => _showSeedDivisionsDialog = v)"
-                    SeedSourceCompetitionId="_seedSourceCompetitionId"
-                    SeedSourceCompetitionIdChanged="@(v => _seedSourceCompetitionId = v)"
-                    SeedApplyPromotion="_seedApplyPromotion"
-                    SeedApplyPromotionChanged="@(v => _seedApplyPromotion = v)"
-                    SeedPromoteCount="_seedPromoteCount"
-                    SeedPromoteCountChanged="@(v => _seedPromoteCount = v)"
-                    SeedDemoteCount="_seedDemoteCount"
-                    SeedDemoteCountChanged="@(v => _seedDemoteCount = v)"
-                    SeedingDivisions="_seedingDivisions"
-                    GetDivisionWindowForm="GetDivisionWindowForm"
-                    OnStartAddDivision="StartAddDivision"
-                    OnCancelAddDivision="CancelAddDivision"
-                    OnSaveDivision="SaveDivisionDialog"
-                    OnStartInlineEditDivision="StartInlineEditDivision"
-                    OnCancelInlineEditDivision="CancelInlineEditDivision"
-                    OnDeleteDivision="RequestDeleteDivision"
-                    PendingDeleteDivisionId="_pendingDeleteDivisionId"
-                    OnConfirmDeleteDivision="ConfirmDeleteDivision"
-                    OnCancelDeleteDivision="CancelDeleteDivision"
-                    OnOpenSeedDivisionsDialog="OpenSeedDivisionsDialog"
-                    OnRunSeedDivisions="RunSeedDivisions"
-                    OnOpenGenerateDialog="OpenGenerateDialog"
-                    OnAddDivisionMatchWindow="AddDivisionMatchWindow"
-                    OnCancelEditDivisionMatchWindow="CancelEditDivisionMatchWindow"
-                    OnCopyDivisionMatchWindowToForm="CopyDivisionMatchWindowToForm"
-                    OnEditDivisionMatchWindow="EditDivisionMatchWindow"
-                    OnDeleteMatchWindow="DeleteMatchWindow"
-                    OnAssignCaptain="@((args) => AssignCaptain(args.Team, args.PlayerId))"
-                    OnValidateTeam="ValidateTeam"
-                    OnOpenEditTeamDialog="OpenEditTeamDialog"
-                    OnDeleteTeam="DeleteTeam" />
-            }
 
 
             @* ── Teams / Pairings (hidden when HasDivisions — per-division UI in the Divisions section below) *@
