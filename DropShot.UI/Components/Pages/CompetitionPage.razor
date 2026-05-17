@@ -441,6 +441,14 @@ else
             </MudForm>
         </MudPaper>
 
+        @* ── General info (Markdown description shown atop the view page) ── *@
+        @if (IsEdit)
+        {
+            <DropShot.UI.Components.Competitions.Setup.GeneralInfoSection
+                Description="@Model.Description"
+                DescriptionChanged="@(v => Model.Description = v)" />
+        }
+
         @* ── Competition Admins ───────────────────────────── *@
         @if (IsEdit && _canEdit)
         {
@@ -2190,6 +2198,7 @@ else
         public int? MinDaysBetweenPlayerMatches { get; set; }
         public bool HasDivisions { get; set; }
         public int? SeededFromCompetitionId { get; set; }
+        public string? Description { get; set; }
     }
 
     // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the
@@ -2381,7 +2390,8 @@ else
                 RubberTieBreak = view.RubberTieBreak,
                 MinDaysBetweenPlayerMatches = view.MinDaysBetweenPlayerMatches,
                 HasDivisions = view.HasDivisions,
-                SeededFromCompetitionId = view.SeededFromCompetitionId
+                SeededFromCompetitionId = view.SeededFromCompetitionId,
+                Description = view.Description
             };
             _stages = view.Stages.ToList();
             _participants = view.Participants.ToList();
@@ -2476,7 +2486,8 @@ else
                 HasDivisions: Model.HasDivisions,
                 SeededFromCompetitionId: Model.SeededFromCompetitionId,
                 IsRestricted: false,
-                AllowedPlayerIds: _allowedPlayerIds);
+                AllowedPlayerIds: _allowedPlayerIds,
+                Description: Model.Description);
 
             var savedId = await Admin.SaveCompetitionAsync(IsEdit ? Id : null, request);
 

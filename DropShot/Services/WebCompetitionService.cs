@@ -186,7 +186,8 @@ public sealed class WebCompetitionService(
                 cp.Court2Id, cp.Court2.Name,
                 cp.Name)).ToList(),
             c.LeagueScoring,
-            myPlayerId);
+            myPlayerId,
+            c.Description);
     }
 
     private static PlacementSuggestionDto? BuildPlacementSuggestion(

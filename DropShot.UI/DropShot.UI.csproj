@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.2.0" />
     <SupportedPlatform Include="browser" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.1" />
