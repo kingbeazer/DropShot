@@ -464,13 +464,6 @@ else
             @* ── Match Windows (hidden when HasDivisions — per-division UI lives in the Divisions section below) *@
             @if (!Model.HasDivisions)
             {
-                @if (_isSuperAdmin)
-                {
-                    <AutoMatchWindowsWizard
-                        Courts="_courts"
-                        ExistingWindows="_matchWindows"
-                        OnGenerate="AutoGenerateMatchWindowsAsync" />
-                }
                 <MatchWindowsSection
                     Windows="_matchWindows"
                     Courts="_courts"
@@ -490,7 +483,9 @@ else
                     OnCopyToForm="CopyMatchWindowToForm"
                     OnEdit="EditMatchWindow"
                     OnDelete="DeleteMatchWindow"
-                    OnImportFromTemplate="ImportFromTemplate" />
+                    OnImportFromTemplate="ImportFromTemplate"
+                    IsSuperAdmin="_isSuperAdmin"
+                    OnAutoGenerate="AutoGenerateMatchWindowsAsync" />
             }
 
             @* ── Rubber Template ─────────────────────────────── *@
@@ -4086,13 +4081,55 @@ else
         SiteAlerts.Add("Window added.", Severity.Success);
     }
 
-    private async Task AutoGenerateMatchWindowsAsync(IReadOnlyList<SaveMatchWindowRequest> requests)
+    // Standard club windows the auto-generate button creates. Court numbers
+    // are matched against the trailing integer of each indoor court's Name
+    // ("Indoor Court 1", "Court 1", "Indoor 1" all resolve to 1).
+    private static readonly (DayOfWeek Day, TimeSpan Start, TimeSpan End, int[] CourtNumbers)[] _autoWindowPresets =
+    [
+        (DayOfWeek.Monday,   new TimeSpan(19, 30, 0), new TimeSpan(21, 30, 0), [1, 2]),
+        (DayOfWeek.Thursday, new TimeSpan(19,  0, 0), new TimeSpan(21,  0, 0), [3, 4]),
+        (DayOfWeek.Sunday,   new TimeSpan(13,  0, 0), new TimeSpan(15,  0, 0), [3, 4]),
+    ];
+
+    private async Task AutoGenerateMatchWindowsAsync()
     {
         if (!_isSuperAdmin)
         {
             SiteAlerts.Add("Only super admins can auto-generate match windows.", Severity.Warning);
             return;
         }
+
+        var indoorByNumber = _courts
+            .Where(c => c.IsIndoor)
+            .Select(c => (Court: c, Number: ExtractTrailingNumber(c.Name)))
+            .Where(t => t.Number.HasValue)
+            .GroupBy(t => t.Number!.Value)
+            .ToDictionary(g => g.Key, g => g.First().Court);
+
+        var requests = new List<SaveMatchWindowRequest>();
+        foreach (var (day, start, end, courtNumbers) in _autoWindowPresets)
+        {
+            foreach (var n in courtNumbers)
+            {
+                if (!indoorByNumber.TryGetValue(n, out var court)) continue;
+
+                var dup = _matchWindows.Any(w =>
+                    w.CompetitionDivisionId == null
+                    && w.CourtId == court.CourtId
+                    && w.DayOfWeek == day
+                    && w.StartTime == start
+                    && w.EndTime == end);
+                if (dup) continue;
+
+                requests.Add(new SaveMatchWindowRequest(
+                    DayOfWeek: day,
+                    StartTime: start,
+                    EndTime: end,
+                    CourtId: court.CourtId,
+                    CompetitionDivisionId: null));
+            }
+        }
+
         if (requests.Count == 0)
         {
             SiteAlerts.Add("No new windows to add — required indoor courts may be missing or already scheduled.", Severity.Info);
@@ -4122,6 +4159,13 @@ else
             SiteAlerts.Add($"Added {added} match window(s); {skipped} failed — see logs.", Severity.Warning);
         else
             SiteAlerts.Add("Failed to add match windows — see logs.", Severity.Error);
+    }
+
+    private static int? ExtractTrailingNumber(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var m = System.Text.RegularExpressions.Regex.Match(name, @"(\d+)\s*$");
+        return m.Success && int.TryParse(m.Groups[1].Value, out var n) ? n : null;
     }
 
     private void CopyMatchWindowToForm(CompetitionMatchWindowDto w)
