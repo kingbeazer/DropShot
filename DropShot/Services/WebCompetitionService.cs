@@ -228,7 +228,8 @@ public sealed class WebCompetitionService(
                 r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
                 r.HomeGames, r.AwayGames, r.WinnerTeamId,
                 r.IsComplete, r.SavedMatchId,
-                r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal))
+                r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal,
+                r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList()))
             .ToList(),
         f.CompletedAt, f.OriginalResultSummary, f.ResultModifiedByAdmin);
 

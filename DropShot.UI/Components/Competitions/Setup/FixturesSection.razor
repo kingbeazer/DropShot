@@ -107,7 +107,13 @@
                 }
                 @if (!string.IsNullOrEmpty(fixtureResult))
                 {
-                    <MudText Typo="Typo.body2">@fixtureResult</MudText>
+                    <MudTooltip Text="Click for set-by-set scores">
+                        <MudLink Typo="Typo.body2" Underline="Underline.Hover" Color="Color.Default"
+                                 Style="cursor:pointer"
+                                 OnClick="@(() => OnShowSetScores.InvokeAsync(context))">
+                            @fixtureResult
+                        </MudLink>
+                    </MudTooltip>
                     @if (context.ResultModifiedByAdmin)
                     {
                         <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
@@ -194,4 +200,5 @@
     [Parameter] public EventCallback<CompetitionFixtureDto> OnShowQr { get; set; }
     [Parameter] public EventCallback<CompetitionFixtureDto> OnOpenEditDialog { get; set; }
     [Parameter] public EventCallback<CompetitionFixtureDto> OnDeleteFixture { get; set; }
+    [Parameter] public EventCallback<CompetitionFixtureDto> OnShowSetScores { get; set; }
 }

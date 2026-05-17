@@ -452,6 +452,11 @@ else
     }
 
     </MudExpansionPanels>
+
+    <DropShot.UI.Components.Shared.MatchSetScoresDialog
+        Visible="_showSetScoresDialog"
+        VisibleChanged="@(v => _showSetScoresDialog = v)"
+        Fixture="_setScoresFixture" />
 }
 
 @code {
@@ -460,7 +465,15 @@ else
     private bool _loading = true;
     private bool _canEdit;
     private bool _canView;
+    private bool _showSetScoresDialog;
+    private CompetitionFixtureDto? _setScoresFixture;
     private CompetitionDetailDto? _competition;
+
+    private void OpenSetScoresDialog(CompetitionFixtureDto f)
+    {
+        _setScoresFixture = f;
+        _showSetScoresDialog = true;
+    }
     private List<CompetitionFixtureDto> _fixtures = [];
     private List<CompetitionParticipantDto> _participants = [];
     private List<CompetitionTeamDto> _teams = [];
@@ -875,24 +888,28 @@ else
                     }
                     @if (hasResult && isTeamFixtureRow && rubbers.Any(r => r.IsComplete))
                     {
-                        <MudStack Spacing="0" Style="min-width:160px">
-                            <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
-                                <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
-                                    @(context.HomeTeamName ?? "Home")
-                                </MudText>
-                                <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
-                                    @teamResult.homeFor
-                                </MudText>
-                            </MudStack>
-                            <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
-                                <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
-                                    @(context.AwayTeamName ?? "Away")
-                                </MudText>
-                                <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
-                                    @teamResult.awayFor
-                                </MudText>
-                            </MudStack>
-                        </MudStack>
+                        <MudTooltip Text="Click for set-by-set scores">
+                            <div style="cursor:pointer; min-width:160px" @onclick="@(() => OpenSetScoresDialog(context))">
+                                <MudStack Spacing="0">
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                        <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                            @(context.HomeTeamName ?? "Home")
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                            @teamResult.homeFor
+                                        </MudText>
+                                    </MudStack>
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                        <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                            @(context.AwayTeamName ?? "Away")
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                            @teamResult.awayFor
+                                        </MudText>
+                                    </MudStack>
+                                </MudStack>
+                            </div>
+                        </MudTooltip>
                         @if (context.Status == FixtureStatus.AwaitingVerification)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
@@ -900,7 +917,11 @@ else
                     }
                     else if (hasResult && !isTeamFixtureRow && !string.IsNullOrEmpty(context.ResultSummary))
                     {
-                        <FixtureResultCard Fixture="context" Compact="true" />
+                        <MudTooltip Text="Click for set-by-set scores">
+                            <div style="cursor:pointer" @onclick="@(() => OpenSetScoresDialog(context))">
+                                <FixtureResultCard Fixture="context" Compact="true" />
+                            </div>
+                        </MudTooltip>
                         @if (context.ResultModifiedByAdmin)
                         {
                             <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
