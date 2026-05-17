@@ -88,7 +88,7 @@ else
                     <MudSelect T="CompetitionFormatUi?" Label="Format" Variant="Variant.Outlined"
                                Required="true" RequiredError="Please pick a format."
                                Value="Model.Format"
-                               ValueChanged="@(v => Model.Format = v)"
+                               ValueChanged="OnFormatChanged"
                                Class="mt-3">
                         @foreach (var f in CompetitionFormHelpers.AllowedFormats(Model.Category))
                         {
@@ -262,8 +262,12 @@ else
                 </MudPaper>
             }
 
-            @* ── Step 5: Divisions ─────────────────────────── *@
-            @if (_currentStep > 5)
+            @* ── Step 5: Divisions (N/A for SinglesLadder) ─────────────────────────── *@
+            @{
+                var _persistedFmt = CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format);
+                var _isLadder = _persistedFmt == CompetitionFormat.SinglesLadder;
+            }
+            @if (_currentStep > 5 && !_isLadder)
             {
                 <StepSummary Label="Divisions"
                              Icon="@Icons.Material.Filled.AccountTree"
@@ -271,7 +275,7 @@ else
                              Summary="@(Model.HasDivisions ? "Split into ranked divisions" : "Single field, no divisions")"
                              OnEdit="@(() => GoToStep(5))" />
             }
-            else if (_currentStep == 5)
+            else if (_currentStep == 5 && !_isLadder)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Split into divisions?</MudText>
@@ -755,13 +759,47 @@ else
 
     private void GoBack()
     {
-        if (_currentStep > 0) _currentStep--;
+        if (_currentStep <= 0) { _serverError = null; return; }
+        _currentStep--;
+        while (_currentStep > 0 && !StepApplies(_currentStep))
+            _currentStep--;
         _serverError = null;
     }
 
     private void TryAdvance()
     {
-        if (_currentStep < TotalSteps - 1) _currentStep++;
+        if (_currentStep >= TotalSteps - 1) return;
+        _currentStep++;
+        while (_currentStep < TotalSteps - 1 && !StepApplies(_currentStep))
+            _currentStep++;
+    }
+
+    // Returns false for steps that should be skipped given the current Model.
+    // - HasDivisions question (step 5) and the post-save divisions list (StepDivs)
+    //   are skipped for SinglesLadder, which never uses divisions.
+    // - StepStages is skipped for SinglesLadder (ad-hoc matches, no fixed stages).
+    // - StepRubber is skipped for any non-TeamMatch format (rubber templates don't apply).
+    // - The post-save divisions list (StepDivs) is also skipped when HasDivisions is false.
+    private bool StepApplies(int step)
+    {
+        var persisted = CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format);
+        var isLadder = persisted == CompetitionFormat.SinglesLadder;
+
+        if (step == 5 && isLadder) return false;
+        if (step == StepStages && isLadder) return false;
+        if (step == StepRubber && persisted != CompetitionFormat.TeamMatch) return false;
+        if (step == StepDivs && (isLadder || !Model.HasDivisions)) return false;
+        return true;
+    }
+
+    private void OnFormatChanged(CompetitionFormatUi? format)
+    {
+        Model.Format = format;
+        // Divisions don't apply to a SinglesLadder. Clear the toggle so the
+        // wizard's Divisions question (and subsequent divisions-list step) is
+        // skipped via StepApplies.
+        if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, format) == CompetitionFormat.SinglesLadder)
+            Model.HasDivisions = false;
     }
 
     private void TryAdvanceFromCategory()

@@ -211,7 +211,7 @@ else
                                ValueChanged="@(v => { Model.Format = v; AutoGenerateName(); })">
                         @foreach (var f in AllowedFormats(Model.Category))
                         {
-                            <MudSelectItem T="CompetitionFormatUi?" Value="@((CompetitionFormatUi?)f)">@f.ToString()</MudSelectItem>
+                            <MudSelectItem T="CompetitionFormatUi?" Value="@((CompetitionFormatUi?)f)">@FormatLabel(f)</MudSelectItem>
                         }
                     </MudSelect>
 
@@ -396,15 +396,18 @@ else
 
                     <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" Class="mt-2" />
 
-                    <MudCheckBox @bind-Value="Model.HasDivisions"
-                                 Label="Split this competition into ranked divisions"
-                                 Class="mt-1" />
-                    @if (Model.HasDivisions)
+                    @if (EffectivePersistedFormat() != CompetitionFormat.SinglesLadder)
                     {
-                        <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
-                            Teams will only play others in their own division and league tables render per-division.
-                            Manage each division (plus its teams, match windows and fixtures) in the <b>Divisions</b> section further down this page.
-                        </MudText>
+                        <MudCheckBox @bind-Value="Model.HasDivisions"
+                                     Label="Split this competition into ranked divisions"
+                                     Class="mt-1" />
+                        @if (Model.HasDivisions)
+                        {
+                            <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                                Teams will only play others in their own division and league tables render per-division.
+                                Manage each division (plus its teams, match windows and fixtures) in the <b>Divisions</b> section further down this page.
+                            </MudText>
+                        }
                     }
                 </MudStack>
 
@@ -460,8 +463,8 @@ else
                 OnRemoveAdmin="RemoveCompetitionAdmin" />
         }
 
-        @* ── Stages ─────────────────────────────────────────── *@
-        @if (IsEdit)
+        @* ── Stages (skip for SinglesLadder — ad-hoc, no fixed stages) ── *@
+        @if (IsEdit && EffectivePersistedFormat() != CompetitionFormat.SinglesLadder)
         {
             <StagesSection
                 Stages="_stages"
@@ -1164,7 +1167,7 @@ else
 }
 
 <div id="nav-anchor-fixtures" class="section-anchor"></div>
-@if (IsEdit)
+@if (IsEdit && EffectivePersistedFormat() != CompetitionFormat.SinglesLadder)
 {
             @if (!Model.HasDivisions)
             {
@@ -2205,22 +2208,30 @@ else
     }
 
     // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the
-    // dropdown (Singles/Doubles/Team). The persisted CompetitionFormat + EligibleSex pair is
-    // derived from these two on save; see EffectivePersistedFormat / EffectiveEligibleSex.
+    // dropdown (Singles/Doubles/Team/SinglesLadder). The persisted CompetitionFormat +
+    // EligibleSex pair is derived from these two on save; see EffectivePersistedFormat /
+    // EffectiveEligibleSex.
     public enum CompetitionCategoryUi { Male, Female, Mixed }
-    public enum CompetitionFormatUi { Singles, Doubles, Team }
+    public enum CompetitionFormatUi { Singles, Doubles, Team, SinglesLadder }
 
     private static IEnumerable<CompetitionFormatUi> AllowedFormats(CompetitionCategoryUi? category) =>
-        new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team };
+        new[] { CompetitionFormatUi.Singles, CompetitionFormatUi.Doubles, CompetitionFormatUi.Team, CompetitionFormatUi.SinglesLadder };
+
+    private static string FormatLabel(CompetitionFormatUi format) => format switch
+    {
+        CompetitionFormatUi.SinglesLadder => "Singles Ladder",
+        _ => format.ToString()
+    };
 
     private CompetitionFormat? EffectivePersistedFormat() =>
         (Model.Category, Model.Format) switch
         {
             (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Doubles) => CompetitionFormat.MixedDoubles,
             (CompetitionCategoryUi.Mixed, CompetitionFormatUi.Team)    => CompetitionFormat.TeamMatch,
-            (_, CompetitionFormatUi.Singles) => CompetitionFormat.Singles,
-            (_, CompetitionFormatUi.Doubles) => CompetitionFormat.Doubles,
-            (_, CompetitionFormatUi.Team)    => CompetitionFormat.Team,
+            (_, CompetitionFormatUi.Singles)       => CompetitionFormat.Singles,
+            (_, CompetitionFormatUi.Doubles)       => CompetitionFormat.Doubles,
+            (_, CompetitionFormatUi.Team)          => CompetitionFormat.Team,
+            (_, CompetitionFormatUi.SinglesLadder) => CompetitionFormat.SinglesLadder,
             _ => (CompetitionFormat?)null
         };
 
@@ -2689,8 +2700,9 @@ else
             },
             persisted switch
             {
-                CompetitionFormat.Doubles => CompetitionFormatUi.Doubles,
-                CompetitionFormat.Team    => CompetitionFormatUi.Team,
+                CompetitionFormat.Doubles       => CompetitionFormatUi.Doubles,
+                CompetitionFormat.Team          => CompetitionFormatUi.Team,
+                CompetitionFormat.SinglesLadder => CompetitionFormatUi.SinglesLadder,
                 _ => CompetitionFormatUi.Singles
             })
     };
