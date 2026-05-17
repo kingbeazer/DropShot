@@ -74,6 +74,11 @@
                     </InputRadioGroup>
                     <ValidationMessage For="() => Input.CompetitionCategory" class="text-danger" />
                 </fieldset>
+                <div class="form-floating mb-3">
+                    <InputDate @bind-Value="Input.DateOfBirth" class="form-control" placeholder="Date of Birth" />
+                    <label for="date-of-birth" class="form-label">Date of birth</label>
+                    <ValidationMessage For="() => Input.DateOfBirth" class="text-danger" />
+                </div>
             }
             <div class="form-floating mb-3">
                 <InputText @bind-Value="Input.PhoneNumber" class="form-control" placeholder="Please enter your phone number." />
@@ -118,6 +123,7 @@
     private string? phoneNumber;
     private string? displayName;
     private PlayerSex? competitionCategory;
+    private DateOnly? dateOfBirth;
     private bool hasLinkedPlayer;
     private int? linkedPlayerId;
     private string? avatarError;
@@ -145,8 +151,12 @@
             displayName = player.DisplayName;
             // Only Male/Female are offered in the category picker; Other/null → unset.
             competitionCategory = player.Sex is PlayerSex.Male or PlayerSex.Female ? player.Sex : null;
+            dateOfBirth = player.DateOfBirth;
             Input.DisplayName ??= displayName;
             Input.CompetitionCategory ??= competitionCategory;
+            Input.DateOfBirth ??= dateOfBirth.HasValue
+                ? dateOfBirth.Value.ToDateTime(TimeOnly.MinValue)
+                : null;
         }
 
         Input.PhoneNumber ??= phoneNumber;
@@ -161,10 +171,20 @@
     {
         if (hasLinkedPlayer && linkedPlayerId.HasValue)
         {
+            if (Input.DateOfBirth is null || AgeInYears(Input.DateOfBirth.Value, DateTime.UtcNow) < 18)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus(
+                    "Error: Date of birth is required and you must be at least 18.",
+                    HttpContext);
+                return;
+            }
+
+            var newDob = DateOnly.FromDateTime(Input.DateOfBirth.Value);
+            var dobChanged = newDob != dateOfBirth;
             var nameChanged = !string.IsNullOrWhiteSpace(Input.DisplayName)
                 && Input.DisplayName.Trim() != displayName;
             var categoryChanged = Input.CompetitionCategory != competitionCategory;
-            if (nameChanged || categoryChanged)
+            if (nameChanged || categoryChanged || dobChanged)
             {
                 await using var db = DbFactory.CreateDbContext();
                 var player = await db.Players.FindAsync(linkedPlayerId.Value);
@@ -172,6 +192,7 @@
                 {
                     if (nameChanged) player.DisplayName = Input.DisplayName!.Trim();
                     if (categoryChanged) player.Sex = Input.CompetitionCategory;
+                    if (dobChanged) player.DateOfBirth = newDob;
                     await db.SaveChangesAsync();
                 }
             }
@@ -190,6 +211,13 @@
         RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
     }
 
+    private static int AgeInYears(DateTime dob, DateTime asOf)
+    {
+        var age = asOf.Year - dob.Year;
+        if (asOf < dob.AddYears(age)) age--;
+        return age;
+    }
+
     private sealed class InputModel
     {
         [StringLength(100, ErrorMessage = "Display name must be 100 characters or less.")]
@@ -202,5 +230,9 @@
 
         [Display(Name = "Competition category")]
         public PlayerSex? CompetitionCategory { get; set; }
+
+        [DataType(DataType.Date)]
+        [Display(Name = "Date of birth")]
+        public DateTime? DateOfBirth { get; set; }
     }
 }
