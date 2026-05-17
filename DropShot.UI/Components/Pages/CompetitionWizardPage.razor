@@ -48,9 +48,12 @@ else
                     <MudText Typo="Typo.h6" Class="mb-2">Name & Category</MudText>
                     @StepIntro("Category controls who is considered for entry and who will be offered a spot. Male / Female restricts by registered sex; Mixed is open to all.")
 
-                    <MudTextField T="string" @bind-Value="Model.CompetitionName"
+                    <MudTextField T="string" Value="Model.CompetitionName"
+                                  ValueChanged="OnCompetitionNameChanged"
+                                  Immediate="true"
                                   Label="Competition name" Variant="Variant.Outlined"
                                   Required="true" RequiredError="Please enter a name."
+                                  Error="@(_nameError != null)" ErrorText="@_nameError"
                                   Class="mt-3" />
 
                     <MudField Label="Category" Variant="Variant.Text" Class="mt-3"
@@ -369,11 +372,11 @@ else
                              Summary="@MiscSummary()"
                              OnEdit="@(() => GoToStep(8))" />
             }
-            else if (_currentStep == 8)
+            else if (_currentStep == 8 && !_savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Misc settings</MudText>
-                    @StepIntro("Fine controls — minimum gap between a player's matches when auto-scheduling, and whether results need an admin to verify them before counting toward the standings.")
+                    <MudText Typo="Typo.h6" Class="mb-2">Misc settings &amp; save</MudText>
+                    @StepIntro("Fine controls — minimum gap between a player's matches when auto-scheduling, and whether results need an admin to verify them before counting toward the standings. Clicking Save creates the competition; the optional setup steps that follow apply to that saved competition.")
 
                     <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Minimum days between matches</MudText>
                     <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
@@ -386,25 +389,6 @@ else
                     <MudCheckBox @bind-Value="Model.RequireVerification"
                                  Label="Require admin verification of results"
                                  Class="mt-3" />
-
-                    @StepActions(canBack: true, advance: TryAdvance)
-                </MudPaper>
-            }
-
-            @* ── Step 9: Review & save ──────────────────────── *@
-            @if (_currentStep > 9 && _savedCompetitionId.HasValue)
-            {
-                <StepSummary Label="Saved"
-                             Icon="@Icons.Material.Filled.Save"
-                             AccentColor="#4caf50"
-                             Summary="@($"Competition created — finish optional setup below")"
-                             OnEdit="@(() => { })" />
-            }
-            else if (_currentStep == 9)
-            {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Review &amp; save</MudText>
-                    @StepIntro("Save the competition now. The next steps let you add admins, divisions, stages and rubber-template options — each one is optional and can be skipped.")
 
                     @if (!string.IsNullOrWhiteSpace(_serverError))
                     {
@@ -435,8 +419,8 @@ else
                 </MudPaper>
             }
 
-            @* ── Step 10: Admins (optional, post-save) ────────── *@
-            @if (_currentStep == 10 && _savedCompetitionId.HasValue)
+            @* ── Step 9: Admins (optional, post-save) ─────────── *@
+            @if (_currentStep == StepAdmins && _savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Competition admins (optional)</MudText>
@@ -471,19 +455,19 @@ else
                         </MudSimpleTable>
                     }
 
-                    @StepSkipNext("Skip", advance: TryAdvance)
+                    @StepActions(canBack: true, advance: TryAdvance)
                 </MudPaper>
             }
 
-            @* ── Step 11: Stages (optional) ─────────────────────── *@
-            @if (_currentStep == 11 && _savedCompetitionId.HasValue)
+            @* ── Step 10: Stages (optional) ─────────────────────── *@
+            @if (_currentStep == StepStages && _savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Stages (optional)</MudText>
-                    @StepIntro("Pick the stages this competition runs through. Round Robin schedules everyone against each other; the knockout types create direct elimination brackets. You can add more later from the competition page.")
+                    @StepIntro("Pick the stages this competition runs through, in the order they'll happen. Round Robin schedules everyone against each other; the knockout rounds create direct elimination brackets. You can add more later from the competition page.")
 
                     <MudStack Spacing="1" Class="mt-3">
-                        @foreach (var t in Enum.GetValues<StageType>())
+                        @foreach (var t in _wizardStageOrder)
                         {
                             var selected = _selectedStages.Contains(t);
                             <MudCheckBox T="bool" Value="@selected"
@@ -493,18 +477,27 @@ else
                         }
                     </MudStack>
 
-                    @StepSkipNext("Skip", advance: SaveStagesAndAdvanceAsync)
+                    <div class="d-flex justify-space-between mt-4">
+                        <MudButton Variant="Variant.Text" Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   Disabled="@_stepBusy"
+                                   OnClick="GoBack">Back</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                   Disabled="@_stepBusy"
+                                   OnClick="SaveStagesAndAdvanceAsync">Next</MudButton>
+                    </div>
                 </MudPaper>
             }
 
-            @* ── Step 12: Rubber template (optional, TeamMatch only) ──── *@
-            @if (_currentStep == 12 && _savedCompetitionId.HasValue)
+            @* ── Step 11: Rubber template (optional, TeamMatch only) ──── *@
+            @if (_currentStep == StepRubber && _savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Rubber template (optional)</MudText>
                     @if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) != CompetitionFormat.TeamMatch)
                     {
-                        @StepIntro("Rubber templates only apply to Team competitions. Click Next to finish.")
+                        @StepIntro("Rubber templates only apply to Team competitions. Click Next to continue.")
                     }
                     else
                     {
@@ -531,22 +524,31 @@ else
                         }
                     }
 
-                    @StepSkipNext("Skip", advance: SaveRubberPresetAndAdvanceAsync)
+                    <div class="d-flex justify-space-between mt-4">
+                        <MudButton Variant="Variant.Text" Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   Disabled="@_stepBusy"
+                                   OnClick="GoBack">Back</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                   Disabled="@_stepBusy"
+                                   OnClick="SaveRubberPresetAndAdvanceAsync">Next</MudButton>
+                    </div>
                 </MudPaper>
             }
 
-            @* ── Step 13: Divisions (optional, only when HasDivisions) ── *@
-            @if (_currentStep == 13 && _savedCompetitionId.HasValue)
+            @* ── Step 12: Divisions (required when HasDivisions) ── *@
+            @if (_currentStep == StepDivs && _savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Divisions (optional)</MudText>
+                    <MudText Typo="Typo.h6" Class="mb-2">Divisions @(Model.HasDivisions ? "" : "(optional)")</MudText>
                     @if (!Model.HasDivisions)
                     {
                         @StepIntro("This competition isn't split into divisions, so there's nothing to add here. Click Next to continue.")
                     }
                     else
                     {
-                        @StepIntro("Add each division (e.g. Premier, A, B). Rank 1 is the highest. You can edit or seed divisions from the competition page later.")
+                        @StepIntro("Add each division (e.g. Premier, A, B). Rank 1 is the highest. At least one division is required — you can edit or seed divisions from the competition page later.")
 
                         <MudGrid Spacing="2" Class="mt-3">
                             <MudItem xs="12" sm="6">
@@ -578,14 +580,20 @@ else
                                 </tbody>
                             </MudSimpleTable>
                         }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-3">
+                                Add at least one division before continuing.
+                            </MudAlert>
+                        }
                     }
 
-                    @StepSkipNext("Skip", advance: TryAdvance)
+                    @StepActions(canBack: true, advance: TryAdvanceFromDivisions)
                 </MudPaper>
             }
 
-            @* ── Step 14: Finish ───────────────────────────────── *@
-            @if (_currentStep == 14 && _savedCompetitionId.HasValue)
+            @* ── Step 13: Finish ───────────────────────────────── *@
+            @if (_currentStep == StepFinish && _savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">All done</MudText>
@@ -610,7 +618,16 @@ else
 }
 
 @code {
-    private const int TotalSteps = 15;
+    private const int TotalSteps = 14;
+
+    // Post-save step indices — read by render conditions and CreateAsync's
+    // post-success jump. Defined here so the layout has a single source of
+    // truth if the order changes again.
+    private const int StepAdmins   = 9;
+    private const int StepStages   = 10;
+    private const int StepRubber   = 11;
+    private const int StepDivs     = 12;
+    private const int StepFinish   = 13;
 
     private CompetitionFormModel Model { get; set; } = new();
 
@@ -619,6 +636,7 @@ else
     private bool _isSaving;
     private string? _serverError;
     private string? _categoryError;
+    private string? _nameError;
 
     // Lookup data
     private List<ClubDto> _clubs = new();
@@ -644,8 +662,18 @@ else
     private byte _newDivisionRank = 1;
     private List<(int Id, string Name, byte Rank)> _addedDivisions = new();
 
-    // Stages step — checkbox selections persisted on Next
+    // Stages step — checkbox selections persisted on Next. Display order
+    // walks the stages chronologically (RR → QF → SF → F); the underlying
+    // enum was authored in a different order so we don't rely on
+    // Enum.GetValues here.
     private HashSet<StageType> _selectedStages = new();
+    private static readonly StageType[] _wizardStageOrder =
+    [
+        StageType.RoundRobin,
+        StageType.QuarterFinal,
+        StageType.SemiFinal,
+        StageType.Final,
+    ];
 
     // Rubber template step
     private List<RubberPresetDto> _rubberPresets = new();
@@ -714,18 +742,33 @@ else
 
     private void TryAdvanceFromCategory()
     {
+        var ok = true;
         if (string.IsNullOrWhiteSpace(Model.CompetitionName))
         {
-            Snackbar.Add("Please enter a competition name.", Severity.Warning);
-            return;
+            _nameError = "Please enter a competition name.";
+            ok = false;
+        }
+        else
+        {
+            _nameError = null;
         }
         if (Model.Category == null)
         {
             _categoryError = "Please select a category.";
-            return;
+            ok = false;
         }
-        _categoryError = null;
+        else
+        {
+            _categoryError = null;
+        }
+        if (!ok) return;
         TryAdvance();
+    }
+
+    private void OnCompetitionNameChanged(string value)
+    {
+        Model.CompetitionName = value;
+        if (!string.IsNullOrWhiteSpace(value)) _nameError = null;
     }
 
     private void TryAdvanceFromFormat()
@@ -733,6 +776,16 @@ else
         if (Model.Format == null)
         {
             Snackbar.Add("Please pick a format.", Severity.Warning);
+            return;
+        }
+        TryAdvance();
+    }
+
+    private void TryAdvanceFromDivisions()
+    {
+        if (Model.HasDivisions && _addedDivisions.Count == 0)
+        {
+            Snackbar.Add("Add at least one division before continuing.", Severity.Warning);
             return;
         }
         TryAdvance();
@@ -760,12 +813,14 @@ else
     {
         if (string.IsNullOrWhiteSpace(Model.CompetitionName))
         {
+            _nameError = "Please enter a competition name.";
             _serverError = "Competition name is required.";
             GoToStep(0);
             return;
         }
         if (Model.Category == null)
         {
+            _categoryError = "Please select a category.";
             _serverError = "Please select a category.";
             GoToStep(0);
             return;
@@ -914,13 +969,12 @@ else
         5  => "Divisions",
         6  => "Match scoring",
         7  => "League scoring",
-        8  => "Misc settings",
-        9  => "Review & save",
-        10 => "Competition admins",
-        11 => "Stages",
-        12 => "Rubber template",
-        13 => "Divisions setup",
-        14 => "Finish",
+        8  => "Misc & save",
+        9  => "Competition admins",
+        10 => "Stages",
+        11 => "Rubber template",
+        12 => "Divisions setup",
+        13 => "Finish",
         _  => ""
     };
 
@@ -1067,33 +1121,6 @@ else
         finally { _stepBusy = false; }
     }
 
-    private RenderFragment StepSkipNext(string skipLabel, Func<Task> advance) => __builder =>
-    {
-        <div class="d-flex justify-space-between mt-4">
-            <MudButton Variant="Variant.Text" Color="Color.Default"
-                       StartIcon="@Icons.Material.Filled.SkipNext"
-                       Disabled="@_stepBusy"
-                       OnClick="TryAdvance">@skipLabel</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       EndIcon="@Icons.Material.Filled.ArrowForward"
-                       Disabled="@_stepBusy"
-                       OnClick="@advance">Next</MudButton>
-        </div>
-    };
-
-    private RenderFragment StepSkipNext(string skipLabel, Action advance) => __builder =>
-    {
-        <div class="d-flex justify-space-between mt-4">
-            <MudButton Variant="Variant.Text" Color="Color.Default"
-                       StartIcon="@Icons.Material.Filled.SkipNext"
-                       Disabled="@_stepBusy"
-                       OnClick="TryAdvance">@skipLabel</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       EndIcon="@Icons.Material.Filled.ArrowForward"
-                       Disabled="@_stepBusy"
-                       OnClick="@advance">Next</MudButton>
-        </div>
-    };
 
     // ── Reusable render fragments ───────────────────────────────
     private RenderFragment StepIntro(string text) => __builder =>
