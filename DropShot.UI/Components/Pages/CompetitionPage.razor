@@ -2,7 +2,6 @@
 @using DropShot.Shared
 @using DropShot.Shared.Dtos
 @using DropShot.Shared.Extensions
-@using DropShot.UI.Components.Competitions
 @using DropShot.UI.Components.Competitions.Setup
 @using DropShot.UI.Services
 @using DropShot.UI.Services.Auth
@@ -13,7 +12,7 @@
 @inject IRulesSetService RulesSetService
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDialogService DialogService
 @inject IJSRuntime JS
@@ -30,113 +29,133 @@ else
     <div style="position: absolute; inset: 0; background-color: rgba(18, 18, 18, 0.85); pointer-events: none;"></div>
     <div style="position: relative; z-index: 1; padding: 1rem 0.5rem 2rem;">
 
-<MudStack Class="mb-4" Spacing="2">
+<CascadingValue Value="this" IsFixed="true">
+@* ── Sticky header ─────────────────────────────────────────────
+   Pins the title, action buttons + section nav to the top of the
+   page so the user can scroll the detail sections below and still
+   navigate between tabs. *@
+<div class="competition-sticky-header">
     @* ── Title row ───────────────────────────────────────────── *@
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-        @if (_nameOverride)
-        {
-            <MudTextField T="string" @bind-Value="Model.CompetitionName" Variant="Variant.Text"
-                          Typo="Typo.h4" Class="competition-title" Style="flex:1" Immediate="true" Placeholder="Competition Name"
-                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Check"
-                          OnAdornmentClick="@(() => _nameOverride = false)" />
-        }
-        else
-        {
-            <MudText Typo="Typo.h4" Class="competition-title" Style="flex:1" Color="@(string.IsNullOrWhiteSpace(Model.CompetitionName) ? Color.Secondary : Color.Default)">
-                @(string.IsNullOrWhiteSpace(Model.CompetitionName) ? "New Competition" : Model.CompetitionName)
-            </MudText>
-            <MudTooltip Text="Edit name manually">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => { _nameOverride = true; _nameManuallySet = true; })" />
-            </MudTooltip>
-        }
-    </MudStack>
-
-    @* ── Action button row ───────────────────────────────────── *@
-    @* AlignItems=Stretch + height:100% on each button ensures the Clone
-       button (and its tooltip wrapper) grows to match the tallest sibling
-       when text wraps onto two lines on narrow viewports. *@
-    @if (IsEdit)
-    {
-        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Stretch" Class="competition-action-row" Style="flex-wrap: wrap;">
-            @if (_canEdit)
+    <MudPaper Elevation="0" Class="frosted-card mb-3 competition-title-card"
+              Style="border-radius: 12px; padding: 0.75rem;">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            @if (_nameOverride)
             {
-                <MudButton Variant="@(_isStarted ? Variant.Outlined : Variant.Filled)"
-                           Color="@(_isStarted ? Color.Warning : Color.Success)"
-                           StartIcon="@(_isStarted ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
-                           Class="px-4"
-                           Style="height: 100%;"
-                           OnClick="ToggleStartedAsync">
-                    @(_isStarted ? "Stop Competition" : "Start Competition")
-                </MudButton>
+                <MudTextField T="string" @bind-Value="Model.CompetitionName" Variant="Variant.Text"
+                              Typo="Typo.h4" Class="competition-title" Style="flex:1" Immediate="true" Placeholder="Competition Name"
+                              Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Check"
+                              OnAdornmentClick="@(() => _nameOverride = false)" />
             }
-            else if (!_isStarted)
+            else
             {
-                <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
-            }
-            @if (_canEdit && IsEdit)
-            {
-                <MudTooltip Text="Create a new competition based on this one" Style="display: flex; align-self: stretch;">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                               StartIcon="@Icons.Material.Filled.ContentCopy"
-                               Class="px-4"
-                               Style="height: 100%;"
-                               OnClick="OpenCloneDialog">
-                        Clone
-                    </MudButton>
+                <MudText Typo="Typo.h4" Class="competition-title" Style="flex:1" Color="@(string.IsNullOrWhiteSpace(Model.CompetitionName) ? Color.Secondary : Color.Default)">
+                    @(string.IsNullOrWhiteSpace(Model.CompetitionName) ? "New Competition" : Model.CompetitionName)
+                </MudText>
+                <MudTooltip Text="Edit name manually">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => { _nameOverride = true; _nameManuallySet = true; })" />
                 </MudTooltip>
             }
-            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
-                       Class="px-4"
-                       Style="height: 100%;"
-                       OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
-                View Competition
-            </MudButton>
         </MudStack>
-    }
-</MudStack>
+    </MudPaper>
 
-<CascadingValue Value="this" IsFixed="true">
-@* ── Section nav (replaces MudTabs) ──────────────────────────
-   Chip / pill row with the same frosted look as the list cards.
-   Tab indices preserved: 0=Setup, 1=Roster, 2=Fixtures, 3=Email.
-   Wraps onto multiple lines on narrow screens instead of forcing
-   a horizontal scroll. *@
-<MudPaper Elevation="0" Class="frosted-card mb-6 competition-section-nav"
-          Style="border-radius: 12px; padding: 0.75rem;">
-    <MudStack Row="true" Spacing="2" Style="flex-wrap: wrap;">
-        <MudChip T="int" Value="0"
-                 Icon="@Icons.Material.Filled.Settings"
-                 Color="@(_activeTabIndex == 0 ? Color.Primary : Color.Default)"
-                 Variant="@(_activeTabIndex == 0 ? Variant.Filled : Variant.Outlined)"
-                 OnClick="@(() => _activeTabIndex = 0)">Setup</MudChip>
+    @* ── Combined control bar ─────────────────────────────────
+       Wraps the action buttons + section nav. On desktop they sit in
+       a single combined band (nav chips on the left, action buttons on
+       the right). On mobile the wrapper drops back to normal flow so
+       each MudPaper renders as its own frosted card — preserving the
+       two-section look but keeping the chip-styled buttons. *@
+    <div class="competition-control-bar">
+        @* ── Action button row ───────────────────────────────────
+           Buttons share the pill / chip styling via .competition-action-button
+           so they read as a coordinated set with the section nav chips.
+           AlignItems=Center keeps the pills vertically centred next to the
+           chip row when both sit in the desktop combined band. *@
         @if (IsEdit)
         {
-            <MudChip T="int" Value="1"
-                     Icon="@Icons.Material.Filled.Group"
-                     Color="@(_activeTabIndex == 1 ? Color.Primary : Color.Default)"
-                     Variant="@(_activeTabIndex == 1 ? Variant.Filled : Variant.Outlined)"
-                     OnClick="@(() => _activeTabIndex = 1)">Roster</MudChip>
-            <MudChip T="int" Value="2"
-                     Icon="@Icons.Material.Filled.EventNote"
-                     Color="@(_activeTabIndex == 2 ? Color.Primary : Color.Default)"
-                     Variant="@(_activeTabIndex == 2 ? Variant.Filled : Variant.Outlined)"
-                     OnClick="@(() => _activeTabIndex = 2)">Fixtures/Results</MudChip>
+            <MudPaper Elevation="0" Class="frosted-card competition-action-row"
+                      Style="border-radius: 12px; padding: 0.75rem;">
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="flex-wrap: wrap;">
+                    @if (_canEdit)
+                    {
+                        <MudButton Variant="@(_isStarted ? Variant.Outlined : Variant.Filled)"
+                                   Color="@(_isStarted ? Color.Warning : Color.Success)"
+                                   StartIcon="@(_isStarted ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
+                                   Class="competition-action-button"
+                                   OnClick="ToggleStartedAsync">
+                            @(_isStarted ? "Stop Competition" : "Start Competition")
+                        </MudButton>
+                    }
+                    else if (!_isStarted)
+                    {
+                        <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined">Not Started</MudChip>
+                    }
+                    @if (_canEdit && IsEdit)
+                    {
+                        <MudTooltip Text="Create a new competition based on this one">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                                       StartIcon="@Icons.Material.Filled.ContentCopy"
+                                       Class="competition-action-button"
+                                       OnClick="OpenCloneDialog">
+                                Clone
+                            </MudButton>
+                        </MudTooltip>
+                    }
+                    <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
+                               Class="competition-action-button"
+                               OnClick="@(() => Nav.NavigateTo($"/competition/{Id}/view"))">
+                        View Competition
+                    </MudButton>
+                </MudStack>
+            </MudPaper>
         }
-        @* Email chip hidden for now — feature not yet in use. Restore by
-           re-enabling this block (and the _emailDisabled flag above). *@
-        @*
-        <MudChip T="int" Value="3"
-                 Icon="@Icons.Material.Filled.Email"
-                 Disabled="@_emailDisabled"
-                 Color="@(_activeTabIndex == 3 ? Color.Primary : Color.Default)"
-                 Variant="@(_activeTabIndex == 3 ? Variant.Filled : Variant.Outlined)"
-                 OnClick="@(() => { if (!_emailDisabled) _activeTabIndex = 3; })">Email</MudChip>
-        *@
-    </MudStack>
-</MudPaper>
 
-@if (_activeTabIndex == 0)
-{
+        @* ── Section nav (replaces MudTabs) ──────────────────────────
+           Chip / pill row with the same frosted look as the list cards.
+           Tab indices preserved: 0=Setup, 1=Roster, 2=Fixtures, 3=Email.
+           Clicking a chip smooth-scrolls the matching anchor into view;
+           all sections render simultaneously so users can also scroll
+           manually between them. *@
+        <MudPaper Elevation="0" Class="frosted-card competition-section-nav"
+                  Style="border-radius: 12px; padding: 0.75rem;">
+            <MudStack Row="true" Spacing="2" Style="flex-wrap: wrap;">
+                <MudChip T="int" Value="0"
+                         Icon="@Icons.Material.Filled.Settings"
+                         Color="@(_activeTabIndex == 0 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeTabIndex == 0 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(0, "nav-anchor-setup"))">Setup</MudChip>
+                @if (IsEdit)
+                {
+                    <MudChip T="int" Value="1"
+                             Icon="@Icons.Material.Filled.Group"
+                             Color="@(_activeTabIndex == 1 ? Color.Primary : Color.Default)"
+                             Variant="@(_activeTabIndex == 1 ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => ScrollToSectionAsync(1, "nav-anchor-roster"))">Roster</MudChip>
+                    <MudChip T="int" Value="2"
+                             Icon="@Icons.Material.Filled.EventNote"
+                             Color="@(_activeTabIndex == 2 ? Color.Primary : Color.Default)"
+                             Variant="@(_activeTabIndex == 2 ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => ScrollToSectionAsync(2, "nav-anchor-fixtures"))">Fixtures/Results</MudChip>
+                }
+                @* Email chip hidden for now — feature not yet in use. Restore by
+                   re-enabling this block (and the _emailDisabled flag above). *@
+                @*
+                <MudChip T="int" Value="3"
+                         Icon="@Icons.Material.Filled.Email"
+                         Disabled="@_emailDisabled"
+                         Color="@(_activeTabIndex == 3 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeTabIndex == 3 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => { if (!_emailDisabled) ScrollToSectionAsync(3, "nav-anchor-email"); })">Email</MudChip>
+                *@
+            </MudStack>
+        </MudPaper>
+    </div>
+</div>
+
+@* All sections render simultaneously; the section nav chips smooth-scroll
+   the matching `nav-anchor-*` div into view (sticky-header offset is handled
+   by .section-anchor's scroll-margin-top). Edit-only sections retain their
+   IsEdit / _canEdit guards below. *@
+<div id="nav-anchor-setup" class="section-anchor"></div>
     @* ── Details form ───────────────────────────────────────── *@
     <MudPaper id="section-details" Class="pa-4 mb-4 setup-section" Elevation="0"
                  Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
@@ -149,7 +168,6 @@ else
                         var _derivedSex = DeriveCategoryFromRubberRoles(_availableRoles);
                     }
 
-                    @* ── 1. Category ────────────────────────────────── *@
                     @if (_isTeamMatch)
                     {
                         @* For TeamMatch the rubber template drives player eligibility (roles like MA/MB
@@ -176,8 +194,7 @@ else
                     else
                     {
                         <MudField Label="Category" Variant="Variant.Text"
-                                  Error="@(_categoryError != null)" ErrorText="@_categoryError"
-                                  HelperText="Who is considered for entry — this controls who will be offered a spot.">
+                                  Error="@(_categoryError != null)" ErrorText="@_categoryError">
                             <MudRadioGroup T="CompetitionCategoryUi?" Value="Model.Category"
                                            ValueChanged="OnCategoryChanged">
                                 <MudRadio T="CompetitionCategoryUi?" Value="@((CompetitionCategoryUi?)CompetitionCategoryUi.Male)" Color="Color.Primary">Male</MudRadio>
@@ -187,28 +204,10 @@ else
                         </MudField>
                     }
 
-                    @* ── 2. Age options ─────────────────────────────── *@
-                    <MudGrid Spacing="2">
-                        <MudItem xs="12" sm="6">
-                            <MudNumericField T="int?" Label="Min Age (optional)"
-                                             Min="1" Max="120" Variant="Variant.Text"
-                                             Value="Model.MinAge"
-                                             ValueChanged="@(v => { Model.MinAge = v; AutoGenerateName(); })" />
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudNumericField T="int?" Label="Max Age (optional)"
-                                             Min="1" Max="120" Variant="Variant.Text"
-                                             Value="Model.MaxAge"
-                                             ValueChanged="@(v => { Model.MaxAge = v; AutoGenerateName(); })" />
-                        </MudItem>
-                    </MudGrid>
-
-                    @* ── 3. Format ──────────────────────────────────── *@
                     <MudSelect T="CompetitionFormatUi?" Label="Format" Variant="Variant.Text"
                                Required="true" RequiredError="Please select a competition format."
                                Disabled="@(Model.Category == null)"
                                Value="Model.Format"
-                               HelperText="Singles = 1v1. Doubles = 2v2 pairs. Team = squad format with multiple rubbers per fixture."
                                ValueChanged="@(v => { Model.Format = v; AutoGenerateName(); })">
                         @foreach (var f in AllowedFormats(Model.Category))
                         {
@@ -216,7 +215,6 @@ else
                         }
                     </MudSelect>
 
-                    @* ── 4. Rule set (with host club + event) ───────── *@
                     @if (!_hideHostClub)
                     {
                         <MudStack Row="true" AlignItems="AlignItems.End" Spacing="0">
@@ -285,7 +283,6 @@ else
                         </MudTooltip>
                     </MudStack>
 
-                    @* ── 5. Dates and max participants ──────────────── *@
                     <MudGrid Spacing="2">
                         <MudItem xs="12" sm="6">
                             <MudDatePicker @bind-Date="Model.StartDateDt" Label="Start Date (optional)" DateFormat="dd/MM/yyyy" />
@@ -301,19 +298,21 @@ else
                     <MudNumericField @bind-Value="Model.MaxParticipants" Label="Max Participants (optional)"
                                      Min="2" Variant="Variant.Text" />
 
-                    @* ── 6. Split into divisions ────────────────────── *@
-                    <MudCheckBox @bind-Value="Model.HasDivisions"
-                                 Label="Split this competition into ranked divisions"
-                                 Class="mt-1" />
-                    @if (Model.HasDivisions)
-                    {
-                        <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
-                            Teams will only play others in their own division and league tables render per-division.
-                            Manage each division (plus its teams, match windows and fixtures) in the <b>Divisions</b> section further down this page.
-                        </MudText>
-                    }
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int?" Label="Min Age (optional)"
+                                             Min="1" Max="120" Variant="Variant.Text"
+                                             Value="Model.MinAge"
+                                             ValueChanged="@(v => { Model.MinAge = v; AutoGenerateName(); })" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int?" Label="Max Age (optional)"
+                                             Min="1" Max="120" Variant="Variant.Text"
+                                             Value="Model.MaxAge"
+                                             ValueChanged="@(v => { Model.MaxAge = v; AutoGenerateName(); })" />
+                        </MudItem>
+                    </MudGrid>
 
-                    @* ── 7. Match / rubber scoring ──────────────────── *@
                     <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Match / Rubber Format</MudText>
                     <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
                         For singles or doubles, controls the whole match. For TeamMatch,
@@ -358,6 +357,18 @@ else
                         </MudStack>
                     </MudRadioGroup>
 
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">League Scoring</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                        For TeamMatch competitions, sets and games aggregate across every rubber in the fixture.
+                    </MudText>
+                    <MudRadioGroup @bind-Value="Model.LeagueScoring">
+                        <MudStack Spacing="1">
+                            <MudRadio Value="LeagueScoringMode.WinPoints" Color="Color.Primary">3 points for a win, 1 for a draw</MudRadio>
+                            <MudRadio Value="LeagueScoringMode.SetsWon" Color="Color.Primary">1 point per set won</MudRadio>
+                            <MudRadio Value="LeagueScoringMode.GamesWon" Color="Color.Primary">1 point per game won</MudRadio>
+                        </MudStack>
+                    </MudRadioGroup>
+
                     @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
                     {
                         <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Rubber tie-break</MudText>
@@ -374,20 +385,6 @@ else
                         </MudRadioGroup>
                     }
 
-                    @* ── 8. League Scoring ──────────────────────────── *@
-                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">League Scoring</MudText>
-                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
-                        For TeamMatch competitions, sets and games aggregate across every rubber in the fixture.
-                    </MudText>
-                    <MudRadioGroup @bind-Value="Model.LeagueScoring">
-                        <MudStack Spacing="1">
-                            <MudRadio Value="LeagueScoringMode.WinPoints" Color="Color.Primary">3 points for a win, 1 for a draw</MudRadio>
-                            <MudRadio Value="LeagueScoringMode.SetsWon" Color="Color.Primary">1 point per set won</MudRadio>
-                            <MudRadio Value="LeagueScoringMode.GamesWon" Color="Color.Primary">1 point per game won</MudRadio>
-                        </MudStack>
-                    </MudRadioGroup>
-
-                    @* ── 9. Misc settings ───────────────────────────── *@
                     <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Minimum days between matches</MudText>
                     <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
                         Auto-scheduling will try to keep each player's matches this many days apart.
@@ -398,6 +395,17 @@ else
                                      Style="max-width: 160px" />
 
                     <MudCheckBox @bind-Value="Model.RequireVerification" Label="Require admin verification of results" Class="mt-2" />
+
+                    <MudCheckBox @bind-Value="Model.HasDivisions"
+                                 Label="Split this competition into ranked divisions"
+                                 Class="mt-1" />
+                    @if (Model.HasDivisions)
+                    {
+                        <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                            Teams will only play others in their own division and league tables render per-division.
+                            Manage each division (plus its teams, match windows and fixtures) in the <b>Divisions</b> section further down this page.
+                        </MudText>
+                    }
                 </MudStack>
 
                 @if (!string.IsNullOrWhiteSpace(_serverError))
@@ -453,7 +461,32 @@ else
                 OnOpenAddDialog="OpenAddStageDialog"
                 OnDeleteStage="DeleteStage" />
 
-            @* ── Rubber Template (TeamMatch only) ─────────────── *@
+            @* ── Match Windows (hidden when HasDivisions — per-division UI lives in the Divisions section below) *@
+            @if (!Model.HasDivisions)
+            {
+                <MatchWindowsSection
+                    Windows="_matchWindows"
+                    Courts="_courts"
+                    ClubTemplates="_clubTemplates"
+                    SelectedTemplateId="_selectedTemplateId"
+                    NewWindowDay="_newMatchWindowDay"
+                    NewWindowDayChanged="@(v => _newMatchWindowDay = v)"
+                    NewWindowCourtId="_newMatchWindowCourtId"
+                    NewWindowCourtIdChanged="@(v => _newMatchWindowCourtId = v)"
+                    NewWindowStart="_newMatchWindowStart"
+                    NewWindowStartChanged="@(v => _newMatchWindowStart = v)"
+                    NewWindowEnd="_newMatchWindowEnd"
+                    NewWindowEndChanged="@(v => _newMatchWindowEnd = v)"
+                    EditingWindowId="_editingMatchWindowId"
+                    OnAdd="AddMatchWindow"
+                    OnCancelEdit="CancelEditMatchWindow"
+                    OnCopyToForm="CopyMatchWindowToForm"
+                    OnEdit="EditMatchWindow"
+                    OnDelete="DeleteMatchWindow"
+                    OnImportFromTemplate="ImportFromTemplate" />
+            }
+
+            @* ── Rubber Template ─────────────────────────────── *@
             @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
             {
                 <RubberTemplateSection
@@ -488,31 +521,6 @@ else
                 }
             }
 
-            @* ── Match Windows (hidden when HasDivisions — per-division UI lives in the Divisions section below) *@
-            @if (!Model.HasDivisions)
-            {
-                <MatchWindowsSection
-                    Windows="_matchWindows"
-                    Courts="_courts"
-                    ClubTemplates="_clubTemplates"
-                    SelectedTemplateId="_selectedTemplateId"
-                    NewWindowDay="_newMatchWindowDay"
-                    NewWindowDayChanged="@(v => _newMatchWindowDay = v)"
-                    NewWindowCourtId="_newMatchWindowCourtId"
-                    NewWindowCourtIdChanged="@(v => _newMatchWindowCourtId = v)"
-                    NewWindowStart="_newMatchWindowStart"
-                    NewWindowStartChanged="@(v => _newMatchWindowStart = v)"
-                    NewWindowEnd="_newMatchWindowEnd"
-                    NewWindowEndChanged="@(v => _newMatchWindowEnd = v)"
-                    EditingWindowId="_editingMatchWindowId"
-                    OnAdd="AddMatchWindow"
-                    OnCancelEdit="CancelEditMatchWindow"
-                    OnCopyToForm="CopyMatchWindowToForm"
-                    OnEdit="EditMatchWindow"
-                    OnDelete="DeleteMatchWindow"
-                    OnImportFromTemplate="ImportFromTemplate" />
-            }
-
             @* ── Apply Competition Template ───────────────────── *@
             @if (_competitionTemplates.Count > 0)
             {
@@ -522,9 +530,9 @@ else
                     OnApplyTemplate="ApplyCompetitionTemplate" />
             }
         }
-}
 
-@if (_activeTabIndex == 1 && IsEdit)
+<div id="nav-anchor-roster" class="section-anchor"></div>
+@if (IsEdit)
 {
             @* ── Participants ────────────────────────────────── *@
             <MudPaper id="section-participants" Class="pa-4 mb-4 setup-section frosted-card" Elevation="0"
@@ -722,6 +730,87 @@ else
                     var teamColLabel = pFormat is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "Pair" : "Team";
                 }
 
+                @* Role-mix summary: counts FullPlayer participants per role per
+                   division so the admin sees at a glance whether the pool is
+                   balanced enough to generate teams. Validity chip is green when
+                   every role has the same count >= 1 (the team generator needs
+                   one of each role per team); amber otherwise with the missing
+                   counts spelled out. *@
+                @if (isTeamMatchFmt && _availableRoles.Count > 0)
+                {
+                    var summaryFullPlayers = _participants
+                        .Where(p => p.Status == ParticipantStatus.FullPlayer)
+                        .ToList();
+                    var summaryBuckets = Model.HasDivisions
+                        ? _divisions.OrderBy(d => d.Rank)
+                            .Select(d => ((int?)d.CompetitionDivisionId, d.Name))
+                            .ToList()
+                        : new List<(int?, string)> { (null, "All participants") };
+                    if (Model.HasDivisions && summaryFullPlayers.Any(p => p.CompetitionDivisionId is null))
+                    {
+                        summaryBuckets.Add((null, "No division"));
+                    }
+                    <MudPaper Class="pa-3 mb-3" Elevation="0"
+                              Style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Pool by role</MudText>
+                        <MudStack Spacing="2">
+                            @foreach (var (bucketDivId, bucketName) in summaryBuckets)
+                            {
+                                var bucketPlayers = summaryFullPlayers
+                                    .Where(p => p.CompetitionDivisionId == bucketDivId)
+                                    .ToList();
+                                var bucketCounts = _availableRoles
+                                    .Select(r => (Role: r, Count: bucketPlayers.Count(p => string.Equals(p.Role, r, StringComparison.Ordinal))))
+                                    .ToList();
+                                var bucketNoRole = bucketPlayers.Count(p => string.IsNullOrEmpty(p.Role));
+                                var bucketAllZero = bucketCounts.All(rc => rc.Count == 0);
+                                var bucketMax = bucketCounts.Max(rc => rc.Count);
+                                var bucketAllEqual = !bucketAllZero && bucketCounts.All(rc => rc.Count == bucketMax);
+
+                                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="flex-wrap: wrap;">
+                                    <MudText Typo="Typo.body2" Style="min-width:110px; font-weight:500;">@bucketName</MudText>
+                                    @foreach (var (role, count) in bucketCounts)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                                            @role × @count
+                                        </MudChip>
+                                    }
+                                    @if (bucketAllZero)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                                            No full players yet
+                                        </MudChip>
+                                    }
+                                    else if (bucketAllEqual)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                                 Icon="@Icons.Material.Filled.CheckCircle">
+                                            @bucketMax team@(bucketMax == 1 ? "" : "s") possible
+                                        </MudChip>
+                                    }
+                                    else
+                                    {
+                                        var bucketShortages = bucketCounts
+                                            .Where(rc => rc.Count < bucketMax)
+                                            .Select(rc => $"{bucketMax - rc.Count} more {rc.Role}")
+                                            .ToList();
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
+                                                 Icon="@Icons.Material.Filled.Warning">
+                                            Imbalanced — needs @string.Join(", ", bucketShortages)
+                                        </MudChip>
+                                    }
+                                    @if (bucketNoRole > 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Style="opacity:0.75;">
+                                            @bucketNoRole without role
+                                        </MudText>
+                                    }
+                                </MudStack>
+                            }
+                        </MudStack>
+                    </MudPaper>
+                }
+
                 <MudStack Row="true" Spacing="2" Class="mb-2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
                     <MudTextField T="string" @bind-Value="_participantSearch" DebounceInterval="150"
                                   Placeholder="Search player / team / role / division"
@@ -737,29 +826,39 @@ else
                             <MudSelectItem T="ParticipantStatus" Value="@s">@ParticipantStatusLabel(s)</MudSelectItem>
                         }
                     </MudSelect>
+                    @* Each multi-select carries an "(Unassigned)" option so the admin can
+                       isolate participants missing a team / sex / role / division. Filter
+                       set element types are nullable so null is the natural sentinel — the
+                       Role filter sticks with empty-string instead because Role is itself
+                       a nullable string already coerced via `cp.Role ?? ""`. *@
                     @if (hasTeamCol)
                     {
-                        <MudSelect T="int" MultiSelection="true" @bind-SelectedValues="_filterTeamIds"
+                        <MudSelect T="int?" MultiSelection="true" @bind-SelectedValues="_filterTeamIds"
                                    Label="@teamColLabel" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
-                                   ToStringFunc="@(id => _teams.FirstOrDefault(t => t.CompetitionTeamId == id)?.Name ?? id.ToString())"
+                                   ToStringFunc="@(id => id.HasValue ? (_teams.FirstOrDefault(t => t.CompetitionTeamId == id.Value)?.Name ?? id.Value.ToString()) : "(Unassigned)")"
                                    Style="min-width:160px">
+                            <MudSelectItem T="int?" Value="@((int?)null)">(Unassigned)</MudSelectItem>
                             @foreach (var t in _teams)
                             {
-                                <MudSelectItem T="int" Value="@t.CompetitionTeamId">@t.Name</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
                             }
                         </MudSelect>
                     }
                     @if (isTeamMatchFmt)
                     {
-                        <MudSelect T="PlayerSex" MultiSelection="true" @bind-SelectedValues="_filterSexes"
+                        <MudSelect T="PlayerSex?" MultiSelection="true" @bind-SelectedValues="_filterSexes"
                                    Label="Sex" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   ToStringFunc="@(s => s?.ToString() ?? "(Unassigned)")"
                                    Style="min-width:120px">
-                            <MudSelectItem T="PlayerSex" Value="@PlayerSex.Male">Male</MudSelectItem>
-                            <MudSelectItem T="PlayerSex" Value="@PlayerSex.Female">Female</MudSelectItem>
+                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)null)">(Unassigned)</MudSelectItem>
+                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Male)">Male</MudSelectItem>
+                            <MudSelectItem T="PlayerSex?" Value="@((PlayerSex?)PlayerSex.Female)">Female</MudSelectItem>
                         </MudSelect>
                         <MudSelect T="string" MultiSelection="true" @bind-SelectedValues="_filterRoles"
                                    Label="Role" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   ToStringFunc="@(r => string.IsNullOrEmpty(r) ? "(Unassigned)" : r)"
                                    Style="min-width:130px">
+                            <MudSelectItem T="string" Value="@("")">(Unassigned)</MudSelectItem>
                             @foreach (var r in _availableRoles)
                             {
                                 <MudSelectItem T="string" Value="@r">@r</MudSelectItem>
@@ -768,18 +867,35 @@ else
                     }
                     @if (Model.HasDivisions)
                     {
-                        <MudSelect T="int" MultiSelection="true" @bind-SelectedValues="_filterDivisionIds"
+                        <MudSelect T="int?" MultiSelection="true" @bind-SelectedValues="_filterDivisionIds"
                                    Label="Division" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
-                                   ToStringFunc="@(id => _divisions.FirstOrDefault(d => d.CompetitionDivisionId == id)?.Name ?? id.ToString())"
+                                   ToStringFunc="@(id => id.HasValue ? (_divisions.FirstOrDefault(d => d.CompetitionDivisionId == id.Value)?.Name ?? id.Value.ToString()) : "(Unassigned)")"
                                    Style="min-width:160px">
+                            <MudSelectItem T="int?" Value="@((int?)null)">(Unassigned)</MudSelectItem>
                             @foreach (var d in _divisions)
                             {
-                                <MudSelectItem T="int" Value="@d.CompetitionDivisionId">@d.Name</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
                             }
                         </MudSelect>
                     }
                     <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FilterAltOff"
                                OnClick="ClearParticipantFilters">Clear</MudButton>
+                    @if (_participants.Any(p => p.RatingSuggestion is not null))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                   OnClick="AcceptAllParticipantRatings">
+                            Apply all rating suggestions
+                        </MudButton>
+                    }
+                    @if (_participants.Any(p => p.PlacementSuggestion is not null))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.GridOn"
+                                   OnClick="ApplyAllPlacements">
+                            Apply all placement suggestions
+                        </MudButton>
+                    }
                 </MudStack>
 
                 <MudTable T="CompetitionParticipantDto" Items="@_participants" Dense="true" Hover="true"
@@ -788,6 +904,7 @@ else
                         <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => x.DisplayName)">Player</MudTableSortLabel></MudTh>
                         <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => x.Status)">Status</MudTableSortLabel></MudTh>
                         <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => x.RegisteredAt)">Registered</MudTableSortLabel></MudTh>
+                        <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => x.Rating?.CurrentRating ?? double.MinValue)">Rating</MudTableSortLabel></MudTh>
                         @if (hasTeamCol)
                         {
                             <MudTh><MudTableSortLabel T="CompetitionParticipantDto" SortBy="@(x => _teams.FirstOrDefault(t => t.CompetitionTeamId == x.TeamId)?.Name ?? "")">@teamColLabel</MudTableSortLabel></MudTh>
@@ -816,6 +933,45 @@ else
                             </MudSelect>
                         </MudTd>
                         <MudTd>@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
+                        <MudTd>
+                            @{
+                                var displayedRating = context.Rating is { } r
+                                    ? (int)Math.Round(r.CurrentRating)
+                                    : DefaultStartingRating;
+                                var isDefaultDisplay = context.Rating is null;
+                                var isProvisional = context.Rating?.IsProvisional ?? false;
+                            }
+                            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                <MudNumericField T="int?"
+                                                 Value="@((int?)displayedRating)"
+                                                 ValueChanged="@((int? v) => SetParticipantInitialRating(context, v))"
+                                                 Min="0" Max="4000" Step="10"
+                                                 Variant="Variant.Text" Margin="Margin.Dense" HideSpinButtons="true"
+                                                 Style="max-width: 80px;" />
+                                @if ((isDefaultDisplay || isProvisional) && context.RatingSuggestion is null)
+                                {
+                                    <MudTooltip Text="@(isDefaultDisplay
+                                        ? "Default starting rating (1500). Type a number to set the initial rating for this player."
+                                        : "Provisional rating — fewer than 10 completed rubbers.")">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">prov</MudChip>
+                                    </MudTooltip>
+                                }
+                                @if (context.RatingSuggestion is { } sug)
+                                {
+                                    var up = sug.Delta > 0;
+                                    var down = sug.Delta < 0;
+                                    var arrow = up ? "↑" : down ? "↓" : "→";
+                                    var color = up ? Color.Success : down ? Color.Error : Color.Default;
+                                    <MudTooltip Text="@($"Suggested from previous season — {sug.RubbersPlayed} rubber(s) played. Click Apply to lock in {sug.SuggestedRating:0}.")">
+                                        <MudChip T="string" Size="Size.Small" Color="@color" Variant="Variant.Outlined">
+                                            @arrow @sug.SuggestedRating.ToString("0") (@((sug.Delta >= 0 ? "+" : "") + sug.Delta.ToString("0")))
+                                        </MudChip>
+                                    </MudTooltip>
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                               OnClick="@(() => AcceptParticipantRating(context))">Apply</MudButton>
+                                }
+                            </MudStack>
+                        </MudTd>
                         @if (hasTeamCol)
                         {
                             <MudTd>
@@ -833,27 +989,71 @@ else
                         {
                             <MudTd>@(context.Sex?.ToString() ?? "—")</MudTd>
                             <MudTd>
-                                <MudAutocomplete T="string" Value="context.Role" Dense="true" Variant="Variant.Text"
-                                                 Clearable="true" CoerceValue="true"
-                                                 SearchFunc="SearchRoles"
-                                                 ValueChanged="@((string? r) => AssignRole(context, r))"
-                                                 ShowProgressIndicator="false" DebounceInterval="0" />
+                                <MudStack Row="false" Spacing="0">
+                                    <MudAutocomplete T="string" Value="context.Role" Dense="true" Variant="Variant.Text"
+                                                     Clearable="true" CoerceValue="true"
+                                                     SearchFunc="SearchRoles"
+                                                     ValueChanged="@((string? r) => AssignRole(context, r))"
+                                                     ShowProgressIndicator="false" DebounceInterval="0" />
+                                    @if (context.PlacementSuggestion is { SuggestedRole: { } sr } && sr != context.Role)
+                                    {
+                                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                                → @sr
+                                            </MudChip>
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                                       OnClick="@(() => ApplyRolePlacement(context))">Apply</MudButton>
+                                        </MudStack>
+                                    }
+                                </MudStack>
                             </MudTd>
                         }
                         @if (Model.HasDivisions)
                         {
                             <MudTd>
-                                <MudSelect T="int?" Value="context.CompetitionDivisionId" Dense="true" Variant="Variant.Text"
-                                           Clearable="true"
-                                           ValueChanged="@((int? did) => AssignParticipantDivision(context, did))">
-                                    @foreach (var d in _divisions)
+                                <MudStack Row="false" Spacing="0">
+                                    <MudSelect T="int?" Value="context.CompetitionDivisionId" Dense="true" Variant="Variant.Text"
+                                               Clearable="true"
+                                               ValueChanged="@((int? did) => AssignParticipantDivision(context, did))">
+                                        @foreach (var d in _divisions)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                    @if (context.PlacementSuggestion is { SuggestedDivisionId: { } sdid } && sdid != context.CompetitionDivisionId)
                                     {
-                                        <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                                → @context.PlacementSuggestion.SuggestedDivisionName
+                                            </MudChip>
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                                       OnClick="@(() => ApplyDivisionPlacement(context))">Apply</MudButton>
+                                        </MudStack>
                                     }
-                                </MudSelect>
+                                </MudStack>
                             </MudTd>
                         }
                         <MudTd>
+                            @* Promote / demote walks the (division, role) ladder built in
+                               GetPromotionTarget. TeamMatch-only because that's the only
+                               format where participants carry roles. *@
+                            @if (isTeamMatchFmt)
+                            {
+                                var rowPromote = GetPromotionTarget(context, +1);
+                                var rowDemote = GetPromotionTarget(context, -1);
+                                <MudTooltip Text="@(rowPromote is {} p ? $"Promote to {DescribeLadderPos(p.DivisionId, p.Role)}" : "Already at top of ladder")">
+                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardDoubleArrowUp" Size="Size.Small"
+                                                   Color="Color.Success"
+                                                   Disabled="@(rowPromote is null)"
+                                                   OnClick="@(() => PromoteParticipantAsync(context, +1))" />
+                                </MudTooltip>
+                                <MudTooltip Text="@(rowDemote is {} d ? $"Demote to {DescribeLadderPos(d.DivisionId, d.Role)}" : "Already at bottom of ladder")">
+                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardDoubleArrowDown" Size="Size.Small"
+                                                   Color="Color.Default"
+                                                   Disabled="@(rowDemote is null)"
+                                                   OnClick="@(() => PromoteParticipantAsync(context, -1))" />
+                                </MudTooltip>
+                            }
                             @* Light-player edit chip — DTO doesn't surface IsLight, so always show.
                                Server-side SaveLightPlayerAsync rejects non-light players. *@
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
@@ -902,7 +1102,10 @@ else
                     OnSaveDivision="SaveDivisionDialog"
                     OnStartInlineEditDivision="StartInlineEditDivision"
                     OnCancelInlineEditDivision="CancelInlineEditDivision"
-                    OnDeleteDivision="DeleteDivision"
+                    OnDeleteDivision="RequestDeleteDivision"
+                    PendingDeleteDivisionId="_pendingDeleteDivisionId"
+                    OnConfirmDeleteDivision="ConfirmDeleteDivision"
+                    OnCancelDeleteDivision="CancelDeleteDivision"
                     OnOpenSeedDivisionsDialog="OpenSeedDivisionsDialog"
                     OnRunSeedDivisions="RunSeedDivisions"
                     OnOpenGenerateDialog="OpenGenerateDialog"
@@ -944,7 +1147,8 @@ else
             }
 }
 
-@if (_activeTabIndex == 2 && IsEdit)
+<div id="nav-anchor-fixtures" class="section-anchor"></div>
+@if (IsEdit)
 {
             @if (!Model.HasDivisions)
             {
@@ -984,8 +1188,12 @@ else
                 @* ── Divisional fixtures: scheduling controls + per-division grouping ─────── *@
                 <MudPaper Class="pa-4 mb-4 setup-section" Elevation="0"
                      Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
-                        <MudText Typo="Typo.h6" Style="flex:1">Fixtures/Results</MudText>
+                    @* Title sits on its own row and each action button drops onto its
+                       own line below it (mirrors FixturesSection.razor for the
+                       non-divisions branch). AlignItems.Start keeps each button at
+                       its natural content width. *@
+                    <MudStack Spacing="2" AlignItems="AlignItems.Start" Class="mb-3">
+                        <MudText Typo="Typo.h6">Fixtures/Results</MudText>
                         @if (_isSuperAdmin && _stages.Any(s => s.StageType == StageType.RoundRobin))
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary"
@@ -1481,6 +1689,14 @@ else
                 }
             }
 
+            @if (!string.IsNullOrEmpty(_generateError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" ShowCloseIcon="true"
+                          CloseIconClicked="@(() => _generateError = null)">
+                    @_generateError
+                </MudAlert>
+            }
+
             @if (_generateWarnings.Count > 0)
             {
                 <MudAlert Severity="Severity.Warning" Dense="true">
@@ -1490,6 +1706,38 @@ else
                             <MudText Typo="Typo.body2">@w</MudText>
                         }
                     </MudStack>
+                </MudAlert>
+            }
+
+            @* Regenerating teams replaces the current team pool, which invalidates
+               any fixtures that reference the old teams via HomeTeamId / AwayTeamId.
+               Surface the impact before the admin clicks Create so completed
+               results aren't deleted by surprise. *@
+            @{
+                var teamFixtureCount = _fixtures.Count(f => f.HomeTeamId.HasValue || f.AwayTeamId.HasValue);
+                var completedTeamFixtureCount = _fixtures.Count(f =>
+                    (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+                    && f.Status is FixtureStatus.Completed or FixtureStatus.AwaitingVerification);
+            }
+            @if (teamFixtureCount > 0)
+            {
+                <MudAlert Severity="@(completedTeamFixtureCount > 0 ? Severity.Warning : Severity.Info)" Dense="true">
+                    @if (completedTeamFixtureCount > 0)
+                    {
+                        <text>
+                            <b>@completedTeamFixtureCount completed</b> of @teamFixtureCount existing
+                            team fixture@(teamFixtureCount == 1 ? "" : "s") will be deleted —
+                            <b>this wipes the recorded results</b>. Continue only if you intend to
+                            start scoring from scratch.
+                        </text>
+                    }
+                    else
+                    {
+                        <text>
+                            @teamFixtureCount existing team fixture@(teamFixtureCount == 1 ? "" : "s")
+                            will be deleted when the new teams are created.
+                        </text>
+                    }
                 </MudAlert>
             }
 
@@ -1676,6 +1924,23 @@ else
     private bool _isStarted;
     private int _activeTabIndex;
 
+    // Section-nav chips no longer hide/show sections — every section renders
+    // at once and clicking a chip smooth-scrolls its anchor div into view.
+    // _activeTabIndex still drives the chip's filled/outlined highlight so
+    // users see which section they last navigated to.
+    //
+    // Why JS measures the sticky band live instead of using CSS
+    // `scroll-margin-top`: the sticky header height varies (mobile splits the
+    // band into two stacked cards; long competition titles wrap; the role
+    // banner pushes everything down). A live measurement keeps the landed
+    // section flush below the band on every layout.
+    private async Task ScrollToSectionAsync(int idx, string anchorId)
+    {
+        _activeTabIndex = idx;
+        await JS.InvokeVoidAsync("eval",
+            $"(()=>{{const a=document.getElementById('{anchorId}');if(!a)return;const s=document.querySelector('.competition-sticky-header');const o=s?s.getBoundingClientRect().bottom:0;window.scrollTo({{top:a.getBoundingClientRect().top+window.scrollY-o-12,behavior:'smooth'}});}})()");
+    }
+
     private CompetitionFormModel Model { get; set; } = new();
 
     private List<ClubDto> _clubs = [];
@@ -1695,18 +1960,25 @@ else
     // when their value is in every active set (empty set = filter inactive).
     private string? _participantSearch;
     private IReadOnlyCollection<ParticipantStatus> _filterStatuses = new HashSet<ParticipantStatus>();
-    private IReadOnlyCollection<int> _filterTeamIds = new HashSet<int>();
-    private IReadOnlyCollection<PlayerSex> _filterSexes = new HashSet<PlayerSex>();
+    // Nullable element types let null act as the "(Unassigned)" sentinel — selecting it
+    // matches participants whose corresponding field is null. Role keeps a non-nullable
+    // string set because the existing filter coerces `cp.Role ?? ""` and we use "" as the
+    // unassigned sentinel there.
+    private IReadOnlyCollection<int?> _filterTeamIds = new HashSet<int?>();
+    private IReadOnlyCollection<PlayerSex?> _filterSexes = new HashSet<PlayerSex?>();
     private IReadOnlyCollection<string> _filterRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    private IReadOnlyCollection<int> _filterDivisionIds = new HashSet<int>();
+    private IReadOnlyCollection<int?> _filterDivisionIds = new HashSet<int?>();
 
     private bool FilterParticipant(CompetitionParticipantDto cp)
     {
         if (_filterStatuses.Any() && !_filterStatuses.Contains(cp.Status)) return false;
-        if (_filterTeamIds.Any() && (cp.TeamId is null || !_filterTeamIds.Contains(cp.TeamId.Value))) return false;
-        if (_filterSexes.Any() && (cp.Sex is null || !_filterSexes.Contains(cp.Sex.Value))) return false;
+        // Nullable filter sets let `Contains(cp.Field)` work for both populated values
+        // and null — selecting the "(Unassigned)" option in the UI puts null in the set
+        // and matches participants whose field is null.
+        if (_filterTeamIds.Any() && !_filterTeamIds.Contains(cp.TeamId)) return false;
+        if (_filterSexes.Any() && !_filterSexes.Contains(cp.Sex)) return false;
         if (_filterRoles.Any() && !_filterRoles.Contains(cp.Role ?? "", StringComparer.OrdinalIgnoreCase)) return false;
-        if (_filterDivisionIds.Any() && (cp.CompetitionDivisionId is null || !_filterDivisionIds.Contains(cp.CompetitionDivisionId.Value))) return false;
+        if (_filterDivisionIds.Any() && !_filterDivisionIds.Contains(cp.CompetitionDivisionId)) return false;
 
         if (!string.IsNullOrWhiteSpace(_participantSearch))
         {
@@ -1729,10 +2001,10 @@ else
     {
         _participantSearch = null;
         _filterStatuses = new HashSet<ParticipantStatus>();
-        _filterTeamIds = new HashSet<int>();
-        _filterSexes = new HashSet<PlayerSex>();
+        _filterTeamIds = new HashSet<int?>();
+        _filterSexes = new HashSet<PlayerSex?>();
         _filterRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        _filterDivisionIds = new HashSet<int>();
+        _filterDivisionIds = new HashSet<int?>();
     }
 
     // Division form state — inline add at the top of the Divisions section
@@ -1743,8 +2015,8 @@ else
     private bool _addingDivision;
     private int? _inlineEditDivisionId;
 
-    // Add-participant status selector. Defaults to FullPlayer so simulating /
-    // populating a roster lands players ready for team generation.
+    // Add-participant status selector. Defaults to FullPlayer so a newly
+    // populated roster is immediately eligible for team generation.
     private ParticipantStatus _addParticipantStatus = ParticipantStatus.FullPlayer;
 
     // Clone competition dialog state
@@ -1796,22 +2068,6 @@ else
     private bool _showSeedConfirm;
     private bool _simulating;
 
-    // ── Bulk-add dialog ──────────────────────────────────────────────────────
-    private bool _showBulkAddDialog;
-    private bool _bulkAddLoading;
-    private bool _bulkAddSubmitting;
-    private string _bulkAddSearch = "";
-    private PlayerSex? _bulkAddSexFilter;
-    private ParticipantStatus _bulkAddStatus = ParticipantStatus.FullPlayer;
-    private List<PlayerSearchResultDto> _bulkAddCandidates = new();
-    private HashSet<PlayerSearchResultDto> _bulkAddSelected = new();
-
-    private IEnumerable<PlayerSearchResultDto> FilteredBulkAddCandidates =>
-        _bulkAddCandidates.Where(p =>
-            (string.IsNullOrWhiteSpace(_bulkAddSearch)
-                || p.DisplayName.Contains(_bulkAddSearch, StringComparison.OrdinalIgnoreCase))
-            && (!_bulkAddSexFilter.HasValue || p.Sex == _bulkAddSexFilter));
-
     // Fixture dialog
     private bool _showFixtureDialog;
     private CompetitionFixtureDto? _editingFixture;
@@ -1822,12 +2078,18 @@ else
     private CompetitionTeamDto? _editingTeam;
     private string _teamName = "";
     private bool _showDeleteAllTeamsConfirm;
+    private int? _pendingDeleteDivisionId;
 
     // Auto-generate teams/pairings dialog
     private bool _showGenerateDialog;
     private int _generateTeamSize = 4;
     private bool _generateGenderBalance = true;
     private List<string> _generateWarnings = [];
+    // Surfaced inline inside the generate dialog so failure messages stay
+    // visible — the SiteAlertHost banner is covered by the dialog's modal
+    // overlay, which made the previous "create teams failed" alert
+    // invisible to the user.
+    private string? _generateError;
     private List<GeneratedTeamPreviewDto> _generatedPreview = [];
     private bool _generating;
 
@@ -1873,6 +2135,42 @@ else
     private string _newEventDescription = "";
     private DateTime? _newEventStartDate;
     private DateTime? _newEventEndDate;
+
+    public sealed class CompetitionFormModel
+    {
+        [Required(ErrorMessage = "Competition name is required!")]
+        [StringLength(200, ErrorMessage = "Name must be 200 characters or fewer.")]
+        public string CompetitionName { get; set; } = "";
+        public CompetitionCategoryUi? Category { get; set; }
+        public CompetitionFormatUi? Format { get; set; }
+        public int? MaxParticipants { get; set; }
+        public DateTime? StartDateDt { get; set; }
+        public DateTime? EndDateDt { get; set; }
+        public DateTime? RegisterByDateDt { get; set; }
+        public int? MaxAge { get; set; }
+        public int? MinAge { get; set; }
+        public int? HostClubId { get; set; }
+        public int? RulesSetId { get; set; }
+        public int? EventId { get; set; }
+        public int BestOf { get; set; } = 3;
+        public bool RequireVerification { get; set; } = false;
+        public int? TeamSize { get; set; }
+        public MatchFormatType MatchFormat { get; set; } = MatchFormatType.BestOf;
+        public int NumberOfSets { get; set; } = 3;
+        public int GamesPerSet { get; set; } = 6;
+        public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
+        public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
+        public DropShot.Shared.RubberTieBreakMode RubberTieBreak { get; set; } = DropShot.Shared.RubberTieBreakMode.AdminDecides;
+        public int? MinDaysBetweenPlayerMatches { get; set; }
+        public bool HasDivisions { get; set; }
+        public int? SeededFromCompetitionId { get; set; }
+    }
+
+    // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the
+    // dropdown (Singles/Doubles/Team). The persisted CompetitionFormat + EligibleSex pair is
+    // derived from these two on save; see EffectivePersistedFormat / EffectiveEligibleSex.
+    public enum CompetitionCategoryUi { Male, Female, Mixed }
+    public enum CompetitionFormatUi { Singles, Doubles, Team }
 
     private static IEnumerable<CompetitionFormatUi> AllowedFormats(CompetitionCategoryUi? category) =>
         category == CompetitionCategoryUi.Mixed
@@ -2175,7 +2473,7 @@ else
                 _templateWindowsApplied = false;
             }
 
-            Snackbar.Add("Competition saved.", Severity.Success);
+            SiteAlerts.Add("Competition saved.", Severity.Success);
         }
         catch (InvalidOperationException ex) { _serverError = ex.Message; }
         catch (Exception ex) { _serverError = ex.Message; }
@@ -2192,7 +2490,7 @@ else
     private async Task ToggleStartedAsync()
     {
         _isStarted = await Admin.ToggleStartedAsync(Id);
-        Snackbar.Add(_isStarted ? "Competition started." : "Competition stopped.", Severity.Success);
+        SiteAlerts.Add(_isStarted ? "Competition started." : "Competition stopped.", Severity.Success);
     }
 
     // ── Add New Entity Helpers ─────────────────────────────────────────────
@@ -2206,7 +2504,7 @@ else
     private void SaveNewClub()
     {
         _showAddClubDialog = false;
-        Snackbar.Add("Adding clubs from this page is no longer supported — use Admin → Clubs.", Severity.Warning);
+        SiteAlerts.Add("Adding clubs from this page is no longer supported — use Admin → Clubs.", Severity.Warning);
     }
 
     private async Task OnHostClubChanged(int? clubId)
@@ -2263,7 +2561,7 @@ else
         // Defensive: + button is gated on HostClubId so this should always pass.
         if (Model.HostClubId is null)
         {
-            Snackbar.Add("Select a host club first — rules sets are club-scoped.", Severity.Warning);
+            SiteAlerts.Add("Select a host club first — rules sets are club-scoped.", Severity.Warning);
             return;
         }
 
@@ -2307,7 +2605,7 @@ else
     private void SaveNewEvent()
     {
         _showAddEventDialog = false;
-        Snackbar.Add("Adding events from this page is no longer supported — use Admin → Events.", Severity.Warning);
+        SiteAlerts.Add("Adding events from this page is no longer supported — use Admin → Events.", Severity.Warning);
     }
 
     private void AutoGenerateName()
@@ -2369,7 +2667,7 @@ else
         var available = GetAvailableStageTypes();
         if (available.Count == 0)
         {
-            Snackbar.Add("All stage types have been added.", Severity.Info);
+            SiteAlerts.Add("All stage types have been added.", Severity.Info);
             return;
         }
         _stageForm = new StageForm { StageType = available[0] };
@@ -2382,7 +2680,7 @@ else
         await ReloadAfterServerMutationAsync();
         _showStageDialog = false;
         var addedOrder = _stages.FirstOrDefault(s => s.StageType == _stageForm.StageType)?.StageOrder ?? 0;
-        Snackbar.Add("Stage added.", Severity.Success);
+        SiteAlerts.Add("Stage added.", Severity.Success);
         OfferFollowOnStages(_stageForm.StageType, addedOrder);
     }
 
@@ -2468,7 +2766,7 @@ else
         await Admin.ApplyStageFollowUpAsync(Id, new ApplyStageFollowUpRequest(stages.Select(s => s.Type).ToList()));
         await ReloadAfterServerMutationAsync();
         _showStageFollowUpDialog = false;
-        Snackbar.Add($"{stages.Count} stage(s) added.", Severity.Success);
+        SiteAlerts.Add($"{stages.Count} stage(s) added.", Severity.Success);
     }
 
     private async Task DeleteStage(CompetitionStageDto stage)
@@ -2477,7 +2775,7 @@ else
         // mutation surface is ApplyStageFollowUp (additive). Until that
         // changes, surface a snackbar — admin needs to delete via DB.
         await Task.CompletedTask;
-        Snackbar.Add($"Stage delete is not yet wired into the admin service.", Severity.Warning);
+        SiteAlerts.Add($"Stage delete is not yet wired into the admin service.", Severity.Warning);
     }
 
     // ── Participants ─────────────────────────────────────────────────────────
@@ -2515,6 +2813,83 @@ else
         _showNewPlayerDialog = true;
     }
 
+    // Display-side mirror of PlayerRatingService.DefaultRating — used when a
+    // participant has no recorded rating, so the roster cell shows 1500 with a
+    // "prov" chip rather than a blank field. Server-side default lives on
+    // PlayerRatingService and is the source of truth for math/persistence.
+    private const int DefaultStartingRating = 1500;
+
+    // ── Bulk-add dialog ──────────────────────────────────────────────────────
+    private bool _showBulkAddDialog;
+    private bool _bulkAddLoading;
+    private bool _bulkAddSubmitting;
+    private string _bulkAddSearch = "";
+    private PlayerSex? _bulkAddSexFilter;
+    private ParticipantStatus _bulkAddStatus = ParticipantStatus.FullPlayer;
+    private List<PlayerSearchResultDto> _bulkAddCandidates = new();
+    private HashSet<PlayerSearchResultDto> _bulkAddSelected = new();
+
+    private IEnumerable<PlayerSearchResultDto> FilteredBulkAddCandidates =>
+        _bulkAddCandidates.Where(p =>
+            (string.IsNullOrWhiteSpace(_bulkAddSearch)
+                || p.DisplayName.Contains(_bulkAddSearch, StringComparison.OrdinalIgnoreCase))
+            && (!_bulkAddSexFilter.HasValue || p.Sex == _bulkAddSexFilter));
+
+    private async Task OpenBulkAddDialog()
+    {
+        _bulkAddSearch = "";
+        _bulkAddSexFilter = null;
+        _bulkAddStatus = ParticipantStatus.FullPlayer;
+        _bulkAddSelected = new();
+        _showBulkAddDialog = true;
+        _bulkAddLoading = true;
+        try
+        {
+            // Empty query + generous cap returns every eligible, not-yet-enrolled
+            // player. The server still applies club-scope and eligibility filters.
+            var results = await Admin.SearchPlayersAsync(Id, new SearchPlayersForAddRequest(
+                Query: "", HostClubId: Model.HostClubId, MaxResults: 500));
+            _bulkAddCandidates = results
+                .OrderBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add($"Failed to load player list: {ex.Message}", Severity.Error);
+            _bulkAddCandidates = new();
+        }
+        finally
+        {
+            _bulkAddLoading = false;
+        }
+    }
+
+    private async Task ConfirmBulkAddAsync()
+    {
+        if (_bulkAddSelected.Count == 0) return;
+        _bulkAddSubmitting = true;
+        try
+        {
+            var playerIds = _bulkAddSelected.Select(p => p.PlayerId).ToList();
+            var result = await Admin.BulkAddParticipantsAsync(Id,
+                new BulkAddParticipantsRequest(playerIds, _bulkAddStatus));
+            _showBulkAddDialog = false;
+            await ReloadAfterServerMutationAsync();
+            var msg = result.Skipped > 0
+                ? $"Added {result.Added} player{(result.Added == 1 ? "" : "s")} ({result.Skipped} skipped)."
+                : $"Added {result.Added} player{(result.Added == 1 ? "" : "s")}.";
+            SiteAlerts.Add(msg, Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add($"Failed to add players: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _bulkAddSubmitting = false;
+        }
+    }
+
     private void OpenEditLightPlayerDialog(CompetitionParticipantDto cp)
     {
         _editingLightPlayerId = cp.PlayerId;
@@ -2546,7 +2921,7 @@ else
 
         await ReloadAfterServerMutationAsync();
         _showNewPlayerDialog = false;
-        Snackbar.Add("Player updated.", Severity.Success);
+        SiteAlerts.Add("Player updated.", Severity.Success);
     }
 
     private async Task CreateAndAddClubPlayer()
@@ -2565,7 +2940,7 @@ else
 
         await ReloadAfterServerMutationAsync();
         _showNewPlayerDialog = false;
-        Snackbar.Add($"{_newPlayerForm.DisplayName} added to club and competition.", Severity.Success);
+        SiteAlerts.Add($"{_newPlayerForm.DisplayName} added to club and competition.", Severity.Success);
     }
 
     private async Task AddParticipant(PlayerSearchResultDto? player)
@@ -2574,7 +2949,7 @@ else
 
         if (Model.MaxParticipants.HasValue && _participants.Count >= Model.MaxParticipants.Value)
         {
-            Snackbar.Add($"Maximum of {Model.MaxParticipants.Value} participants reached.", Severity.Warning);
+            SiteAlerts.Add($"Maximum of {Model.MaxParticipants.Value} participants reached.", Severity.Warning);
             if (_participantAutocomplete != null)
                 await _participantAutocomplete.ClearAsync();
             return;
@@ -2610,7 +2985,7 @@ else
             new UpdateParticipantStatusRequest(_addParticipantStatus));
 
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add($"{player.DisplayName} added as {ParticipantStatusLabel(_addParticipantStatus)}.", Severity.Success);
+        SiteAlerts.Add($"{player.DisplayName} added as {ParticipantStatusLabel(_addParticipantStatus)}.", Severity.Success);
         if (_participantAutocomplete != null)
             await _participantAutocomplete.ClearAsync();
     }
@@ -2626,7 +3001,7 @@ else
     {
         await Admin.RemoveParticipantAsync(Id, cp.PlayerId);
         _participants.Remove(cp);
-        Snackbar.Add("Participant removed.", Severity.Warning);
+        SiteAlerts.Add("Participant removed.", Severity.Warning);
     }
 
     private async Task DeleteAllParticipants()
@@ -2638,62 +3013,7 @@ else
             await Admin.RemoveParticipantAsync(Id, cp.PlayerId);
         }
         _participants.Clear();
-        Snackbar.Add($"{count} participant(s) removed.", Severity.Warning);
-    }
-
-    private async Task OpenBulkAddDialog()
-    {
-        _bulkAddSearch = "";
-        _bulkAddSexFilter = null;
-        _bulkAddStatus = ParticipantStatus.FullPlayer;
-        _bulkAddSelected = new();
-        _showBulkAddDialog = true;
-        _bulkAddLoading = true;
-        try
-        {
-            // Empty query + generous cap returns every eligible, not-yet-enrolled
-            // player. The server still applies club-scope and eligibility filters.
-            var results = await Admin.SearchPlayersAsync(Id, new SearchPlayersForAddRequest(
-                Query: "", HostClubId: Model.HostClubId, MaxResults: 500));
-            _bulkAddCandidates = results
-                .OrderBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Failed to load player list: {ex.Message}", Severity.Error);
-            _bulkAddCandidates = new();
-        }
-        finally
-        {
-            _bulkAddLoading = false;
-        }
-    }
-
-    private async Task ConfirmBulkAddAsync()
-    {
-        if (_bulkAddSelected.Count == 0) return;
-        _bulkAddSubmitting = true;
-        try
-        {
-            var playerIds = _bulkAddSelected.Select(p => p.PlayerId).ToList();
-            var result = await Admin.BulkAddParticipantsAsync(Id,
-                new BulkAddParticipantsRequest(playerIds, _bulkAddStatus));
-            _showBulkAddDialog = false;
-            await ReloadAfterServerMutationAsync();
-            var msg = result.Skipped > 0
-                ? $"Added {result.Added} player{(result.Added == 1 ? "" : "s")} ({result.Skipped} skipped)."
-                : $"Added {result.Added} player{(result.Added == 1 ? "" : "s")}.";
-            Snackbar.Add(msg, Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Failed to add players: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _bulkAddSubmitting = false;
-        }
+        SiteAlerts.Add($"{count} participant(s) removed.", Severity.Warning);
     }
 
     // Computes how many male/female club players are needed to fill 7 teams per
@@ -2722,17 +3042,17 @@ else
         if (_simulating) return;
         if (!_isSuperAdmin)
         {
-            Snackbar.Add("Only super admins can simulate participant selection.", Severity.Warning);
+            SiteAlerts.Add("Only super admins can simulate participant selection.", Severity.Warning);
             return;
         }
         if (!Model.HostClubId.HasValue)
         {
-            Snackbar.Add("Competition must have a host club before simulating.", Severity.Warning);
+            SiteAlerts.Add("Competition must have a host club before simulating.", Severity.Warning);
             return;
         }
         if (_divisions.Count == 0)
         {
-            Snackbar.Add("Create at least one division before simulating.", Severity.Warning);
+            SiteAlerts.Add("Create at least one division before simulating.", Severity.Warning);
             return;
         }
 
@@ -2767,7 +3087,7 @@ else
             var playerIds = males.Concat(females).Select(p => p.PlayerId).ToList();
             if (playerIds.Count == 0)
             {
-                Snackbar.Add("No eligible club players to draw from.", Severity.Warning);
+                SiteAlerts.Add("No eligible club players to draw from.", Severity.Warning);
                 return;
             }
 
@@ -2783,16 +3103,16 @@ else
             if (shortM > 0 || shortF > 0)
             {
                 msg += $" Short by {shortM}M / {shortF}F - add more club players or fewer divisions.";
-                Snackbar.Add(msg, Severity.Warning);
+                SiteAlerts.Add(msg, Severity.Warning);
             }
             else
             {
-                Snackbar.Add(msg, Severity.Success);
+                SiteAlerts.Add(msg, Severity.Success);
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Simulation failed: {ex.Message}", Severity.Error);
+            SiteAlerts.Add($"Simulation failed: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -2838,7 +3158,7 @@ else
     {
         var assigned = await Admin.AutoAssignCaptainsAsync(Id);
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add($"Assigned {assigned} captain(s).", Severity.Success);
+        SiteAlerts.Add($"Assigned {assigned} captain(s).", Severity.Success);
     }
 
     private async Task AssignParticipantDivision(CompetitionParticipantDto cp, int? divisionId)
@@ -2851,6 +3171,256 @@ else
                 ? _divisions.FirstOrDefault(d => d.CompetitionDivisionId == divisionId)?.Name
                 : null;
             _participants[idx] = cp with { CompetitionDivisionId = divisionId, DivisionName = divName };
+        }
+    }
+
+    private async Task SetParticipantInitialRating(CompetitionParticipantDto cp, int? rating)
+    {
+        if (rating is null) return;
+        await Admin.SetParticipantInitialRatingAsync(
+            Id, cp.PlayerId, new SetParticipantInitialRatingRequest(rating.Value));
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            _participants[idx] = cp with
+            {
+                Rating = new PlayerRatingDto(rating.Value, IsProvisional: false),
+                RatingSuggestion = null,
+            };
+        }
+    }
+
+    private async Task AcceptParticipantRating(CompetitionParticipantDto cp)
+    {
+        var s = await Admin.AcceptParticipantRatingAsync(Id, cp.PlayerId);
+        if (s is null) return;
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            _participants[idx] = cp with
+            {
+                Rating = new PlayerRatingDto(s.SuggestedRating, IsProvisional: s.RubbersPlayed < 10),
+                RatingSuggestion = null,
+            };
+        }
+    }
+
+    private async Task AcceptAllParticipantRatings()
+    {
+        var applied = await Admin.AcceptAllParticipantRatingsAsync(Id);
+        if (applied.Count == 0)
+        {
+            SiteAlerts.Add("No rating suggestions to apply.", Severity.Info);
+            return;
+        }
+        await ReloadAfterServerMutationAsync();
+        SiteAlerts.Add($"Applied {applied.Count} rating suggestion(s).", Severity.Success);
+    }
+
+    private async Task ApplyDivisionPlacement(CompetitionParticipantDto cp)
+    {
+        if (cp.PlacementSuggestion?.SuggestedDivisionId is not int did) return;
+        await Admin.ApplyDivisionPlacementAsync(Id, cp.PlayerId, new ApplyDivisionPlacementRequest(did));
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            var name = _divisions.FirstOrDefault(d => d.CompetitionDivisionId == did)?.Name;
+            _participants[idx] = cp with
+            {
+                CompetitionDivisionId = did,
+                DivisionName = name,
+                PlacementSuggestion = cp.PlacementSuggestion with { SuggestedDivisionId = null, SuggestedDivisionName = null },
+            };
+            // Drop the whole suggestion if both fields are now empty.
+            if (_participants[idx].PlacementSuggestion is { SuggestedDivisionId: null, SuggestedRole: null })
+                _participants[idx] = _participants[idx] with { PlacementSuggestion = null };
+        }
+    }
+
+    private async Task ApplyRolePlacement(CompetitionParticipantDto cp)
+    {
+        if (cp.PlacementSuggestion?.SuggestedRole is not string role) return;
+        await Admin.ApplyRolePlacementAsync(Id, cp.PlayerId, new ApplyRolePlacementRequest(role));
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            _participants[idx] = cp with
+            {
+                Role = role,
+                PlacementSuggestion = cp.PlacementSuggestion with { SuggestedRole = null },
+            };
+            if (_participants[idx].PlacementSuggestion is { SuggestedDivisionId: null, SuggestedRole: null })
+                _participants[idx] = _participants[idx] with { PlacementSuggestion = null };
+        }
+    }
+
+    private async Task ApplyAllPlacements()
+    {
+        var count = await Admin.ApplyAllPlacementsAsync(Id);
+        if (count == 0)
+        {
+            SiteAlerts.Add("No placement suggestions to apply.", Severity.Info);
+            return;
+        }
+        await ReloadAfterServerMutationAsync();
+        SiteAlerts.Add($"Applied {count} placement suggestion(s).", Severity.Success);
+    }
+
+    // ── Participant promote / demote ───────────────────────────────────────
+    // The ladder walks (division rank, role rank within a "lane") where a
+    // lane is the subset of _availableRoles sharing the same prefix (every
+    // char except the last) as the participant's current role. For MTT
+    // (roles MA/MB/FA/FB) this keeps male players on {MA, MB} and female on
+    // {FA, FB}; for County Doubles (D1A/D1B/D2A/D2B) it keeps pair-1 players
+    // on {D1A, D1B} and pair-2 on {D2A, D2B}. Within a lane, the role with
+    // the alphabetically earlier suffix is the higher rank (A < B). Across
+    // lanes we never cross — a male player cannot promote into FA.
+    //
+    // Suffix-letter ordering is implicit in the role strings shipped by the
+    // built-in rubber presets; a custom template that breaks the convention
+    // (e.g. roles "Captain"/"Reserve") would put each player in their own
+    // singleton lane and the promote/demote buttons would simply stay
+    // disabled — safe fallback, not silently wrong.
+    private List<string> RoleLaneFor(string? role)
+    {
+        if (string.IsNullOrEmpty(role)) return [];
+        var prefix = role[..^1];
+        return _availableRoles
+            .Where(r => r.Length == role.Length && r.StartsWith(prefix, StringComparison.Ordinal))
+            .OrderBy(r => r, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    // Returns the (division, role) one step in the given direction along
+    // the ladder, or null if already at the end. direction = +1 promotes
+    // (higher rank), -1 demotes. Promoting past the top role in a division
+    // carries up to the next-higher division and resets to the bottom role
+    // (so Div 2 A → Div 1 B); demoting past the bottom carries down and
+    // resets to the top role.
+    //
+    // Entry cases (only when promoting):
+    //   - Participant has no role yet → place them at the bottom of the
+    //     ladder. Lane is inferred from Sex (M/F prefix match) when the
+    //     role naming supports it, else falls back to all roles.
+    //   - Participant has a role but no division while divisions are
+    //     enabled → drop them into the lowest division at their current
+    //     role so the normal ladder applies from there.
+    private (int? DivisionId, string Role)? GetPromotionTarget(
+        CompetitionParticipantDto cp, int direction)
+    {
+        if (string.IsNullOrEmpty(cp.Role))
+        {
+            if (direction < 0) return null;
+            var entryLane = InferEntryLane(cp);
+            if (entryLane.Count == 0) return null;
+
+            int? entryDiv;
+            if (cp.CompetitionDivisionId.HasValue)
+            {
+                entryDiv = cp.CompetitionDivisionId;
+            }
+            else if (Model.HasDivisions && _divisions.Count > 0)
+            {
+                entryDiv = _divisions.OrderByDescending(d => d.Rank).First().CompetitionDivisionId;
+            }
+            else
+            {
+                entryDiv = null;
+            }
+            return (entryDiv, entryLane[^1]);
+        }
+
+        if (direction > 0 && Model.HasDivisions && cp.CompetitionDivisionId is null && _divisions.Count > 0)
+        {
+            // Has a role but isn't in any division yet — promote drops them
+            // into the lowest division at their existing role.
+            var bottomDiv = _divisions.OrderByDescending(d => d.Rank).First();
+            return (bottomDiv.CompetitionDivisionId, cp.Role!);
+        }
+
+        var lane = RoleLaneFor(cp.Role);
+        var roleIdx = lane.IndexOf(cp.Role!);
+        if (roleIdx < 0) return null;
+
+        var newRoleIdx = roleIdx - direction;
+        if (newRoleIdx >= 0 && newRoleIdx < lane.Count)
+        {
+            return (cp.CompetitionDivisionId, lane[newRoleIdx]);
+        }
+
+        // Out of lane bounds → carry across divisions (only meaningful when
+        // divisions are enabled and the participant is already in one).
+        if (!Model.HasDivisions) return null;
+        var divisions = _divisions.OrderBy(d => d.Rank).ToList();
+        var divIdx = divisions.FindIndex(d => d.CompetitionDivisionId == cp.CompetitionDivisionId);
+        if (divIdx < 0) return null;
+
+        if (newRoleIdx < 0)
+        {
+            // Promoting past the top role → up to next-higher division, bottom role.
+            if (divIdx == 0) return null;
+            return (divisions[divIdx - 1].CompetitionDivisionId, lane[^1]);
+        }
+        // newRoleIdx >= lane.Count: demoting past the bottom role.
+        if (divIdx >= divisions.Count - 1) return null;
+        return (divisions[divIdx + 1].CompetitionDivisionId, lane[0]);
+    }
+
+    // Picks the lane a role-less participant should enter on promote. The
+    // ladder doesn't know which lane they belong to, so we lean on Sex: an
+    // M-prefixed role exists in _availableRoles → male players enter that
+    // lane; F-prefixed → female. When the role naming has no gender prefix
+    // (e.g. County Doubles' D1*/D2*) or Sex isn't set, we fall back to all
+    // available roles — bottom-of-ladder will be the alphabetically-last
+    // role, which the admin can re-target with further promotes.
+    private List<string> InferEntryLane(CompetitionParticipantDto cp)
+    {
+        if (cp.Sex is { } sex)
+        {
+            var letter = sex == PlayerSex.Male ? "M" : "F";
+            var gendered = _availableRoles
+                .Where(r => r.StartsWith(letter, StringComparison.Ordinal))
+                .OrderBy(r => r, StringComparer.Ordinal)
+                .ToList();
+            if (gendered.Count > 0) return gendered;
+        }
+        return _availableRoles.OrderBy(r => r, StringComparer.Ordinal).ToList();
+    }
+
+    private string DescribeLadderPos(int? divisionId, string role)
+    {
+        if (Model.HasDivisions && divisionId.HasValue)
+        {
+            var divName = _divisions.FirstOrDefault(d => d.CompetitionDivisionId == divisionId)?.Name ?? "Division";
+            return $"{divName} • {role}";
+        }
+        return role;
+    }
+
+    private async Task PromoteParticipantAsync(CompetitionParticipantDto cp, int direction)
+    {
+        var target = GetPromotionTarget(cp, direction);
+        if (target is null) return;
+        var (newDivisionId, newRole) = target.Value;
+
+        if (newDivisionId != cp.CompetitionDivisionId)
+        {
+            await Admin.AssignParticipantDivisionAsync(Id, cp.PlayerId, new SetParticipantDivisionRequest(newDivisionId));
+        }
+        await Admin.AssignParticipantRoleAsync(Id, cp.PlayerId, new SetParticipantRoleRequest(newRole));
+
+        var idx = _participants.IndexOf(cp);
+        if (idx >= 0)
+        {
+            var divName = newDivisionId.HasValue
+                ? _divisions.FirstOrDefault(d => d.CompetitionDivisionId == newDivisionId)?.Name
+                : null;
+            _participants[idx] = cp with
+            {
+                CompetitionDivisionId = newDivisionId,
+                DivisionName = divName,
+                Role = newRole,
+            };
         }
     }
 
@@ -2903,7 +3473,7 @@ else
         }
         catch (InvalidOperationException ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
             return;
         }
 
@@ -2913,11 +3483,45 @@ else
         _editingDivision = null;
     }
 
-    private async Task DeleteDivision(CompetitionDivisionDto d)
+    private void RequestDeleteDivision(CompetitionDivisionDto d)
     {
-        await Admin.DeleteDivisionAsync(Id, d.CompetitionDivisionId);
-        _divisionWindowForms.Remove(d.CompetitionDivisionId);
+        _pendingDeleteDivisionId = d.CompetitionDivisionId;
+    }
+
+    private void CancelDeleteDivision()
+    {
+        _pendingDeleteDivisionId = null;
+    }
+
+    private async Task ConfirmDeleteDivision()
+    {
+        if (!_pendingDeleteDivisionId.HasValue) return;
+        var divisionId = _pendingDeleteDivisionId.Value;
+        _pendingDeleteDivisionId = null;
+
+        var teamsInDivision = _teams
+            .Where(t => t.CompetitionDivisionId == divisionId)
+            .ToList();
+        foreach (var team in teamsInDivision)
+        {
+            await Admin.DeleteTeamAsync(Id, team.CompetitionTeamId);
+        }
+
+        await Admin.DeleteDivisionAsync(Id, divisionId);
+        _divisionWindowForms.Remove(divisionId);
         await ReloadAfterServerMutationAsync();
+
+        if (teamsInDivision.Count > 0)
+        {
+            var label = IsDoublesFormat()
+                ? (teamsInDivision.Count == 1 ? "pairing" : "pairings")
+                : (teamsInDivision.Count == 1 ? "team" : "teams");
+            SiteAlerts.Add($"Division deleted along with {teamsInDivision.Count} {label}.", Severity.Warning);
+        }
+        else
+        {
+            SiteAlerts.Add("Division deleted.", Severity.Warning);
+        }
     }
 
     // ── Clone competition ───────────────────────────────────────────────────
@@ -2943,7 +3547,7 @@ else
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Failed to clone competition: {ex.Message}", Severity.Error);
+            SiteAlerts.Add($"Failed to clone competition: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -2983,12 +3587,12 @@ else
             await ReloadAfterServerMutationAsync();
             Model.HasDivisions = true;
             Model.SeededFromCompetitionId = _seedSourceCompetitionId.Value;
-            Snackbar.Add($"Divisions seeded.", Severity.Success);
+            SiteAlerts.Add($"Divisions seeded.", Severity.Success);
             _showSeedDivisionsDialog = false;
         }
         catch (InvalidOperationException ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
         }
         finally
         {
@@ -3000,9 +3604,9 @@ else
     {
         var result = await Admin.ValidateTeamAsync(Id, team.CompetitionTeamId);
         if (result.Errors.Count == 0 && result.Warnings.Count == 0)
-            Snackbar.Add($"{team.Name}: Valid", Severity.Success);
+            SiteAlerts.Add($"{team.Name}: Valid", Severity.Success);
         else
-            Snackbar.Add($"{team.Name}: {string.Join("; ", result.Errors.Concat(result.Warnings))}", Severity.Warning);
+            SiteAlerts.Add($"{team.Name}: {string.Join("; ", result.Errors.Concat(result.Warnings))}", Severity.Warning);
     }
 
     // ── Teams ────────────────────────────────────────────────────────────────
@@ -3026,7 +3630,7 @@ else
         if (string.IsNullOrWhiteSpace(_teamName)) return;
         await Admin.SaveTeamAsync(Id, _editingTeam?.CompetitionTeamId, new SaveTeamRequest(_teamName.Trim()));
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add(_editingTeam == null ? "Team added." : "Team updated.", Severity.Success);
+        SiteAlerts.Add(_editingTeam == null ? "Team added." : "Team updated.", Severity.Success);
         _showTeamDialog = false;
     }
 
@@ -3034,7 +3638,7 @@ else
     {
         await Admin.DeleteTeamAsync(Id, team.CompetitionTeamId);
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add("Team removed.", Severity.Warning);
+        SiteAlerts.Add("Team removed.", Severity.Warning);
     }
 
     private async Task DeleteAllTeams()
@@ -3044,7 +3648,7 @@ else
         var removed = _teams.Count;
         await Admin.DeleteAllTeamsAsync(Id);
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add($"Deleted {removed} team(s).", Severity.Warning);
+        SiteAlerts.Add($"Deleted {removed} team(s).", Severity.Warning);
     }
 
     private bool IsDoublesFormat() =>
@@ -3073,6 +3677,7 @@ else
 
         _generateWarnings = [];
         _generatedPreview = [];
+        _generateError = null;
         _generating = false;
         _showGenerateDialog = true;
     }
@@ -3081,29 +3686,38 @@ else
     {
         _generateWarnings = [];
         _generatedPreview = [];
+        _generateError = null;
 
         // The admin service generates per-division. When divisions are off,
         // pass null and use the global pool.
-        if (Model.HasDivisions && _divisions.Count > 0)
+        try
         {
-            foreach (var div in _divisions.OrderBy(d => d.Rank))
+            if (Model.HasDivisions && _divisions.Count > 0)
+            {
+                foreach (var div in _divisions.OrderBy(d => d.Rank))
+                {
+                    var result = await Admin.GenerateTeamsPreviewAsync(Id, new GenerateTeamsRequest(
+                        TeamSize: _generateTeamSize,
+                        BalanceByGender: _generateGenderBalance,
+                        CompetitionDivisionId: div.CompetitionDivisionId));
+                    _generatedPreview.AddRange(result.Preview);
+                    foreach (var w in result.Warnings) _generateWarnings.Add($"[{div.Name}] {w}");
+                }
+            }
+            else
             {
                 var result = await Admin.GenerateTeamsPreviewAsync(Id, new GenerateTeamsRequest(
                     TeamSize: _generateTeamSize,
                     BalanceByGender: _generateGenderBalance,
-                    CompetitionDivisionId: div.CompetitionDivisionId));
+                    CompetitionDivisionId: null));
                 _generatedPreview.AddRange(result.Preview);
-                foreach (var w in result.Warnings) _generateWarnings.Add($"[{div.Name}] {w}");
+                _generateWarnings.AddRange(result.Warnings);
             }
         }
-        else
+        catch (Exception ex)
         {
-            var result = await Admin.GenerateTeamsPreviewAsync(Id, new GenerateTeamsRequest(
-                TeamSize: _generateTeamSize,
-                BalanceByGender: _generateGenderBalance,
-                CompetitionDivisionId: null));
-            _generatedPreview.AddRange(result.Preview);
-            _generateWarnings.AddRange(result.Warnings);
+            Logger.LogError(ex, "Failed to preview generated teams for competition {CompetitionId}.", Id);
+            _generateError = $"Failed to preview teams: {FormatExceptionChain(ex)}";
         }
     }
 
@@ -3111,6 +3725,7 @@ else
     {
         if (_generatedPreview.Count == 0 || _generating) return;
         _generating = true;
+        _generateError = null;
 
         try
         {
@@ -3119,12 +3734,43 @@ else
             await ReloadAfterServerMutationAsync();
             _showGenerateDialog = false;
             var label = EffectivePersistedFormat() is CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles ? "pairings" : "teams";
-            Snackbar.Add($"{_generatedPreview.Count} {label} created.", Severity.Success);
+            SiteAlerts.Add($"{_generatedPreview.Count} {label} created.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            // Surface the error both inline (visible inside the still-open
+            // dialog) and via Logger.LogError (full stack trace in the server
+            // log). The SiteAlertHost banner sits above the page content and
+            // is covered by the modal dialog overlay, so an alert there is
+            // invisible to the user while the dialog is open — which made
+            // the previous fix look like "nothing happens" when it actually
+            // failed.
+            Logger.LogError(ex, "Failed to confirm team generation for competition {CompetitionId}.", Id);
+            _generateError = $"Failed to create teams: {FormatExceptionChain(ex)}";
         }
         finally
         {
             _generating = false;
         }
+    }
+
+    // EF Core's DbUpdateException wraps the actual SQL failure (FK violation,
+    // unique constraint, etc.) in its InnerException — the outer message is
+    // just "An error occurred while saving the entity changes." which tells
+    // the admin nothing actionable. Walk the chain so the inline alert
+    // includes the real reason.
+    private static string FormatExceptionChain(Exception ex)
+    {
+        var parts = new List<string>();
+        Exception? current = ex;
+        var seen = new HashSet<Exception>();
+        while (current != null && seen.Add(current))
+        {
+            if (!string.IsNullOrWhiteSpace(current.Message))
+                parts.Add(current.Message);
+            current = current.InnerException;
+        }
+        return parts.Count > 0 ? string.Join(" → ", parts) : ex.GetType().Name;
     }
 
     // ── Fixtures ─────────────────────────────────────────────────────────────
@@ -3166,7 +3812,7 @@ else
             .Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
         if (side1.Overlaps(side2))
         {
-            Snackbar.Add("A player cannot appear on both sides of a fixture.", Severity.Error);
+            SiteAlerts.Add("A player cannot appear on both sides of a fixture.", Severity.Error);
             return;
         }
 
@@ -3190,7 +3836,7 @@ else
 
         await Admin.SaveFixtureAsync(Id, _editingFixture?.CompetitionFixtureId, saveRequest);
         await ReloadAfterServerMutationAsync();
-        Snackbar.Add(_editingFixture == null ? "Fixture added." : "Fixture updated.", Severity.Success);
+        SiteAlerts.Add(_editingFixture == null ? "Fixture added." : "Fixture updated.", Severity.Success);
         _showFixtureDialog = false;
     }
 
@@ -3278,7 +3924,7 @@ else
     private async Task CopyQrUrl()
     {
         await JS.InvokeVoidAsync("copyToClipboard", _qrUrl);
-        Snackbar.Add("Link copied to clipboard.", Severity.Success);
+        SiteAlerts.Add("Link copied to clipboard.", Severity.Success);
     }
 
     // ── Fixture helpers used by the per-division Fixtures table ──────────
@@ -3342,11 +3988,11 @@ else
             }
             catch (InvalidOperationException ex)
             {
-                Snackbar.Add(ex.Message, Severity.Error);
+                SiteAlerts.Add(ex.Message, Severity.Error);
                 return;
             }
             await ReloadAfterServerMutationAsync();
-            Snackbar.Add("Result deleted. Match returned to upcoming.", Severity.Success);
+            SiteAlerts.Add("Result deleted. Match returned to upcoming.", Severity.Success);
         }
         else
         {
@@ -3358,7 +4004,7 @@ else
 
             await Admin.DeleteFixtureAsync(Id, fixture.CompetitionFixtureId);
             _fixtures.Remove(fixture);
-            Snackbar.Add("Fixture removed.", Severity.Warning);
+            SiteAlerts.Add("Fixture removed.", Severity.Warning);
         }
     }
 
@@ -3368,7 +4014,7 @@ else
         var count = _fixtures.Count;
         await Admin.DeleteAllFixturesAsync(Id);
         _fixtures.Clear();
-        Snackbar.Add($"{count} fixture(s) deleted.", Severity.Warning);
+        SiteAlerts.Add($"{count} fixture(s) deleted.", Severity.Warning);
     }
 
     private async Task SimulateRoundRobinAsync()
@@ -3380,15 +4026,15 @@ else
         {
             var result = await Admin.SimulateRoundRobinAsync(Id);
             if (result.FixturesUpdated > 0)
-                Snackbar.Add($"Simulated {result.FixturesUpdated} round-robin fixture(s).", Severity.Success);
+                SiteAlerts.Add($"Simulated {result.FixturesUpdated} round-robin fixture(s).", Severity.Success);
             else
-                Snackbar.Add("No eligible round-robin fixtures to simulate.", Severity.Info);
+                SiteAlerts.Add("No eligible round-robin fixtures to simulate.", Severity.Info);
 
             await OnParametersSetAsync();
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Simulation failed: {ex.Message}", Severity.Error);
+            SiteAlerts.Add($"Simulation failed: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -3411,7 +4057,7 @@ else
             catch (KeyNotFoundException)
             {
                 _editingMatchWindowId = null;
-                Snackbar.Add("That window no longer exists.", Severity.Warning);
+                SiteAlerts.Add("That window no longer exists.", Severity.Warning);
                 return;
             }
             await Admin.AddMatchWindowAsync(Id, new SaveMatchWindowRequest(
@@ -3422,7 +4068,7 @@ else
                 CompetitionDivisionId: null));
             await ReloadAfterServerMutationAsync();
             _editingMatchWindowId = null;
-            Snackbar.Add("Window updated.", Severity.Success);
+            SiteAlerts.Add("Window updated.", Severity.Success);
             return;
         }
 
@@ -3435,7 +4081,7 @@ else
         await ReloadAfterServerMutationAsync();
         // Intentionally do NOT clear the form — admins often add multiple similar
         // windows differing in only one field (different day, different court).
-        Snackbar.Add("Window added.", Severity.Success);
+        SiteAlerts.Add("Window added.", Severity.Success);
     }
 
     private void CopyMatchWindowToForm(CompetitionMatchWindowDto w)
@@ -3472,7 +4118,7 @@ else
         {
             form.EditingId = null;
         }
-        Snackbar.Add("Window removed.", Severity.Warning);
+        SiteAlerts.Add("Window removed.", Severity.Warning);
     }
 
     // ── Per-division match windows ──────────────────────────────────────────
@@ -3502,7 +4148,7 @@ else
             catch (KeyNotFoundException)
             {
                 form.EditingId = null;
-                Snackbar.Add("That window no longer exists.", Severity.Warning);
+                SiteAlerts.Add("That window no longer exists.", Severity.Warning);
                 return;
             }
         }
@@ -3515,7 +4161,7 @@ else
             CompetitionDivisionId: divisionId));
         await ReloadAfterServerMutationAsync();
         form.EditingId = null;
-        Snackbar.Add(form.EditingId.HasValue ? "Window updated." : "Division window added.", Severity.Success);
+        SiteAlerts.Add(form.EditingId.HasValue ? "Window updated." : "Division window added.", Severity.Success);
     }
 
     private void CopyDivisionMatchWindowToForm(CompetitionMatchWindowDto w)
@@ -3555,9 +4201,9 @@ else
         _selectedTemplateId = null;
         await ReloadAfterServerMutationAsync();
         if (imported == 0)
-            Snackbar.Add("All windows from that template are already present.", Severity.Info);
+            SiteAlerts.Add("All windows from that template are already present.", Severity.Info);
         else
-            Snackbar.Add($"Imported {imported} window(s) from template.", Severity.Success);
+            SiteAlerts.Add($"Imported {imported} window(s) from template.", Severity.Success);
     }
 
     // ── Competition Templates ────────────────────────────────────────────────
@@ -3596,11 +4242,11 @@ else
                 StartTime: w.StartTime,
                 EndTime: w.EndTime)).ToList();
             _templateWindowsApplied = true;
-            Snackbar.Add($"Template '{t.Name}' applied. Save to persist.", Severity.Info);
+            SiteAlerts.Add($"Template '{t.Name}' applied. Save to persist.", Severity.Info);
         }
         else
         {
-            Snackbar.Add($"Template '{t.Name}' applied.", Severity.Success);
+            SiteAlerts.Add($"Template '{t.Name}' applied.", Severity.Success);
         }
     }
 
@@ -3620,7 +4266,7 @@ else
     {
         await Admin.ApplyRubberPresetAsync(Id, new ApplyRubberPresetRequest(string.IsNullOrWhiteSpace(key) ? null : key));
         await ReloadRubberTemplateAsync();
-        Snackbar.Add("Rubber preset applied.", Severity.Success);
+        SiteAlerts.Add("Rubber preset applied.", Severity.Success);
     }
 
     private async Task ConvertToCustomTemplate()
@@ -3628,7 +4274,7 @@ else
         if (_rubberTemplateDefs.Count == 0) return;
         await Admin.ConvertToCustomTemplateAsync(Id);
         await ReloadRubberTemplateAsync();
-        Snackbar.Add("Template snapshot saved. You can now edit it.", Severity.Success);
+        SiteAlerts.Add("Template snapshot saved. You can now edit it.", Severity.Success);
     }
 
     private async Task AddCustomRubberRow()
@@ -3676,7 +4322,7 @@ else
     {
         await Admin.RevertToDefaultTemplateAsync(Id);
         await ReloadRubberTemplateAsync();
-        Snackbar.Add("Reverted to default rubber template.", Severity.Info);
+        SiteAlerts.Add("Reverted to default rubber template.", Severity.Info);
     }
 
     private static List<string> ParseRoles(string csv) =>
@@ -3703,19 +4349,19 @@ else
         {
             await Admin.AddCompetitionAdminAsync(Id, new AddCompetitionAdminRequest(_newAdminEmail.Trim()));
         }
-        catch (KeyNotFoundException) { Snackbar.Add("No user found with that email.", Severity.Warning); return; }
-        catch (InvalidOperationException) { Snackbar.Add("Already an admin.", Severity.Info); return; }
+        catch (KeyNotFoundException) { SiteAlerts.Add("No user found with that email.", Severity.Warning); return; }
+        catch (InvalidOperationException) { SiteAlerts.Add("Already an admin.", Severity.Info); return; }
 
         _newAdminEmail = "";
         _competitionAdmins = (await Admin.GetCompetitionAdminsAsync(Id)).ToList();
-        Snackbar.Add("Admin added.", Severity.Success);
+        SiteAlerts.Add("Admin added.", Severity.Success);
     }
 
     private async Task RemoveCompetitionAdmin(CompetitionAdminRowDto row)
     {
         await Admin.RemoveCompetitionAdminAsync(Id, row.UserId);
         _competitionAdmins.RemoveAll(a => a.UserId == row.UserId);
-        Snackbar.Add("Admin removed.", Severity.Warning);
+        SiteAlerts.Add("Admin removed.", Severity.Warning);
     }
 
     // ── Send Email ───────────────────────────────────────────────────────────
@@ -3745,7 +4391,7 @@ else
             FixtureId: _emailFixtureId.Value,
             Subject: _emailSubject,
             Body: _emailBody));
-        Snackbar.Add("Emails sent to fixture players.", Severity.Success);
+        SiteAlerts.Add("Emails sent to fixture players.", Severity.Success);
     }
 
     private async Task SendCompetitionEmail()
@@ -3754,7 +4400,7 @@ else
         await Admin.SendCompetitionEmailAsync(Id, new SendCompetitionEmailRequest(
             Subject: _compEmailSubject,
             Body: _compEmailBody));
-        Snackbar.Add($"Emails sent to participants.", Severity.Success);
+        SiteAlerts.Add($"Emails sent to participants.", Severity.Success);
     }
 
     private void OpenScheduleConfirm()
@@ -3772,22 +4418,22 @@ else
         await ReloadAfterServerMutationAsync();
 
         if (result.FixturesSkipped > 0)
-            Snackbar.Add($"{result.FixturesScheduled} fixtures scheduled. {result.FixturesSkipped} could not be scheduled — not enough available slots in the match windows.", Severity.Warning);
+            SiteAlerts.Add($"{result.FixturesScheduled} fixtures scheduled. {result.FixturesSkipped} could not be scheduled — not enough available slots in the match windows.", Severity.Warning);
         else
-            Snackbar.Add($"{result.FixturesScheduled} fixtures scheduled.", Severity.Success);
+            SiteAlerts.Add($"{result.FixturesScheduled} fixtures scheduled.", Severity.Success);
 
         // Headline summary first when nothing got scheduled — gives the user
         // immediate context for the per-participant warnings that follow.
         if (result.FixturesScheduled == 0 && result.Warnings.Count > 0)
         {
-            Snackbar.Add(
+            SiteAlerts.Add(
                 $"No fixtures scheduled — {result.Warnings.Count} participant(s) skipped because they are not Full Players. See per-player warnings below.",
                 Severity.Warning,
-                c => c.VisibleStateDuration = 20000);
+                autoDismissAfter: TimeSpan.FromSeconds(20));
         }
 
         foreach (var w in result.Warnings)
-            Snackbar.Add(w, Severity.Warning, c => c.VisibleStateDuration = 12000);
+            SiteAlerts.Add(w, Severity.Warning, autoDismissAfter: TimeSpan.FromSeconds(12));
     }
 
     private async Task SeedKnockoutFromStandingsAsync()
@@ -3797,11 +4443,11 @@ else
         await ReloadAfterServerMutationAsync();
         if (result.FixturesSeeded == 0 && result.Warnings.Count > 0)
         {
-            foreach (var w in result.Warnings) Snackbar.Add(w, Severity.Warning);
+            foreach (var w in result.Warnings) SiteAlerts.Add(w, Severity.Warning);
         }
         else
         {
-            Snackbar.Add($"Quarter-final fixtures seeded from standings.", Severity.Success);
+            SiteAlerts.Add($"Quarter-final fixtures seeded from standings.", Severity.Success);
         }
     }
 
