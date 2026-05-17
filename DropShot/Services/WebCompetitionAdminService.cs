@@ -114,6 +114,10 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Fixtures).ThenInclude(f => f.AwayTeam)
             .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
             .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.HomePlayer1)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.HomePlayer2)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.AwayPlayer1)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.AwayPlayer2)
             .Include(c => c.Teams).ThenInclude(t => t.Captain)
             .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
             .Include(c => c.MatchWindows).ThenInclude(w => w.Division)
@@ -872,7 +876,20 @@ public sealed class WebCompetitionAdminService(
             f.CourtPair != null
                 ? (f.CourtPair.Name ?? $"{f.CourtPair.Court1?.Name} + {f.CourtPair.Court2?.Name}")
                 : null,
-            null, // Rubbers — admin view doesn't need them at this granularity
+            f.Rubbers?
+                .OrderBy(r => r.Order)
+                .Select(r => new RubberDto(
+                    r.RubberId, r.CompetitionFixtureId, r.Order, r.Name, r.CourtNumber,
+                    r.HomeRoles, r.AwayRoles,
+                    r.HomePlayer1Id, r.HomePlayer1?.DisplayName,
+                    r.HomePlayer2Id, r.HomePlayer2?.DisplayName,
+                    r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
+                    r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
+                    r.HomeGames, r.AwayGames, r.WinnerTeamId,
+                    r.IsComplete, r.SavedMatchId,
+                    r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal,
+                    r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList()))
+                .ToList(),
             f.CompletedAt,
             f.OriginalResultSummary,
             f.ResultModifiedByAdmin,
@@ -2148,6 +2165,10 @@ public sealed class WebCompetitionAdminService(
             .Include(f => f.HomeTeam)
             .Include(f => f.AwayTeam)
             .Include(f => f.Competition)
+            .Include(f => f.Rubbers).ThenInclude(r => r.HomePlayer1)
+            .Include(f => f.Rubbers).ThenInclude(r => r.HomePlayer2)
+            .Include(f => f.Rubbers).ThenInclude(r => r.AwayPlayer1)
+            .Include(f => f.Rubbers).ThenInclude(r => r.AwayPlayer2)
             .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId && f.CompetitionId == competitionId, ct);
         return f is null ? null : ToFixtureDto(f);
     }
