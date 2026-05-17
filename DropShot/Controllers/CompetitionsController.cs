@@ -1122,6 +1122,30 @@ public class CompetitionsController(
         return Ok();
     }
 
+    /// <summary>
+    /// Generate synthetic activity for a SinglesLadder competition so an admin
+    /// can see ratings, decay events, and the activity feed in action without
+    /// waiting for real play. Destructive — wipes all fixtures + decay events
+    /// and resets every participant's rating bookkeeping before simulating.
+    /// SuperAdmin only.
+    /// </summary>
+    [HttpPost("{id:int}/ladder/simulate")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<LadderSimulationResultDto>> SimulateLadder(
+        int id, [FromQuery] int weeks = 8, [FromQuery] int? seed = null, CancellationToken ct = default)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        try
+        {
+            var r = await LadderSimulationService.SimulateAsync(db, id, weeks, seed, ct);
+            return Ok(new LadderSimulationResultDto(
+                r.Participants, r.ActivePlayers, r.IdlePlayers,
+                r.FixturesGenerated, r.DecayEventsGenerated));
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (ArgumentOutOfRangeException ex) { return BadRequest(ex.Message); }
+    }
+
     [HttpPost("{id:int}/fixtures/schedule")]
     public async Task<IActionResult> ScheduleFixtures(int id)
     {

@@ -266,7 +266,9 @@ public sealed class WebCompetitionService(
         Player1RatingBefore: f.Player1RatingBefore,
         Player1RatingAfter: f.Player1RatingAfter,
         Player2RatingBefore: f.Player2RatingBefore,
-        Player2RatingAfter: f.Player2RatingAfter);
+        Player2RatingAfter: f.Player2RatingAfter,
+        HomeGamesTotal: f.HomeGamesTotal,
+        AwayGamesTotal: f.AwayGamesTotal);
 
     public async Task SelfRegisterAsync(int competitionId, DropShot.Shared.ParticipantStatus status, CancellationToken ct = default)
     {
@@ -305,6 +307,16 @@ public sealed class WebCompetitionService(
 
         participant.Status = status;
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<LadderSimulationResultDto> SimulateLadderAsync(
+        int competitionId, int weeks, int? seed = null, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var r = await LadderSimulationService.SimulateAsync(db, competitionId, weeks, seed, ct);
+        return new LadderSimulationResultDto(
+            r.Participants, r.ActivePlayers, r.IdlePlayers,
+            r.FixturesGenerated, r.DecayEventsGenerated);
     }
 
     public async Task ApproveFixtureResultAsync(

@@ -67,6 +67,17 @@ public record LadderInactivityDecayDto(
     double RatingAfter,
     int DaysInactive);
 
+/// <summary>
+/// Result of the SuperAdmin "simulate N weeks" tool — counts of synthetic
+/// fixtures and decay events produced.
+/// </summary>
+public record LadderSimulationResultDto(
+    int Participants,
+    int ActivePlayers,
+    int IdlePlayers,
+    int FixturesGenerated,
+    int DecayEventsGenerated);
+
 public record CompetitionStageDto(
     int CompetitionStageId,
     string Name,
@@ -142,7 +153,9 @@ public record CompetitionFixtureDto(
     double? Player1RatingBefore = null,
     double? Player1RatingAfter = null,
     double? Player2RatingBefore = null,
-    double? Player2RatingAfter = null);
+    double? Player2RatingAfter = null,
+    int? HomeGamesTotal = null,
+    int? AwayGamesTotal = null);
 
 public record CompetitionTeamDto(
     int CompetitionTeamId,

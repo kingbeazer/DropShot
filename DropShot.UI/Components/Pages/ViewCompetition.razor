@@ -115,6 +115,53 @@ else
     </MudGrid>
 
     @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder
+         && CurrentUser.HasRole("SuperAdmin"))
+    {
+        <MudPaper Class="pa-3 mb-4" Elevation="0" Style="background: rgba(255,193,7,0.10); border: 1px dashed rgba(255,193,7,0.4);">
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                <MudIcon Icon="@Icons.Material.Filled.Science" Color="Color.Warning" />
+                <MudStack Spacing="0" Style="flex:1 1 auto;">
+                    <MudText Typo="Typo.body2"><b>SuperAdmin: simulate ladder activity</b></MudText>
+                    <MudText Typo="Typo.caption" Style="opacity:0.85">
+                        Replaces all fixtures and resets every participant's rating, then generates synthetic matches across the chosen window. Some players are designated idle so the inactivity decay fires too.
+                    </MudText>
+                </MudStack>
+                <MudNumericField T="int" @bind-Value="_simulateWeeks"
+                                 Label="Weeks" Min="1" Max="26"
+                                 Style="max-width:90px;" Margin="Margin.Dense" />
+                <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                           Disabled="@_simulating"
+                           OnClick="@(() => _showSimulateConfirmDialog = true)">
+                    Simulate
+                </MudButton>
+            </MudStack>
+            @if (!string.IsNullOrEmpty(_simulateMessage))
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">@_simulateMessage</MudAlert>
+            }
+        </MudPaper>
+
+        <MudDialog @bind-Visible="_showSimulateConfirmDialog"
+                   Options="@(new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
+            <TitleContent>Simulate @_simulateWeeks week(s) of activity?</TitleContent>
+            <DialogContent>
+                <MudText Typo="Typo.body2">
+                    This will <b>delete all existing fixtures</b> and <b>reset every participant's rating</b>
+                    for this ladder before generating synthetic activity. Continue?
+                </MudText>
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="@(() => _showSimulateConfirmDialog = false)">Cancel</MudButton>
+                <MudButton Color="Color.Warning" Variant="Variant.Filled"
+                           Disabled="@_simulating"
+                           OnClick="RunLadderSimulationAsync">
+                    Yes, simulate
+                </MudButton>
+            </DialogActions>
+        </MudDialog>
+    }
+
+    @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder
          && _myParticipant?.Status == ParticipantStatus.FullPlayer)
     {
         <MudPaper Class="pa-3 mb-4" Elevation="0" Style="background: rgba(0,180,216,0.08);">
@@ -348,9 +395,11 @@ else
             </MudExpansionPanel>
         }
     }
-    else
+    else if (_competition.CompetitionFormat != CompetitionFormat.SinglesLadder)
     {
-        @* Non-divisional competitions keep the flat Fixtures + Teams panels. *@
+        @* Non-divisional competitions keep the flat Fixtures + Teams panels.
+           SinglesLadder uses the Recent Activity feed instead — fixture rows
+           are ad-hoc and already rendered there alongside decay events. *@
         <MudExpansionPanel Class="mb-2" Text="Fixtures">
         @if (!_fixtures.Any())
         {
@@ -426,12 +475,13 @@ else
     @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder && _ladderActivity.Count > 0)
     {
         <MudExpansionPanel Class="mb-2" Text="Recent activity">
-            <MudTable Items="@_ladderActivity" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:700px">
+            <MudTable Items="@_ladderActivity" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:760px">
                 <HeaderContent>
                     <MudTh>When</MudTh>
                     <MudTh>Event</MudTh>
                     <MudTh>Detail</MudTh>
                     <MudTh Style="text-align:right">Δ Rating</MudTh>
+                    <MudTh Style="width:40px"></MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="When">@context.At.ToLocalTime().ToString("dd MMM HH:mm")</MudTd>
@@ -454,9 +504,49 @@ else
                             <MudText Inline="true" Color="@color">@(d >= 0 ? "+" : "")@d.ToString("0")</MudText>
                         }
                     </MudTd>
+                    <MudTd>
+                        @if (context.Detail is not null)
+                        {
+                            <MudTooltip Text="Explain this rating change">
+                                <MudIconButton Icon="@Icons.Material.Filled.Info"
+                                               Size="Size.Small"
+                                               OnClick="@(() => OpenExplanation(context.Detail))" />
+                            </MudTooltip>
+                        }
+                    </MudTd>
                 </RowTemplate>
             </MudTable>
         </MudExpansionPanel>
+
+        <MudDialog @bind-Visible="_showExplanationDialog"
+                   Options="@(new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
+            <TitleContent>Rating change explained</TitleContent>
+            <DialogContent>
+                @if (_selectedExplanation is { } x)
+                {
+                    var (line1, line2, blocks) = BuildExplanation(x);
+                    <MudText Typo="Typo.body2"><b>@line1</b></MudText>
+                    <MudText Typo="Typo.caption" Class="mb-3" Style="opacity:0.85">@line2</MudText>
+                    <MudSimpleTable Dense="true" Hover="false" Elevation="0">
+                        <tbody>
+                            @foreach (var (label, value) in blocks)
+                            {
+                                <tr>
+                                    <td style="opacity:0.75; padding:4px 8px;">@label</td>
+                                    <td style="font-variant-numeric:tabular-nums; padding:4px 8px;">@value</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                    <MudText Typo="Typo.caption" Class="mt-3" Style="opacity:0.75">
+                        Elo math: <em>delta = K × MoV × (score − expected)</em>. Score is 1 for a win, 0 for a loss. Expected is the chance of winning given the rating gap. K is the base K-factor (doubled while a player is provisional). MoV is the optional margin-of-victory multiplier.
+                    </MudText>
+                }
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="@(() => _showExplanationDialog = false)">Close</MudButton>
+            </DialogActions>
+        </MudDialog>
     }
 
     @* Non-divisional: keep the flat Teams / Competitors panel below the
@@ -630,9 +720,81 @@ else
     private List<LeagueRow> _leagueTable = [];
 
     // Recent-activity row for SinglesLadder — completed fixture results and
-    // inactivity-decay events merged into one chronological feed.
-    private record ActivityRow(DateTime At, string Kind, string Description, double? Delta);
+    // inactivity-decay events merged into one chronological feed. Match rows
+    // carry enough of the raw fixture data to reconstruct the Elo math on
+    // demand (expected score, K·MoV multiplier, deltas) for the explanation
+    // dialog.
+    private record MatchEloDetail(
+        string Player1Name, double Player1Before, double Player1After,
+        string Player2Name, double Player2Before, double Player2After,
+        int? HomeGames, int? AwayGames, bool Player1Won, string ScoreSummary,
+        double LadderKFactor, int LadderProvisionalMatches, bool UseMov);
+    private record ActivityRow(DateTime At, string Kind, string Description, double? Delta, MatchEloDetail? Detail);
     private List<ActivityRow> _ladderActivity = [];
+
+    private MatchEloDetail? _selectedExplanation;
+    private bool _showExplanationDialog;
+
+    private void OpenExplanation(MatchEloDetail detail)
+    {
+        _selectedExplanation = detail;
+        _showExplanationDialog = true;
+    }
+
+    // Reconstructs the Elo math from the values stored on the fixture so the
+    // dialog can show the user *why* the rating moved the way it did. Returns
+    // a short header line, a sub-line summarising the result, and a list of
+    // labelled value rows.
+    private static (string Line1, string Line2, List<(string Label, string Value)> Blocks)
+        BuildExplanation(MatchEloDetail x)
+    {
+        // Expected scores from pre-match ratings (standard 400-scale).
+        double expected1 = 1.0 / (1.0 + Math.Pow(10, (x.Player2Before - x.Player1Before) / 400.0));
+        double expected2 = 1.0 - expected1;
+
+        double delta1 = x.Player1After - x.Player1Before;
+        double delta2 = x.Player2After - x.Player2Before;
+
+        double score1 = x.Player1Won ? 1.0 : 0.0;
+        double score2 = 1.0 - score1;
+
+        // The fixture stores the *result* of K × MoV × (score − expected). We
+        // invert to recover the effective multiplier (K × MoV combined).
+        double divisor1 = score1 - expected1;
+        double effective1 = Math.Abs(divisor1) > 0.0001 ? delta1 / divisor1 : 0.0;
+
+        // MoV is recomputable from games (we know the formula). K is then
+        // effective / mov when MoV is enabled, else effective on its own.
+        double? mov = null;
+        if (x.UseMov && x.HomeGames.HasValue && x.AwayGames.HasValue
+            && x.HomeGames.Value != x.AwayGames.Value)
+        {
+            double pd = Math.Abs(x.HomeGames.Value - x.AwayGames.Value);
+            double rd = Math.Abs(x.Player1Before - x.Player2Before);
+            double factor = 2.2 / (rd * 0.001 + 2.2);
+            mov = Math.Log(pd + 1) * factor;
+        }
+        double kEstimate = mov is double m && m > 0.01 ? effective1 / m : effective1;
+
+        var line1 = $"{x.Player1Name} ({x.Player1Before:0}) vs {x.Player2Name} ({x.Player2Before:0})";
+        var line2 = x.Player1Won
+            ? $"{x.Player1Name} won  {x.ScoreSummary}"
+            : $"{x.Player2Name} won  {x.ScoreSummary}";
+
+        var blocks = new List<(string, string)>
+        {
+            ($"Expected {x.Player1Name}",  $"{expected1 * 100:0}% chance of winning"),
+            ($"Expected {x.Player2Name}",  $"{expected2 * 100:0}% chance of winning"),
+            ($"Result",                    x.Player1Won ? $"{x.Player1Name} +1, {x.Player2Name} 0" : $"{x.Player1Name} 0, {x.Player2Name} +1"),
+            ($"K-factor (effective)",      $"{kEstimate:0.0}"),
+        };
+        if (mov is double mv) blocks.Add(("Margin-of-victory ×", $"{mv:0.00}"));
+
+        blocks.Add(($"Δ {x.Player1Name}", $"{(delta1 >= 0 ? "+" : "")}{delta1:0.0}  →  {x.Player1After:0}"));
+        blocks.Add(($"Δ {x.Player2Name}", $"{(delta2 >= 0 ? "+" : "")}{delta2:0.0}  →  {x.Player2After:0}"));
+
+        return (line1, line2, blocks);
+    }
 
     private string LastPlayedLabel(int playerId)
     {
@@ -663,6 +825,38 @@ else
     private int? _ladderOpponentId;
     private bool _ladderCreating;
     private string? _ladderError;
+
+    private int _simulateWeeks = 8;
+    private bool _simulating;
+    private bool _showSimulateConfirmDialog;
+    private string? _simulateMessage;
+
+    private async Task RunLadderSimulationAsync()
+    {
+        if (_competition is null) return;
+        _showSimulateConfirmDialog = false;
+        _simulating = true;
+        _simulateMessage = null;
+        try
+        {
+            var result = await CompetitionService.SimulateLadderAsync(_competition.CompetitionId, _simulateWeeks);
+            _simulateMessage =
+                $"Generated {result.FixturesGenerated} fixtures and {result.DecayEventsGenerated} decay events " +
+                $"across {_simulateWeeks} week(s) for {result.ActivePlayers} active + {result.IdlePlayers} idle players.";
+            Snackbar.Add("Ladder simulation complete.", Severity.Success);
+            // Reload competition data so the standings / activity panels refresh.
+            await OnParametersSetAsync();
+        }
+        catch (Exception ex)
+        {
+            _simulateMessage = ex.Message;
+            Snackbar.Add("Simulation failed.", Severity.Error);
+        }
+        finally
+        {
+            _simulating = false;
+        }
+    }
 
     private async Task StartLadderMatchAsync()
     {
@@ -896,13 +1090,27 @@ else
                             ? $"{p1} vs {p2}"
                             : $"{p1} vs {p2} ({f.ResultSummary})";
                         double? delta = null;
-                        if (f.Player1RatingBefore.HasValue && f.Player1RatingAfter.HasValue)
+                        MatchEloDetail? detail = null;
+                        if (f.Player1RatingBefore.HasValue && f.Player1RatingAfter.HasValue
+                            && f.Player2RatingBefore.HasValue && f.Player2RatingAfter.HasValue)
+                        {
                             delta = f.Player1RatingAfter.Value - f.Player1RatingBefore.Value;
+                            detail = new MatchEloDetail(
+                                p1, f.Player1RatingBefore.Value, f.Player1RatingAfter.Value,
+                                p2, f.Player2RatingBefore.Value, f.Player2RatingAfter.Value,
+                                f.HomeGamesTotal, f.AwayGamesTotal,
+                                f.WinnerPlayerId == f.Player1Id,
+                                f.ResultSummary ?? "",
+                                _competition.LadderKFactor,
+                                _competition.LadderProvisionalMatches,
+                                _competition.LadderUseMarginOfVictory);
+                        }
                         return new ActivityRow(
                             f.CompletedAt!.Value,
                             "Match",
                             $"{winner} beat {(winner == p1 ? p2 : p1)} — {score}",
-                            delta);
+                            delta,
+                            detail);
                     });
 
                 var decayRows = (_competition.LadderDecayEvents ?? new())
@@ -910,7 +1118,8 @@ else
                         d.AppliedAt,
                         "Decay",
                         $"{d.PlayerName} — {d.DaysInactive}d inactive",
-                        d.RatingAfter - d.RatingBefore));
+                        d.RatingAfter - d.RatingBefore,
+                        null));
 
                 _ladderActivity = fixtureRows.Concat(decayRows)
                     .OrderByDescending(r => r.At)
