@@ -73,9 +73,21 @@ public static class LadderSimulationService
         var now = DateTime.UtcNow;
         var simStart = now.AddDays(-weeks * 7);
 
-        // Idle players "last played" two weeks before the sim started — gives
-        // their decay clock something to chew on while sweeps run.
-        foreach (var p in idle) p.LastMatchAt = simStart.AddDays(-14);
+        // Idle players: backdate "last played" so the decay clock is well past
+        // grace when the first sweep fires, and give them a rating head-start
+        // above LadderStartingRating so decay has room to operate (the
+        // production floor clamps at starting rating, so an idle player sitting
+        // at exactly the starting rating would never produce a visible decay
+        // event). Mark them out-of-provisional too so the "prov" chip doesn't
+        // appear on what's meant to look like a long-time member.
+        const double IdleHeadStart = 200.0;
+        foreach (var p in idle)
+        {
+            p.EloRating = comp.LadderStartingRating + IdleHeadStart;
+            p.MatchesPlayed = Math.Max(1, comp.LadderProvisionalMatches);
+            p.IsProvisional = false;
+            p.LastMatchAt = simStart.AddDays(-14);
+        }
 
         // ── Generate match fixtures across the window ──────────────────────
         // Aim for roughly 1.5 matches per active player per week.
