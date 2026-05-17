@@ -77,6 +77,7 @@
         </MudNavLink>
     </AuthorizeView>
 
+    @* TODO: re-enable upgrade nav item when Premium ships.
     <AuthorizeView>
         <Authorized Context="upgradeCtx">
             <MudDivider Class="my-2" />
@@ -85,6 +86,7 @@
             </MudNavLink>
         </Authorized>
     </AuthorizeView>
+    *@
 
     <MudDivider Class="my-2" />
     <MudNavLink Icon="@(Theme.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
