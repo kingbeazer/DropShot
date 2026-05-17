@@ -87,6 +87,16 @@ namespace DropShot.Models
         /// </summary>
         public int? SeededFromCompetitionId { get; set; }
 
+        // ── Singles Elo Ladder config ───────────────────────────────────────
+        // Only meaningful when CompetitionFormat == SinglesLadder. Defaults
+        // are inert for other formats. K is doubled while a participant's
+        // MatchesPlayed < LadderProvisionalMatches (mirrors PlayerRatingService
+        // 40/20 convention).
+        public double LadderKFactor { get; set; } = 20.0;
+        public double LadderStartingRating { get; set; } = 1000.0;
+        public int LadderProvisionalMatches { get; set; } = 10;
+        public bool LadderUseMarginOfVictory { get; set; } = true;
+
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
         public Event? Event { get; set; }

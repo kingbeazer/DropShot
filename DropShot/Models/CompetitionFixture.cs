@@ -47,6 +47,15 @@ public class CompetitionFixture
     public int? HomeGamesTotal { get; set; }
     public int? AwayGamesTotal { get; set; }
 
+    // Per-fixture Elo deltas for SinglesLadder competitions. Captured by
+    // LadderRatingService on finalisation so the recent-matches feed can
+    // render "+12 / −12" without recomputing. Null for non-ladder fixtures
+    // and for ladder fixtures that completed before this column existed.
+    public double? Player1RatingBefore { get; set; }
+    public double? Player1RatingAfter { get; set; }
+    public double? Player2RatingBefore { get; set; }
+    public double? Player2RatingAfter { get; set; }
+
     public Competition Competition { get; set; } = null!;
     public CompetitionStage? Stage { get; set; }
     public Court? Court { get; set; }

@@ -114,6 +114,30 @@ else
                             Team: squads play head-to-head fixtures made up of several rubbers. Rubber roles and scoring are configured later via the rubber template.
                         </MudText>
                     }
+                    else if (Model.Format == CompetitionFormatUi.SinglesLadder)
+                    {
+                        <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.75">
+                            Singles Ladder: a continuous 1-vs-1 ladder ranked by live Elo rating. Players register, then record ad-hoc matches against any other participant — ratings update on every result.
+                        </MudText>
+
+                        <MudStack Spacing="3" Class="mt-4">
+                            <MudNumericField T="double" @bind-Value="Model.LadderKFactor"
+                                             Label="K-factor"
+                                             HelperText="How much each match moves a rating. 20 is a sensible default; raise for faster-moving ladders, lower for stability."
+                                             Min="1" Max="100" Step="1" Variant="Variant.Outlined" />
+                            <MudNumericField T="double" @bind-Value="Model.LadderStartingRating"
+                                             Label="Starting rating"
+                                             HelperText="Rating assigned when a player first joins the ladder. 1000 is standard."
+                                             Min="0" Max="5000" Step="50" Variant="Variant.Outlined" />
+                            <MudNumericField T="int" @bind-Value="Model.LadderProvisionalMatches"
+                                             Label="Provisional matches"
+                                             HelperText="Number of matches before a player's rating stabilises. K is doubled while provisional, so early matches swing more."
+                                             Min="0" Max="100" Variant="Variant.Outlined" />
+                            <MudSwitch T="bool" @bind-Value="Model.LadderUseMarginOfVictory"
+                                       Label="Apply margin-of-victory multiplier"
+                                       Color="Color.Primary" />
+                        </MudStack>
+                    }
 
                     @StepActions(canBack: true, advance: TryAdvanceFromFormat)
                 </MudPaper>
@@ -863,7 +887,12 @@ else
                 HasDivisions: Model.HasDivisions,
                 SeededFromCompetitionId: null,
                 IsRestricted: false,
-                AllowedPlayerIds: null);
+                AllowedPlayerIds: null,
+                Description: Model.Description,
+                LadderKFactor: Model.LadderKFactor,
+                LadderStartingRating: Model.LadderStartingRating,
+                LadderProvisionalMatches: Model.LadderProvisionalMatches,
+                LadderUseMarginOfVictory: Model.LadderUseMarginOfVictory);
 
             var savedId = await Admin.SaveCompetitionAsync(null, request);
             _savedCompetitionId = savedId;
@@ -953,9 +982,10 @@ else
 
     private static string FormatLabel(CompetitionFormatUi format) => format switch
     {
-        CompetitionFormatUi.Singles => "Singles (1 vs 1)",
-        CompetitionFormatUi.Doubles => "Doubles (2 vs 2 fixed pairs)",
-        CompetitionFormatUi.Team    => "Team (squad-vs-squad with rubbers)",
+        CompetitionFormatUi.Singles       => "Singles (1 vs 1)",
+        CompetitionFormatUi.Doubles       => "Doubles (2 vs 2 fixed pairs)",
+        CompetitionFormatUi.Team          => "Team (squad-vs-squad with rubbers)",
+        CompetitionFormatUi.SinglesLadder => "Singles Ladder (continuous Elo ranking)",
         _ => format.ToString()
     };
 

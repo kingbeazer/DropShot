@@ -175,6 +175,15 @@ public record FinaliseLiveFixtureRequest(
     int HomeGamesTotal,
     int AwayGamesTotal);
 
+/// <summary>
+/// Request to create an ad-hoc fixture in a Singles Ladder competition. The
+/// caller is Player1 (resolved from the JWT-linked Player); <paramref name="OpponentPlayerId"/>
+/// becomes Player2. Both must be FullPlayer participants in the competition.
+/// </summary>
+public record CreateLadderFixtureRequest(int CompetitionId, int OpponentPlayerId);
+
+public record CreateLadderFixtureResponse(int FixtureId);
+
 // ── Phase 7 PR 7e: IMatchSetupService surface (MatchSetupWizard move) ──
 
 /// <summary>

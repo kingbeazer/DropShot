@@ -101,6 +101,20 @@ public class MatchScoringController(IMatchScoringService scoring) : ControllerBa
         return NoContent();
     }
 
+    [Authorize(AuthenticationSchemes = "Bearer")]
+    [HttpPost("ladder-fixture")]
+    public async Task<ActionResult<CreateLadderFixtureResponse>> CreateLadderFixture(
+        [FromBody] CreateLadderFixtureRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var id = await scoring.CreateLadderFixtureAsync(req, ct);
+            return new CreateLadderFixtureResponse(id);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
     [AllowAnonymous]
     [HttpDelete("live-match/{savedMatchId:int}")]
     public async Task<IActionResult> DiscardLiveMatch(
