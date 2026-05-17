@@ -689,12 +689,19 @@ public sealed class WebCompetitionService(
             .ToListAsync(ct);
 
         var today = DateTime.UtcNow.Date;
+        // SinglesLadder is a continuous format — players can register at any
+        // point in the ladder's lifetime, so the IsStarted flag and the
+        // start-date-in-the-past check (both "registration closed" gates for
+        // bracket/league formats) don't apply. RegisterByDate still does:
+        // admins keep the option of a hard registration cutoff.
         var candidates = await db.Competition
             .Include(c => c.HostClub)
             .Include(c => c.Event)
             .Include(c => c.AllowedPlayers)
-            .Where(c => !enteredIds.Contains(c.CompetitionID) && !c.IsArchived && !c.IsStarted)
-            .Where(c => !c.StartDate.HasValue || c.StartDate.Value >= today)
+            .Where(c => !enteredIds.Contains(c.CompetitionID) && !c.IsArchived
+                        && (c.CompetitionFormat == CompetitionFormat.SinglesLadder || !c.IsStarted))
+            .Where(c => c.CompetitionFormat == CompetitionFormat.SinglesLadder
+                        || !c.StartDate.HasValue || c.StartDate.Value >= today)
             .Where(c => !c.RegisterByDate.HasValue || c.RegisterByDate.Value >= today)
             .OrderBy(c => c.StartDate).ThenBy(c => c.CompetitionName)
             .ToListAsync(ct);
@@ -873,9 +880,11 @@ public sealed class WebCompetitionService(
             ?? throw new KeyNotFoundException($"Competition {competitionId} not found.");
 
         var today = DateTime.UtcNow.Date;
-        if (comp.IsStarted)
-            throw new InvalidOperationException("This competition has already started.");
-        if (comp.StartDate.HasValue && comp.StartDate.Value < today)
+        // SinglesLadder is continuous — players can join at any point, so
+        // the "already started" gate (both the explicit IsStarted flag and
+        // a past StartDate) doesn't apply. RegisterByDate still does.
+        var isLadder = comp.CompetitionFormat == CompetitionFormat.SinglesLadder;
+        if (!isLadder && (comp.IsStarted || (comp.StartDate.HasValue && comp.StartDate.Value < today)))
             throw new InvalidOperationException("This competition has already started.");
         if (comp.RegisterByDate.HasValue && comp.RegisterByDate.Value < today)
             throw new InvalidOperationException("Registration for this competition has closed.");
