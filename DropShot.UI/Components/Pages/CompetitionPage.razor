@@ -564,6 +564,8 @@ else
                     DivisionNameChanged="@(v => _divisionName = v)"
                     DivisionRank="_divisionRank"
                     DivisionRankChanged="@(v => _divisionRank = v)"
+                    DivisionUseSharedWindows="_divisionUseSharedWindows"
+                    DivisionUseSharedWindowsChanged="@(v => _divisionUseSharedWindows = v)"
                     ShowSeedDivisionsDialog="_showSeedDivisionsDialog"
                     ShowSeedDivisionsDialogChanged="@(v => _showSeedDivisionsDialog = v)"
                     SeedSourceCompetitionId="_seedSourceCompetitionId"
@@ -2046,6 +2048,7 @@ else
     private CompetitionDivisionDto? _editingDivision;
     private string _divisionName = "";
     private byte _divisionRank = 1;
+    private bool _divisionUseSharedWindows = true;
     private bool _addingDivision;
     private int? _inlineEditDivisionId;
 
@@ -3470,6 +3473,7 @@ else
         _inlineEditDivisionId = null;
         _divisionName = "";
         _divisionRank = (byte)(_divisions.Count == 0 ? 1 : _divisions.Max(d => d.Rank) + 1);
+        _divisionUseSharedWindows = true;
         _addingDivision = true;
     }
 
@@ -3486,6 +3490,7 @@ else
         _inlineEditDivisionId = d.CompetitionDivisionId;
         _divisionName = d.Name;
         _divisionRank = d.Rank;
+        _divisionUseSharedWindows = d.UseSharedMatchWindows;
     }
 
     private void CancelInlineEditDivision()
@@ -3501,7 +3506,7 @@ else
         try
         {
             await Admin.SaveDivisionAsync(Id, _editingDivision?.CompetitionDivisionId,
-                new SaveDivisionRequest(_divisionName.Trim(), _divisionRank));
+                new SaveDivisionRequest(_divisionName.Trim(), _divisionRank, _divisionUseSharedWindows));
         }
         catch (InvalidOperationException ex)
         {

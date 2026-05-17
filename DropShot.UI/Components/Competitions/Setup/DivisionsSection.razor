@@ -51,18 +51,29 @@
     @if (AddingDivision)
     {
         <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.2); border-radius: 8px;">
-            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-                <MudTextField T="string" Value="DivisionName"
-                              ValueChanged="@((string v) => DivisionNameChanged.InvokeAsync(v))"
-                              Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1" />
-                <MudNumericField T="byte" Value="DivisionRank"
-                                 ValueChanged="@((byte v) => DivisionRankChanged.InvokeAsync(v))"
-                                 Label="Rank (1 = top)" Min="1" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px" />
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
-                           Disabled="@string.IsNullOrWhiteSpace(DivisionName)"
-                           OnClick="@(() => OnSaveDivision.InvokeAsync())">Save</MudButton>
-                <MudButton Variant="Variant.Text" Size="Size.Small"
-                           OnClick="@(() => OnCancelAddDivision.InvokeAsync())">Cancel</MudButton>
+            <MudStack Spacing="2">
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                    <MudTextField T="string" Value="DivisionName"
+                                  ValueChanged="@((string v) => DivisionNameChanged.InvokeAsync(v))"
+                                  Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1" />
+                    <MudNumericField T="byte" Value="DivisionRank"
+                                     ValueChanged="@((byte v) => DivisionRankChanged.InvokeAsync(v))"
+                                     Label="Rank (1 = top)" Min="1" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px" />
+                </MudStack>
+                <MudCheckBox T="bool" Value="DivisionUseSharedWindows"
+                             ValueChanged="@((bool v) => DivisionUseSharedWindowsChanged.InvokeAsync(v))"
+                             Label="Use the competition's shared match windows"
+                             Color="Color.Primary" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px;">
+                    Leave ticked to schedule this division using the competition-level windows. Untick to add division-specific windows below after saving.
+                </MudText>
+                <MudStack Row="true" Spacing="2">
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
+                               Disabled="@string.IsNullOrWhiteSpace(DivisionName)"
+                               OnClick="@(() => OnSaveDivision.InvokeAsync())">Save</MudButton>
+                    <MudButton Variant="Variant.Text" Size="Size.Small"
+                               OnClick="@(() => OnCancelAddDivision.InvokeAsync())">Cancel</MudButton>
+                </MudStack>
             </MudStack>
         </MudPaper>
     }
@@ -93,30 +104,53 @@
 
                     @* Division identity form *@
                     <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background: rgba(255,255,255,0.04); border-radius: 8px;">
-                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudStack Spacing="2">
+                            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                                @if (editingThis)
+                                {
+                                    <MudTextField T="string" Value="DivisionName"
+                                                  ValueChanged="@((string v) => DivisionNameChanged.InvokeAsync(v))"
+                                                  Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1" />
+                                    <MudNumericField T="byte" Value="DivisionRank"
+                                                     ValueChanged="@((byte v) => DivisionRankChanged.InvokeAsync(v))"
+                                                     Label="Rank" Min="1" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px" />
+                                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
+                                               Disabled="@string.IsNullOrWhiteSpace(DivisionName)"
+                                               OnClick="@(() => OnSaveDivision.InvokeAsync())">Save</MudButton>
+                                    <MudButton Variant="Variant.Text" Size="Size.Small"
+                                               OnClick="@(() => OnCancelInlineEditDivision.InvokeAsync())">Cancel</MudButton>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.body2" Style="flex:1">
+                                        <b>Rank @d.Rank</b> - @d.Name
+                                        @if (d.UseSharedMatchWindows)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-2">Uses shared windows</MudChip>
+                                        }
+                                        else if (divWindows.Count == 0)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Class="ml-2">No windows defined</MudChip>
+                                        }
+                                    </MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                   OnClick="@(() => OnStartInlineEditDivision.InvokeAsync(d))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                                   OnClick="@(() => OnDeleteDivision.InvokeAsync(d))" />
+                                }
+                            </MudStack>
                             @if (editingThis)
                             {
-                                <MudTextField T="string" Value="DivisionName"
-                                              ValueChanged="@((string v) => DivisionNameChanged.InvokeAsync(v))"
-                                              Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1" />
-                                <MudNumericField T="byte" Value="DivisionRank"
-                                                 ValueChanged="@((byte v) => DivisionRankChanged.InvokeAsync(v))"
-                                                 Label="Rank" Min="1" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px" />
-                                <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
-                                           Disabled="@string.IsNullOrWhiteSpace(DivisionName)"
-                                           OnClick="@(() => OnSaveDivision.InvokeAsync())">Save</MudButton>
-                                <MudButton Variant="Variant.Text" Size="Size.Small"
-                                           OnClick="@(() => OnCancelInlineEditDivision.InvokeAsync())">Cancel</MudButton>
+                                <MudCheckBox T="bool" Value="DivisionUseSharedWindows"
+                                             ValueChanged="@((bool v) => DivisionUseSharedWindowsChanged.InvokeAsync(v))"
+                                             Label="Use the competition's shared match windows"
+                                             Color="Color.Primary" />
                             }
-                            else
+                            else if (!d.UseSharedMatchWindows && divWindows.Count == 0)
                             {
-                                <MudText Typo="Typo.body2" Style="flex:1">
-                                    <b>Rank @d.Rank</b> - @d.Name
-                                </MudText>
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                               OnClick="@(() => OnStartInlineEditDivision.InvokeAsync(d))" />
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                               OnClick="@(() => OnDeleteDivision.InvokeAsync(d))" />
+                                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">
+                                    This division has opted out of the shared windows but doesn't have any windows of its own — add one in the Match Windows section below, or edit the division and tick "Use shared windows".
+                                </MudAlert>
                             }
                         </MudStack>
                     </MudPaper>
@@ -355,6 +389,9 @@
 
     [Parameter] public byte DivisionRank { get; set; } = 1;
     [Parameter] public EventCallback<byte> DivisionRankChanged { get; set; }
+
+    [Parameter] public bool DivisionUseSharedWindows { get; set; } = true;
+    [Parameter] public EventCallback<bool> DivisionUseSharedWindowsChanged { get; set; }
 
     [Parameter] public bool ShowSeedDivisionsDialog { get; set; }
     [Parameter] public EventCallback<bool> ShowSeedDivisionsDialogChanged { get; set; }

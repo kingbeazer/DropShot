@@ -348,9 +348,10 @@ public record CompetitionDivisionDto(
     int CompetitionDivisionId,
     int CompetitionId,
     byte Rank,
-    string Name);
+    string Name,
+    bool UseSharedMatchWindows = true);
 
-public record SaveDivisionRequest(string Name, byte Rank);
+public record SaveDivisionRequest(string Name, byte Rank, bool UseSharedMatchWindows = true);
 
 public record SetParticipantDivisionRequest(int? CompetitionDivisionId);
 
