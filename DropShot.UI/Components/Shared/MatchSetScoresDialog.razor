@@ -118,8 +118,12 @@
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
     [Parameter] public CompetitionFixtureDto? Fixture { get; set; }
 
+    // Only treat as a team match (rubber-based) if completed rubbers are
+    // attached. Doubles fixtures may carry HomeTeamId/AwayTeamId but have no
+    // rubbers — for those the per-set breakdown lives in ResultSummary.
     private bool IsTeamMatch => Fixture is not null
-        && (Fixture.HomeTeamId.HasValue || Fixture.AwayTeamId.HasValue);
+        && (Fixture.HomeTeamId.HasValue || Fixture.AwayTeamId.HasValue)
+        && (Fixture.Rubbers?.Any(r => r.IsComplete) ?? false);
 
     private string SideAName
     {
