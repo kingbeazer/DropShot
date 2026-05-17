@@ -45,6 +45,7 @@ namespace DropShot.Data
         public DbSet<ClubLinkRequest> ClubLinkRequests { get; set; }
         public DbSet<CompetitionAllowedPlayer> CompetitionAllowedPlayers { get; set; }
         public DbSet<PlayerRatingSnapshot> PlayerRatingSnapshots { get; set; }
+        public DbSet<LadderInactivityDecay> LadderInactivityDecays { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -671,6 +672,23 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(s => s.CompetitionId)
                       .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // ── LadderInactivityDecay ───────────────────────────────────────────
+            builder.Entity<LadderInactivityDecay>(entity =>
+            {
+                entity.HasIndex(d => new { d.CompetitionId, d.AppliedAt });
+                entity.HasIndex(d => d.PlayerId);
+
+                entity.HasOne(d => d.Player)
+                      .WithMany()
+                      .HasForeignKey(d => d.PlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(d => d.Competition)
+                      .WithMany()
+                      .HasForeignKey(d => d.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── RoleSwitchLog ───────────────────────────────────────────────────

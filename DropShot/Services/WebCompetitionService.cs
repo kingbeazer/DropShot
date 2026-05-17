@@ -135,6 +135,26 @@ public sealed class WebCompetitionService(
         var rolePlacements = (await ratings.SuggestRolePlacementsAsync(id, ct))
             .ToDictionary(p => p.PlayerId);
 
+        // Decay-event feed for SinglesLadder. Null for other formats so the UI
+        // doesn't accidentally render an "activity" panel where none belongs.
+        List<LadderInactivityDecayDto>? decayEvents = null;
+        if (c.CompetitionFormat == CompetitionFormat.SinglesLadder)
+        {
+            decayEvents = await db.LadderInactivityDecays
+                .Where(d => d.CompetitionId == id)
+                .Include(d => d.Player)
+                .OrderByDescending(d => d.AppliedAt)
+                .Take(50)
+                .Select(d => new LadderInactivityDecayDto(
+                    d.PlayerId,
+                    d.Player.DisplayName,
+                    d.AppliedAt,
+                    d.RatingBefore,
+                    d.RatingAfter,
+                    d.DaysInactive))
+                .ToListAsync(ct);
+        }
+
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
             c.CompetitionFormat,
@@ -195,7 +215,8 @@ public sealed class WebCompetitionService(
             c.LadderKFactor,
             c.LadderStartingRating,
             c.LadderProvisionalMatches,
-            c.LadderUseMarginOfVictory);
+            c.LadderUseMarginOfVictory,
+            decayEvents);
     }
 
     private static PlacementSuggestionDto? BuildPlacementSuggestion(
