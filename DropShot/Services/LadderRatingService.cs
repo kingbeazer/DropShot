@@ -83,11 +83,16 @@ public static class LadderRatingService
         pa.MatchesPlayed += 1;
         pa.LastMatchAt = now;
         pa.IsProvisional = pa.MatchesPlayed < comp.LadderProvisionalMatches;
+        // Playing resets the inactivity-decay clock for the next idle stretch.
+        pa.LastDecayAppliedAt = null;
+        pa.LastInactivityWarningAt = null;
 
         pb.EloRating = newB;
         pb.MatchesPlayed += 1;
         pb.LastMatchAt = now;
         pb.IsProvisional = pb.MatchesPlayed < comp.LadderProvisionalMatches;
+        pb.LastDecayAppliedAt = null;
+        pb.LastInactivityWarningAt = null;
 
         await db.SaveChangesAsync(ct);
     }

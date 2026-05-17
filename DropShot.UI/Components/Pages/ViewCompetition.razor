@@ -393,6 +393,10 @@ else
                     <MudTh>W</MudTh>
                     <MudTh>L</MudTh>
                     <MudTh>@pointsHeader</MudTh>
+                    @if (isLadder)
+                    {
+                        <MudTh>Last played</MudTh>
+                    }
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Pos">@(_leagueTable.IndexOf(context) + 1)</MudTd>
@@ -407,6 +411,49 @@ else
                     <MudTd DataLabel="W">@context.Won</MudTd>
                     <MudTd DataLabel="L">@context.Lost</MudTd>
                     <MudTd DataLabel="@pointsHeader" Style="font-weight:bold">@context.Points</MudTd>
+                    @if (isLadder)
+                    {
+                        <MudTd DataLabel="Last played">@LastPlayedLabel(context.PlayerId)</MudTd>
+                    }
+                </RowTemplate>
+            </MudTable>
+        </MudExpansionPanel>
+    }
+
+    @* Recent activity feed for SinglesLadder — completed fixtures and decay
+       events merged chronologically. Only renders when there's something to
+       show; non-ladder formats fall through to the existing fixtures panels. *@
+    @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder && _ladderActivity.Count > 0)
+    {
+        <MudExpansionPanel Class="mb-2" Text="Recent activity">
+            <MudTable Items="@_ladderActivity" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:700px">
+                <HeaderContent>
+                    <MudTh>When</MudTh>
+                    <MudTh>Event</MudTh>
+                    <MudTh>Detail</MudTh>
+                    <MudTh Style="text-align:right">Δ Rating</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="When">@context.At.ToLocalTime().ToString("dd MMM HH:mm")</MudTd>
+                    <MudTd DataLabel="Event">
+                        @if (context.Kind == "Decay")
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Inactivity</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Match</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Detail">@context.Description</MudTd>
+                    <MudTd DataLabel="Δ Rating" Style="text-align:right; font-variant-numeric:tabular-nums">
+                        @if (context.Delta.HasValue)
+                        {
+                            var d = context.Delta.Value;
+                            var color = d >= 0 ? Color.Success : Color.Error;
+                            <MudText Inline="true" Color="@color">@(d >= 0 ? "+" : "")@d.ToString("0")</MudText>
+                        }
+                    </MudTd>
                 </RowTemplate>
             </MudTable>
         </MudExpansionPanel>
@@ -581,6 +628,19 @@ else
 
     private record LeagueRow(int PlayerId, string PlayerName, int Played, int Won, int Lost, int Points);
     private List<LeagueRow> _leagueTable = [];
+
+    // Recent-activity row for SinglesLadder — completed fixture results and
+    // inactivity-decay events merged into one chronological feed.
+    private record ActivityRow(DateTime At, string Kind, string Description, double? Delta);
+    private List<ActivityRow> _ladderActivity = [];
+
+    private string LastPlayedLabel(int playerId)
+    {
+        var p = _participants.FirstOrDefault(x => x.PlayerId == playerId);
+        if (p?.LadderLastMatchAt is not DateTime when) return "—";
+        var days = (int)(DateTime.UtcNow - when).TotalDays;
+        return days <= 0 ? "today" : $"{days}d ago";
+    }
 
     private record TeamLeagueRow(int TeamId, string TeamName, string? CaptainName, int Played, int Won, int Drawn, int Lost, int ScoringFor, int ScoringAgainst, int Points);
     private List<TeamLeagueRow> _teamLeagueTable = [];
@@ -817,6 +877,44 @@ else
                     .OrderByDescending(r => r.Points)
                     .ThenByDescending(r => r.Won)
                     .ThenBy(r => r.PlayerName)
+                    .ToList();
+
+                // Recent-activity feed: union of completed fixtures and decay
+                // events, sorted newest-first, capped to 25 rows.
+                var nameById = _participants.ToDictionary(p => p.PlayerId, p => p.DisplayName);
+                var fixtureRows = _fixtures
+                    .Where(f => f.Status == FixtureStatus.Completed
+                                && f.CompletedAt.HasValue
+                                && f.Player1Id.HasValue && f.Player2Id.HasValue)
+                    .Select(f =>
+                    {
+                        var p1 = nameById.GetValueOrDefault(f.Player1Id!.Value, "?");
+                        var p2 = nameById.GetValueOrDefault(f.Player2Id!.Value, "?");
+                        var winner = f.WinnerPlayerId == f.Player1Id ? p1
+                                   : f.WinnerPlayerId == f.Player2Id ? p2 : "—";
+                        var score = string.IsNullOrEmpty(f.ResultSummary)
+                            ? $"{p1} vs {p2}"
+                            : $"{p1} vs {p2} ({f.ResultSummary})";
+                        double? delta = null;
+                        if (f.Player1RatingBefore.HasValue && f.Player1RatingAfter.HasValue)
+                            delta = f.Player1RatingAfter.Value - f.Player1RatingBefore.Value;
+                        return new ActivityRow(
+                            f.CompletedAt!.Value,
+                            "Match",
+                            $"{winner} beat {(winner == p1 ? p2 : p1)} — {score}",
+                            delta);
+                    });
+
+                var decayRows = (_competition.LadderDecayEvents ?? new())
+                    .Select(d => new ActivityRow(
+                        d.AppliedAt,
+                        "Decay",
+                        $"{d.PlayerName} — {d.DaysInactive}d inactive",
+                        d.RatingAfter - d.RatingBefore));
+
+                _ladderActivity = fixtureRows.Concat(decayRows)
+                    .OrderByDescending(r => r.At)
+                    .Take(25)
                     .ToList();
             }
 

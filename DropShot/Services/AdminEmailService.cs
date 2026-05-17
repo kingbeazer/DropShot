@@ -38,6 +38,28 @@ public class AdminEmailService(
     }
 
     /// <summary>
+    /// Warns a SinglesLadder participant that their rating will start decaying
+    /// in <paramref name="daysUntilDecay"/> days unless they play a match.
+    /// Sent by <see cref="LadderInactivityService"/> from the daily sweep.
+    /// </summary>
+    public async Task SendLadderInactivityWarningAsync(
+        Player player, Competition competition, int daysUntilDecay, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(player.Email)) return;
+
+        var link = $"{BaseUrl}/competition/{competition.CompetitionID}/view";
+        var subject = $"Play a match in {competition.CompetitionName} to keep your rating";
+        var bodyText =
+            $"Hi {player.DisplayName},\n\n" +
+            $"Your rating in **{competition.CompetitionName}** will start decaying in {daysUntilDecay} day{(daysUntilDecay == 1 ? "" : "s")} unless you record a match.\n\n" +
+            $"After the {LadderInactivityService.GraceDays}-day grace period, the ladder loses {LadderInactivityService.DecayPointsPerWeek:0} points per week of inactivity — recoverable as soon as you play again.\n\n" +
+            $"[Record a match]({link})";
+
+        var html = emailTemplateService.AdminCustomEmail(bodyText);
+        await SendSafe(player.Email!, subject, html, "ladder inactivity warning", isHtml: true);
+    }
+
+    /// <summary>
     /// Sends an email to all competition participants who have an email address.
     /// </summary>
     public async Task SendCompetitionEmailAsync(

@@ -152,6 +152,7 @@ builder.Services.AddScoped<FixtureSimulationService>();
 builder.Services.AddScoped<CompetitionSchedulerService>();
 builder.Services.AddSingleton<QrLoginService>();
 builder.Services.AddHostedService<QrSessionCleanupService>();
+builder.Services.AddHostedService<LadderInactivityHostedService>();
 builder.Services.AddMudServices();
 builder.Services.AddScoped<ISiteAlertService, SiteAlertService>();
 

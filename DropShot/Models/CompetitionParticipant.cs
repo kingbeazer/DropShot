@@ -21,6 +21,14 @@ public class CompetitionParticipant
     public bool IsProvisional { get; set; } = true;
     public DateTime? LastMatchAt { get; set; }
 
+    // ── Inactivity-decay bookkeeping (LadderInactivityHostedService) ────────
+    // LastInactivityWarningAt: timestamp of the most recent "your rating will
+    // start decaying soon" warning email so the sweep doesn't spam.
+    // LastDecayAppliedAt: anchor for the next weekly decay step; reset
+    // implicitly by LastMatchAt overriding it via the reference-date max.
+    public DateTime? LastInactivityWarningAt { get; set; }
+    public DateTime? LastDecayAppliedAt { get; set; }
+
     public Competition Competition { get; set; } = null!;
     public Player Player { get; set; } = null!;
     public CompetitionTeam? Team { get; set; }

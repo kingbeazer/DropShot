@@ -56,7 +56,16 @@ public record CompetitionDetailDto(
     double LadderKFactor = 20.0,
     double LadderStartingRating = 1000.0,
     int LadderProvisionalMatches = 10,
-    bool LadderUseMarginOfVictory = true);
+    bool LadderUseMarginOfVictory = true,
+    List<LadderInactivityDecayDto>? LadderDecayEvents = null);
+
+public record LadderInactivityDecayDto(
+    int PlayerId,
+    string PlayerName,
+    DateTime AppliedAt,
+    double RatingBefore,
+    double RatingAfter,
+    int DaysInactive);
 
 public record CompetitionStageDto(
     int CompetitionStageId,
