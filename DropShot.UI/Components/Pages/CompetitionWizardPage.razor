@@ -475,8 +475,68 @@ else
                 </MudPaper>
             }
 
-            @* ── Step 11: Divisions (optional, only when HasDivisions) ── *@
+            @* ── Step 11: Stages (optional) ─────────────────────── *@
             @if (_currentStep == 11 && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Stages (optional)</MudText>
+                    @StepIntro("Pick the stages this competition runs through. Round Robin schedules everyone against each other; the knockout types create direct elimination brackets. You can add more later from the competition page.")
+
+                    <MudStack Spacing="1" Class="mt-3">
+                        @foreach (var t in Enum.GetValues<StageType>())
+                        {
+                            var selected = _selectedStages.Contains(t);
+                            <MudCheckBox T="bool" Value="@selected"
+                                         ValueChanged="@((bool v) => ToggleStage(t, v))"
+                                         Disabled="@_stepBusy"
+                                         Label="@StageDisplayLabel(t)" />
+                        }
+                    </MudStack>
+
+                    @StepSkipNext("Skip", advance: SaveStagesAndAdvanceAsync)
+                </MudPaper>
+            }
+
+            @* ── Step 12: Rubber template (optional, TeamMatch only) ──── *@
+            @if (_currentStep == 12 && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Rubber template (optional)</MudText>
+                    @if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) != CompetitionFormat.TeamMatch)
+                    {
+                        @StepIntro("Rubber templates only apply to Team competitions. Click Next to finish.")
+                    }
+                    else
+                    {
+                        @StepIntro("Pick a preset describing the rubbers in each fixture (e.g. 1st men's singles, 2nd men's singles, mixed doubles). You can switch presets or build a custom template later.")
+
+                        @if (_rubberPresets.Count == 0)
+                        {
+                            <MudText Typo="Typo.caption" Class="mt-3" Color="Color.Secondary">
+                                No presets are available for this competition.
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudRadioGroup T="string" Value="_selectedRubberPresetKey"
+                                           ValueChanged="OnRubberPresetChanged"
+                                           Class="mt-3">
+                                <MudStack Spacing="1">
+                                    @foreach (var p in _rubberPresets)
+                                    {
+                                        <MudRadio T="string" Value="@p.Key" Color="Color.Primary">@p.Label</MudRadio>
+                                    }
+                                </MudStack>
+                            </MudRadioGroup>
+                        }
+                    }
+
+                    @StepSkipNext("Skip", advance: SaveRubberPresetAndAdvanceAsync)
+                </MudPaper>
+            }
+
+            @* ── Step 13: Divisions (optional, only when HasDivisions) ── *@
+            @if (_currentStep == 13 && _savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Divisions (optional)</MudText>
@@ -521,66 +581,6 @@ else
                     }
 
                     @StepSkipNext("Skip", advance: TryAdvance)
-                </MudPaper>
-            }
-
-            @* ── Step 12: Stages (optional) ─────────────────────── *@
-            @if (_currentStep == 12 && _savedCompetitionId.HasValue)
-            {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Stages (optional)</MudText>
-                    @StepIntro("Pick the stages this competition runs through. Round Robin schedules everyone against each other; the knockout types create direct elimination brackets. You can add more later from the competition page.")
-
-                    <MudStack Spacing="1" Class="mt-3">
-                        @foreach (var t in Enum.GetValues<StageType>())
-                        {
-                            var selected = _selectedStages.Contains(t);
-                            <MudCheckBox T="bool" Value="@selected"
-                                         ValueChanged="@((bool v) => ToggleStage(t, v))"
-                                         Disabled="@_stepBusy"
-                                         Label="@StageDisplayLabel(t)" />
-                        }
-                    </MudStack>
-
-                    @StepSkipNext("Skip", advance: SaveStagesAndAdvanceAsync)
-                </MudPaper>
-            }
-
-            @* ── Step 13: Rubber template (optional, TeamMatch only) ──── *@
-            @if (_currentStep == 13 && _savedCompetitionId.HasValue)
-            {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Rubber template (optional)</MudText>
-                    @if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) != CompetitionFormat.TeamMatch)
-                    {
-                        @StepIntro("Rubber templates only apply to Team competitions. Click Next to finish.")
-                    }
-                    else
-                    {
-                        @StepIntro("Pick a preset describing the rubbers in each fixture (e.g. 1st men's singles, 2nd men's singles, mixed doubles). You can switch presets or build a custom template later.")
-
-                        @if (_rubberPresets.Count == 0)
-                        {
-                            <MudText Typo="Typo.caption" Class="mt-3" Color="Color.Secondary">
-                                No presets are available for this competition.
-                            </MudText>
-                        }
-                        else
-                        {
-                            <MudRadioGroup T="string" Value="_selectedRubberPresetKey"
-                                           ValueChanged="OnRubberPresetChanged"
-                                           Class="mt-3">
-                                <MudStack Spacing="1">
-                                    @foreach (var p in _rubberPresets)
-                                    {
-                                        <MudRadio T="string" Value="@p.Key" Color="Color.Primary">@p.Label</MudRadio>
-                                    }
-                                </MudStack>
-                            </MudRadioGroup>
-                        }
-                    }
-
-                    @StepSkipNext("Skip", advance: SaveRubberPresetAndAdvanceAsync)
                 </MudPaper>
             }
 
@@ -917,9 +917,9 @@ else
         8  => "Misc settings",
         9  => "Review & save",
         10 => "Competition admins",
-        11 => "Divisions setup",
-        12 => "Stages",
-        13 => "Rubber template",
+        11 => "Stages",
+        12 => "Rubber template",
+        13 => "Divisions setup",
         14 => "Finish",
         _  => ""
     };
