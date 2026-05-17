@@ -850,7 +850,7 @@ public sealed class WebCompetitionAdminService(
     }
 
     private static CompetitionDivisionDto ToDivisionDto(CompetitionDivision d) =>
-        new(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name);
+        new(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name, d.UseSharedMatchWindows);
 
     private static CompetitionTeamDto ToTeamDto(CompetitionTeam t) =>
         new(t.CompetitionTeamId, t.CompetitionId, t.Name,
@@ -1282,9 +1282,10 @@ public sealed class WebCompetitionAdminService(
                 throw new InvalidOperationException($"Division rank {request.Rank} already exists.");
             var div = new CompetitionDivision
             {
-                CompetitionId = competitionId,
-                Name          = request.Name.Trim(),
-                Rank          = request.Rank,
+                CompetitionId          = competitionId,
+                Name                   = request.Name.Trim(),
+                Rank                   = request.Rank,
+                UseSharedMatchWindows  = request.UseSharedMatchWindows,
             };
             db.CompetitionDivisions.Add(div);
             if (!comp.HasDivisions) comp.HasDivisions = true;
@@ -1302,8 +1303,9 @@ public sealed class WebCompetitionAdminService(
                     x => x.CompetitionId == competitionId && x.Rank == request.Rank
                          && x.CompetitionDivisionId != row.CompetitionDivisionId, ct))
                 throw new InvalidOperationException($"Division rank {request.Rank} already exists.");
-            row.Name = request.Name.Trim();
-            row.Rank = request.Rank;
+            row.Name                  = request.Name.Trim();
+            row.Rank                  = request.Rank;
+            row.UseSharedMatchWindows = request.UseSharedMatchWindows;
             await db.SaveChangesAsync(ct);
             return row.CompetitionDivisionId;
         }
