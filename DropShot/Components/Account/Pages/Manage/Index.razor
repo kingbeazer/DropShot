@@ -5,6 +5,7 @@
 @using DropShot.Data
 @using DropShot.Models
 @using DropShot.Shared
+@using DropShot.Components.Account.Shared
 @using Microsoft.EntityFrameworkCore
 
 @inject UserManager<ApplicationUser> UserManager
@@ -74,9 +75,8 @@
                     </InputRadioGroup>
                     <ValidationMessage For="() => Input.CompetitionCategory" class="text-danger" />
                 </fieldset>
-                <div class="form-floating mb-3">
-                    <InputDate @bind-Value="Input.DateOfBirth" class="form-control" placeholder="Date of Birth" />
-                    <label for="date-of-birth" class="form-label">Date of birth</label>
+                <div class="mb-3">
+                    <DateOfBirthIsland Name="Input.DateOfBirth" InitialValue="@Input.DateOfBirth" Label="Date of birth" />
                     <ValidationMessage For="() => Input.DateOfBirth" class="text-danger" />
                 </div>
             }
