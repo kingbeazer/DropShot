@@ -523,7 +523,21 @@ else
                 }
             }
 
-            @* ── Divisions ────────────────────────────────────── *@
+            @* ── Apply Competition Template ───────────────────── *@
+            @if (_competitionTemplates.Count > 0)
+            {
+                <TemplatesSection
+                    Templates="_competitionTemplates"
+                    SelectedTemplateId="_selectedCompetitionTemplateId"
+                    OnApplyTemplate="ApplyCompetitionTemplate" />
+            }
+        }
+
+<div id="nav-anchor-roster" class="section-anchor"></div>
+@if (IsEdit)
+{
+            @* ── Divisions (above Participants so the division select on each
+               participant row + each team row has options to bind to) *@
             @if (Model.HasDivisions)
             {
                 <DivisionsSection
@@ -565,8 +579,6 @@ else
                     OnCancelDeleteDivision="CancelDeleteDivision"
                     OnOpenSeedDivisionsDialog="OpenSeedDivisionsDialog"
                     OnRunSeedDivisions="RunSeedDivisions"
-                    OnOpenGenerateDialog="OpenGenerateDialog"
-                    OnOpenAddTeamDialog="OpenAddTeamDialog"
                     OnAddDivisionMatchWindow="AddDivisionMatchWindow"
                     OnCancelEditDivisionMatchWindow="CancelEditDivisionMatchWindow"
                     OnCopyDivisionMatchWindowToForm="CopyDivisionMatchWindowToForm"
@@ -578,19 +590,6 @@ else
                     OnDeleteTeam="DeleteTeam" />
             }
 
-            @* ── Apply Competition Template ───────────────────── *@
-            @if (_competitionTemplates.Count > 0)
-            {
-                <TemplatesSection
-                    Templates="_competitionTemplates"
-                    SelectedTemplateId="_selectedCompetitionTemplateId"
-                    OnApplyTemplate="ApplyCompetitionTemplate" />
-            }
-        }
-
-<div id="nav-anchor-roster" class="section-anchor"></div>
-@if (IsEdit)
-{
             @* ── Participants ────────────────────────────────── *@
             <MudPaper id="section-participants" Class="pa-4 mb-4 setup-section frosted-card" Elevation="0"
                  Style="color: white;">
@@ -1124,8 +1123,12 @@ else
             </MudPaper>
 
 
-            @* ── Teams / Pairings (hidden when HasDivisions — per-division UI in the Divisions section below) *@
-            @if (!Model.HasDivisions && EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
+            @* ── Teams / Pairings — single source of team creation for both
+               divisional and non-divisional competitions. When HasDivisions is
+               true, DivisionsSection above also lists each division's teams
+               read-only-ish (captain / validate / edit / delete still work
+               from the per-division panel). *@
+            @if (EffectivePersistedFormat() is CompetitionFormat.Team or CompetitionFormat.TeamMatch or CompetitionFormat.Doubles or CompetitionFormat.MixedDoubles)
             {
                 <TeamsSection
                     Teams="_teams"
