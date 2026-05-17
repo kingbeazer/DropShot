@@ -36,6 +36,14 @@ public interface ICompetitionService
     Task ApproveFixtureResultAsync(int fixtureId, ApproveFixtureResultRequest request, CancellationToken ct = default);
 
     /// <summary>
+    /// SuperAdmin-only: generate synthetic activity for a SinglesLadder
+    /// competition. Destructive — wipes prior fixtures + decay events and
+    /// resets every participant before simulating. See
+    /// <c>LadderSimulationService</c> for behaviour.
+    /// </summary>
+    Task<LadderSimulationResultDto> SimulateLadderAsync(int competitionId, int weeks, int? seed = null, CancellationToken ct = default);
+
+    /// <summary>
     /// Submit a fixture score for the first time (or override an existing one
     /// when the caller is an admin). Server enforces RequireVerification
     /// (sets Status = AwaitingVerification + a VerificationToken when needed)

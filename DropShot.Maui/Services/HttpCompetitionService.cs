@@ -41,6 +41,16 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task<LadderSimulationResultDto> SimulateLadderAsync(
+        int competitionId, int weeks, int? seed = null, CancellationToken ct = default)
+    {
+        var qs = seed.HasValue ? $"?weeks={weeks}&seed={seed}" : $"?weeks={weeks}";
+        var resp = await http.PostAsync($"api/competitions/{competitionId}/ladder/simulate{qs}", content: null, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<LadderSimulationResultDto>(cancellationToken: ct)
+            ?? throw new InvalidOperationException("Empty simulation response.");
+    }
+
     public async Task SubmitFixtureScoreAsync(int fixtureId, SubmitFixtureScoreRequest request, CancellationToken ct = default)
     {
         var resp = await http.PostAsJsonAsync(
