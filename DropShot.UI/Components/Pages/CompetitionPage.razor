@@ -464,6 +464,13 @@ else
             @* ── Match Windows (hidden when HasDivisions — per-division UI lives in the Divisions section below) *@
             @if (!Model.HasDivisions)
             {
+                @if (_isSuperAdmin)
+                {
+                    <AutoMatchWindowsWizard
+                        Courts="_courts"
+                        ExistingWindows="_matchWindows"
+                        OnGenerate="AutoGenerateMatchWindowsAsync" />
+                }
                 <MatchWindowsSection
                     Windows="_matchWindows"
                     Courts="_courts"
@@ -4077,6 +4084,44 @@ else
         // Intentionally do NOT clear the form — admins often add multiple similar
         // windows differing in only one field (different day, different court).
         SiteAlerts.Add("Window added.", Severity.Success);
+    }
+
+    private async Task AutoGenerateMatchWindowsAsync(IReadOnlyList<SaveMatchWindowRequest> requests)
+    {
+        if (!_isSuperAdmin)
+        {
+            SiteAlerts.Add("Only super admins can auto-generate match windows.", Severity.Warning);
+            return;
+        }
+        if (requests.Count == 0)
+        {
+            SiteAlerts.Add("No new windows to add — required indoor courts may be missing or already scheduled.", Severity.Info);
+            return;
+        }
+
+        var added = 0;
+        foreach (var req in requests)
+        {
+            try
+            {
+                await Admin.AddMatchWindowAsync(Id, req);
+                added++;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Auto-generate match window failed for {Day} {Start}-{End} court {CourtId}",
+                    req.DayOfWeek, req.StartTime, req.EndTime, req.CourtId);
+            }
+        }
+        await ReloadAfterServerMutationAsync();
+
+        var skipped = requests.Count - added;
+        if (added > 0 && skipped == 0)
+            SiteAlerts.Add($"Added {added} match window(s).", Severity.Success);
+        else if (added > 0 && skipped > 0)
+            SiteAlerts.Add($"Added {added} match window(s); {skipped} failed — see logs.", Severity.Warning);
+        else
+            SiteAlerts.Add("Failed to add match windows — see logs.", Severity.Error);
     }
 
     private void CopyMatchWindowToForm(CompetitionMatchWindowDto w)
