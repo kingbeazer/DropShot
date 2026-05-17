@@ -224,16 +224,20 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
     public bool IsAuthenticated => ApiPrincipal is not null || _isAuthenticated;
     public bool IsAdmin => _activeRole is "Admin" or "SuperAdmin";
     public bool IsClubAdmin => _activeRole == "ClubAdmin";
+    public bool IsSuperAdmin => _activeRole == "SuperAdmin";
     public bool IsSubscribed => _isSubscribed;
 
     public bool HasRole(string role) =>
         _grantedRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
 
     public bool CanEditClub(int clubId) =>
-        IsAdmin || _adminClubIds.Contains(clubId);
+        IsAdmin || (IsClubAdmin && _adminClubIds.Contains(clubId));
 
+    // Must be acting as Admin/SuperAdmin OR acting as ClubAdmin of the host
+    // club. ClubAdmin memberships on _adminClubIds alone aren't enough — a
+    // ClubAdmin who's role-switched to User shouldn't see edit affordances.
     public bool CanEditCompetition(int? hostClubId) =>
-        IsAdmin || (hostClubId.HasValue && _adminClubIds.Contains(hostClubId.Value));
+        IsAdmin || (IsClubAdmin && hostClubId.HasValue && _adminClubIds.Contains(hostClubId.Value));
 
     public bool CanCreateUserCompetition
     {

@@ -60,6 +60,8 @@ public sealed class MauiCurrentUser : ICurrentUser, IDisposable
     public bool IsAuthenticated => _auth.Session is not null;
     public bool IsAdmin => _auth.IsAdmin;
     public bool IsClubAdmin => _auth.IsClubAdmin;
+    public bool IsSuperAdmin =>
+        string.Equals(_auth.ActiveRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
 
     // The login DTO doesn't carry the subscription bit yet, so on MAUI we
     // conservatively report false. The "user competition" creation path is a

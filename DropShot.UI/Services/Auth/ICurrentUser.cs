@@ -25,6 +25,13 @@ public interface ICurrentUser
     bool IsAdmin { get; }
     bool IsClubAdmin { get; }
     bool IsSubscribed { get; }
+    /// <summary>
+    /// True when the user's <em>active</em> role is SuperAdmin. Distinct from
+    /// <c>HasRole("SuperAdmin")</c>, which would also return true for a
+    /// SuperAdmin who has switched to a lower-privilege role for browsing
+    /// purposes.
+    /// </summary>
+    bool IsSuperAdmin { get; }
     bool HasRole(string role);
     bool CanEditClub(int clubId);
     bool CanEditCompetition(int? hostClubId);
