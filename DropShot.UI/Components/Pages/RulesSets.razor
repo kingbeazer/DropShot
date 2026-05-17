@@ -201,7 +201,8 @@ else
             { x => x.RulesSetId, rs.RulesSetId },
             { x => x.RulesSetName, rs.Name }
         };
-        await Dialog.ShowAsync<RulesSetItemsDialog>($"Rules — {rs.Name}", parameters);
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await Dialog.ShowAsync<RulesSetItemsDialog>($"Rules — {rs.Name}", parameters, options);
         // Reload to get updated item count, scoped to the selected club.
         _rulesSets = await RulesSetService.GetRulesSetsAsync(_selectedClubId);
     }
