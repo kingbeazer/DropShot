@@ -97,8 +97,12 @@
                               InputType="InputType.Email" />
             </MudItem>
             <MudItem xs="6">
-                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number (optional)" Variant="Variant.Outlined"
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number" Variant="Variant.Outlined"
                               InputType="InputType.Telephone" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Required to enter competitions. When entering, this number will be visible to
+                    other competitors in that competition (with consent each time).
+                </MudText>
             </MudItem>
             <MudItem xs="6">
                 <MudDatePicker @bind-Date="_form.DateOfBirthDt" Label="Date of Birth" Variant="Variant.Outlined"
@@ -144,8 +148,12 @@
                               InputType="InputType.Email" />
             </MudItem>
             <MudItem xs="6">
-                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number (optional)" Variant="Variant.Outlined"
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number" Variant="Variant.Outlined"
                               InputType="InputType.Telephone" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Required to enter competitions. When entering, this number will be visible to
+                    other competitors in that competition (with consent each time).
+                </MudText>
             </MudItem>
             <MudItem xs="6">
                 <MudDatePicker @bind-Date="_form.DateOfBirthDt" Label="Date of Birth" Variant="Variant.Outlined"

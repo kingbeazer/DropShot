@@ -406,11 +406,11 @@ public class CompetitionsController(
     /// </summary>
     [HttpPost("{id:int}/self-register")]
     public async Task<IActionResult> SelfRegister(
-        int id, [FromBody] UpdateParticipantStatusRequest req, CancellationToken ct)
+        int id, [FromBody] SelfRegisterRequest req, CancellationToken ct)
     {
         try
         {
-            await competitionService.SelfRegisterAsync(id, req.Status, ct);
+            await competitionService.SelfRegisterAsync(id, req.Status, req.Consent, ct);
             return NoContent();
         }
         catch (KeyNotFoundException ex) { return BadRequest(new { message = ex.Message }); }
@@ -423,11 +423,11 @@ public class CompetitionsController(
     /// </summary>
     [HttpPost("{id:int}/confirm-participation")]
     public async Task<IActionResult> ConfirmParticipation(
-        int id, [FromBody] UpdateParticipantStatusRequest req, CancellationToken ct)
+        int id, [FromBody] SelfRegisterRequest req, CancellationToken ct)
     {
         try
         {
-            await competitionService.ConfirmParticipationAsync(id, req.Status, ct);
+            await competitionService.ConfirmParticipationAsync(id, req.Status, req.Consent, ct);
             return NoContent();
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
@@ -630,11 +630,24 @@ public class CompetitionsController(
     }
 
     [HttpPost("{id:int}/enter")]
-    public async Task<IActionResult> EnterCompetition(int id, CancellationToken ct)
+    public async Task<IActionResult> EnterCompetition(
+        int id, [FromBody] EnterCompetitionRequest req, CancellationToken ct)
     {
         try
         {
-            await competitionService.EnterCompetitionAsync(id, ct);
+            await competitionService.EnterCompetitionAsync(id, req.Consent, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPost("{id:int}/leave")]
+    public async Task<IActionResult> LeaveCompetition(int id, CancellationToken ct)
+    {
+        try
+        {
+            await competitionService.LeaveCompetitionAsync(id, ct);
             return NoContent();
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }

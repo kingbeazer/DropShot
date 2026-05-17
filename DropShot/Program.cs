@@ -127,6 +127,7 @@ builder.Services.AddScoped<IEmailService, WebEmailService>();
 builder.Services.AddScoped<IPlayerService, WebPlayerService>();
 builder.Services.AddScoped<IClubService, WebClubService>();
 builder.Services.AddScoped<IEventService, WebEventService>();
+builder.Services.AddScoped<IPhoneVisibilityService, PhoneVisibilityService>();
 builder.Services.AddScoped<ICompetitionService, WebCompetitionService>();
 builder.Services.AddScoped<ICompetitionAdminService, WebCompetitionAdminService>();
 builder.Services.AddScoped<IRulesSetService, WebRulesSetService>();

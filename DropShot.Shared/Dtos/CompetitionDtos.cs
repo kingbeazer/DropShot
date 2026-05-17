@@ -57,7 +57,13 @@ public record CompetitionDetailDto(
     double LadderStartingRating = 1000.0,
     int LadderProvisionalMatches = 10,
     bool LadderUseMarginOfVictory = true,
-    List<LadderInactivityDecayDto>? LadderDecayEvents = null);
+    List<LadderInactivityDecayDto>? LadderDecayEvents = null,
+    // The current user's own MobileNumber (or null if they have no Player
+    // record / no number on file). Used by the entry consent dialog to
+    // render the masked number and decide whether to block entry until a
+    // number is added. Always populated for the caller themselves regardless
+    // of peer visibility — viewing your own number doesn't require consent.
+    string? MyMobileNumber = null);
 
 public record LadderInactivityDecayDto(
     int PlayerId,
@@ -183,7 +189,11 @@ public record LeagueTableEntryDto(
 public record MyCompetitionsViewDto(
     bool HasPlayer,
     List<CompetitionDto> Entered,
-    List<CompetitionDto> Available);
+    List<CompetitionDto> Available,
+    // Caller's own MobileNumber (null when no Player record / no number on
+    // file). Used by the per-competition entry consent dialog to render the
+    // masked number and to gate the Enter button until a number is added.
+    string? MyMobileNumber = null);
 
 public record SaveCompetitionRequest(
     string CompetitionName,
@@ -208,7 +218,27 @@ public record SaveCompetitionRequest(
 
 public record AddStageRequest(StageType StageType, string? Name = null, int? StageOrder = null);
 
-public record AddParticipantRequest(int PlayerId, bool Force = false);
+/// <summary>
+/// Admin attestation that the data subject (the player being added) has
+/// consented to their mobile number being shared with other competitors —
+/// typically because they emailed the admin asking to enter. Materially
+/// weaker than self-asserted consent (the player didn't click anything
+/// themselves), so the recorded ConsentVersion is distinct ("v1-2026-05-admin")
+/// and <see cref="Source"/> captures the admin's evidence (subject line,
+/// date, channel) for audit. Players retain self-service withdrawal via
+/// Leave competition.
+/// </summary>
+public record AdminRecordedPhoneShareConsent(
+    bool Attested,
+    string Source);
+
+public record AddParticipantRequest(
+    int PlayerId,
+    bool Force = false,
+    // Null = no peer-share consent recorded (e.g. test data, simulated
+    // rosters). Server will not throw — the visibility service simply
+    // keeps the number hidden from peers until the player self-consents.
+    AdminRecordedPhoneShareConsent? AttestedConsent = null);
 
 /// <summary>
 /// Approve an awaiting-verification fixture result, optionally overriding the
@@ -255,6 +285,33 @@ public record EligibilityWarning(string Code, string Message);
 public record EligibilityWarningsResponse(string Message, List<EligibilityWarning> Warnings);
 
 public record UpdateParticipantStatusRequest(ParticipantStatus Status);
+
+/// <summary>
+/// Per-competition consent payload submitted when a player enters a competition.
+/// <c>WordingShown</c> is the exact text the user saw (so it can be recorded
+/// verbatim for audit) and <c>Version</c> matches the server's
+/// <c>PhoneVisibilityService.CurrentConsentVersion</c> — mismatches are
+/// rejected so a stale client reloads.
+/// </summary>
+public record PhoneShareConsent(
+    bool Granted,
+    string WordingShown,
+    string Version);
+
+/// <summary>
+/// Self-register / confirm-participation request body. Carries the chosen
+/// participation status plus the per-competition phone-share consent the user
+/// gave in the dialog.
+/// </summary>
+public record SelfRegisterRequest(
+    ParticipantStatus Status,
+    PhoneShareConsent Consent);
+
+/// <summary>
+/// Enter-competition request body. No status field (the server picks
+/// Registered) — only the per-competition phone-share consent.
+/// </summary>
+public record EnterCompetitionRequest(PhoneShareConsent Consent);
 
 public record SaveFixtureRequest(
     int? CompetitionStageId,

@@ -17,15 +17,21 @@ public interface ICompetitionService
     /// Register the authenticated user as a participant in the competition.
     /// Server resolves the player from the authenticated user's <c>UserId</c>;
     /// returns a 400-equivalent on web (KeyNotFoundException) when no player
-    /// record exists for the user, or already-registered.
+    /// record exists for the user, or already-registered. The <paramref name="consent"/>
+    /// payload carries the per-competition phone-share consent collected in
+    /// the EnterCompetitionConsentDialog and is recorded against the player.
     /// </summary>
-    Task SelfRegisterAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default);
+    Task SelfRegisterAsync(
+        int competitionId, ParticipantStatus status, PhoneShareConsent consent, CancellationToken ct = default);
 
     /// <summary>
     /// Upgrade the authenticated user's participation status (typically from
-    /// Registered → FullPlayer or Substitute).
+    /// Registered → FullPlayer or Substitute). Requires a fresh consent
+    /// payload — the user re-acknowledges phone-share visibility each time
+    /// they (re-)commit to participating.
     /// </summary>
-    Task ConfirmParticipationAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default);
+    Task ConfirmParticipationAsync(
+        int competitionId, ParticipantStatus status, PhoneShareConsent consent, CancellationToken ct = default);
 
     /// <summary>
     /// Approve a fixture's awaiting-verification result. Without
@@ -102,9 +108,21 @@ public interface ICompetitionService
     /// Self-enter the authenticated user's player into the competition.
     /// Server enforces date/eligibility/capacity/duplicate-entry guards and
     /// throws <see cref="InvalidOperationException"/> with a user-facing
-    /// message when any of them fail.
+    /// message when any of them fail. The <paramref name="consent"/> payload
+    /// is recorded against the player at the same time the participant row
+    /// is created (single transaction).
     /// </summary>
-    Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default);
+    Task EnterCompetitionAsync(
+        int competitionId, PhoneShareConsent consent, CancellationToken ct = default);
+
+    /// <summary>
+    /// Leave a competition. Sets the participant's status to
+    /// <see cref="ParticipantStatus.Withdrawn"/> and stamps the active
+    /// CompetitionEntryConsent row's WithdrawnUtc, dropping the player's
+    /// number from peer views. One-click action — matches the GDPR
+    /// principle that withdrawal must be as easy as consent.
+    /// </summary>
+    Task LeaveCompetitionAsync(int competitionId, CancellationToken ct = default);
 
     /// <summary>
     /// Loads the rubber-scoring context for a team-match fixture: per-rubber

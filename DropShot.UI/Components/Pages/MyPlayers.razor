@@ -114,6 +114,11 @@
             <MudItem xs="12">
                 <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile number" Variant="Variant.Outlined"
                               InputType="InputType.Telephone" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Required to enter competitions. When you enter a competition, this number
+                    will be visible to other competitors in that competition (with your consent
+                    each time). You can leave the competition at any time to remove it.
+                </MudText>
             </MudItem>
             <MudItem xs="12">
                 <MudText Typo="Typo.body2" Class="mb-1">Competition category</MudText>

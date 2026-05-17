@@ -18,19 +18,21 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
     public Task<CompetitionDetailDto?> GetCompetitionAsync(int id, CancellationToken ct = default) =>
         http.GetFromJsonAsync<CompetitionDetailDto>($"api/competitions/{id}", ct);
 
-    public async Task SelfRegisterAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default)
+    public async Task SelfRegisterAsync(
+        int competitionId, ParticipantStatus status, PhoneShareConsent consent, CancellationToken ct = default)
     {
         var resp = await http.PostAsJsonAsync(
             $"api/competitions/{competitionId}/self-register",
-            new UpdateParticipantStatusRequest(status), ct);
+            new SelfRegisterRequest(status, consent), ct);
         resp.EnsureSuccessStatusCode();
     }
 
-    public async Task ConfirmParticipationAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default)
+    public async Task ConfirmParticipationAsync(
+        int competitionId, ParticipantStatus status, PhoneShareConsent consent, CancellationToken ct = default)
     {
         var resp = await http.PostAsJsonAsync(
             $"api/competitions/{competitionId}/confirm-participation",
-            new UpdateParticipantStatusRequest(status), ct);
+            new SelfRegisterRequest(status, consent), ct);
         resp.EnsureSuccessStatusCode();
     }
 
@@ -86,13 +88,26 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
         resp.EnsureSuccessStatusCode();
     }
 
-    public async Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default)
+    public async Task EnterCompetitionAsync(
+        int competitionId, PhoneShareConsent consent, CancellationToken ct = default)
     {
-        var resp = await http.PostAsync($"api/competitions/{competitionId}/enter", null, ct);
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/{competitionId}/enter",
+            new EnterCompetitionRequest(consent), ct);
         if (!resp.IsSuccessStatusCode)
         {
             var body = await resp.Content.ReadAsStringAsync(ct);
             throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to enter." : body);
+        }
+    }
+
+    public async Task LeaveCompetitionAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/competitions/{competitionId}/leave", null, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to leave." : body);
         }
     }
 

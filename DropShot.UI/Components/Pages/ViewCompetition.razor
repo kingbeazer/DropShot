@@ -4,9 +4,11 @@
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @using DropShot.Shared.Extensions
 @using DropShot.Shared.Helpers
 @using DropShot.Shared.Dtos
+@using DropShot.UI.Components.Shared
 @using DropShot.UI.Services
 
 @* Routing + auth + MudProviders supplied by host shims. *@
@@ -219,6 +221,26 @@ else
                 </MudStack>
             </MudStack>
         </MudAlert>
+    }
+
+    @* "Leave competition" — visible to any active participant of the
+       competition. One-click action (no extra confirmation) so withdrawing
+       consent is as easy as giving it, per GDPR. Sets ParticipantStatus to
+       Withdrawn and stamps the active CompetitionEntryConsent row's
+       WithdrawnUtc — peer views drop the number on reload. *@
+    @if (!_canEdit
+         && _myParticipant is not null
+         && _myParticipant.Status != ParticipantStatus.Withdrawn
+         && _myParticipant.Status != ParticipantStatus.Disqualified)
+    {
+        <MudStack Row="true" Class="mb-4">
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                       StartIcon="@Icons.Material.Filled.ExitToApp"
+                       Disabled="_leaveSaving"
+                       OnClick="LeaveCompetitionAsync">
+                Leave competition
+            </MudButton>
+        </MudStack>
     }
 
     <MudDivider Class="mb-4" />
@@ -1516,12 +1538,16 @@ else
     private async Task SelfRegisterAsync(ParticipantStatus status)
     {
         if (_competition is null) return;
+
+        var consent = await TryGetEntryConsentAsync();
+        if (consent is null) return;
+
         _selfRegisterSaving = true;
         _selfRegisterError = null;
         StateHasChanged();
         try
         {
-            await CompetitionService.SelfRegisterAsync(_competition.CompetitionId, status);
+            await CompetitionService.SelfRegisterAsync(_competition.CompetitionId, status, consent);
             Nav.NavigateTo(Nav.Uri, forceLoad: true);
         }
         catch (Exception ex)
@@ -1538,12 +1564,16 @@ else
     private async Task ConfirmParticipationAsync(ParticipantStatus status)
     {
         if (_competition is null) return;
+
+        var consent = await TryGetEntryConsentAsync();
+        if (consent is null) return;
+
         _selfRegisterSaving = true;
         _selfRegisterError = null;
         StateHasChanged();
         try
         {
-            await CompetitionService.ConfirmParticipationAsync(_competition.CompetitionId, status);
+            await CompetitionService.ConfirmParticipationAsync(_competition.CompetitionId, status, consent);
             await OnParametersSetAsync();
         }
         catch (Exception ex)
@@ -1553,6 +1583,59 @@ else
         finally
         {
             _selfRegisterSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    /// Open the EnterCompetitionConsentDialog and return the user's consent.
+    /// Returns null if they cancelled, OR if their profile has no mobile
+    /// number (in which case the inline alert prompts them to add one
+    /// before retrying — server-side guard would reject anyway).
+    private async Task<PhoneShareConsent?> TryGetEntryConsentAsync()
+    {
+        if (_competition is null) return null;
+
+        if (string.IsNullOrWhiteSpace(_competition.MyMobileNumber))
+        {
+            _selfRegisterError =
+                "Add a mobile number to your profile before entering competitions. " +
+                "It will be visible to other competitors so you can coordinate matches.";
+            StateHasChanged();
+            return null;
+        }
+
+        var parameters = new DialogParameters
+        {
+            [nameof(EnterCompetitionConsentDialog.CompetitionName)] = _competition.CompetitionName,
+            [nameof(EnterCompetitionConsentDialog.MobileNumber)] = _competition.MyMobileNumber,
+        };
+        var dialog = await DialogService.ShowAsync<EnterCompetitionConsentDialog>(
+            "Share your mobile number with competitors", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return null;
+        return result.Data as PhoneShareConsent;
+    }
+
+    private bool _leaveSaving;
+
+    private async Task LeaveCompetitionAsync()
+    {
+        if (_competition is null) return;
+        _leaveSaving = true;
+        StateHasChanged();
+        try
+        {
+            await CompetitionService.LeaveCompetitionAsync(_competition.CompetitionId);
+            Snackbar.Add("You have left the competition. Your mobile number is no longer shared.", Severity.Info);
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to leave: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _leaveSaving = false;
             StateHasChanged();
         }
     }
