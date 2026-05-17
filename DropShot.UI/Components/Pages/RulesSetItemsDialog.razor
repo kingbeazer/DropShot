@@ -64,6 +64,8 @@
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                 <MudTextField @bind-Value="_newRule" Label="New rule…"
                               Variant="Variant.Outlined" Class="flex-grow-1"
+                              Immediate="true"
+                              OnKeyDown="OnNewRuleKeyDown"
                               Disabled="@(_editingItemId.HasValue)" />
                 <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary"
                                Disabled="@(_editingItemId.HasValue || string.IsNullOrWhiteSpace(_newRule))"
@@ -119,6 +121,14 @@
         {
             SiteAlerts.Add(ex.Message, Severity.Error);
         }
+    }
+
+    private async Task OnNewRuleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is not ("Enter" or "NumpadEnter")) return;
+        if (_editingItemId.HasValue) return;
+        if (string.IsNullOrWhiteSpace(_newRule)) return;
+        await AddItemAsync();
     }
 
     private void StartEdit(RulesSetItemDto item)
