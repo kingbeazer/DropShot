@@ -1,0 +1,192 @@
+@* Per-match set-score breakdown dialog.
+
+   Singles / doubles: parses `Fixture.ResultSummary` into per-set columns.
+   Team match: lists each rubber with its per-set scores (falls back to the
+   set-count aggregate when a rubber has no per-set rows). *@
+
+@using DropShot.Shared
+@using DropShot.Shared.Dtos
+
+<MudDialog Visible="Visible" VisibleChanged="VisibleChanged"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Set scores</MudText>
+        @if (Fixture is not null)
+        {
+            <MudText Typo="Typo.caption" Style="opacity:0.75">@HeaderSubtitle</MudText>
+        }
+    </TitleContent>
+    <DialogContent>
+        @if (Fixture is null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No fixture selected.</MudText>
+        }
+        else if (IsTeamMatch)
+        {
+            var rubbers = Fixture.Rubbers ?? new List<RubberDto>();
+            var completed = rubbers.Where(r => r.IsComplete).ToList();
+            if (completed.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">No completed rubbers yet.</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Hover="true" Class="set-scores-table">
+                    <thead>
+                        <tr>
+                            <th>Rubber</th>
+                            <th>@(Fixture.HomeTeamName ?? "Home")</th>
+                            <th>@(Fixture.AwayTeamName ?? "Away")</th>
+                            <th style="text-align:right">Sets</th>
+                            <th>Per-set</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in completed)
+                        {
+                            var homePair = JoinNames(r.HomePlayer1Name, r.HomePlayer2Name);
+                            var awayPair = JoinNames(r.AwayPlayer1Name, r.AwayPlayer2Name);
+                            <tr>
+                                <td>@r.Name</td>
+                                <td>@homePair</td>
+                                <td>@awayPair</td>
+                                <td style="text-align:right; white-space:nowrap;">
+                                    @(r.HomeSetsWon ?? 0)–@(r.AwaySetsWon ?? 0)
+                                </td>
+                                <td style="white-space:nowrap;">
+                                    @if (r.SetScores is { Count: > 0 } sets)
+                                    {
+                                        @string.Join(" ", sets.Select(s => $"{s.Home}–{s.Away}"))
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        }
+        else
+        {
+            var sets = ParseResultSummary(Fixture.ResultSummary);
+            if (sets.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">No set scores recorded.</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Hover="true" Class="set-scores-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            @for (var i = 0; i < sets.Count; i++)
+                            {
+                                <th style="text-align:center">Set @(i + 1)</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="font-weight:@(IsP1Winner ? "700" : "400")">@SideAName</td>
+                            @foreach (var s in sets)
+                            {
+                                <td style="text-align:center">@s.P1</td>
+                            }
+                        </tr>
+                        <tr>
+                            <td style="font-weight:@(IsP2Winner ? "700" : "400")">@SideBName</td>
+                            @foreach (var s in sets)
+                            {
+                                <td style="text-align:center">@s.P2</td>
+                            }
+                        </tr>
+                    </tbody>
+                </MudSimpleTable>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => VisibleChanged.InvokeAsync(false))">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public CompetitionFixtureDto? Fixture { get; set; }
+
+    private bool IsTeamMatch => Fixture is not null
+        && (Fixture.HomeTeamId.HasValue || Fixture.AwayTeamId.HasValue);
+
+    private string SideAName
+    {
+        get
+        {
+            if (Fixture is null) return "Side A";
+            if (IsTeamMatch) return Fixture.HomeTeamName ?? "Home";
+            return Fixture.Player3Id is not null
+                ? $"{Fixture.Player1Name ?? "TBD"} & {Fixture.Player3Name ?? "TBD"}"
+                : Fixture.Player1Name ?? "Side A";
+        }
+    }
+
+    private string SideBName
+    {
+        get
+        {
+            if (Fixture is null) return "Side B";
+            if (IsTeamMatch) return Fixture.AwayTeamName ?? "Away";
+            return Fixture.Player4Id is not null
+                ? $"{Fixture.Player2Name ?? "TBD"} & {Fixture.Player4Name ?? "TBD"}"
+                : Fixture.Player2Name ?? "Side B";
+        }
+    }
+
+    private bool IsP1Winner => Fixture is not null
+        && Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player1Id;
+
+    private bool IsP2Winner => Fixture is not null
+        && Fixture.WinnerPlayerId.HasValue && Fixture.WinnerPlayerId == Fixture.Player2Id;
+
+    private string HeaderSubtitle
+    {
+        get
+        {
+            if (Fixture is null) return "";
+            var label = !string.IsNullOrEmpty(Fixture.FixtureLabel)
+                ? Fixture.FixtureLabel
+                : Fixture.StageName ?? "";
+            var when = Fixture.ScheduledAt?.ToString("dd MMM yyyy") ?? "";
+            return string.Join(" · ", new[] { label, when }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+        }
+    }
+
+    private static string JoinNames(string? a, string? b) => (a, b) switch
+    {
+        (null or "", null or "") => "—",
+        (null or "", _) => b!,
+        (_, null or "") => a!,
+        _ => $"{a} & {b}"
+    };
+
+    private static List<(string P1, string P2)> ParseResultSummary(string? summary)
+    {
+        // Canonical format is space-separated en-dash ("6–3 7–5"); legacy
+        // comma-separated hyphen ("6-3, 7-5") was migrated server-side but
+        // accept both shapes defensively (matches FixtureResultCard).
+        if (string.IsNullOrWhiteSpace(summary)) return [];
+        var result = new List<(string, string)>();
+        var parts = summary.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            var scores = part.Split(['-', '–'], 2);
+            if (scores.Length == 2)
+                result.Add((scores[0].Trim(), scores[1].Trim()));
+        }
+        return result;
+    }
+}

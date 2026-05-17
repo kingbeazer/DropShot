@@ -313,7 +313,8 @@ public record RubberDto(
     int? HomeSetsWon = null,
     int? AwaySetsWon = null,
     int? HomeGamesTotal = null,
-    int? AwayGamesTotal = null);
+    int? AwayGamesTotal = null,
+    IReadOnlyList<RubberSetScoreDto>? SetScores = null);
 
 public record TeamLeagueTableEntryDto(
     int TeamId,

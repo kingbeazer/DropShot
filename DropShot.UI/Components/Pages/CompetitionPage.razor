@@ -1183,7 +1183,8 @@ else
                     OnOverrideResult="OpenOverrideResultAsync"
                     OnShowQr="ShowQrCode"
                     OnOpenEditDialog="OpenEditFixtureDialog"
-                    OnDeleteFixture="DeleteFixture" />
+                    OnDeleteFixture="DeleteFixture"
+                    OnShowSetScores="OpenSetScoresDialog" />
             }
             else
             {
@@ -1318,7 +1319,20 @@ else
                                                             @{
                                                                 var resultText = FixtureResultDisplay(f);
                                                             }
-                                                            @(!string.IsNullOrEmpty(resultText) ? resultText : "—")
+                                                            @if (!string.IsNullOrEmpty(resultText))
+                                                            {
+                                                                <MudTooltip Text="Click for set-by-set scores">
+                                                                    <MudLink Typo="Typo.body2" Underline="Underline.Hover" Color="Color.Default"
+                                                                             Style="cursor:pointer"
+                                                                             OnClick="@(() => OpenSetScoresDialog(f))">
+                                                                        @resultText
+                                                                    </MudLink>
+                                                                </MudTooltip>
+                                                            }
+                                                            else
+                                                            {
+                                                                @("—")
+                                                            }
                                                         </td>
                                                         <td>
                                                             <MudChip T="string" Size="Size.Small" Color="@StatusColor(f.Status)">@f.Status</MudChip>
@@ -1470,6 +1484,12 @@ else
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveStage">Add</MudButton>
     </DialogActions>
 </MudDialog>
+
+@* ── Set Scores Dialog ──────────────────────────────────────── *@
+<DropShot.UI.Components.Shared.MatchSetScoresDialog
+    Visible="_showSetScoresDialog"
+    VisibleChanged="@(v => _showSetScoresDialog = v)"
+    Fixture="_setScoresFixture" />
 
 @* ── Stage Follow-Up Dialog ────────────────────────────────── *@
 <MudDialog @bind-Visible="_showStageFollowUpDialog">
@@ -4565,6 +4585,15 @@ else
         // the persisted result summary. The previous code recomputed rubber
         // scores client-side; the server now persists the resolved aggregate.
         return f.ResultSummary ?? "";
+    }
+
+    private bool _showSetScoresDialog;
+    private CompetitionFixtureDto? _setScoresFixture;
+
+    private void OpenSetScoresDialog(CompetitionFixtureDto f)
+    {
+        _setScoresFixture = f;
+        _showSetScoresDialog = true;
     }
 
     private static Color StatusColor(FixtureStatus s) => s switch

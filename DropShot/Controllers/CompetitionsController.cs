@@ -1635,7 +1635,9 @@ public class CompetitionsController(
             r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
             r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
             r.HomeGames, r.AwayGames, r.WinnerTeamId,
-            r.IsComplete, r.SavedMatchId)).ToList();
+            r.IsComplete, r.SavedMatchId,
+            r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal,
+            r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList())).ToList();
     }
 
     // ── Team League Table ────────────────────────────────────────────────────
