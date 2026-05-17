@@ -51,7 +51,8 @@ public record CompetitionDetailDto(
     List<CompetitionTeamDto>? Teams = null,
     List<CourtPairDto>? CourtPairs = null,
     LeagueScoringMode LeagueScoring = LeagueScoringMode.WinPoints,
-    int? MyPlayerId = null);
+    int? MyPlayerId = null,
+    string? Description = null);
 
 public record CompetitionStageDto(
     int CompetitionStageId,

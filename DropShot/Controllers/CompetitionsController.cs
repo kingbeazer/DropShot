@@ -164,7 +164,8 @@ public class CompetitionsController(
                 cp.Court1Id, cp.Court1.Name,
                 cp.Court2Id, cp.Court2.Name,
                 cp.Name)).ToList(),
-            c.LeagueScoring);
+            c.LeagueScoring,
+            Description: c.Description);
     }
 
     [HttpPost]

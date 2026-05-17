@@ -261,7 +261,8 @@ public sealed class WebCompetitionAdminService(
             Clubs: clubs, RulesSets: rulesSets, Events: events,
             AllowedPlayerIds: comp.AllowedPlayers.Select(ap => ap.PlayerId).ToList(),
             CanEdit: canEdit,
-            IsSuperAdmin: isSuperAdmin);
+            IsSuperAdmin: isSuperAdmin,
+            Description: comp.Description);
     }
 
     public async Task<List<CompetitionSeedSourceDto>> GetSeedSourceCandidatesAsync(
@@ -414,6 +415,7 @@ public sealed class WebCompetitionAdminService(
         comp.HasDivisions = req.HasDivisions;
         comp.SeededFromCompetitionId = req.SeededFromCompetitionId;
         comp.IsRestricted = req.IsRestricted;
+        comp.Description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description;
     }
 
     public async Task<CloneCompetitionResultDto> CloneCompetitionAsync(

@@ -31,6 +31,7 @@ public sealed class CompetitionFormModel
     public int? MinDaysBetweenPlayerMatches { get; set; }
     public bool HasDivisions { get; set; }
     public int? SeededFromCompetitionId { get; set; }
+    public string? Description { get; set; }
 }
 
 // UI-only enums that separate category (Male/Female/Mixed) from the format shown in the

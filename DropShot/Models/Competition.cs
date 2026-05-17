@@ -8,6 +8,14 @@ namespace DropShot.Models
         public string CompetitionName { get; set; } = "";
         public CompetitionFormat CompetitionFormat { get; set; }
 
+        /// <summary>
+        /// Free-form general information about the competition, written in
+        /// Markdown. Rendered to HTML for display by both the edit-mode
+        /// preview and the player-facing view page. Null/empty hides the
+        /// "About" panel entirely.
+        /// </summary>
+        public string? Description { get; set; }
+
         public int? MaxParticipants { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }

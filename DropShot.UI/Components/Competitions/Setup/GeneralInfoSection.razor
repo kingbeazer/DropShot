@@ -1,0 +1,53 @@
+@using DropShot.UI.Services
+
+@* Free-form Markdown description shown at the top of the player-facing
+   competition view. Edit mode renders a textarea with an Edit/Preview
+   toggle; the rendered HTML uses MarkdownRenderer so HTML embedded in the
+   input is stripped. *@
+
+<MudPaper id="section-general-info" Class="pa-4 mb-4 setup-section" Elevation="0"
+     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+        <MudText Typo="Typo.h6" Style="flex:1">General info</MudText>
+        <MudToggleGroup T="bool" Value="_showPreview"
+                        ValueChanged="@((bool v) => _showPreview = v)"
+                        SelectionMode="SelectionMode.SingleSelection" Size="Size.Small">
+            <MudToggleItem Value="@false">Edit</MudToggleItem>
+            <MudToggleItem Value="@true">Preview</MudToggleItem>
+        </MudToggleGroup>
+    </MudStack>
+
+    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+        Shown at the top of this competition's page for everyone who can view it.
+        Supports Markdown — <b>**bold**</b>, <i>*italic*</i>, lists, links, headings.
+    </MudText>
+
+    @if (_showPreview)
+    {
+        <MudPaper Class="pa-3 markdown-body" Elevation="0"
+                  Style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; min-height: 6rem;">
+            @if (string.IsNullOrWhiteSpace(Description))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Nothing to preview yet.</MudText>
+            }
+            else
+            {
+                @((MarkupString)MarkdownRenderer.ToHtml(Description))
+            }
+        </MudPaper>
+    }
+    else
+    {
+        <MudTextField T="string" Value="Description"
+                      ValueChanged="@(v => DescriptionChanged.InvokeAsync(v))"
+                      Variant="Variant.Outlined" Lines="8" Immediate="true"
+                      Placeholder="e.g. **Welcome to the 2026 Winter League!**&#10;&#10;Matches run Mondays and Thursdays from 19:00. Please RSVP via the club calendar." />
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public EventCallback<string?> DescriptionChanged { get; set; }
+
+    private bool _showPreview;
+}

@@ -69,7 +69,8 @@ public record CompetitionEditDto(
     IReadOnlyList<EventDto> Events,
     IReadOnlyList<int> AllowedPlayerIds,
     bool CanEdit,
-    bool IsSuperAdmin);
+    bool IsSuperAdmin,
+    string? Description = null);
 
 public record CompetitionMatchWindowDto(
     int CompetitionMatchWindowId,
@@ -200,7 +201,8 @@ public record SaveCompetitionEditRequest(
     bool HasDivisions,
     int? SeededFromCompetitionId,
     bool IsRestricted = false,
-    IReadOnlyList<int>? AllowedPlayerIds = null);
+    IReadOnlyList<int>? AllowedPlayerIds = null,
+    string? Description = null);
 
 public record ApplyStageFollowUpRequest(IReadOnlyList<StageType> StageTypes);
 
