@@ -2642,10 +2642,10 @@ else
         _ => (
             eligibleSex switch
             {
+                PlayerSex.Male   => CompetitionCategoryUi.Male,
                 PlayerSex.Female => CompetitionCategoryUi.Female,
-                // Legacy EligibleSex=null Singles/Doubles/Team → default to Male category
-                // (per migration decision). User can change it on edit.
-                _ => CompetitionCategoryUi.Male
+                // No sex filter = Mixed (e.g. Mixed + Singles, which has no dedicated persisted format).
+                _ => CompetitionCategoryUi.Mixed
             },
             persisted switch
             {
