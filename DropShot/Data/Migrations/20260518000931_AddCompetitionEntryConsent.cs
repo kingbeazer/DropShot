@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,42 +11,30 @@ namespace DropShot.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<DateTime>(
-                name: "LastDecayAppliedAt",
-                table: "CompetitionParticipants",
-                type: "datetime2",
-                nullable: true);
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "LastInactivityWarningAt",
-                table: "CompetitionParticipants",
-                type: "datetime2",
-                nullable: true);
-
             migrationBuilder.CreateTable(
-                name: "LadderInactivityDecays",
+                name: "CompetitionEntryConsents",
                 columns: table => new
                 {
-                    LadderInactivityDecayId = table.Column<int>(type: "int", nullable: false)
+                    CompetitionEntryConsentId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     CompetitionId = table.Column<int>(type: "int", nullable: false),
                     PlayerId = table.Column<int>(type: "int", nullable: false),
-                    AppliedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    RatingBefore = table.Column<double>(type: "float", nullable: false),
-                    RatingAfter = table.Column<double>(type: "float", nullable: false),
-                    DaysInactive = table.Column<int>(type: "int", nullable: false)
+                    ConsentGivenUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ConsentWordingShown = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConsentVersion = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    WithdrawnUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_LadderInactivityDecays", x => x.LadderInactivityDecayId);
+                    table.PrimaryKey("PK_CompetitionEntryConsents", x => x.CompetitionEntryConsentId);
                     table.ForeignKey(
-                        name: "FK_LadderInactivityDecays_Competition_CompetitionId",
+                        name: "FK_CompetitionEntryConsents_Competition_CompetitionId",
                         column: x => x.CompetitionId,
                         principalTable: "Competition",
                         principalColumn: "CompetitionID",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_LadderInactivityDecays_Players_PlayerId",
+                        name: "FK_CompetitionEntryConsents_Players_PlayerId",
                         column: x => x.PlayerId,
                         principalTable: "Players",
                         principalColumn: "PlayerId",
@@ -54,13 +42,13 @@ namespace DropShot.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_LadderInactivityDecays_CompetitionId_AppliedAt",
-                table: "LadderInactivityDecays",
-                columns: new[] { "CompetitionId", "AppliedAt" });
+                name: "IX_CompetitionEntryConsents_CompetitionId_PlayerId_WithdrawnUtc",
+                table: "CompetitionEntryConsents",
+                columns: new[] { "CompetitionId", "PlayerId", "WithdrawnUtc" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_LadderInactivityDecays_PlayerId",
-                table: "LadderInactivityDecays",
+                name: "IX_CompetitionEntryConsents_PlayerId",
+                table: "CompetitionEntryConsents",
                 column: "PlayerId");
         }
 
@@ -68,15 +56,7 @@ namespace DropShot.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "LadderInactivityDecays");
-
-            migrationBuilder.DropColumn(
-                name: "LastDecayAppliedAt",
-                table: "CompetitionParticipants");
-
-            migrationBuilder.DropColumn(
-                name: "LastInactivityWarningAt",
-                table: "CompetitionParticipants");
+                name: "CompetitionEntryConsents");
         }
     }
 }
