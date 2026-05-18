@@ -25,7 +25,8 @@ public sealed class WebCompetitionService(
     ICurrentUser currentUser,
     BackgroundTaskQueue backgroundTasks,
     RubberResolutionService rubberResolver,
-    PlayerRatingService ratings) : ICompetitionService
+    PlayerRatingService ratings,
+    IPhoneVisibilityService phoneVisibility) : ICompetitionService
 {
     /// <summary>
     /// Best-available principal: HttpContext.User on prerender, controllers,
@@ -121,10 +122,21 @@ public sealed class WebCompetitionService(
             .ToListAsync(ct);
 
         int? myPlayerId = null;
+        string? myMobileNumber = null;
         if (!string.IsNullOrEmpty(currentUser.UserId))
         {
             myPlayerId = c.Participants
                 .FirstOrDefault(p => p.Player?.UserId == currentUser.UserId)?.PlayerId;
+
+            // The caller's own number — separate from the participants
+            // projection because the entry-consent dialog needs it before
+            // the caller is in the participants list. Always populated for
+            // the caller themselves (rule #1 in PhoneVisibilityService).
+            myMobileNumber = await db.Players
+                .AsNoTracking()
+                .Where(p => p.UserId == currentUser.UserId)
+                .Select(p => p.MobileNumber)
+                .FirstOrDefaultAsync(ct);
         }
 
         var ratingsByPlayer = await ratings.GetRosterRatingsAsync(id, ct);
@@ -155,6 +167,17 @@ public sealed class WebCompetitionService(
                 .ToListAsync(ct);
         }
 
+        // Strip MobileNumber from the wire payload for players the viewer
+        // isn't allowed to see. Server-side gating — hiding it client-side
+        // would still leak the value in the JSON response.
+        var canEditThisCompetition = await authzService.CanEditCompetitionAsync(user, c.HostClubId, id);
+        var visiblePhonePlayerIds = await phoneVisibility.VisiblePhoneNumberPlayerIdsAsync(
+            currentUser.UserId ?? "",
+            id,
+            c.Participants.Select(p => p.PlayerId).ToList(),
+            canEditThisCompetition,
+            ct);
+
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
             c.CompetitionFormat,
@@ -169,7 +192,7 @@ public sealed class WebCompetitionService(
                 p.PlayerId, p.Player?.DisplayName ?? "",
                 p.Status,
                 p.RegisteredAt, p.TeamId, p.Team?.Name,
-                p.Player?.MobileNumber,
+                visiblePhonePlayerIds.Contains(p.PlayerId) ? p.Player?.MobileNumber : null,
                 p.Role,
                 p.Player?.Sex,
                 p.CompetitionDivisionId,
@@ -216,7 +239,8 @@ public sealed class WebCompetitionService(
             c.LadderStartingRating,
             c.LadderProvisionalMatches,
             c.LadderUseMarginOfVictory,
-            decayEvents);
+            decayEvents,
+            myMobileNumber);
     }
 
     private static PlacementSuggestionDto? BuildPlacementSuggestion(
@@ -270,7 +294,11 @@ public sealed class WebCompetitionService(
         HomeGamesTotal: f.HomeGamesTotal,
         AwayGamesTotal: f.AwayGamesTotal);
 
-    public async Task SelfRegisterAsync(int competitionId, DropShot.Shared.ParticipantStatus status, CancellationToken ct = default)
+    public async Task SelfRegisterAsync(
+        int competitionId,
+        DropShot.Shared.ParticipantStatus status,
+        PhoneShareConsent consent,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(currentUser.UserId))
             throw new InvalidOperationException("Not authenticated.");
@@ -278,6 +306,8 @@ public sealed class WebCompetitionService(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == currentUser.UserId, ct)
             ?? throw new KeyNotFoundException("Could not find your player record.");
+
+        RequirePhoneAndConsent(player, consent);
 
         var existing = await db.CompetitionParticipants
             .AnyAsync(cp => cp.CompetitionId == competitionId && cp.PlayerId == player.PlayerId, ct);
@@ -291,21 +321,30 @@ public sealed class WebCompetitionService(
             Status = status,
             RegisteredAt = DateTime.UtcNow
         });
+        db.CompetitionEntryConsents.Add(BuildConsentRow(competitionId, player.PlayerId, consent));
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task ConfirmParticipationAsync(int competitionId, DropShot.Shared.ParticipantStatus status, CancellationToken ct = default)
+    public async Task ConfirmParticipationAsync(
+        int competitionId,
+        DropShot.Shared.ParticipantStatus status,
+        PhoneShareConsent consent,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(currentUser.UserId))
             throw new InvalidOperationException("Not authenticated.");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var participant = await db.CompetitionParticipants
+            .Include(cp => cp.Player)
             .FirstOrDefaultAsync(cp => cp.CompetitionId == competitionId
                 && cp.Player!.UserId == currentUser.UserId, ct)
             ?? throw new KeyNotFoundException("Could not find your participant record.");
 
+        RequirePhoneAndConsent(participant.Player!, consent);
+
         participant.Status = status;
+        db.CompetitionEntryConsents.Add(BuildConsentRow(competitionId, participant.PlayerId, consent));
         await db.SaveChangesAsync(ct);
     }
 
@@ -318,6 +357,32 @@ public sealed class WebCompetitionService(
             r.Participants, r.ActivePlayers, r.IdlePlayers,
             r.FixturesGenerated, r.DecayEventsGenerated);
     }
+
+    private static void RequirePhoneAndConsent(Player player, PhoneShareConsent consent)
+    {
+        if (string.IsNullOrWhiteSpace(player.MobileNumber))
+            throw new InvalidOperationException(
+                "Add a mobile number to your profile before entering competitions.");
+        if (!consent.Granted)
+            throw new InvalidOperationException(
+                "Consent required to share your mobile number with other competitors.");
+        if (string.IsNullOrWhiteSpace(consent.WordingShown))
+            throw new InvalidOperationException("Consent wording is required.");
+        if (consent.Version != PhoneVisibilityService.CurrentConsentVersion)
+            throw new InvalidOperationException(
+                "Consent form has been updated — please refresh the page and try again.");
+    }
+
+    private static CompetitionEntryConsent BuildConsentRow(
+        int competitionId, int playerId, PhoneShareConsent consent) => new()
+    {
+        CompetitionId = competitionId,
+        PlayerId = playerId,
+        ConsentGivenUtc = DateTime.UtcNow,
+        ConsentWordingShown = consent.WordingShown,
+        ConsentVersion = consent.Version,
+    };
+
 
     public async Task ApproveFixtureResultAsync(
         int fixtureId, ApproveFixtureResultRequest request, CancellationToken ct = default)
@@ -687,7 +752,7 @@ public sealed class WebCompetitionService(
     public async Task<MyCompetitionsViewDto> GetMyCompetitionsViewAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(currentUser.UserId))
-            return new MyCompetitionsViewDto(false, [], []);
+            return new MyCompetitionsViewDto(false, [], [], null);
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
@@ -704,7 +769,7 @@ public sealed class WebCompetitionService(
         var myPlayers = await db.Players
             .Where(p => p.UserId == currentUser.UserId)
             .ToListAsync(ct);
-        if (myPlayers.Count == 0) return new MyCompetitionsViewDto(false, [], []);
+        if (myPlayers.Count == 0) return new MyCompetitionsViewDto(false, [], [], null);
         var myPlayerIds = myPlayers.Select(p => p.PlayerId).ToList();
         var eligibilityPlayer = myPlayers.FirstOrDefault(p => !p.IsLight) ?? myPlayers[0];
 
@@ -742,7 +807,11 @@ public sealed class WebCompetitionService(
         var available = candidates
             .Where(c => EligibilityEvaluator.Evaluate(c, eligibilityPlayer).Count == 0)
             .Select(ToDto).ToList();
-        return new MyCompetitionsViewDto(true, enteredEntities.Select(ToDto).ToList(), available);
+        return new MyCompetitionsViewDto(
+            true,
+            enteredEntities.Select(ToDto).ToList(),
+            available,
+            eligibilityPlayer.MobileNumber);
     }
 
     public async Task<List<CompetitionFixtureDto>> GetPendingVerificationFixturesAsync(CancellationToken ct = default)
@@ -897,7 +966,8 @@ public sealed class WebCompetitionService(
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default)
+    public async Task EnterCompetitionAsync(
+        int competitionId, PhoneShareConsent consent, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(currentUser.UserId))
             throw new InvalidOperationException("Not authenticated.");
@@ -906,6 +976,8 @@ public sealed class WebCompetitionService(
         var player = await db.Players
             .FirstOrDefaultAsync(p => p.UserId == currentUser.UserId && !p.IsLight, ct)
             ?? throw new InvalidOperationException("You need a player profile before entering competitions.");
+
+        RequirePhoneAndConsent(player, consent);
 
         var comp = await db.Competition
             .Include(c => c.AllowedPlayers)
@@ -946,6 +1018,35 @@ public sealed class WebCompetitionService(
             RegisteredAt = DateTime.UtcNow,
             Status = ParticipantStatus.Registered
         });
+        db.CompetitionEntryConsents.Add(BuildConsentRow(competitionId, player.PlayerId, consent));
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task LeaveCompetitionAsync(int competitionId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(currentUser.UserId))
+            throw new InvalidOperationException("Not authenticated.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var participant = await db.CompetitionParticipants
+            .Include(cp => cp.Player)
+            .FirstOrDefaultAsync(cp => cp.CompetitionId == competitionId
+                && cp.Player!.UserId == currentUser.UserId, ct)
+            ?? throw new KeyNotFoundException("You are not entered in this competition.");
+
+        participant.Status = ParticipantStatus.Withdrawn;
+
+        // Stamp the latest active consent row (if any) as withdrawn so the
+        // visibility service drops this player's number from peer views.
+        var activeConsent = await db.CompetitionEntryConsents
+            .Where(c => c.CompetitionId == competitionId
+                        && c.PlayerId == participant.PlayerId
+                        && c.WithdrawnUtc == null)
+            .OrderByDescending(c => c.ConsentGivenUtc)
+            .FirstOrDefaultAsync(ct);
+        if (activeConsent is not null)
+            activeConsent.WithdrawnUtc = DateTime.UtcNow;
+
         await db.SaveChangesAsync(ct);
     }
 

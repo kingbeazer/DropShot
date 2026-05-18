@@ -658,6 +658,32 @@ else
                                        OnClick="OpenNewPlayerDialog">Add new</MudButton>
                         </MudTooltip>
                     }
+
+                    @* Admin-attested consent: ticking this records the player's
+                       consent on their behalf so other competitors in the
+                       division can see their mobile number. Untick to enrol
+                       a player without sharing their number (e.g. test data,
+                       or you haven't actually got their consent yet — they
+                       can self-consent on their own login). *@
+                    <MudPaper Class="pa-3 mt-1" Elevation="0"
+                              Style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10);">
+                        <MudStack Spacing="2">
+                            <MudCheckBox @bind-Value="_addAttestConsent" Color="Color.Primary" Dense="true">
+                                Record phone-share consent on this player's behalf (I have evidence
+                                they've consented, e.g. email asking to enter)
+                            </MudCheckBox>
+                            <MudTextField @bind-Value="_addAttestSource"
+                                          Label="Source of consent"
+                                          Placeholder="e.g. Email 14 May, subject 'Yes please add me'"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Disabled="@(!_addAttestConsent)"
+                                          HelperText="Recorded in the audit trail. Required when the checkbox is ticked." />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                When unticked, players are added without sharing their number with peers — they can
+                                consent themselves the next time they log in.
+                            </MudText>
+                        </MudStack>
+                    </MudPaper>
                 </MudStack>
 
                 @if (_showDeleteAllParticipantsConfirm)
@@ -2059,6 +2085,15 @@ else
     // populated roster is immediately eligible for team generation.
     private ParticipantStatus _addParticipantStatus = ParticipantStatus.FullPlayer;
 
+    // Admin-attested phone-share consent for the players I'm adding (e.g.
+    // "Alice emailed asking to be entered and is happy to share her number
+    // with the division"). Applies to subsequent single-adds via the
+    // autocomplete and to the bulk-add submission. When unticked, players
+    // are added without a consent row — their numbers stay peer-hidden
+    // until they self-consent via Leave/Enter on their own login.
+    private bool _addAttestConsent;
+    private string _addAttestSource = "";
+
     // Clone competition dialog state
     private bool _showCloneDialog;
     private string _cloneName = "";
@@ -2914,12 +2949,22 @@ else
     private async Task ConfirmBulkAddAsync()
     {
         if (_bulkAddSelected.Count == 0) return;
+
+        var attestation = BuildAttestationOrNull();
+        if (_addAttestConsent && attestation is null)
+        {
+            SiteAlerts.Add(
+                "Source of consent is required when the attestation checkbox is ticked.",
+                Severity.Warning);
+            return;
+        }
+
         _bulkAddSubmitting = true;
         try
         {
             var playerIds = _bulkAddSelected.Select(p => p.PlayerId).ToList();
             var result = await Admin.BulkAddParticipantsAsync(Id,
-                new BulkAddParticipantsRequest(playerIds, _bulkAddStatus));
+                new BulkAddParticipantsRequest(playerIds, _bulkAddStatus, AttestedConsent: attestation));
             _showBulkAddDialog = false;
             await ReloadAfterServerMutationAsync();
             var msg = result.Skipped > 0
@@ -2990,6 +3035,17 @@ else
         SiteAlerts.Add($"{_newPlayerForm.DisplayName} added to club and competition.", Severity.Success);
     }
 
+    // Returns an AdminRecordedPhoneShareConsent payload if the admin has
+    // ticked the attestation checkbox AND provided a Source; null otherwise
+    // (which the server treats as "no consent recorded" — number stays
+    // peer-hidden until the player self-consents).
+    private AdminRecordedPhoneShareConsent? BuildAttestationOrNull()
+    {
+        if (!_addAttestConsent) return null;
+        if (string.IsNullOrWhiteSpace(_addAttestSource)) return null;
+        return new AdminRecordedPhoneShareConsent(true, _addAttestSource.Trim());
+    }
+
     private async Task AddParticipant(PlayerSearchResultDto? player)
     {
         if (player == null || _participants.Any(p => p.PlayerId == player.PlayerId)) return;
@@ -3002,9 +3058,19 @@ else
             return;
         }
 
+        var attestation = BuildAttestationOrNull();
+        if (_addAttestConsent && attestation is null)
+        {
+            SiteAlerts.Add(
+                "Source of consent is required when the attestation checkbox is ticked.",
+                Severity.Warning);
+            return;
+        }
+
         try
         {
-            await Admin.AddParticipantAsync(Id, new AddParticipantRequest(player.PlayerId, Force: false));
+            await Admin.AddParticipantAsync(Id,
+                new AddParticipantRequest(player.PlayerId, Force: false, AttestedConsent: attestation));
         }
         catch (InvalidOperationException ex)
         {
@@ -3025,7 +3091,8 @@ else
             Logger.LogWarning(
                 "Admin override: player {PlayerId} added to competition {CompetitionId} despite eligibility violation(s).",
                 player.PlayerId, Id);
-            await Admin.AddParticipantAsync(Id, new AddParticipantRequest(player.PlayerId, Force: true));
+            await Admin.AddParticipantAsync(Id,
+                new AddParticipantRequest(player.PlayerId, Force: true, AttestedConsent: attestation));
         }
 
         await Admin.UpdateParticipantStatusAsync(Id, player.PlayerId,

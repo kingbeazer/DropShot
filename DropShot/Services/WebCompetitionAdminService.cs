@@ -1018,7 +1018,8 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
+        var principal = await GetCurrentPrincipalAsync();
+        if (!await authzService.CanEditCompetitionAsync(principal, comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         if (comp.Participants.Any(p => p.PlayerId == request.PlayerId))
@@ -1040,7 +1041,40 @@ public sealed class WebCompetitionAdminService(
             RegisteredAt  = DateTime.UtcNow,
             Status        = ParticipantStatus.Registered,
         });
+
+        if (request.AttestedConsent is { } att)
+            db.CompetitionEntryConsents.Add(BuildAdminAttestedConsent(competitionId, request.PlayerId, att, principal));
+
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Build a CompetitionEntryConsent row from an admin's attestation. The
+    /// version is distinct from the self-asserted version, and the wording
+    /// captures who attested, when, and the admin-supplied evidence source —
+    /// so audits can trace any peer-visible number back to its lawful basis.
+    /// </summary>
+    private static CompetitionEntryConsent BuildAdminAttestedConsent(
+        int competitionId, int playerId, AdminRecordedPhoneShareConsent att, ClaimsPrincipal principal)
+    {
+        if (!att.Attested)
+            throw new InvalidOperationException(
+                "Admin attestation checkbox must be ticked to record consent on the player's behalf.");
+        if (string.IsNullOrWhiteSpace(att.Source))
+            throw new InvalidOperationException(
+                "Source of consent (e.g. email subject and date) is required when recording consent on the player's behalf.");
+
+        var adminLabel = principal.Identity?.Name ?? "unknown-admin";
+        return new CompetitionEntryConsent
+        {
+            CompetitionId = competitionId,
+            PlayerId = playerId,
+            ConsentGivenUtc = DateTime.UtcNow,
+            ConsentVersion = PhoneVisibilityService.AdminRecordedConsentVersion,
+            ConsentWordingShown =
+                $"Admin-recorded consent by {adminLabel} on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC. " +
+                $"Source: {att.Source.Trim()}",
+        };
     }
 
     public async Task<BulkAddParticipantsResultDto> BulkAddParticipantsAsync(
@@ -1051,7 +1085,8 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
+        var principal = await GetCurrentPrincipalAsync();
+        if (!await authzService.CanEditCompetitionAsync(principal, comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         if (request.PlayerIds.Count == 0)
@@ -1077,6 +1112,8 @@ public sealed class WebCompetitionAdminService(
                 RegisteredAt  = now,
                 Status        = request.Status,
             });
+            if (request.AttestedConsent is { } att)
+                db.CompetitionEntryConsents.Add(BuildAdminAttestedConsent(competitionId, playerId, att, principal));
             added++;
         }
         if (added > 0) await db.SaveChangesAsync(ct);

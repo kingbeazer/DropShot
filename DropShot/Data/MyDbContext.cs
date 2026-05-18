@@ -46,6 +46,7 @@ namespace DropShot.Data
         public DbSet<CompetitionAllowedPlayer> CompetitionAllowedPlayers { get; set; }
         public DbSet<PlayerRatingSnapshot> PlayerRatingSnapshots { get; set; }
         public DbSet<LadderInactivityDecay> LadderInactivityDecays { get; set; }
+        public DbSet<CompetitionEntryConsent> CompetitionEntryConsents { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -689,6 +690,31 @@ namespace DropShot.Data
                       .WithMany()
                       .HasForeignKey(d => d.CompetitionId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── CompetitionEntryConsent ─────────────────────────────────────────
+            // Append-only consent log for the GDPR phone-share-with-competitors
+            // flow. One row per (player, competition) entry; withdrawal sets
+            // WithdrawnUtc on the most-recent row. Re-entry creates a new row.
+            builder.Entity<CompetitionEntryConsent>(entity =>
+            {
+                entity.Property(c => c.ConsentWordingShown).HasColumnType("nvarchar(max)").IsRequired();
+                entity.Property(c => c.ConsentVersion).HasMaxLength(32).IsRequired();
+
+                entity.HasOne(c => c.Competition)
+                      .WithMany()
+                      .HasForeignKey(c => c.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Restrict on Player FK matches the convention used by other
+                // Player references in this DbContext (avoids multi-cascade-path).
+                entity.HasOne(c => c.Player)
+                      .WithMany()
+                      .HasForeignKey(c => c.PlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // Hot path: "any active consent row for (competition, player)?"
+                entity.HasIndex(c => new { c.CompetitionId, c.PlayerId, c.WithdrawnUtc });
             });
 
             // ── RoleSwitchLog ───────────────────────────────────────────────────

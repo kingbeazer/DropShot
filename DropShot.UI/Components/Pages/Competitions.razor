@@ -460,6 +460,7 @@ else
     // Standard-user view
     private bool _isUserView;
     private bool _hasPlayer;
+    private string? _myMobileNumber;
     private List<CompetitionDto> _myEnteredComps = [];
     private List<CompetitionDto> _availableComps = [];
 
@@ -489,7 +490,8 @@ else
         Dictionary<int, List<CompetitionDto>> CompsByEventId,
         List<CompetitionDto> MyEnteredComps,
         List<CompetitionDto> AvailableComps,
-        List<CompetitionFixtureDto> PendingFixtures);
+        List<CompetitionFixtureDto> PendingFixtures,
+        string? MyMobileNumber);
 
     private PersistingComponentStateSubscription _persistSubscription;
 
@@ -538,6 +540,7 @@ else
         _myEnteredComps = snap.MyEnteredComps;
         _availableComps = snap.AvailableComps;
         _pendingFixtures = snap.PendingFixtures;
+        _myMobileNumber = snap.MyMobileNumber;
         _events = snap.EventGroups
             .Select(e => new EventGroup
             {
@@ -560,7 +563,8 @@ else
             _events.ToDictionary(g => g.Event.EventId, g => g.Competitions),
             _myEnteredComps,
             _availableComps,
-            _pendingFixtures);
+            _pendingFixtures,
+            _myMobileNumber);
         AppState.PersistAsJson(nameof(Competitions), snap);
         return Task.CompletedTask;
     }
@@ -602,6 +606,7 @@ else
             _hasPlayer = view.HasPlayer;
             _myEnteredComps = view.Entered;
             _availableComps = view.Available;
+            _myMobileNumber = view.MyMobileNumber;
             return;
         }
 
@@ -637,9 +642,29 @@ else
 
     private async Task EnterCompetitionAsync(CompetitionDto comp)
     {
+        if (string.IsNullOrWhiteSpace(_myMobileNumber))
+        {
+            SiteAlerts.Add(
+                "Add a mobile number to your profile before entering competitions — " +
+                "head to My Players.",
+                Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            [nameof(DropShot.UI.Components.Shared.EnterCompetitionConsentDialog.CompetitionName)] = comp.CompetitionName,
+            [nameof(DropShot.UI.Components.Shared.EnterCompetitionConsentDialog.MobileNumber)] = _myMobileNumber,
+        };
+        var dialog = await DialogService.ShowAsync<DropShot.UI.Components.Shared.EnterCompetitionConsentDialog>(
+            "Share your mobile number with competitors", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return;
+        if (result.Data is not PhoneShareConsent consent) return;
+
         try
         {
-            await CompetitionService.EnterCompetitionAsync(comp.CompetitionId);
+            await CompetitionService.EnterCompetitionAsync(comp.CompetitionId, consent);
         }
         catch (InvalidOperationException ex)
         {

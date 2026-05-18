@@ -305,7 +305,11 @@ public record SearchPlayersForAddRequest(
 /// </summary>
 public record BulkAddParticipantsRequest(
     IReadOnlyList<int> PlayerIds,
-    ParticipantStatus Status = ParticipantStatus.Registered);
+    ParticipantStatus Status = ParticipantStatus.Registered,
+    // Single attestation covers every player in the batch — the admin is
+    // asserting they have consent from all of them under the same Source.
+    // Null = no peer-share consent (e.g. simulated-roster test data).
+    AdminRecordedPhoneShareConsent? AttestedConsent = null);
 
 public record BulkAddParticipantsResultDto(int Added, int Skipped);
 
