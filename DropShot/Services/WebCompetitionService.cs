@@ -963,6 +963,15 @@ public sealed class WebCompetitionService(
             .ToListAsync(ct);
         db.CompetitionFixtures.RemoveRange(fixtures);
 
+        // PlayerRatingSnapshot.CompetitionId uses OnDelete(NoAction) to keep
+        // the Elo audit trail intact under normal operation. When the user
+        // explicitly deletes an (archived) competition, drop them too — the
+        // alternative is the delete silently fails on a FK constraint.
+        var snapshots = await db.PlayerRatingSnapshots
+            .Where(s => s.CompetitionId == competitionId)
+            .ToListAsync(ct);
+        db.PlayerRatingSnapshots.RemoveRange(snapshots);
+
         db.Competition.Remove(entity);
         try
         {
