@@ -967,10 +967,61 @@ public sealed class WebCompetitionService(
         // the Elo audit trail intact under normal operation. When the user
         // explicitly deletes an (archived) competition, drop them too — the
         // alternative is the delete silently fails on a FK constraint.
-        var snapshots = await db.PlayerRatingSnapshots
+        var parentSnapshots = await db.PlayerRatingSnapshots
             .Where(s => s.CompetitionId == competitionId)
             .ToListAsync(ct);
-        db.PlayerRatingSnapshots.RemoveRange(snapshots);
+
+        // Children that reference this competition via SeededFromCompetitionId
+        // must be cut loose so the self-referential FK doesn't block the delete.
+        // For each child participant who hasn't already had their SeasonStart
+        // baked in (via admin acceptance or manual entry), persist the rating
+        // they would have inherited from this parent — same precedence as
+        // PlayerRatingService.GetCurrentRatingAsync: parent SeasonEnd > parent
+        // SeasonStart > nothing. The child then has self-contained snapshots
+        // and we can null its SeededFromCompetitionId.
+        var children = await db.Competition
+            .Where(c => c.SeededFromCompetitionId == competitionId)
+            .ToListAsync(ct);
+        foreach (var child in children)
+        {
+            var childParticipantIds = await db.CompetitionParticipants
+                .Where(p => p.CompetitionId == child.CompetitionID)
+                .Select(p => p.PlayerId)
+                .ToListAsync(ct);
+
+            var alreadyBaked = await db.PlayerRatingSnapshots
+                .Where(s => s.CompetitionId == child.CompetitionID
+                         && s.Kind == PlayerRatingSnapshotKind.SeasonStart)
+                .Select(s => s.PlayerId)
+                .ToListAsync(ct);
+            var alreadyBakedSet = alreadyBaked.ToHashSet();
+
+            foreach (var playerId in childParticipantIds)
+            {
+                if (alreadyBakedSet.Contains(playerId)) continue;
+
+                var forPlayer = parentSnapshots.Where(s => s.PlayerId == playerId).ToList();
+                var source =
+                    forPlayer.FirstOrDefault(s => s.Kind == PlayerRatingSnapshotKind.SeasonEnd)
+                    ?? forPlayer.FirstOrDefault(s => s.Kind == PlayerRatingSnapshotKind.SeasonStart);
+                if (source is null) continue;
+
+                db.PlayerRatingSnapshots.Add(new PlayerRatingSnapshot
+                {
+                    PlayerId = playerId,
+                    CompetitionId = child.CompetitionID,
+                    Kind = PlayerRatingSnapshotKind.SeasonStart,
+                    Rating = source.Rating,
+                    RubbersPlayed = 0,
+                    IsProvisional = source.IsProvisional,
+                    ComputedAt = DateTime.UtcNow,
+                });
+            }
+
+            child.SeededFromCompetitionId = null;
+        }
+
+        db.PlayerRatingSnapshots.RemoveRange(parentSnapshots);
 
         db.Competition.Remove(entity);
         try
