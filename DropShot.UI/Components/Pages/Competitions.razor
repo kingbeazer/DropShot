@@ -841,9 +841,9 @@ else
         {
             await CompetitionService.DeleteCompetitionAsync(comp.CompetitionId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            SiteAlerts.Add("Failed to delete. Please try again.", Severity.Error);
+            SiteAlerts.Add($"Couldn't delete '{comp.CompetitionName}': {ex.Message}", Severity.Error);
             return;
         }
 
