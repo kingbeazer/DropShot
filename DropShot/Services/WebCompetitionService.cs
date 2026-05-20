@@ -26,7 +26,8 @@ public sealed class WebCompetitionService(
     BackgroundTaskQueue backgroundTasks,
     RubberResolutionService rubberResolver,
     PlayerRatingService ratings,
-    IPhoneVisibilityService phoneVisibility) : ICompetitionService
+    IPhoneVisibilityService phoneVisibility,
+    ILogger<WebCompetitionService> logger) : ICompetitionService
 {
     /// <summary>
     /// Best-available principal: HttpContext.User on prerender, controllers,
@@ -963,7 +964,26 @@ public sealed class WebCompetitionService(
         db.CompetitionFixtures.RemoveRange(fixtures);
 
         db.Competition.Remove(entity);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogError(ex, "Failed to delete competition {CompetitionId}", competitionId);
+            // The outer DbUpdateException message is the generic EF wrapper
+            // ("An error occurred while saving the entity changes…"); the
+            // inner SqlException carries the actual FK constraint name. Rethrow
+            // as InvalidOperationException so the UI can surface ex.Message
+            // without needing an EF Core reference.
+            var detail = ex.InnerException?.Message ?? ex.Message;
+            throw new InvalidOperationException(detail, ex);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to delete competition {CompetitionId}", competitionId);
+            throw;
+        }
     }
 
     public async Task EnterCompetitionAsync(
