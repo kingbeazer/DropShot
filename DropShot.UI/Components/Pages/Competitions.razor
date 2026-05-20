@@ -832,7 +832,7 @@ else
     {
         var confirm = await DialogService.ShowMessageBoxAsync(
             "Delete Competition",
-            $"Are you sure you want to permanently delete '{comp.CompetitionName}'? This will remove all participants, fixtures, stages, and teams. This action cannot be undone.",
+            $"Are you sure you want to permanently delete '{comp.CompetitionName}'? This will remove all participants, fixtures, stages, teams, and rating snapshots. This action cannot be undone.",
             yesText: "Delete", cancelText: "Cancel");
 
         if (confirm != true) return;
