@@ -53,9 +53,17 @@
 
     protected override void OnInitialized()
     {
+        // Apply the immersive scoring lock only for the live tennis-scoring
+        // page (`/match/{matchId:int}` or `/tennisscore`). Other `/match/...`
+        // routes — e.g. `/match/submit/{fixtureId}` — should keep normal
+        // document scroll.
         var path = HttpContext?.Request.Path.Value ?? "";
-        if (path.StartsWith("/match/", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/tennisscore", StringComparison.OrdinalIgnoreCase))
+        const string MatchPrefix = "/match/";
+        bool isLiveScoring =
+            path.Equals("/tennisscore", StringComparison.OrdinalIgnoreCase)
+            || (path.StartsWith(MatchPrefix, StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(path.AsSpan(MatchPrefix.Length), out _));
+        if (isLiveScoring)
         {
             _bodyClass = "scoring-active";
         }
