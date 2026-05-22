@@ -5,22 +5,18 @@
 <MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="py-4 submit-score-page">
     @if (!_loaded)
     {
-        <div class="centered">
-            <MudProgressCircular Indeterminate="true" />
-        </div>
+        <div class="d-flex justify-center"><MudProgressCircular Indeterminate="true" /></div>
     }
     else if (_context is null)
     {
         <MudAlert Severity="Severity.Error">This fixture is not available.</MudAlert>
-        <div class="centered mt-3">
-            <MudButton OnClick="Cancel">Back</MudButton>
-        </div>
+        <div class="d-flex justify-center mt-3"><MudButton OnClick="Cancel">Back</MudButton></div>
     }
     else
     {
-        <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="submit-score-stack">
+        <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="submit-score-stack mx-auto">
 
-            <MudPaper Class="frosted-card pa-4 score-section header-section" Elevation="0">
+            <MudPaper Class="frosted-card pa-4 score-section" Elevation="0">
                 <MudText Typo="Typo.h5" Align="Align.Center">Submit Score</MudText>
                 <MudText Typo="Typo.body1" Align="Align.Center" Class="mt-1">
                     <strong>@_side1</strong> vs <strong>@_side2</strong>
@@ -43,8 +39,7 @@
                 </MudAlert>
             }
 
-            @* Set rows: {Score A}  Set X  {Score B} *@
-            <MudPaper Class="frosted-card pa-4 score-section sets-section" Elevation="0">
+            <MudPaper Class="frosted-card pa-4 score-section" Elevation="0">
                 @for (int i = 0; i < _bestOf; i++)
                 {
                     int idx = i;
@@ -64,41 +59,37 @@
                 }
             </MudPaper>
 
-            @* Numeric pad — phone layout, ← 0 → on the bottom row. *@
-            <MudPaper Class="frosted-card pa-3 score-section keypad-section" Elevation="0">
+            <MudPaper Class="frosted-card pa-3 score-section" Elevation="0">
                 <div class="keypad">
-                    @for (int n = 1; n <= 9; n++)
+                    @for (int n = 1; n <= 6; n++)
                     {
                         int digit = n;
                         <button type="button" class="keypad-key" @onclick="@(() => PressDigit(digit))">@digit</button>
                     }
                     <button type="button" class="keypad-key keypad-control"
-                            @onclick="PressBackspace"
-                            aria-label="Backspace">
-                        <MudIcon Icon="@Icons.Material.Filled.Backspace" Size="Size.Medium" />
+                            @onclick="PressBack" aria-label="Previous field">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Medium" />
                     </button>
                     <button type="button" class="keypad-key" @onclick="@(() => PressDigit(0))">0</button>
                     @if (_isLastCell)
                     {
-                        <button type="button" class="keypad-key keypad-control keypad-submit"
-                                @onclick="SubmitAsync"
-                                disabled="@_saving"
+                        <button type="button" class="keypad-key keypad-submit"
+                                @onclick="SubmitAsync" disabled="@_saving"
                                 aria-label="Submit score">
                             <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Medium" />
                         </button>
                     }
                     else
                     {
-                        <button type="button" class="keypad-key keypad-control"
-                                @onclick="PressForward"
-                                aria-label="Next field">
-                            <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Medium" />
+                        <button type="button" class="keypad-key keypad-tb"
+                                @onclick="OpenTieBreak" aria-label="Tie break — pick a number">
+                            Tie Break +
                         </button>
                     }
                 </div>
             </MudPaper>
 
-            <MudPaper Class="frosted-card pa-3 score-section winner-section" Elevation="0">
+            <MudPaper Class="frosted-card pa-3 score-section" Elevation="0">
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="d-block">Winner</MudText>
                 <MudText Typo="Typo.body1" Align="Align.Center" Class="mt-1" Style="font-weight:600;">
                     @(_winnerName ?? "—")
@@ -114,14 +105,31 @@
                 Cancel
             </MudButton>
         </MudStack>
+
+        @* Tie-break picker overlay: numbers 7–99 in a grid. *@
+        @if (_tbOpen)
+        {
+            <MudOverlay Visible="true" DarkBackground="true" OnClick="CloseTieBreak" ZIndex="1300" />
+            <div class="tb-picker">
+                <div class="tb-picker-header">
+                    <MudText Typo="Typo.subtitle1">Tie break score</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="CloseTieBreak" />
+                </div>
+                <div class="tb-grid">
+                    @for (int n = 7; n <= 99; n++)
+                    {
+                        int val = n;
+                        <button type="button" class="tb-key" @onclick="@(() => PickTieBreak(val))">@val</button>
+                    }
+                </div>
+            </div>
+        }
     }
 </MudContainer>
 
 <style>
-    .submit-score-page { display: flex; justify-content: center; }
     .submit-score-stack { width: 100%; max-width: 360px; }
     .score-section { width: 100%; }
-    .centered { display: flex; justify-content: center; }
 
     .set-row {
         display: grid;
@@ -177,6 +185,7 @@
         align-items: center;
         justify-content: center;
         transition: background 120ms;
+        padding: 0 8px;
     }
     [data-theme="light"] .keypad-key {
         background: rgba(255,255,255,0.55);
@@ -186,18 +195,59 @@
     [data-theme="light"] .keypad-key:hover { background: rgba(255,255,255,0.85); }
     .keypad-key:active { transform: scale(0.97); }
     .keypad-key:disabled { opacity: 0.5; cursor: not-allowed; }
+    .keypad-tb { font-size: 0.85rem; letter-spacing: 0.2px; }
     .keypad-submit {
         background: var(--mud-palette-primary);
         color: var(--mud-palette-primary-text);
         border-color: var(--mud-palette-primary);
     }
     .keypad-submit:hover { background: var(--mud-palette-primary-darken); }
+
+    .tb-picker {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1400;
+        background: var(--mud-palette-surface);
+        color: var(--mud-palette-text-primary);
+        border-radius: 12px;
+        padding: 12px;
+        max-width: calc(100vw - 32px);
+        width: 360px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    .tb-picker-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 4px 8px;
+    }
+    .tb-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+    .tb-key {
+        height: 44px;
+        font: 600 1rem/1 inherit;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: inherit;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+    [data-theme="light"] .tb-key {
+        background: rgba(255,255,255,0.6);
+        border-color: rgba(0,0,0,0.1);
+    }
+    .tb-key:hover { background: rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0.2); }
 </style>
 
 @code {
     [Parameter, EditorRequired] public int FixtureId { get; set; }
-
-    private const int MaxCellValue = 99;
 
     private bool _loaded;
     private FixtureScoreContextDto? _context;
@@ -209,7 +259,6 @@
     private int?[] _score1 = [];
     private int?[] _score2 = [];
 
-    // Active cell — the one the keypad writes to. Tap any cell to change it.
     private int _activeSet;
     private bool _activeIsSide1 = true;
 
@@ -217,6 +266,7 @@
     private bool _adminRequested;
     private bool _adminOverrideActive;
     private bool _saving;
+    private bool _tbOpen;
     private string? _error;
 
     private bool _isLastCell => _activeSet == _bestOf - 1 && !_activeIsSide1;
@@ -316,38 +366,50 @@
 
     private int?[] ActiveArray => _activeIsSide1 ? _score1 : _score2;
 
-    private void PressDigit(int digit)
+    private void WriteAndAdvance(int value)
     {
         _error = null;
-        var arr = ActiveArray;
-        int? current = arr[_activeSet];
-        int next = current.HasValue ? current.Value * 10 + digit : digit;
-        if (next > MaxCellValue) next = digit; // overflow → restart
-        arr[_activeSet] = next;
+        ActiveArray[_activeSet] = value;
+        if (!_isLastCell) AdvanceOne();
     }
 
-    private void PressBackspace()
+    private void PressDigit(int digit) => WriteAndAdvance(digit);
+
+    private void PressBack()
     {
         _error = null;
-        var arr = ActiveArray;
-        int? current = arr[_activeSet];
-        if (!current.HasValue) return;
-        int reduced = current.Value / 10;
-        arr[_activeSet] = reduced == 0 && current.Value < 10 ? null : reduced;
-    }
-
-    private void PressForward()
-    {
-        if (_isLastCell) return;
         if (_activeIsSide1)
         {
+            if (_activeSet == 0) return;
+            _activeSet--;
             _activeIsSide1 = false;
         }
         else
         {
+            _activeIsSide1 = true;
+        }
+    }
+
+    private void AdvanceOne()
+    {
+        if (_activeIsSide1)
+        {
+            _activeIsSide1 = false;
+        }
+        else if (_activeSet < _bestOf - 1)
+        {
             _activeSet++;
             _activeIsSide1 = true;
         }
+    }
+
+    private void OpenTieBreak() => _tbOpen = true;
+    private void CloseTieBreak() => _tbOpen = false;
+
+    private void PickTieBreak(int value)
+    {
+        _tbOpen = false;
+        WriteAndAdvance(value);
     }
 
     private void Cancel() => Navigation.NavigateTo(_returnUrl);
@@ -357,7 +419,6 @@
         _error = null;
         if (_context is null) return;
 
-        // Include only sets where at least one side has actually been entered.
         var enteredIndices = Enumerable.Range(0, _bestOf)
             .Where(i => _score1[i].HasValue || _score2[i].HasValue)
             .ToList();
