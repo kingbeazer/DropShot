@@ -30,10 +30,11 @@
         Home
     </MudNavLink>
 
-    @* Primary nav links live in DropShot.UI.Services.Navigation.NavCatalog
-       so the web and MAUI menus stay in sync — adding a link in the catalog
-       lights it up in both hosts automatically. *@
-    @foreach (var link in DropShot.UI.Services.Navigation.NavCatalog.Primary)
+    @* Nav links live in DropShot.UI.Services.Navigation.NavCatalog so the web
+       and MAUI menus stay in sync. MAUI flattens Primary + Secondary into the
+       drawer; the web routes Secondary into its account dropdown instead. *@
+    @foreach (var link in DropShot.UI.Services.Navigation.NavCatalog.Primary
+        .Concat(DropShot.UI.Services.Navigation.NavCatalog.Secondary))
     {
         @* Subscription gate is layered on top of role auth — skip entries that
            require a subscription when the active user can't score. *@

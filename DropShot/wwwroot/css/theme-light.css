@@ -249,6 +249,21 @@
     display: inline-block;
 }
 
+/* Label mirrors the icon — "Light Mode" (the destination) shows while the
+   page is in dark theme, "Dark Mode" shows while in light theme. */
+.theme-label-dark {
+    display: none;
+}
+.theme-label-light {
+    display: inline;
+}
+[data-theme="light"] .theme-label-light {
+    display: none;
+}
+[data-theme="light"] .theme-label-dark {
+    display: inline;
+}
+
 /* ── Footer ─────────────────────────────────────────────────────────── */
 [data-theme="light"] .site-footer {
     background: #ffffff !important;

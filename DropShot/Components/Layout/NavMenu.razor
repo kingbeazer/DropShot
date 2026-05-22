@@ -107,25 +107,6 @@
 
         <div class="nav-utils">
             <AuthorizeView>
-                <Authorized Context="themeCtx">
-                    <div class="nav-item">
-                        <button class="theme-toggle-btn" onclick="event.stopPropagation(); toggleDropShotTheme()">
-                            <svg class="nav-icon theme-toggle-icon theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                                <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
-                            </svg>
-                            <svg class="nav-icon theme-toggle-icon theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                                <path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
-                            </svg>
-                            <span class="nav-label-group theme-toggle-label">
-                                <span class="nav-label">Light Mode</span>
-                                <span class="nav-sublabel">Switch theme</span>
-                            </span>
-                        </button>
-                    </div>
-                </Authorized>
-            </AuthorizeView>
-
-            <AuthorizeView>
                 <Authorized>
                     <div class="nav-item nav-dropdown nav-dropdown-right">
                         <button class="nav-link nav-dropdown-trigger" onclick="event.stopPropagation()">
@@ -146,6 +127,49 @@
                             </span>
                         </button>
                         <div class="nav-dropdown-menu">
+                            @* Secondary nav links (Clubs, Rules Sets, Players)
+                               live inside the account dropdown rather than the
+                               main toolbar — same role / subscription gating as
+                               the Primary list above. *@
+                            @foreach (var link in NavCatalog.Secondary)
+                            {
+                                if (link.RequiresSubscription && !CurrentUser.CanScoreMatch)
+                                {
+                                    continue;
+                                }
+
+                                if (!string.IsNullOrEmpty(link.RequiredRoles))
+                                {
+                                    <AuthorizeView Roles="@link.RequiredRoles" Context="secCtx">
+                                        <NavLink class="nav-link" href="@link.Href">
+                                            <MudIcon Icon="@link.Icon" Class="nav-icon" />
+                                            <span class="nav-label-group">
+                                                <span class="nav-label">@link.Label</span>
+                                                @if (!string.IsNullOrEmpty(link.Sublabel))
+                                                {
+                                                    <span class="nav-sublabel">@link.Sublabel</span>
+                                                }
+                                            </span>
+                                        </NavLink>
+                                    </AuthorizeView>
+                                }
+                                else
+                                {
+                                    <NavLink class="nav-link" href="@link.Href">
+                                        <MudIcon Icon="@link.Icon" Class="nav-icon" />
+                                        <span class="nav-label-group">
+                                            <span class="nav-label">@link.Label</span>
+                                            @if (!string.IsNullOrEmpty(link.Sublabel))
+                                            {
+                                                <span class="nav-sublabel">@link.Sublabel</span>
+                                            }
+                                        </span>
+                                    </NavLink>
+                                }
+                            }
+
+                            <hr class="nav-dropdown-divider" />
+
                             @* TODO: re-enable upgrade nav item when Premium ships.
                             <NavLink class="nav-link" href="upgrade">
                                 <MudIcon Icon="@Icons.Material.Filled.Star" Class="nav-icon" />
@@ -203,8 +227,25 @@
                                         <span class="nav-sublabel">Approve player links</span>
                                     </span>
                                 </NavLink>
-                                <hr class="nav-dropdown-divider" />
                             </AuthorizeView>
+
+                            <hr class="nav-dropdown-divider" />
+
+                            <div class="nav-dropdown-item">
+                                <button type="button" class="nav-link theme-toggle-btn" onclick="event.stopPropagation(); toggleDropShotTheme()">
+                                    <svg class="nav-icon theme-toggle-icon theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                        <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
+                                    </svg>
+                                    <svg class="nav-icon theme-toggle-icon theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                        <path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
+                                    </svg>
+                                    <span class="nav-label-group">
+                                        <span class="nav-label theme-label-light">Light Mode</span>
+                                        <span class="nav-label theme-label-dark">Dark Mode</span>
+                                        <span class="nav-sublabel">Switch theme</span>
+                                    </span>
+                                </button>
+                            </div>
 
                             <div class="nav-dropdown-item">
                                 <form action="Account/Logout" method="post">
