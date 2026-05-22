@@ -69,16 +69,19 @@
 
             <MudPaper Class="frosted-card pa-3 score-section" Elevation="0">
                 <div class="keypad">
+                    @* Rows 1–2: digits 1–6 *@
                     @for (int n = 1; n <= 6; n++)
                     {
                         int digit = n;
                         <button type="button" class="keypad-key" @onclick="@(() => PressDigit(digit))">@digit</button>
                     }
+
+                    @* Row 3: back, 7, Tie Break + *@
                     <button type="button" class="keypad-key keypad-control"
                             @onclick="PressBack" aria-label="Previous field">
                         <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Medium" />
                     </button>
-                    <button type="button" class="keypad-key" @onclick="@(() => PressDigit(0))">0</button>
+                    <button type="button" class="keypad-key" @onclick="@(() => PressDigit(7))">7</button>
                     <MudMenu Class="keypad-tb-menu"
                              AnchorOrigin="Origin.TopRight"
                              TransformOrigin="Origin.BottomRight"
@@ -91,34 +94,33 @@
                             </button>
                         </ActivatorContent>
                         <ChildContent>
-                            @for (int n = 7; n <= 99; n++)
+                            @for (int n = 8; n <= 99; n++)
                             {
                                 int val = n;
                                 <MudMenuItem OnClick="@(() => PickTieBreak(val))">@val</MudMenuItem>
                             }
                         </ChildContent>
                     </MudMenu>
+
+                    @* Row 4: empty spacer, 0, submit tick *@
+                    <div></div>
+                    <button type="button" class="keypad-key" @onclick="@(() => PressDigit(0))">0</button>
+                    @if (CanSubmit)
+                    {
+                        <button type="button" class="keypad-key keypad-submit"
+                                @onclick="SubmitAsync" disabled="@_saving"
+                                aria-label="Submit score">
+                            <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Medium" />
+                        </button>
+                    }
                 </div>
             </MudPaper>
 
             <MudPaper Class="frosted-card pa-3 score-section" Elevation="0">
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="d-block">Winner</MudText>
-                <div class="winner-row">
-                    <div></div>
-                    <MudText Typo="Typo.body1" Align="Align.Center" Class="mt-1" Style="font-weight:600;">
-                        @(_winnerName ?? "—")
-                    </MudText>
-                    <div class="winner-tick-cell">
-                        @if (CanSubmit)
-                        {
-                            <button type="button" class="winner-tick"
-                                    @onclick="SubmitAsync" disabled="@_saving"
-                                    aria-label="Submit score">
-                                <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Medium" />
-                            </button>
-                        }
-                    </div>
-                </div>
+                <MudText Typo="Typo.body1" Align="Align.Center" Class="mt-1" Style="font-weight:600;">
+                    @(_winnerName ?? "—")
+                </MudText>
             </MudPaper>
 
             @if (!string.IsNullOrEmpty(_error))
@@ -203,28 +205,12 @@
     .keypad-key:active { transform: scale(0.97); }
     .keypad-key:disabled { opacity: 0.5; cursor: not-allowed; }
     .keypad-tb { font-size: 0.85rem; letter-spacing: 0.2px; }
-
-    .winner-row {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        align-items: center;
-        gap: 8px;
-    }
-    .winner-tick-cell { display: flex; justify-content: flex-end; }
-    .winner-tick {
-        height: 44px;
-        width: 44px;
+    .keypad-submit {
         background: var(--mud-palette-primary);
         color: var(--mud-palette-primary-text);
-        border: 1px solid var(--mud-palette-primary);
-        border-radius: 10px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        border-color: var(--mud-palette-primary);
     }
-    .winner-tick:hover { background: var(--mud-palette-primary-darken); }
-    .winner-tick:disabled { opacity: 0.5; cursor: not-allowed; }
+    .keypad-submit:hover { background: var(--mud-palette-primary-darken); }
 
     /* Make the MudMenu wrapper fill its keypad grid cell so the inner
        Tie Break + button matches the surrounding digit keys. */
@@ -257,16 +243,14 @@
 
     private bool _isLastCell => _activeSet == _bestOf - 1 && !_activeIsSide1;
 
-    // A set is "invalid" when it's partially entered (one side missing) or
-    // when its score breaks the competition's scoring rules. Sets with both
-    // sides null are considered "not entered" — neither invalid nor valid.
+    // A set is "invalid" — and shows a red cross — only once both sides have
+    // been entered and the resulting score breaks the competition's scoring
+    // rules. Partially entered sets are mid-entry and don't show the cross;
+    // CanSubmit still blocks on them separately.
     private bool IsSetInvalid(int idx)
     {
         if (_context is null) return false;
-        bool hasA = _score1[idx].HasValue;
-        bool hasB = _score2[idx].HasValue;
-        if (!hasA && !hasB) return false;
-        if (!hasA || !hasB) return true;
+        if (!_score1[idx].HasValue || !_score2[idx].HasValue) return false;
 
         int a = _score1[idx]!.Value, b = _score2[idx]!.Value;
         if (a == b) return true;
@@ -307,7 +291,11 @@
             bool anyEntered = false;
             for (int i = 0; i < _bestOf; i++)
             {
-                if (_score1[i].HasValue || _score2[i].HasValue) anyEntered = true;
+                bool hasA = _score1[i].HasValue;
+                bool hasB = _score2[i].HasValue;
+                if (hasA || hasB) anyEntered = true;
+                // Partial entry is silent (no cross) but blocks submit.
+                if (hasA != hasB) return false;
                 if (IsSetInvalid(i)) return false;
             }
             if (!anyEntered) return false;
