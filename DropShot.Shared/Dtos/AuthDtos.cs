@@ -9,7 +9,8 @@ public record LoginResponse(
     List<string> Roles,
     List<int> AdminClubIds,
     string ActiveRole,
-    List<string> GrantedRoles);
+    List<string> GrantedRoles,
+    bool IsSubscribed);
 
 public record UserInfoDto(
     string UserId,
@@ -18,7 +19,8 @@ public record UserInfoDto(
     List<string> Roles,
     List<int> AdminClubIds,
     string ActiveRole,
-    List<string> GrantedRoles);
+    List<string> GrantedRoles,
+    bool IsSubscribed);
 
 public record SwitchRoleRequest(string Role);
 

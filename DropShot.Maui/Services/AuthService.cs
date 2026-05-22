@@ -22,6 +22,7 @@ public class AuthService : AuthenticationStateProvider
     public List<string> GrantedRoles => _session?.GrantedRoles ?? [];
     public bool IsAdmin => _session?.ActiveRole is "Admin" or "SuperAdmin";
     public bool IsClubAdmin => _session?.ActiveRole == "ClubAdmin";
+    public bool IsSubscribed => _session?.IsSubscribed ?? false;
     public List<int> AdminClubIds => _session?.AdminClubIds ?? [];
 
     public bool CanEditClub(int clubId) =>
@@ -96,7 +97,7 @@ public class AuthService : AuthenticationStateProvider
             var info = await _http.GetFromJsonAsync<UserInfoDto>("api/auth/me");
             if (info is null) { await LogoutAsync(); return; }
 
-            _session = new LoginResponse(token, info.UserName, info.Email, info.Roles, info.AdminClubIds, info.ActiveRole, info.GrantedRoles);
+            _session = new LoginResponse(token, info.UserName, info.Email, info.Roles, info.AdminClubIds, info.ActiveRole, info.GrantedRoles, info.IsSubscribed);
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
         catch

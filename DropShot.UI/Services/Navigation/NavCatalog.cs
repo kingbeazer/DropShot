@@ -18,12 +18,17 @@ namespace DropShot.UI.Services.Navigation;
 /// <param name="RequiredRoles">Optional comma-separated roles. When
 /// <c>null</c> the link is rendered for any authenticated user. When
 /// empty the link is rendered for everyone (including anonymous).</param>
+/// <param name="RequiresSubscription">When true the link is only shown to
+/// users for whom <c>ICurrentUser.CanScoreMatch</c> is true — i.e. an
+/// active subscriber or an admin/club-admin acting in their admin role.
+/// Layered on top of <paramref name="RequiredRoles"/>: both must pass.</param>
 public sealed record NavLinkEntry(
     string Href,
     string Label,
     string Icon,
     string? Sublabel = null,
-    string? RequiredRoles = null);
+    string? RequiredRoles = null,
+    bool RequiresSubscription = false);
 
 /// <summary>
 /// Single source of truth for the primary navigation links shown in the
@@ -39,7 +44,8 @@ public static class NavCatalog
         new("match", "Match",
             Icons.Material.Filled.SportsTennis,
             "Score or join a match",
-            RequiredRoles: "User"),
+            RequiredRoles: "User",
+            RequiresSubscription: true),
 
         new("competitions", "Competitions",
             Icons.Material.Filled.EmojiEvents,

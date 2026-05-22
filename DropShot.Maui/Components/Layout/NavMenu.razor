@@ -35,6 +35,13 @@
        lights it up in both hosts automatically. *@
     @foreach (var link in DropShot.UI.Services.Navigation.NavCatalog.Primary)
     {
+        @* Subscription gate is layered on top of role auth — skip entries that
+           require a subscription when the active user can't score. *@
+        if (link.RequiresSubscription && !CurrentUser.CanScoreMatch)
+        {
+            continue;
+        }
+
         if (!string.IsNullOrEmpty(link.RequiredRoles))
         {
             <AuthorizeView Roles="@link.RequiredRoles">
