@@ -227,6 +227,12 @@ public sealed class WebCurrentUser : ICurrentUser, IDisposable
     public bool IsSuperAdmin => _activeRole == "SuperAdmin";
     public bool IsSubscribed => _isSubscribed;
 
+    // Admin/ClubAdmin acting in their admin role bypass the subscription
+    // requirement so they can still score for administration purposes. A
+    // SuperAdmin role-switched to "User" intentionally loses the bypass —
+    // same shape as CanCreateUserCompetition.
+    public bool CanScoreMatch => IsAdmin || IsClubAdmin || _isSubscribed;
+
     public bool HasRole(string role) =>
         _grantedRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
 

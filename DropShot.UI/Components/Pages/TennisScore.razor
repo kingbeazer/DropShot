@@ -860,8 +860,23 @@
     }
 
 
+    private bool _gateRedirect;
+
     protected override async Task OnInitializedAsync()
     {
+        // Live match scoring is gated by subscription. Anyone who can't score
+        // (anonymous, non-subscriber acting as plain User) is redirected home
+        // so the scoring URL — including /tennisscore, /match/0 and
+        // /match/{id} — can't be entered directly. Admins/club-admins acting
+        // in their admin role bypass via CanScoreMatch.
+        await CurrentUser.EnsureLoadedAsync();
+        if (!CurrentUser.CanScoreMatch)
+        {
+            _gateRedirect = true;
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
         _currentUserId = CurrentUser.UserId;
 
         var bootstrap = await Scoring.GetBootstrapAsync();
@@ -1014,6 +1029,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Skip hub setup and device-token bookkeeping if we already kicked off
+        // a redirect from OnInitializedAsync — the user can't score and the
+        // page is just waiting for navigation to take effect.
+        if (_gateRedirect) return;
+
         if (firstRender)
         {
             if (_currentUserId == null)

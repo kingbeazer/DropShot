@@ -162,7 +162,7 @@
     </MudCardContent>
 </MudCard>
 
-@if (_isAuthenticated)
+@if (_isAuthenticated && CurrentUser.CanScoreMatch)
 {
     <MudPaper Class="mt-4 pa-5" Elevation="0"
               Style="background: linear-gradient(135deg, #004d40 0%, #00897b 60%, #4db6ac 100%); border-radius: 16px; text-align: center;">
@@ -218,11 +218,14 @@
                                 </MudTd>
                                 <MudTd>
                                     <MudStack Row="true" Spacing="2">
-                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                                   StartIcon="@Icons.Material.Filled.PlayArrow"
-                                                   OnClick="@(() => StartFixtureMatchAsync(context))">
-                                            Play
-                                        </MudButton>
+                                        @if (CurrentUser.CanScoreMatch)
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                                                       OnClick="@(() => StartFixtureMatchAsync(context))">
+                                                Play
+                                            </MudButton>
+                                        }
                                         <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
                                                    StartIcon="@Icons.Material.Filled.Edit"
                                                    OnClick="@(() => OpenSubmitScoreAsync(context))">

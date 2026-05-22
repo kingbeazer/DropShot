@@ -1,5 +1,7 @@
 @using DropShot.Shared
 @using DropShot.Shared.Dtos
+@using DropShot.UI.Services.Auth
+@inject ICurrentUser CurrentUser
 
 <MudPaper id="section-fixtures" Class="pa-4 setup-section frosted-card" Elevation="0"
      Style="color: white;">
@@ -133,7 +135,8 @@
             </MudTd>
             <MudTd>
                 @if (context.HomeTeamId.HasValue && context.AwayTeamId.HasValue
-                     && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
+                     && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification)
+                     && CurrentUser.CanScoreMatch)
                 {
                     <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small"
                                    Color="Color.Success" aria-label="Play Team Match"

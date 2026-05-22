@@ -1382,7 +1382,8 @@ else
                                                         </td>
                                                         <td>
                                                             @if (f.HomeTeamId.HasValue && f.AwayTeamId.HasValue
-                                                                 && f.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
+                                                                 && f.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification)
+                                                                 && CurrentUser.CanScoreMatch)
                                                             {
                                                                 <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small"
                                                                                Color="Color.Success" aria-label="Play Team Match"

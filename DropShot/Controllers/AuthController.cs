@@ -41,7 +41,7 @@ public class AuthController(
             .Select(ca => ca.ClubId)
             .ToListAsync();
 
-        return Ok(new LoginResponse(token, user.UserName!, user.Email!, roles, adminClubIds, activeRole, roles));
+        return Ok(new LoginResponse(token, user.UserName!, user.Email!, roles, adminClubIds, activeRole, roles, user.IsSubscribed));
     }
 
     [HttpGet("me")]
@@ -63,7 +63,7 @@ public class AuthController(
             .Select(ca => ca.ClubId)
             .ToListAsync();
 
-        return Ok(new UserInfoDto(user.Id, user.UserName!, user.Email!, grantedRoles, adminClubIds, activeRole, grantedRoles));
+        return Ok(new UserInfoDto(user.Id, user.UserName!, user.Email!, grantedRoles, adminClubIds, activeRole, grantedRoles, user.IsSubscribed));
     }
 
     [HttpPost("switch-role")]
@@ -153,6 +153,6 @@ public class AuthController(
             .Select(ca => ca.ClubId)
             .ToListAsync();
 
-        return Ok(new LoginResponse(token, user.UserName!, user.Email!, roles, adminClubIds, activeRole, roles));
+        return Ok(new LoginResponse(token, user.UserName!, user.Email!, roles, adminClubIds, activeRole, roles, user.IsSubscribed));
     }
 }

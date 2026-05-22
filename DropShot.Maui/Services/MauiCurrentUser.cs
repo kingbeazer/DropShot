@@ -63,10 +63,11 @@ public sealed class MauiCurrentUser : ICurrentUser, IDisposable
     public bool IsSuperAdmin =>
         string.Equals(_auth.ActiveRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
 
-    // The login DTO doesn't carry the subscription bit yet, so on MAUI we
-    // conservatively report false. The "user competition" creation path is a
-    // web-only feature until that plumbing lands.
-    public bool IsSubscribed => false;
+    public bool IsSubscribed => _auth.IsSubscribed;
+
+    // Mirrors WebCurrentUser: admin acting roles bypass subscription so they
+    // can score on behalf of others; everyone else needs an active sub.
+    public bool CanScoreMatch => IsAdmin || IsClubAdmin || IsSubscribed;
 
     public bool HasRole(string role) =>
         _auth.GrantedRoles.Contains(role, StringComparer.OrdinalIgnoreCase);

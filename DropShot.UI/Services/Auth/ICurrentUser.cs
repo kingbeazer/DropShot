@@ -44,6 +44,18 @@ public interface ICurrentUser
     /// </summary>
     bool CanCreateUserCompetition { get; }
 
+    /// <summary>
+    /// Whether the user can access the live match-scoring screens
+    /// (<c>/match</c>, <c>/match/{id}</c>, <c>/team-match/{id}</c>,
+    /// <c>/tennisscore</c>). Admin/ClubAdmin acting in their admin role
+    /// bypass the gate; otherwise the user must have an active subscription.
+    /// Buttons that lead into scoring (NavMenu Match link, fixture Play
+    /// buttons, ladder Record-match) and the scoring pages themselves all
+    /// gate on this property — the pages additionally redirect to home when
+    /// it's false so the URL can't be entered directly.
+    /// </summary>
+    bool CanScoreMatch { get; }
+
     /// <summary>Raised after the underlying auth state changes (login, logout, role switch, session restore).</summary>
     event Action? Changed;
 

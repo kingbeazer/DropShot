@@ -130,7 +130,22 @@ else
 
     private bool CanEditCompletedRubber => _isCompetitionAdmin && EditMode == 1;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Team-match scoring is gated by subscription. Anyone who can't score
+        // (anonymous, non-subscriber acting as plain User) is redirected home
+        // so the URL can't be entered directly. Admins/club-admins acting in
+        // their admin role bypass via CanScoreMatch — they may need to
+        // record results on behalf of teams.
+        await CurrentUser.EnsureLoadedAsync();
+        if (!CurrentUser.CanScoreMatch)
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {

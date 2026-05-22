@@ -164,7 +164,8 @@ else
     }
 
     @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder
-         && _myParticipant?.Status == ParticipantStatus.FullPlayer)
+         && _myParticipant?.Status == ParticipantStatus.FullPlayer
+         && CurrentUser.CanScoreMatch)
     {
         <MudPaper Class="pa-3 mb-4" Elevation="0" Style="background: rgba(0,180,216,0.08);">
             <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">

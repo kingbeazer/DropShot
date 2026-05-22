@@ -26,7 +26,8 @@ public class DropShotTestContext : BunitContext
         bool authenticated = true,
         string userId = "test-user-id",
         string userName = "test@example.com",
-        string[]? roles = null)
+        string[]? roles = null,
+        bool subscribed = false)
     {
         // Allow all JS interop calls (MudBlazor uses JS heavily)
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -71,6 +72,15 @@ public class DropShotTestContext : BunitContext
         var userManager = Substitute.For<UserManager<ApplicationUser>>(
             userStore,
             null!, null!, null!, null!, null!, null!, null!, null!);
+        // WebCurrentUser reads ApplicationUser.IsSubscribed via FindByIdAsync to
+        // populate _isSubscribed, which feeds CanScoreMatch — the gate behind
+        // /match, /tennisscore and /team-match. Tests that render scoring
+        // pages should pass subscribed:true to cross the gate.
+        if (authenticated)
+        {
+            userManager.FindByIdAsync(userId)
+                .Returns(new ApplicationUser { Id = userId, IsSubscribed = subscribed });
+        }
         Services.AddSingleton(userManager);
 
         var contextAccessor = Substitute.For<Microsoft.AspNetCore.Http.IHttpContextAccessor>();
@@ -157,6 +167,15 @@ public class DropShotTestContext : BunitContext
         Services.AddScoped<IUserService, WebUserService>();
         Services.AddScoped<IScoreboardHubFactory, WebScoreboardHubFactory>();
         Services.AddScoped<IPaymentService, WebPaymentService>();
+        // MudProviders.razor injects SiteAlertHost into every interactive page,
+        // and SiteAlertHost @injects ISiteAlertService — without this binding
+        // every bUnit page render that pulls in MudProviders throws at component
+        // instantiation.
+        Services.AddScoped<ISiteAlertService, SiteAlertService>();
+        // WebCompetitionService takes IPhoneVisibilityService — added with the
+        // GDPR phone-sharing work and not yet wired into the test container.
+        // Tests don't exercise the consent paths, so a substitute is enough.
+        Services.AddScoped(_ => Substitute.For<IPhoneVisibilityService>());
 
         // Logging
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
