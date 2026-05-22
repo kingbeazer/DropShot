@@ -60,6 +60,16 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task<FixtureScoreContextDto?> GetFixtureScoreContextAsync(int fixtureId, CancellationToken ct = default)
+    {
+        var resp = await http.GetAsync($"api/competitions/fixtures/{fixtureId}/score-context", ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        if (resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            throw new UnauthorizedAccessException("You can't score this fixture.");
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<FixtureScoreContextDto>(cancellationToken: ct);
+    }
+
     public async Task<MyCompetitionsViewDto> GetMyCompetitionsViewAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<MyCompetitionsViewDto>("api/competitions/my-view", ct)
             ?? new MyCompetitionsViewDto(false, [], []);

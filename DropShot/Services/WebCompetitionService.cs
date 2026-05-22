@@ -569,6 +569,52 @@ public sealed class WebCompetitionService(
         }
     }
 
+    public async Task<FixtureScoreContextDto?> GetFixtureScoreContextAsync(int fixtureId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fx = await db.CompetitionFixtures.AsNoTracking()
+            .Include(f => f.Competition)
+            .Include(f => f.Stage)
+            .Include(f => f.Court)
+            .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
+            .Include(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return null;
+
+        var principal = await GetPrincipalAsync();
+        var canEdit = await authzService.CanEditCompetitionAsync(principal, fx.Competition?.HostClubId, fx.CompetitionId);
+        if (!canEdit)
+        {
+            // Non-admins must be a participant in this fixture to score it.
+            if (string.IsNullOrEmpty(currentUser.UserId))
+                throw new UnauthorizedAccessException("Not authenticated.");
+            var myPlayerId = await db.Players.AsNoTracking()
+                .Where(p => p.UserId == currentUser.UserId)
+                .Select(p => (int?)p.PlayerId)
+                .FirstOrDefaultAsync(ct);
+            var isParticipant = myPlayerId is { } pid
+                && (fx.Player1Id == pid || fx.Player2Id == pid || fx.Player3Id == pid || fx.Player4Id == pid);
+            if (!isParticipant)
+                throw new UnauthorizedAccessException("You can't score this fixture.");
+        }
+
+        var dto = ToFixtureDto(fx) with { CompetitionName = fx.Competition?.CompetitionName };
+        return new FixtureScoreContextDto(
+            dto,
+            fx.Competition?.MatchFormat ?? MatchFormatType.BestOf,
+            fx.Competition?.NumberOfSets ?? 3,
+            fx.Competition?.BestOf ?? 3,
+            fx.Competition?.GamesPerSet ?? 6,
+            fx.Competition?.SetWinMode ?? SetWinMode.WinBy2,
+            canEdit);
+    }
+
     public async Task SubmitRubberScoresAsync(
         int fixtureId, SubmitRubberScoresRequest request, CancellationToken ct = default)
     {
