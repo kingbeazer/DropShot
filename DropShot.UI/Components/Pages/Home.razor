@@ -377,30 +377,17 @@
             .ToList();
     }
 
-    private async Task OpenSubmitScoreAsync(CompetitionFixtureDto fixture)
+    private void OpenSubmitScoreAsync(CompetitionFixtureDto fixture)
     {
         // Team match fixtures (with rubbers) are scored on the team-match page,
-        // not via the individual-match score dialog.
+        // not via the individual-match scoring flow.
         if (fixture.HomeTeamId.HasValue || fixture.AwayTeamId.HasValue)
         {
             Navigation.NavigateTo($"/team-match/{fixture.CompetitionFixtureId}");
             return;
         }
 
-        // The fixture DTO doesn't carry the competition's match-config knobs
-        // (MatchFormat / NumberOfSets / BestOf / GamesPerSet / SetWinMode), so
-        // we fall back to the dialog's defaults — same trade-off the migrated
-        // Competitions.razor page accepts (PR #494).
-        var parameters = new DialogParameters<SubmitScoreDialog>
-        {
-            { x => x.Fixture, fixture },
-            { x => x.AdminOverride, CurrentUser.CanEditCompetition(null) },
-            { x => x.CompetitionName, fixture.CompetitionName }
-        };
-        var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
-        var result = await dialog.Result;
-        if (result is not null && !result.Canceled)
-            await OnInitializedAsync();
+        Navigation.NavigateTo($"/match/submit/{fixture.CompetitionFixtureId}?returnUrl=/");
     }
 
     private string FixtureOpponents(CompetitionFixtureDto f)

@@ -1,0 +1,11 @@
+@page "/match/submit/{FixtureId:int}"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<MudProviders />
+<DropShot.UI.Components.Pages.SubmitScorePage FixtureId="@FixtureId" />
+
+@code {
+    [Parameter] public int FixtureId { get; set; }
+}

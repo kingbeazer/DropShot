@@ -258,12 +258,13 @@ public record FixtureScoreOverride(
     int AwayGamesTotal);
 
 /// <summary>
-/// Submit a fixture score for the first time. Used by SubmitScoreDialog.
-/// The dialog validates set scores client-side; the request carries the
-/// already-validated, summarised result. <c>WinnerPlayerId</c> may be null
-/// in fixed-set mode when the match was tied. <c>AdminOverride</c> bypasses
-/// "RequireVerification" — admin submissions go straight to Completed and
-/// preserve any prior result for audit.
+/// Submit a fixture score for the first time. Used by the SubmitScorePage
+/// (/match/submit/{fixtureId}). The page validates set scores client-side;
+/// the request carries the already-validated, summarised result.
+/// <c>WinnerPlayerId</c> may be null in fixed-set mode when the match was
+/// tied. <c>AdminOverride</c> bypasses "RequireVerification" — admin
+/// submissions go straight to Completed and preserve any prior result for
+/// audit.
 /// </summary>
 public record SubmitFixtureScoreRequest(
     string ResultSummary,
@@ -273,6 +274,23 @@ public record SubmitFixtureScoreRequest(
     int HomeGamesTotal,
     int AwayGamesTotal,
     bool AdminOverride);
+
+/// <summary>
+/// Bundled payload the SubmitScorePage loads to render itself: the fixture
+/// it's scoring plus the competition's match-config knobs (so the chip rows,
+/// set count, and validation match the competition's actual rules rather
+/// than falling back to defaults). <c>CanAdminOverride</c> is true when the
+/// authenticated caller is a competition admin — the page uses it to honour
+/// (or quietly ignore) the <c>?admin=1</c> query flag.
+/// </summary>
+public record FixtureScoreContextDto(
+    CompetitionFixtureDto Fixture,
+    MatchFormatType MatchFormat,
+    int NumberOfSets,
+    int BestOf,
+    int GamesPerSet,
+    SetWinMode SetWinMode,
+    bool CanAdminOverride);
 
 /// <summary>
 /// Response body returned with HTTP 409 when an admin action would violate a

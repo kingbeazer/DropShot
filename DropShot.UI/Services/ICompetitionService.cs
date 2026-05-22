@@ -60,6 +60,17 @@ public interface ICompetitionService
     Task SubmitFixtureScoreAsync(int fixtureId, SubmitFixtureScoreRequest request, CancellationToken ct = default);
 
     /// <summary>
+    /// Loads the singles/doubles scoring context for the SubmitScorePage:
+    /// the fixture DTO plus the competition's match-config knobs (MatchFormat,
+    /// NumberOfSets, BestOf, GamesPerSet, SetWinMode) and a <c>CanAdminOverride</c>
+    /// flag derived from the caller's permissions. Returns <c>null</c> when
+    /// the fixture doesn't exist; throws <see cref="UnauthorizedAccessException"/>
+    /// when the caller can neither view the competition nor is a participant
+    /// in the fixture.
+    /// </summary>
+    Task<FixtureScoreContextDto?> GetFixtureScoreContextAsync(int fixtureId, CancellationToken ct = default);
+
+    /// <summary>
     /// Returns the user-view payload for the "/competitions" page: the list of
     /// competitions the authenticated user has entered, plus the eligible
     /// not-yet-entered competitions still open for registration. Server applies

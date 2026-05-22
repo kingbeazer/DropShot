@@ -3988,46 +3988,11 @@ else
         return true;
     }
 
-    private async Task OpenSubmitScoreAsync(CompetitionFixtureDto fixture)
-    {
-        var loaded = await Admin.LoadFixtureForDialogAsync(Id, fixture.CompetitionFixtureId);
-        if (loaded is null) return;
+    private void OpenSubmitScoreAsync(CompetitionFixtureDto fixture)
+        => Nav.NavigateTo($"/match/submit/{fixture.CompetitionFixtureId}?returnUrl=/competition/{Id}");
 
-        var parameters = BuildSubmitScoreParameters(loaded, adminOverride: _canEdit);
-        var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Submit Score", parameters);
-        var result = await dialog.Result;
-        if (result is not null && !result.Canceled)
-            await OnParametersSetAsync();
-    }
-
-    private async Task OpenOverrideResultAsync(CompetitionFixtureDto fixture)
-    {
-        var loaded = await Admin.LoadFixtureForDialogAsync(Id, fixture.CompetitionFixtureId);
-        if (loaded is null) return;
-
-        var parameters = BuildSubmitScoreParameters(loaded, adminOverride: true);
-        var dialog = await DialogService.ShowAsync<SubmitScoreDialog>("Override Result", parameters);
-        var result = await dialog.Result;
-        if (result is not null && !result.Canceled)
-            await OnParametersSetAsync();
-    }
-
-    private DialogParameters<SubmitScoreDialog> BuildSubmitScoreParameters(CompetitionFixtureDto dto, bool adminOverride)
-    {
-        var maxSets = Model.MatchFormat == MatchFormatType.FixedSets
-            ? Math.Max(1, Model.NumberOfSets)
-            : Math.Max(1, Model.BestOf);
-        return new DialogParameters<SubmitScoreDialog>
-        {
-            { x => x.Fixture, dto },
-            { x => x.AdminOverride, adminOverride },
-            { x => x.CompetitionName, Model.CompetitionName },
-            { x => x.MaxSets, maxSets },
-            { x => x.GamesPerSet, Model.GamesPerSet },
-            { x => x.SetWinMode, Model.SetWinMode },
-            { x => x.MatchFormat, Model.MatchFormat }
-        };
-    }
+    private void OpenOverrideResultAsync(CompetitionFixtureDto fixture)
+        => Nav.NavigateTo($"/match/submit/{fixture.CompetitionFixtureId}?returnUrl=/competition/{Id}&admin=1");
 
     private void ShowQrCode(CompetitionFixtureDto fixture)
     {

@@ -459,10 +459,27 @@ public class CompetitionsController(
     }
 
     /// <summary>
+    /// Bundled load for the SubmitScorePage: fixture DTO + competition
+    /// match-config + a CanAdminOverride flag derived from the caller's
+    /// permissions. Authorised for either competition admins or fixture
+    /// participants.
+    /// </summary>
+    [HttpGet("fixtures/{fixtureId:int}/score-context")]
+    public async Task<ActionResult<FixtureScoreContextDto>> GetFixtureScoreContext(int fixtureId, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await competitionService.GetFixtureScoreContextAsync(fixtureId, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
+    /// <summary>
     /// Submit a fixture score (or admin-override an existing one). Backs
-    /// SubmitScoreDialog (phase 7). Server enforces that only competition
-    /// admins can submit with <c>AdminOverride = true</c>; non-admin requests
-    /// silently coerce <c>AdminOverride</c> back to false.
+    /// the SubmitScorePage (/match/submit/{fixtureId}). Server enforces that
+    /// only competition admins can submit with <c>AdminOverride = true</c>;
+    /// non-admin requests silently coerce <c>AdminOverride</c> back to false.
     /// </summary>
     [HttpPost("fixtures/{fixtureId:int}/submit-score")]
     public async Task<IActionResult> SubmitFixtureScore(
