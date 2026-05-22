@@ -208,27 +208,17 @@
 }
 
 /* ── Theme toggle ──────────────────────────────────────────────────── */
+/* The button lives inside .nav-dropdown-item and carries the .nav-link
+   class, so .nav-dropdown-menu .nav-link picks up padding / gap / colour.
+   These rules just unset the user-agent <button> defaults so it blends
+   in with the surrounding <a> / NavLink rows. */
 .theme-toggle-btn {
     background: none;
     border: none;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0 0.75rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    color: #d7d7d7;
-    height: 3.5rem;
-}
-
-.theme-toggle-btn:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
-}
-
-.theme-toggle-label {
-    display: none;
+    width: 100%;
+    text-align: left;
+    font: inherit;
 }
 
 /* ── Hamburger toggle ──────────────────────────────────────────────── */
@@ -424,10 +414,6 @@
         align-items: center;
     }
 
-    .theme-toggle-label {
-        display: inline-flex;
-    }
-
     /* Show the descriptive second line for each menu item on mobile. */
     .nav-sublabel {
         display: block;
@@ -437,18 +423,6 @@
        take the remaining width so the chevron stays right-aligned. */
     .nav-dropdown-trigger .nav-label-group {
         flex: 1;
-    }
-
-    .theme-toggle-btn {
-        min-height: 3rem;
-        height: auto;
-        padding: 0.5rem 1.25rem;
-        width: 100%;
-        align-items: center;
-    }
-
-    .theme-toggle-btn:hover {
-        background-color: rgba(0, 137, 123, 0.15);
     }
 
     .nav-label {
