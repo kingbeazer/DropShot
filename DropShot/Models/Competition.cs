@@ -61,12 +61,12 @@ namespace DropShot.Models
         public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
 
         /// <summary>
-        /// When true, the final set of a match is scored as a tie break rather
-        /// than a regular set. The two fields below carry the tie-break target
-        /// (e.g. 10 for a "super tiebreak") and whether it must be won by two
-        /// clear points or first to the target. Has no effect when false.
+        /// Scoring rules for the optional final-set tie break. A tie break is
+        /// not mandatory — players may decide on the day depending on time
+        /// available. When the final set IS played as a tie break, the score
+        /// is validated against these settings instead of the regular
+        /// <see cref="GamesPerSet"/> / <see cref="SetWinMode"/>.
         /// </summary>
-        public bool HasFinalSetTieBreak { get; set; } = false;
         public int FinalSetTieBreakGames { get; set; } = 10;
         public SetWinMode FinalSetTieBreakWinMode { get; set; } = SetWinMode.WinBy2;
 
