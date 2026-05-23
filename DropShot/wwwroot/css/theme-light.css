@@ -4,8 +4,15 @@
    ══════════════════════════════════════════════════════════════════════ */
 
 /* ── Base overrides ─────────────────────────────────────────────────── */
+/* Mirrors the dark gradient + tennis tile in app.css with light-mode
+   equivalents: the inverted (light) tennis image under an 85% near-white
+   overlay produces the same "barely visible pattern" feel as dark mode. */
+[data-theme="light"] html,
 [data-theme="light"] body {
     background-color: #f5f5f5 !important;
+    background-image:
+        linear-gradient(rgba(245, 245, 245, 0.85), rgba(245, 245, 245, 0.85)),
+        url('/_content/DropShot.UI/images/background-light.png') !important;
     color: #212121 !important;
 }
 
