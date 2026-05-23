@@ -154,6 +154,14 @@
     display: block;
 }
 
+/* When a menu item (e.g. the theme toggle) sets this class via JS, force
+   the dropdown closed even if the cursor still hovers the trigger / a
+   child is focused. The class is removed after a short timeout so the
+   dropdown opens normally again on the next intentional hover/focus. */
+.nav-dropdown.nav-dropdown-suppressed > .nav-dropdown-menu {
+    display: none !important;
+}
+
 .nav-dropdown:hover > .nav-dropdown-trigger .nav-expand-icon,
 .nav-dropdown:focus-within > .nav-dropdown-trigger .nav-expand-icon {
     transform: rotate(180deg);
