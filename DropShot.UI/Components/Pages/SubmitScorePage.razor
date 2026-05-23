@@ -89,8 +89,12 @@
                         Tie Break +
                     </button>
 
-                    @* Row 4: empty spacer, 0, submit tick *@
-                    <div></div>
+                    @* Row 4: cancel (red cross), 0, submit tick *@
+                    <button type="button" class="keypad-key keypad-cancel"
+                            @onclick="Cancel" disabled="@_saving"
+                            aria-label="Cancel and go back">
+                        <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Medium" />
+                    </button>
                     <button type="button" class="keypad-key" @onclick="@(() => PressDigit(0))">0</button>
                     @if (CanSubmit)
                     {
@@ -114,10 +118,6 @@
             {
                 <MudAlert Severity="Severity.Error" Class="frosted-card score-section">@_error</MudAlert>
             }
-
-            <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_saving" Class="mt-2">
-                Cancel
-            </MudButton>
         </MudStack>
     }
 </MudContainer>
@@ -198,6 +198,12 @@
         border-color: var(--mud-palette-primary);
     }
     .keypad-submit:hover { background: var(--mud-palette-primary-darken); }
+    .keypad-cancel {
+        background: var(--mud-palette-error);
+        color: var(--mud-palette-error-text);
+        border-color: var(--mud-palette-error);
+    }
+    .keypad-cancel:hover { background: var(--mud-palette-error-darken); }
 
 </style>
 
