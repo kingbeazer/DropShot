@@ -469,7 +469,15 @@
 
     private async Task OpenTieBreakDialogAsync()
     {
-        var dialog = await DialogService.ShowAsync<TieBreakPickerDialog>("Tie break score");
+        // Highlight the opposing side's score so the user can quickly find the
+        // related number in the long 8-99 list — final-set tie-break scores
+        // usually correlate (e.g. 12-10, 10-8).
+        int? otherSide = _activeIsSide1 ? _score2[_activeSet] : _score1[_activeSet];
+        var parameters = new DialogParameters<TieBreakPickerDialog>
+        {
+            { x => x.HighlightValue, otherSide }
+        };
+        var dialog = await DialogService.ShowAsync<TieBreakPickerDialog>("Tie break score", parameters);
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: int picked })
         {
