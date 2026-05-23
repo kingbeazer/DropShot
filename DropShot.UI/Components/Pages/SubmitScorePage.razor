@@ -50,13 +50,13 @@
                         <button type="button"
                                 class="@CellClass(idx, side1: true)"
                                 @onclick="@(() => SetActive(idx, true))">
-                            @(_score1[idx]?.ToString() ?? "0")
+                            @(_score1[idx]?.ToString() ?? "–")
                         </button>
                         <span class="set-label">Set @(idx + 1)</span>
                         <button type="button"
                                 class="@CellClass(idx, side1: false)"
                                 @onclick="@(() => SetActive(idx, false))">
-                            @(_score2[idx]?.ToString() ?? "0")
+                            @(_score2[idx]?.ToString() ?? "–")
                         </button>
                         <div class="set-status">
                             @if (IsSetInvalid(idx))
@@ -182,6 +182,10 @@
         background: rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0.15);
         color: var(--mud-palette-primary);
     }
+    /* Unentered cells show "–" and a muted colour so it's obvious that no
+       score was recorded — they're not a real 0-0. */
+    .score-cell.unentered { color: var(--mud-palette-text-disabled); opacity: 0.7; }
+    .score-cell.unentered.active { color: var(--mud-palette-primary); opacity: 1; }
 
     .set-label {
         font-size: 0.95rem;
@@ -457,7 +461,8 @@
     private string CellClass(int setIdx, bool side1)
     {
         bool isActive = setIdx == _activeSet && side1 == _activeIsSide1;
-        return $"score-cell {(side1 ? "side-left" : "side-right")}{(isActive ? " active" : "")}";
+        bool hasValue = (side1 ? _score1[setIdx] : _score2[setIdx]).HasValue;
+        return $"score-cell {(side1 ? "side-left" : "side-right")}{(isActive ? " active" : "")}{(hasValue ? "" : " unentered")}";
     }
 
     private void SetActive(int setIdx, bool side1)
