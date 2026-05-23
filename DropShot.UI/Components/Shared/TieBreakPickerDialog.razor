@@ -1,3 +1,5 @@
+@inject IJSRuntime JS
+
 <MudDialog>
     <TitleContent>
         Tie break score
@@ -7,7 +9,11 @@
             @for (int n = 8; n <= 99; n++)
             {
                 int val = n;
-                <button type="button" class="tb-dialog-item" @onclick="@(() => Pick(val))">
+                bool highlight = HighlightValue == val;
+                <button id="@($"tb-item-{val}")"
+                        type="button"
+                        class="@($"tb-dialog-item{(highlight ? " tb-dialog-item-highlight" : "")}")"
+                        @onclick="@(() => Pick(val))">
                     @val
                 </button>
             }
@@ -44,10 +50,32 @@
         border-color: var(--mud-palette-primary);
     }
     .tb-dialog-item:active { transform: scale(0.98); }
+    .tb-dialog-item-highlight {
+        border-color: var(--mud-palette-primary);
+        background: rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0.18);
+    }
 </style>
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>
+    /// Optional value to highlight + scroll into view on open. Used by the
+    /// submit-score page to point the user at the opposing side's score so
+    /// they can pick a related tie-break number without scrolling the whole
+    /// 8-99 list.
+    /// </summary>
+    [Parameter] public int? HighlightValue { get; set; }
+
+    private bool _scrolled;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrolled || HighlightValue is not int v || v < 8 || v > 99) return;
+        _scrolled = true;
+        await JS.InvokeVoidAsync("eval",
+            $"document.getElementById('tb-item-{v}')?.scrollIntoView({{block:'center'}});");
+    }
 
     private void Pick(int value) => MudDialog.Close(DialogResult.Ok(value));
     private void Cancel() => MudDialog.Cancel();
