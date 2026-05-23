@@ -265,18 +265,21 @@
 }
 
 /* Label mirrors the icon — "Light Mode" (the destination) shows while the
-   page is in dark theme, "Dark Mode" shows while in light theme. */
+   page is in dark theme, "Dark Mode" shows while in light theme.
+   The !important is required because NavMenu's scoped .nav-label rule
+   ("display: inline") has higher specificity than these un-scoped class
+   selectors and would otherwise reveal both labels at once. */
 .theme-label-dark {
-    display: none;
+    display: none !important;
 }
 .theme-label-light {
-    display: inline;
+    display: inline !important;
 }
 [data-theme="light"] .theme-label-light {
-    display: none;
+    display: none !important;
 }
 [data-theme="light"] .theme-label-dark {
-    display: inline;
+    display: inline !important;
 }
 
 /* ── Footer ─────────────────────────────────────────────────────────── */
