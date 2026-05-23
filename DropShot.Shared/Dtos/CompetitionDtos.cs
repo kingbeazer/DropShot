@@ -291,7 +291,6 @@ public record FixtureScoreContextDto(
     int GamesPerSet,
     SetWinMode SetWinMode,
     bool CanAdminOverride,
-    bool HasFinalSetTieBreak = false,
     int FinalSetTieBreakGames = 10,
     SetWinMode FinalSetTieBreakWinMode = SetWinMode.WinBy2);
 

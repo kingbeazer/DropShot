@@ -613,7 +613,6 @@ public sealed class WebCompetitionService(
             fx.Competition?.GamesPerSet ?? 6,
             fx.Competition?.SetWinMode ?? SetWinMode.WinBy2,
             canEdit,
-            HasFinalSetTieBreak: fx.Competition?.HasFinalSetTieBreak ?? false,
             FinalSetTieBreakGames: fx.Competition?.FinalSetTieBreakGames ?? 10,
             FinalSetTieBreakWinMode: fx.Competition?.FinalSetTieBreakWinMode ?? SetWinMode.WinBy2);
     }

@@ -357,22 +357,21 @@ else
                         </MudStack>
                     </MudRadioGroup>
 
-                    <MudCheckBox @bind-Value="Model.HasFinalSetTieBreak" Color="Color.Primary" Class="mt-3"
-                                 Label="Final set is a tie break" />
-                    @if (Model.HasFinalSetTieBreak)
-                    {
-                        <MudNumericField @bind-Value="Model.FinalSetTieBreakGames"
-                                         Label="Games in tie break"
-                                         Variant="Variant.Outlined" Min="1" Max="99"
-                                         Style="max-width: 160px;" Class="mt-2" />
-                        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Tie break wins on</MudText>
-                        <MudRadioGroup @bind-Value="Model.FinalSetTieBreakWinMode">
-                            <MudStack Row="true" Spacing="2">
-                                <MudRadio Value="SetWinMode.WinBy2" Color="Color.Primary">Win by 2</MudRadio>
-                                <MudRadio Value="SetWinMode.FirstTo" Color="Color.Primary">First to</MudRadio>
-                            </MudStack>
-                        </MudRadioGroup>
-                    }
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Final-set tie break</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
+                        Used when the final set is played as a tie break. Players decide on the day whether to play it; if they do, the score must satisfy these rules.
+                    </MudText>
+                    <MudNumericField @bind-Value="Model.FinalSetTieBreakGames"
+                                     Label="Games in tie break"
+                                     Variant="Variant.Outlined" Min="1" Max="99"
+                                     Style="max-width: 160px;" Class="mt-1" />
+                    <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Tie break wins on</MudText>
+                    <MudRadioGroup @bind-Value="Model.FinalSetTieBreakWinMode">
+                        <MudStack Row="true" Spacing="2">
+                            <MudRadio Value="SetWinMode.WinBy2" Color="Color.Primary">Win by 2</MudRadio>
+                            <MudRadio Value="SetWinMode.FirstTo" Color="Color.Primary">First to</MudRadio>
+                        </MudStack>
+                    </MudRadioGroup>
 
                     <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">League Scoring</MudText>
                     <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
@@ -2252,7 +2251,6 @@ else
         public int NumberOfSets { get; set; } = 3;
         public int GamesPerSet { get; set; } = 6;
         public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
-        public bool HasFinalSetTieBreak { get; set; } = false;
         public int FinalSetTieBreakGames { get; set; } = 10;
         public SetWinMode FinalSetTieBreakWinMode { get; set; } = SetWinMode.WinBy2;
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
@@ -2456,7 +2454,6 @@ else
                 NumberOfSets = view.NumberOfSets,
                 GamesPerSet = view.GamesPerSet,
                 SetWinMode = view.SetWinMode,
-                HasFinalSetTieBreak = view.HasFinalSetTieBreak,
                 FinalSetTieBreakGames = view.FinalSetTieBreakGames,
                 FinalSetTieBreakWinMode = view.FinalSetTieBreakWinMode,
                 LeagueScoring = view.LeagueScoring,
@@ -2558,7 +2555,6 @@ else
                 MinDaysBetweenPlayerMatches: Model.MinDaysBetweenPlayerMatches,
                 HasDivisions: Model.HasDivisions,
                 SeededFromCompetitionId: Model.SeededFromCompetitionId,
-                HasFinalSetTieBreak: Model.HasFinalSetTieBreak,
                 FinalSetTieBreakGames: Model.FinalSetTieBreakGames,
                 FinalSetTieBreakWinMode: Model.FinalSetTieBreakWinMode,
                 IsRestricted: false,
