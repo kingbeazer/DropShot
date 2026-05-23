@@ -127,6 +127,17 @@
     .submit-score-stack { width: 100%; max-width: 360px; }
     .score-section { width: 100%; }
 
+    /* On phones, let the column take more of the screen by shrinking the
+       MudContainer's intrinsic horizontal padding and lifting the stack's
+       max-width cap. */
+    @@media (max-width: 600px) {
+        .submit-score-page {
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+        }
+        .submit-score-stack { max-width: 100%; }
+    }
+
     .set-row {
         display: grid;
         grid-template-columns: 28px 1fr auto 1fr 28px;
@@ -207,18 +218,27 @@
     .keypad-key:active { transform: scale(0.97); }
     .keypad-key:disabled { opacity: 0.5; cursor: not-allowed; }
     .keypad-tb { font-size: 0.85rem; letter-spacing: 0.2px; }
-    .keypad-submit {
+    /* The submit (tick) and cancel (cross) keys carry their own coloured
+       backgrounds. We re-assert them under [data-theme="light"] because the
+       generic [data-theme="light"] .keypad-key rule above otherwise wins on
+       specificity and paints them translucent-white — making the icons
+       invisible against the same-coloured surface. */
+    .keypad-submit,
+    [data-theme="light"] .keypad-submit {
         background: var(--mud-palette-primary);
         color: var(--mud-palette-primary-text);
         border-color: var(--mud-palette-primary);
     }
-    .keypad-submit:hover { background: var(--mud-palette-primary-darken); }
-    .keypad-cancel {
+    .keypad-submit:hover,
+    [data-theme="light"] .keypad-submit:hover { background: var(--mud-palette-primary-darken); }
+    .keypad-cancel,
+    [data-theme="light"] .keypad-cancel {
         background: var(--mud-palette-error);
         color: var(--mud-palette-error-text);
         border-color: var(--mud-palette-error);
     }
-    .keypad-cancel:hover { background: var(--mud-palette-error-darken); }
+    .keypad-cancel:hover,
+    [data-theme="light"] .keypad-cancel:hover { background: var(--mud-palette-error-darken); }
 
 </style>
 
