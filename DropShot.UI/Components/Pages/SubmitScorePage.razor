@@ -270,6 +270,13 @@
     private int _activeSet;
     private bool _activeIsSide1 = true;
 
+    // When false the active cell renders without the primary-colour active
+    // highlight even though _activeSet/_activeIsSide1 still point at it.
+    // We drop this after writing the final cell so the user's eye moves to
+    // the now-pulsing submit tick. Any subsequent action (back / tap / type)
+    // re-establishes focus.
+    private bool _focused = true;
+
     private string _returnUrl = "/";
     private bool _adminRequested;
     private bool _adminOverrideActive;
@@ -468,7 +475,7 @@
 
     private string CellClass(int setIdx, bool side1)
     {
-        bool isActive = setIdx == _activeSet && side1 == _activeIsSide1;
+        bool isActive = _focused && setIdx == _activeSet && side1 == _activeIsSide1;
         bool hasValue = (side1 ? _score1[setIdx] : _score2[setIdx]).HasValue;
         return $"score-cell {(side1 ? "side-left" : "side-right")}{(isActive ? " active" : "")}{(hasValue ? "" : " unentered")}";
     }
@@ -477,6 +484,7 @@
     {
         _activeSet = setIdx;
         _activeIsSide1 = side1;
+        _focused = true;
         _error = null;
     }
 
@@ -485,8 +493,18 @@
     private void WriteAndAdvance(int value)
     {
         _error = null;
+        _focused = true;
         ActiveArray[_activeSet] = value;
-        if (!_isLastCell) AdvanceOne();
+        if (!_isLastCell)
+        {
+            AdvanceOne();
+        }
+        else
+        {
+            // Final cell — no next cell to advance into. Drop the active
+            // highlight so the user's eye moves to the submit tick.
+            _focused = false;
+        }
     }
 
     private void PressDigit(int digit) => WriteAndAdvance(digit);
@@ -494,6 +512,20 @@
     private void PressBack()
     {
         _error = null;
+        _focused = true;
+
+        // If the current cell holds a value, clear it and stay put. Pressing
+        // back again will then navigate to the previous cell and clear that
+        // one. This keeps ← acting like a backspace through the score
+        // sequence even on the final cell (which has no next cell to
+        // advance into and so still had its value after the previous step).
+        var current = _activeIsSide1 ? _score1 : _score2;
+        if (current[_activeSet].HasValue)
+        {
+            current[_activeSet] = null;
+            return;
+        }
+
         if (_activeIsSide1)
         {
             if (_activeSet == 0) return;
@@ -504,9 +536,6 @@
         {
             _activeIsSide1 = true;
         }
-        // Clear whatever was previously entered in the cell we just landed on
-        // so the user can re-type it. This makes ← behave like a backspace
-        // through the score sequence: tap N times to undo N entries.
         (_activeIsSide1 ? _score1 : _score2)[_activeSet] = null;
     }
 
