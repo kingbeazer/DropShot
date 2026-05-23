@@ -290,7 +290,10 @@ public record FixtureScoreContextDto(
     int BestOf,
     int GamesPerSet,
     SetWinMode SetWinMode,
-    bool CanAdminOverride);
+    bool CanAdminOverride,
+    bool HasFinalSetTieBreak = false,
+    int FinalSetTieBreakGames = 10,
+    SetWinMode FinalSetTieBreakWinMode = SetWinMode.WinBy2);
 
 /// <summary>
 /// Response body returned with HTTP 409 when an admin action would violate a

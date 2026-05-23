@@ -237,19 +237,37 @@
         int a = _score1[idx]!.Value, b = _score2[idx]!.Value;
         if (a == b) return true;
 
-        int gps = _context.GamesPerSet;
+        // The final set follows the competition's tie-break rules when those
+        // are enabled (e.g. super-tiebreak first-to-10), instead of the normal
+        // GamesPerSet / SetWinMode.
+        bool isFinalSet = idx == _bestOf - 1;
+        bool useTieBreakRules = isFinalSet && _context.HasFinalSetTieBreak;
+        int target = useTieBreakRules ? _context.FinalSetTieBreakGames : _context.GamesPerSet;
+        SetWinMode winMode = useTieBreakRules ? _context.FinalSetTieBreakWinMode : _context.SetWinMode;
+
         int winner = Math.Max(a, b), loser = Math.Min(a, b);
 
-        if (_context.SetWinMode == SetWinMode.FirstTo)
+        if (winMode == SetWinMode.FirstTo)
         {
-            if (winner != gps) return true;
-            if (loser >= gps) return true;
+            if (winner != target) return true;
+            if (loser >= target) return true;
+        }
+        else if (useTieBreakRules)
+        {
+            // Pure win-by-2 tie break (e.g. super-tiebreak first-to-10): once
+            // the score is above the target the margin must be exactly 2 —
+            // 11-9 and 12-10 are valid, 31-30 is not.
+            if (winner < target) return true;
+            if (winner == target && loser > target - 2) return true;
+            if (winner > target && Math.Abs(a - b) != 2) return true;
         }
         else
         {
-            if (winner < gps) return true;
-            if (winner == gps && loser > gps - 2) return true;
-            if (winner > gps && Math.Abs(a - b) != 1 && Math.Abs(a - b) != 2) return true;
+            // Regular set win-by-2: allow margin 1 above target so that a
+            // tennis-style set ending in a tiebreak (e.g. 7-6) is valid.
+            if (winner < target) return true;
+            if (winner == target && loser > target - 2) return true;
+            if (winner > target && Math.Abs(a - b) != 1 && Math.Abs(a - b) != 2) return true;
         }
         return false;
     }
@@ -468,7 +486,6 @@
 
         if (!_adminOverrideActive)
         {
-            int gps = _context.GamesPerSet;
             foreach (int i in enteredIndices)
             {
                 if (!_score1[i].HasValue || !_score2[i].HasValue)
@@ -484,37 +501,60 @@
                     return;
                 }
 
+                bool isFinalSet = i == _bestOf - 1;
+                bool useTieBreakRules = isFinalSet && _context.HasFinalSetTieBreak;
+                int target = useTieBreakRules ? _context.FinalSetTieBreakGames : _context.GamesPerSet;
+                SetWinMode winMode = useTieBreakRules ? _context.FinalSetTieBreakWinMode : _context.SetWinMode;
+
                 int winner = Math.Max(a, b);
                 int loser = Math.Min(a, b);
 
-                if (_context.SetWinMode == SetWinMode.FirstTo)
+                if (winMode == SetWinMode.FirstTo)
                 {
-                    if (winner != gps)
+                    if (winner != target)
                     {
-                        _error = $"Set {i + 1}: winner must reach exactly {gps} games (First to).";
+                        _error = $"Set {i + 1}: winner must reach exactly {target} (First to).";
                         return;
                     }
-                    if (loser >= gps)
+                    if (loser >= target)
                     {
-                        _error = $"Set {i + 1}: loser cannot have {loser} games when target is {gps}.";
+                        _error = $"Set {i + 1}: loser cannot have {loser} when target is {target}.";
+                        return;
+                    }
+                }
+                else if (useTieBreakRules)
+                {
+                    if (winner < target)
+                    {
+                        _error = $"Set {i + 1} (tie break): winner must reach at least {target}.";
+                        return;
+                    }
+                    if (winner == target && loser > target - 2)
+                    {
+                        _error = $"Set {i + 1} (tie break): at {target}, opponent can have at most {target - 2} (Win by 2).";
+                        return;
+                    }
+                    if (winner > target && Math.Abs(a - b) != 2)
+                    {
+                        _error = $"Set {i + 1} (tie break): above {target}-all, the margin must be exactly 2.";
                         return;
                     }
                 }
                 else
                 {
-                    if (winner < gps)
+                    if (winner < target)
                     {
-                        _error = $"Set {i + 1}: winner must have at least {gps} games.";
+                        _error = $"Set {i + 1}: winner must have at least {target} games.";
                         return;
                     }
-                    if (winner == gps && loser > gps - 2)
+                    if (winner == target && loser > target - 2)
                     {
-                        _error = $"Set {i + 1}: at {gps} games, opponent can have at most {gps - 2} (Win by 2). Use {gps + 1}-{gps} for a tie-break.";
+                        _error = $"Set {i + 1}: at {target} games, opponent can have at most {target - 2} (Win by 2). Use {target + 1}-{target} for a tie-break.";
                         return;
                     }
-                    if (winner > gps && Math.Abs(a - b) != 1 && Math.Abs(a - b) != 2)
+                    if (winner > target && Math.Abs(a - b) != 1 && Math.Abs(a - b) != 2)
                     {
-                        _error = $"Set {i + 1}: above {gps}-all, the margin must be 1 (tie-break) or 2 (extended).";
+                        _error = $"Set {i + 1}: above {target}-all, the margin must be 1 (tie-break) or 2 (extended).";
                         return;
                     }
                 }

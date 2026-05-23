@@ -79,7 +79,9 @@ public sealed class WebCompetitionAdminService(
                 CreatorUserId: null, IsRestricted: false,
                 TeamSize: null, RubberTemplateKey: null,
                 MatchFormat: MatchFormatType.BestOf, NumberOfSets: 3, GamesPerSet: 6,
-                SetWinMode: SetWinMode.WinBy2, LeagueScoring: LeagueScoringMode.WinPoints,
+                SetWinMode: SetWinMode.WinBy2,
+                HasFinalSetTieBreak: false, FinalSetTieBreakGames: 10, FinalSetTieBreakWinMode: SetWinMode.WinBy2,
+                LeagueScoring: LeagueScoringMode.WinPoints,
                 RubberTieBreak: RubberTieBreakMode.AdminDecides,
                 MinDaysBetweenPlayerMatches: null, HasDivisions: false,
                 SeededFromCompetitionId: null,
@@ -225,7 +227,11 @@ public sealed class WebCompetitionAdminService(
             CreatorUserId: comp.CreatorUserId, IsRestricted: comp.IsRestricted,
             TeamSize: comp.TeamSize, RubberTemplateKey: comp.RubberTemplateKey,
             MatchFormat: comp.MatchFormat, NumberOfSets: comp.NumberOfSets, GamesPerSet: comp.GamesPerSet,
-            SetWinMode: comp.SetWinMode, LeagueScoring: comp.LeagueScoring,
+            SetWinMode: comp.SetWinMode,
+            HasFinalSetTieBreak: comp.HasFinalSetTieBreak,
+            FinalSetTieBreakGames: comp.FinalSetTieBreakGames,
+            FinalSetTieBreakWinMode: comp.FinalSetTieBreakWinMode,
+            LeagueScoring: comp.LeagueScoring,
             RubberTieBreak: comp.RubberTieBreak,
             MinDaysBetweenPlayerMatches: comp.MinDaysBetweenPlayerMatches,
             HasDivisions: comp.HasDivisions,
@@ -409,6 +415,9 @@ public sealed class WebCompetitionAdminService(
         comp.NumberOfSets = req.NumberOfSets;
         comp.GamesPerSet = req.GamesPerSet;
         comp.SetWinMode = req.SetWinMode;
+        comp.HasFinalSetTieBreak = req.HasFinalSetTieBreak;
+        comp.FinalSetTieBreakGames = req.FinalSetTieBreakGames;
+        comp.FinalSetTieBreakWinMode = req.FinalSetTieBreakWinMode;
         comp.LeagueScoring = req.LeagueScoring;
         comp.RubberTieBreak = req.RubberTieBreak;
         comp.MinDaysBetweenPlayerMatches = req.MinDaysBetweenPlayerMatches;
@@ -453,6 +462,9 @@ public sealed class WebCompetitionAdminService(
             NumberOfSets                = source.NumberOfSets,
             GamesPerSet                 = source.GamesPerSet,
             SetWinMode                  = source.SetWinMode,
+            HasFinalSetTieBreak         = source.HasFinalSetTieBreak,
+            FinalSetTieBreakGames       = source.FinalSetTieBreakGames,
+            FinalSetTieBreakWinMode     = source.FinalSetTieBreakWinMode,
             LeagueScoring               = source.LeagueScoring,
             RubberTieBreak              = source.RubberTieBreak,
             MinDaysBetweenPlayerMatches = source.MinDaysBetweenPlayerMatches,
