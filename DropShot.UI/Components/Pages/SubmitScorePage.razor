@@ -258,12 +258,18 @@
         {
             return winner == target && loser < target;
         }
-        // Win-by-2 regular set — allows margin 1 above target so a tennis
-        // tiebreak-decided set (e.g. 7-6) is valid.
+        // Win-by-2 regular set. Valid shapes are:
+        //   winner == target           — loser ≤ target − 2 (e.g. 6-4)
+        //   winner == target + 1       — loser ∈ {target−1, target}
+        //                                (the 7-5 boundary and 7-6 in-set tiebreak)
+        //   winner > target + 1        — margin must be exactly 2 (no-tiebreak
+        //                                extended set: 8-6, 9-7, 10-8, …).
+        // Anything else — including 16-15 — is not a valid regular set; a
+        // score that high must be played and validated as a tie break.
         if (winner < target) return false;
         if (winner == target) return loser <= target - 2;
-        int margin = Math.Abs(a - b);
-        return margin == 1 || margin == 2;
+        if (winner == target + 1) return loser == target - 1 || loser == target;
+        return loser == winner - 2;
     }
 
     private bool ScorePassesTieBreakRules(int a, int b)
