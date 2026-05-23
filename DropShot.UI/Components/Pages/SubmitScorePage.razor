@@ -3,7 +3,7 @@
 @inject ISiteAlertService SiteAlerts
 @inject IDialogService DialogService
 
-<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="py-4 submit-score-page">
+<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="pt-2 pb-4 submit-score-page">
     @if (!_loaded)
     {
         <div class="d-flex justify-center"><MudProgressCircular Indeterminate="true" /></div>
@@ -44,7 +44,8 @@
                 @for (int i = 0; i < _bestOf; i++)
                 {
                     int idx = i;
-                    <div class="set-row">
+                    bool rowActive = idx == _activeSet;
+                    <div class="@($"set-row{(rowActive ? " set-row-active" : "")}")">
                         <div></div>
                         <button type="button"
                                 class="@CellClass(idx, side1: true)"
@@ -133,20 +134,34 @@
         gap: 8px;
         padding: 6px 0;
     }
+    /* Trim the inner padding above the first row and below the last row so
+       the sets sit flush against the card padding. */
+    .set-row:first-child { padding-top: 0; }
+    .set-row:last-child  { padding-bottom: 0; }
     .set-status { display: flex; align-items: center; justify-content: center; }
     .set-row + .set-row { border-top: 1px solid rgba(255,255,255,0.06); }
     [data-theme="light"] .set-row + .set-row { border-top-color: rgba(0,0,0,0.08); }
 
+    /* Score cells: small by default so non-active sets shrink visually; the
+       active set's row gets the larger original size via .set-row-active. */
     .score-cell {
-        font: 600 1.8rem/1 inherit;
+        font-weight: 600;
+        font-size: 1.3rem;
+        line-height: 1;
         background: transparent;
         border: 1px solid rgba(255,255,255,0.18);
         color: inherit;
         border-radius: 10px;
+        padding: 6px 0;
+        min-height: 40px;
+        cursor: pointer;
+        transition: background 120ms, border-color 120ms, color 120ms,
+                    font-size 150ms, min-height 150ms, padding 150ms;
+    }
+    .set-row-active .score-cell {
+        font-size: 1.8rem;
         padding: 10px 0;
         min-height: 56px;
-        cursor: pointer;
-        transition: background 120ms, border-color 120ms;
     }
     .score-cell.side-left { justify-self: end; width: 100%; max-width: 90px; }
     .score-cell.side-right { justify-self: start; width: 100%; max-width: 90px; }
