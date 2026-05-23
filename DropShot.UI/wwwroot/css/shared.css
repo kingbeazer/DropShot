@@ -83,6 +83,14 @@
     padding: 0.75rem 0.5rem;
 }
 
+/* Light-mode equivalent: swap to the inverted tile + a near-white overlay
+   so the sticky band keeps mirroring the page backdrop. */
+[data-theme="light"] .competition-sticky-header {
+    background-image:
+        linear-gradient(rgba(245, 245, 245, 0.85), rgba(245, 245, 245, 0.85)),
+        url('../images/background-light.png');
+}
+
 /* On web, multi-role users get a sticky `.role-banner` (~1.6rem tall)
    below the navbar. Push the competition sticky header down so it
    parks below the banner instead of underneath it. Hardcoded for the
