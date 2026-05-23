@@ -1,0 +1,54 @@
+<MudDialog>
+    <TitleContent>
+        Tie break score
+    </TitleContent>
+    <DialogContent>
+        <div class="tb-dialog-list">
+            @for (int n = 8; n <= 99; n++)
+            {
+                int val = n;
+                <button type="button" class="tb-dialog-item" @onclick="@(() => Pick(val))">
+                    @val
+                </button>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .tb-dialog-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 60vh;
+        overflow-y: auto;
+        min-width: 220px;
+    }
+    .tb-dialog-item {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.18);
+        color: inherit;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-align: center;
+    }
+    [data-theme="light"] .tb-dialog-item { border-color: rgba(0,0,0,0.18); }
+    .tb-dialog-item:hover {
+        background: rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0.15);
+        border-color: var(--mud-palette-primary);
+    }
+    .tb-dialog-item:active { transform: scale(0.98); }
+</style>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private void Pick(int value) => MudDialog.Close(DialogResult.Ok(value));
+    private void Cancel() => MudDialog.Cancel();
+}
