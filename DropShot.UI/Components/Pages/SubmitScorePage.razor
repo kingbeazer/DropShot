@@ -82,25 +82,16 @@
                         <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Medium" />
                     </button>
                     <button type="button" class="keypad-key" @onclick="@(() => PressDigit(7))">7</button>
-                    <MudMenu Class="keypad-tb-menu"
-                             AnchorOrigin="Origin.TopRight"
-                             TransformOrigin="Origin.BottomRight"
-                             MaxHeight="320"
-                             Dense="true">
-                        <ActivatorContent>
-                            <button type="button" class="keypad-key keypad-tb"
-                                    aria-label="Tie break — pick a number">
-                                Tie Break +
-                            </button>
-                        </ActivatorContent>
-                        <ChildContent>
-                            @for (int n = 8; n <= 99; n++)
-                            {
-                                int val = n;
-                                <MudMenuItem OnClick="@(() => PickTieBreak(val))">@val</MudMenuItem>
-                            }
-                        </ChildContent>
-                    </MudMenu>
+                    <select class="keypad-key keypad-tb"
+                            value="@_tbSelectValue"
+                            @onchange="OnTieBreakChange"
+                            aria-label="Tie break — pick a number">
+                        <option value="" disabled selected>Tie Break +</option>
+                        @for (int n = 8; n <= 99; n++)
+                        {
+                            <option value="@n">@n</option>
+                        }
+                    </select>
 
                     @* Row 4: empty spacer, 0, submit tick *@
                     <div></div>
@@ -205,6 +196,22 @@
     .keypad-key:active { transform: scale(0.97); }
     .keypad-key:disabled { opacity: 0.5; cursor: not-allowed; }
     .keypad-tb { font-size: 0.85rem; letter-spacing: 0.2px; }
+    /* Native select element styled like a keypad key. */
+    select.keypad-tb {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        text-align: center;
+        text-align-last: center;
+        background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                          linear-gradient(135deg, currentColor 50%, transparent 50%);
+        background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+        padding-right: 22px;
+    }
+    select.keypad-tb option { background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); }
+
     .keypad-submit {
         background: var(--mud-palette-primary);
         color: var(--mud-palette-primary-text);
@@ -212,11 +219,6 @@
     }
     .keypad-submit:hover { background: var(--mud-palette-primary-darken); }
 
-    /* Make the MudMenu wrapper fill its keypad grid cell so the inner
-       Tie Break + button matches the surrounding digit keys. */
-    .keypad-tb-menu { width: 100%; height: 100%; }
-    .keypad-tb-menu > .mud-menu-activator,
-    .keypad-tb-menu > .mud-menu-activator > button { width: 100%; height: 100%; }
 </style>
 
 @code {
@@ -240,6 +242,10 @@
     private bool _adminOverrideActive;
     private bool _saving;
     private string? _error;
+
+    // Held by the native <select>. We reset to "" after each pick so the
+    // placeholder option re-shows and the same number can be picked again.
+    private string _tbSelectValue = "";
 
     private bool _isLastCell => _activeSet == _bestOf - 1 && !_activeIsSide1;
 
@@ -448,6 +454,16 @@
     }
 
     private void PickTieBreak(int value) => WriteAndAdvance(value);
+
+    private void OnTieBreakChange(ChangeEventArgs e)
+    {
+        if (e.Value is string s && int.TryParse(s, out int val))
+        {
+            PickTieBreak(val);
+        }
+        // Reset so the placeholder "Tie Break +" shows again next time.
+        _tbSelectValue = "";
+    }
 
     private void Cancel() => Navigation.NavigateTo(_returnUrl);
 
