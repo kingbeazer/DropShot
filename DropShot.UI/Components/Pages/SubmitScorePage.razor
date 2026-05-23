@@ -1,6 +1,7 @@
 @inject ICompetitionService CompetitionService
 @inject NavigationManager Navigation
 @inject ISiteAlertService SiteAlerts
+@inject IDialogService DialogService
 
 <MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="py-4 submit-score-page">
     @if (!_loaded)
@@ -82,16 +83,11 @@
                         <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Medium" />
                     </button>
                     <button type="button" class="keypad-key" @onclick="@(() => PressDigit(7))">7</button>
-                    <select class="keypad-key keypad-tb"
-                            value="@_tbSelectValue"
-                            @onchange="OnTieBreakChange"
+                    <button type="button" class="keypad-key keypad-tb"
+                            @onclick="OpenTieBreakDialogAsync"
                             aria-label="Tie break — pick a number">
-                        <option value="" disabled selected>Tie Break +</option>
-                        @for (int n = 8; n <= 99; n++)
-                        {
-                            <option value="@n">@n</option>
-                        }
-                    </select>
+                        Tie Break +
+                    </button>
 
                     @* Row 4: empty spacer, 0, submit tick *@
                     <div></div>
@@ -196,22 +192,6 @@
     .keypad-key:active { transform: scale(0.97); }
     .keypad-key:disabled { opacity: 0.5; cursor: not-allowed; }
     .keypad-tb { font-size: 0.85rem; letter-spacing: 0.2px; }
-    /* Native select element styled like a keypad key. */
-    select.keypad-tb {
-        appearance: none;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        text-align: center;
-        text-align-last: center;
-        background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
-                          linear-gradient(135deg, currentColor 50%, transparent 50%);
-        background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
-        background-size: 5px 5px, 5px 5px;
-        background-repeat: no-repeat;
-        padding-right: 22px;
-    }
-    select.keypad-tb option { background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); }
-
     .keypad-submit {
         background: var(--mud-palette-primary);
         color: var(--mud-palette-primary-text);
@@ -242,10 +222,6 @@
     private bool _adminOverrideActive;
     private bool _saving;
     private string? _error;
-
-    // Held by the native <select>. We reset to "" after each pick so the
-    // placeholder option re-shows and the same number can be picked again.
-    private string _tbSelectValue = "";
 
     private bool _isLastCell => _activeSet == _bestOf - 1 && !_activeIsSide1;
 
@@ -294,30 +270,34 @@
                 return false;
             }
 
-            bool anyEntered = false;
+            int s1 = 0, s2 = 0;
             for (int i = 0; i < _bestOf; i++)
             {
                 bool hasA = _score1[i].HasValue;
                 bool hasB = _score2[i].HasValue;
-                if (hasA || hasB) anyEntered = true;
                 // Partial entry is silent (no cross) but blocks submit.
                 if (hasA != hasB) return false;
                 if (IsSetInvalid(i)) return false;
-            }
-            if (!anyEntered) return false;
-
-            int s1 = 0, s2 = 0;
-            for (int i = 0; i < _bestOf; i++)
-            {
-                if (_score1[i].HasValue && _score2[i].HasValue)
+                if (hasA && hasB)
                 {
                     if (_score1[i] > _score2[i]) s1++;
                     else if (_score2[i] > _score1[i]) s2++;
                 }
             }
-            bool tied = s1 == s2;
-            bool isFixed = _context.MatchFormat == MatchFormatType.FixedSets;
-            return !tied || isFixed;
+
+            if (_context.MatchFormat == MatchFormatType.FixedSets)
+            {
+                // Every scheduled set must have both sides entered.
+                for (int i = 0; i < _bestOf; i++)
+                    if (!_score1[i].HasValue || !_score2[i].HasValue) return false;
+                return true;
+            }
+
+            // BestOf: a side must have clinched the match (won more than half
+            // the sets). A 6-0 in set 1 of a best-of-3 isn't enough — the
+            // match isn't decided until somebody hits (bestOf / 2) + 1.
+            int targetWins = (_bestOf / 2) + 1;
+            return s1 >= targetWins || s2 >= targetWins;
         }
     }
 
@@ -455,14 +435,14 @@
 
     private void PickTieBreak(int value) => WriteAndAdvance(value);
 
-    private void OnTieBreakChange(ChangeEventArgs e)
+    private async Task OpenTieBreakDialogAsync()
     {
-        if (e.Value is string s && int.TryParse(s, out int val))
+        var dialog = await DialogService.ShowAsync<TieBreakPickerDialog>("Tie break score");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: int picked })
         {
-            PickTieBreak(val);
+            PickTieBreak(picked);
         }
-        // Reset so the placeholder "Tie Break +" shows again next time.
-        _tbSelectValue = "";
     }
 
     private void Cancel() => Navigation.NavigateTo(_returnUrl);
