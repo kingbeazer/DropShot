@@ -328,10 +328,13 @@ public record SelfRegisterRequest(
     PhoneShareConsent Consent);
 
 /// <summary>
-/// Enter-competition request body. No status field (the server picks
-/// Registered) — only the per-competition phone-share consent.
+/// Enter-competition request body. Carries the per-competition phone-share
+/// consent and the participation status the user chose (FullPlayer or
+/// Substitute). The server rejects any other status value.
 /// </summary>
-public record EnterCompetitionRequest(PhoneShareConsent Consent);
+public record EnterCompetitionRequest(
+    PhoneShareConsent Consent,
+    ParticipantStatus Status = ParticipantStatus.FullPlayer);
 
 public record SaveFixtureRequest(
     int? CompetitionStageId,

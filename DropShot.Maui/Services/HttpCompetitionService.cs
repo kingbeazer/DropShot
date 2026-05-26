@@ -99,11 +99,14 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
     }
 
     public async Task EnterCompetitionAsync(
-        int competitionId, PhoneShareConsent consent, CancellationToken ct = default)
+        int competitionId,
+        PhoneShareConsent consent,
+        ParticipantStatus status = ParticipantStatus.FullPlayer,
+        CancellationToken ct = default)
     {
         var resp = await http.PostAsJsonAsync(
             $"api/competitions/{competitionId}/enter",
-            new EnterCompetitionRequest(consent), ct);
+            new EnterCompetitionRequest(consent, status), ct);
         if (!resp.IsSuccessStatusCode)
         {
             var body = await resp.Content.ReadAsStringAsync(ct);

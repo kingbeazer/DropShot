@@ -116,15 +116,20 @@ public interface ICompetitionService
     Task DeleteCompetitionAsync(int competitionId, CancellationToken ct = default);
 
     /// <summary>
-    /// Self-enter the authenticated user's player into the competition.
-    /// Server enforces date/eligibility/capacity/duplicate-entry guards and
-    /// throws <see cref="InvalidOperationException"/> with a user-facing
-    /// message when any of them fail. The <paramref name="consent"/> payload
-    /// is recorded against the player at the same time the participant row
-    /// is created (single transaction).
+    /// Self-enter the authenticated user's player into the competition with
+    /// the chosen participation status (FullPlayer or Substitute). Server
+    /// enforces date/eligibility/capacity/duplicate-entry guards and throws
+    /// <see cref="InvalidOperationException"/> with a user-facing message
+    /// when any of them fail, or when <paramref name="status"/> is not one
+    /// of the two allowed values. The <paramref name="consent"/> payload is
+    /// recorded against the player at the same time the participant row is
+    /// created (single transaction).
     /// </summary>
     Task EnterCompetitionAsync(
-        int competitionId, PhoneShareConsent consent, CancellationToken ct = default);
+        int competitionId,
+        PhoneShareConsent consent,
+        ParticipantStatus status = ParticipantStatus.FullPlayer,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Leave a competition. Sets the participant's status to

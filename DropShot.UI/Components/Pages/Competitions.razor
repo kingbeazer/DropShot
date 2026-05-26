@@ -93,10 +93,16 @@
                     <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
                     <MudTd DataLabel="Register By">@(context.RegisterByDate?.ToString("dd MMM yyyy") ?? "—")</MudTd>
                     <MudTd>
-                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                   OnClick="@(() => EnterCompetitionAsync(context))">
-                            Enter
-                        </MudButton>
+                        <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="@(() => EnterCompetitionAsync(context, ParticipantStatus.FullPlayer))">
+                                Enter
+                            </MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                       OnClick="@(() => EnterCompetitionAsync(context, ParticipantStatus.Substitute))">
+                                Enter as Sub
+                            </MudButton>
+                        </MudStack>
                     </MudTd>
                 </RowTemplate>
             </MudTable>
@@ -640,14 +646,19 @@ else
         return c.StartDate == c.EndDate ? start : $"{start} – {end}";
     }
 
-    private async Task EnterCompetitionAsync(CompetitionDto comp)
+    private async Task EnterCompetitionAsync(CompetitionDto comp, ParticipantStatus status)
     {
         if (string.IsNullOrWhiteSpace(_myMobileNumber))
         {
             SiteAlerts.Add(
-                "Add a mobile number to your profile before entering competitions — " +
-                "head to My Players.",
-                Severity.Warning);
+                "Add a mobile number to your profile before entering competitions.",
+                Severity.Warning,
+                actionLabel: "Open my account",
+                actionCallback: () =>
+                {
+                    Nav.NavigateTo("/Account/Manage", forceLoad: true);
+                    return Task.CompletedTask;
+                });
             return;
         }
 
@@ -656,15 +667,18 @@ else
             [nameof(DropShot.UI.Components.Shared.EnterCompetitionConsentDialog.CompetitionName)] = comp.CompetitionName,
             [nameof(DropShot.UI.Components.Shared.EnterCompetitionConsentDialog.MobileNumber)] = _myMobileNumber,
         };
+        var dialogTitle = status == ParticipantStatus.Substitute
+            ? "Enter as substitute — share your mobile number"
+            : "Share your mobile number with competitors";
         var dialog = await DialogService.ShowAsync<DropShot.UI.Components.Shared.EnterCompetitionConsentDialog>(
-            "Share your mobile number with competitors", parameters);
+            dialogTitle, parameters);
         var result = await dialog.Result;
         if (result is null || result.Canceled) return;
         if (result.Data is not PhoneShareConsent consent) return;
 
         try
         {
-            await CompetitionService.EnterCompetitionAsync(comp.CompetitionId, consent);
+            await CompetitionService.EnterCompetitionAsync(comp.CompetitionId, consent, status);
         }
         catch (InvalidOperationException ex)
         {
@@ -672,7 +686,8 @@ else
             return;
         }
 
-        SiteAlerts.Add($"Entered '{comp.CompetitionName}'.", Severity.Success);
+        var enteredAs = status == ParticipantStatus.Substitute ? " as substitute" : "";
+        SiteAlerts.Add($"Entered '{comp.CompetitionName}'{enteredAs}.", Severity.Success);
 
         _availableComps.RemoveAll(c => c.CompetitionId == comp.CompetitionId);
         _myEnteredComps.Add(comp);
