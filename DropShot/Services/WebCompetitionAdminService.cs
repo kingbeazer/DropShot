@@ -1508,6 +1508,8 @@ public sealed class WebCompetitionAdminService(
             ?? throw new KeyNotFoundException("Team not found.");
         if (team.CompetitionId != competitionId)
             throw new InvalidOperationException("Team belongs to a different competition.");
+        await EnsureUniqueTeamNameAsync(db, competitionId, team.Name,
+            request.CompetitionDivisionId, teamId, ct);
         team.CompetitionDivisionId = request.CompetitionDivisionId;
         await db.SaveChangesAsync(ct);
     }
@@ -1524,16 +1526,14 @@ public sealed class WebCompetitionAdminService(
         await LoadAndAuthorizeAsync(db, competitionId, ct);
 
         var trimmed = request.Name.Trim();
-        var nameClash = await db.CompetitionTeams.AnyAsync(t =>
-            t.CompetitionId == competitionId
-            && t.Name == trimmed
-            && (teamId == null || t.CompetitionTeamId != teamId.Value), ct);
-        if (nameClash)
-            throw new InvalidOperationException(
-                $"A team named '{trimmed}' already exists in this competition.");
 
         if (teamId is null)
         {
+            // New team starts unassigned (division is set later via
+            // AssignTeamDivisionAsync, which re-runs the same check). Only
+            // clash with other unassigned teams here — two divisions can
+            // legitimately each have their own "Team A".
+            await EnsureUniqueTeamNameAsync(db, competitionId, trimmed, null, null, ct);
             var team = new CompetitionTeam { CompetitionId = competitionId, Name = trimmed };
             db.CompetitionTeams.Add(team);
             await db.SaveChangesAsync(ct);
@@ -1545,10 +1545,40 @@ public sealed class WebCompetitionAdminService(
                 ?? throw new KeyNotFoundException("Team not found.");
             if (row.CompetitionId != competitionId)
                 throw new InvalidOperationException("Team belongs to a different competition.");
+            await EnsureUniqueTeamNameAsync(db, competitionId, trimmed,
+                row.CompetitionDivisionId, teamId.Value, ct);
             row.Name = trimmed;
             await db.SaveChangesAsync(ct);
             return row.CompetitionTeamId;
         }
+    }
+
+    /// <summary>
+    /// Team names must be unique within a (competition, division) bucket —
+    /// the same name in two different divisions is fine (e.g. "Team A" in
+    /// Div 1 AND in Div 2) and the dropdown disambiguates by appending the
+    /// division name. <paramref name="excludeTeamId"/> skips the row being
+    /// renamed so a no-op save doesn't flag itself.
+    /// </summary>
+    private static async Task EnsureUniqueTeamNameAsync(
+        MyDbContext db, int competitionId, string name, int? divisionId,
+        int? excludeTeamId, CancellationToken ct)
+    {
+        var clash = await db.CompetitionTeams.AnyAsync(t =>
+            t.CompetitionId == competitionId
+            && t.Name == name
+            && t.CompetitionDivisionId == divisionId
+            && (excludeTeamId == null || t.CompetitionTeamId != excludeTeamId.Value), ct);
+        if (!clash) return;
+
+        var where = divisionId.HasValue
+            ? await db.CompetitionDivisions
+                .Where(d => d.CompetitionDivisionId == divisionId.Value)
+                .Select(d => $"division '{d.Name}'")
+                .FirstOrDefaultAsync(ct) ?? "this division"
+            : "the unassigned bucket";
+        throw new InvalidOperationException(
+            $"A team named '{name}' already exists in {where}.");
     }
 
     public async Task DeleteTeamAsync(int competitionId, int teamId, CancellationToken ct = default)

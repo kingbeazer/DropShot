@@ -946,12 +946,12 @@ else
                     {
                         <MudSelect T="int?" MultiSelection="true" @bind-SelectedValues="_filterTeamIds"
                                    Label="@teamColLabel" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
-                                   ToStringFunc="@(id => id.HasValue ? (_teams.FirstOrDefault(t => t.CompetitionTeamId == id.Value)?.Name ?? id.Value.ToString()) : "(Unassigned)")"
+                                   ToStringFunc="@(id => id.HasValue ? (TeamLabel(_teams.FirstOrDefault(t => t.CompetitionTeamId == id.Value)) ?? id.Value.ToString()) : "(Unassigned)")"
                                    Style="min-width:160px">
                             <MudSelectItem T="int?" Value="@((int?)null)">(Unassigned)</MudSelectItem>
                             @foreach (var t in _teams)
                             {
-                                <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                                <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@TeamLabel(t)</MudSelectItem>
                             }
                         </MudSelect>
                     }
@@ -1088,10 +1088,11 @@ else
                             <MudTd>
                                 <MudSelect T="int?" Value="context.TeamId" Dense="true" Variant="Variant.Text"
                                            Clearable="true"
+                                           ToStringFunc="@(id => id.HasValue ? TeamLabel(_teams.FirstOrDefault(t => t.CompetitionTeamId == id.Value)) : "")"
                                            ValueChanged="@((int? tid) => AssignTeam(context, tid))">
                                     @foreach (var t in _teams)
                                     {
-                                        <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                                        <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@TeamLabel(t)</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudTd>
@@ -1626,19 +1627,21 @@ else
                 var teamLabel = IsDoublesFormat() ? "Pair" : "Team";
                 <MudItem xs="12" sm="6">
                     <MudSelect @bind-Value="_fixtureForm.HomeTeamId" Label="@($"Home {teamLabel}")"
-                               Variant="Variant.Outlined" Clearable="true">
+                               Variant="Variant.Outlined" Clearable="true"
+                               ToStringFunc="@(id => id.HasValue ? TeamLabel(_teams.FirstOrDefault(t => t.CompetitionTeamId == id.Value)) : "")">
                         @foreach (var t in _teams)
                         {
-                            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@TeamLabel(t)</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudSelect @bind-Value="_fixtureForm.AwayTeamId" Label="@($"Away {teamLabel}")"
-                               Variant="Variant.Outlined" Clearable="true">
+                               Variant="Variant.Outlined" Clearable="true"
+                               ToStringFunc="@(id => id.HasValue ? TeamLabel(_teams.FirstOrDefault(t => t.CompetitionTeamId == id.Value)) : "")">
                         @foreach (var t in _teams)
                         {
-                            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@t.Name</MudSelectItem>
+                            <MudSelectItem T="int?" Value="@((int?)t.CompetitionTeamId)">@TeamLabel(t)</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
@@ -3564,6 +3567,23 @@ else
             return $"{divName} • {role}";
         }
         return role;
+    }
+
+    /// <summary>
+    /// Display label for a team in dropdowns. When the competition has
+    /// divisions, append the division name in parens so identically-named
+    /// teams across divisions (e.g. "Team A" in Div 1 and Div 2) stay
+    /// distinguishable. Returns an empty string when the team is missing
+    /// from the local cache so the dropdown doesn't render "null" / "0".
+    /// </summary>
+    private string TeamLabel(CompetitionTeamDto? team)
+    {
+        if (team is null) return "";
+        if (!Model.HasDivisions) return team.Name;
+        var divName = team.CompetitionDivisionId.HasValue
+            ? _divisions.FirstOrDefault(d => d.CompetitionDivisionId == team.CompetitionDivisionId.Value)?.Name
+            : null;
+        return string.IsNullOrEmpty(divName) ? team.Name : $"{team.Name} ({divName})";
     }
 
     private async Task PromoteParticipantAsync(CompetitionParticipantDto cp, int direction)
