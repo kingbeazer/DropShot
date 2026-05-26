@@ -1157,6 +1157,9 @@ public sealed class WebCompetitionAdminService(
         await LoadAndAuthorizeAsync(db, competitionId, ct);
         var row = await db.CompetitionParticipants.FindAsync([competitionId, playerId], ct)
             ?? throw new KeyNotFoundException("Participant not found.");
+
+        await EnsureNoDuplicateRoleOnTeamAsync(db, competitionId, request.TeamId, row.Role, playerId, ct);
+
         row.TeamId = request.TeamId;
         await db.SaveChangesAsync(ct);
     }
@@ -1168,8 +1171,38 @@ public sealed class WebCompetitionAdminService(
         await LoadAndAuthorizeAsync(db, competitionId, ct);
         var row = await db.CompetitionParticipants.FindAsync([competitionId, playerId], ct)
             ?? throw new KeyNotFoundException("Participant not found.");
-        row.Role = string.IsNullOrWhiteSpace(request.Role) ? null : request.Role;
+
+        var newRole = string.IsNullOrWhiteSpace(request.Role) ? null : request.Role;
+        await EnsureNoDuplicateRoleOnTeamAsync(db, competitionId, row.TeamId, newRole, playerId, ct);
+
+        row.Role = newRole;
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Block assignments that would put two players with the same role on the
+    /// same team (e.g. two MA on one team). Roles are unique within a team for
+    /// the rubber template (MA/MB/FA/FB or D1A/D1B/D2A/D2B); allowing duplicates
+    /// breaks fixture generation. Null role or null team can't conflict.
+    /// </summary>
+    private static async Task EnsureNoDuplicateRoleOnTeamAsync(
+        MyDbContext db, int competitionId, int? teamId, string? role, int playerId, CancellationToken ct)
+    {
+        if (teamId is null || string.IsNullOrWhiteSpace(role)) return;
+
+        var clash = await db.CompetitionParticipants
+            .AnyAsync(p => p.CompetitionId == competitionId
+                && p.TeamId == teamId
+                && p.PlayerId != playerId
+                && p.Role == role, ct);
+        if (!clash) return;
+
+        var teamName = await db.CompetitionTeams
+            .Where(t => t.CompetitionTeamId == teamId)
+            .Select(t => t.Name)
+            .FirstOrDefaultAsync(ct) ?? "this team";
+        throw new InvalidOperationException(
+            $"{teamName} already has a player in role '{role}'. Move or re-role the existing player first.");
     }
 
     public async Task AssignParticipantDivisionAsync(

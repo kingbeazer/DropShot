@@ -265,6 +265,7 @@ public class CompetitionsAdminController(
         try { await admin.AssignParticipantTeamAsync(id, playerId, req, ct); return NoContent(); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpPut("{id:int}/participants/{playerId:int}/role")]
@@ -274,6 +275,7 @@ public class CompetitionsAdminController(
         try { await admin.AssignParticipantRoleAsync(id, playerId, req, ct); return NoContent(); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpPut("{id:int}/participants/{playerId:int}/division")]

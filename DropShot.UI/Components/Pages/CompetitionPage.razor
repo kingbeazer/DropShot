@@ -3259,7 +3259,20 @@ else
 
     private async Task AssignTeam(CompetitionParticipantDto cp, int? teamId)
     {
-        await Admin.AssignParticipantTeamAsync(Id, cp.PlayerId, new AssignParticipantTeamRequest(teamId));
+        try
+        {
+            await Admin.AssignParticipantTeamAsync(Id, cp.PlayerId, new AssignParticipantTeamRequest(teamId));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException
+                                      or HttpRequestException)
+        {
+            SiteAlerts.Add(FriendlyAssignmentError(ex, "team assignment"), Severity.Warning);
+            // Roll the row back to its prior state so the dropdown re-renders
+            // with the unchanged value (otherwise the UI optimistically shows
+            // the rejected pick).
+            await ReloadAfterServerMutationAsync();
+            return;
+        }
         var idx = _participants.IndexOf(cp);
         if (idx >= 0)
         {
@@ -3273,10 +3286,29 @@ else
     private async Task AssignRole(CompetitionParticipantDto cp, string? role)
     {
         var trimmed = string.IsNullOrWhiteSpace(role) ? null : role;
-        await Admin.AssignParticipantRoleAsync(Id, cp.PlayerId, new SetParticipantRoleRequest(trimmed));
+        try
+        {
+            await Admin.AssignParticipantRoleAsync(Id, cp.PlayerId, new SetParticipantRoleRequest(trimmed));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException
+                                      or HttpRequestException)
+        {
+            SiteAlerts.Add(FriendlyAssignmentError(ex, "role change"), Severity.Warning);
+            await ReloadAfterServerMutationAsync();
+            return;
+        }
         var idx = _participants.IndexOf(cp);
         if (idx >= 0) _participants[idx] = cp with { Role = trimmed };
     }
+
+    private static string FriendlyAssignmentError(Exception ex, string action) => ex switch
+    {
+        UnauthorizedAccessException => $"You don't have permission to make this {action}.",
+        InvalidOperationException => ex.Message,
+        HttpRequestException http when http.StatusCode == System.Net.HttpStatusCode.Forbidden
+            => $"You don't have permission to make this {action}.",
+        _ => $"Couldn't save the {action}: {ex.Message}",
+    };
 
     private async Task AssignCaptain(CompetitionTeamDto team, int? captainPlayerId)
     {
