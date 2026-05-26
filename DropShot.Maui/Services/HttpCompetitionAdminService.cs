@@ -238,7 +238,11 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
     {
         var resp = await http.PutAsJsonAsync(
             $"api/competitions/admin/{competitionId}/participants/{playerId}/team", request, ct);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(ExtractErrorMessage(body) ?? resp.ReasonPhrase ?? "Failed to assign team.");
+        }
     }
 
     public async Task AssignParticipantRoleAsync(
@@ -246,7 +250,32 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
     {
         var resp = await http.PutAsJsonAsync(
             $"api/competitions/admin/{competitionId}/participants/{playerId}/role", request, ct);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(ExtractErrorMessage(body) ?? resp.ReasonPhrase ?? "Failed to assign role.");
+        }
+    }
+
+    /// <summary>
+    /// Parse the <c>{ "message": "..." }</c> body the API returns on
+    /// BadRequest/NotFound so the surfaced error is the friendly message,
+    /// not the raw JSON envelope. Returns null when the body isn't that
+    /// shape so callers fall back to ReasonPhrase.
+    /// </summary>
+    private static string? ExtractErrorMessage(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return null;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("message", out var msg)
+                && msg.ValueKind == System.Text.Json.JsonValueKind.String)
+                return msg.GetString();
+        }
+        catch (System.Text.Json.JsonException) { }
+        return body;
     }
 
     public async Task AssignParticipantDivisionAsync(
