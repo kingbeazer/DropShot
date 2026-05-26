@@ -248,7 +248,14 @@ public sealed class WebCompetitionAdminService(
                     : null,
                 BuildPlacementSuggestion(p.PlayerId, divisionPlacements, rolePlacements))).ToList(),
             Divisions: comp.Divisions.OrderBy(d => d.Rank).Select(ToDivisionDto).ToList(),
-            Teams: comp.Teams.OrderBy(t => t.Name).Select(ToTeamDto).ToList(),
+            // DistinctBy guards against the rare cases where the in-memory
+            // Teams navigation ends up with the same row referenced twice
+            // (historically caused by repeated SaveTeamAsync clicks before
+            // the unique-name guard landed). The roster's team dropdown
+            // iterates this list directly, so any duplicates render as
+            // visible repeated entries.
+            Teams: comp.Teams.DistinctBy(t => t.CompetitionTeamId)
+                .OrderBy(t => t.Name).Select(ToTeamDto).ToList(),
             Fixtures: comp.Fixtures
                 .OrderBy(f => f.RoundNumber).ThenBy(f => f.ScheduledAt)
                 .Select(ToFixtureDto).ToList(),
@@ -1516,9 +1523,18 @@ public sealed class WebCompetitionAdminService(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await LoadAndAuthorizeAsync(db, competitionId, ct);
 
+        var trimmed = request.Name.Trim();
+        var nameClash = await db.CompetitionTeams.AnyAsync(t =>
+            t.CompetitionId == competitionId
+            && t.Name == trimmed
+            && (teamId == null || t.CompetitionTeamId != teamId.Value), ct);
+        if (nameClash)
+            throw new InvalidOperationException(
+                $"A team named '{trimmed}' already exists in this competition.");
+
         if (teamId is null)
         {
-            var team = new CompetitionTeam { CompetitionId = competitionId, Name = request.Name.Trim() };
+            var team = new CompetitionTeam { CompetitionId = competitionId, Name = trimmed };
             db.CompetitionTeams.Add(team);
             await db.SaveChangesAsync(ct);
             return team.CompetitionTeamId;
@@ -1529,7 +1545,7 @@ public sealed class WebCompetitionAdminService(
                 ?? throw new KeyNotFoundException("Team not found.");
             if (row.CompetitionId != competitionId)
                 throw new InvalidOperationException("Team belongs to a different competition.");
-            row.Name = request.Name.Trim();
+            row.Name = trimmed;
             await db.SaveChangesAsync(ct);
             return row.CompetitionTeamId;
         }
