@@ -205,6 +205,22 @@
             {
                 RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set phone number.", HttpContext);
             }
+
+            // Mirror onto the linked Player record so competition entry (which
+            // gates on Player.MobileNumber) sees the new number without the
+            // user having to also edit it in My Players.
+            if (linkedPlayerId.HasValue)
+            {
+                await using var db = DbFactory.CreateDbContext();
+                var player = await db.Players.FindAsync(linkedPlayerId.Value);
+                if (player is not null)
+                {
+                    player.MobileNumber = string.IsNullOrWhiteSpace(Input.PhoneNumber)
+                        ? null
+                        : Input.PhoneNumber.Trim();
+                    await db.SaveChangesAsync();
+                }
+            }
         }
 
         await SignInManager.RefreshSignInAsync(user);

@@ -652,7 +652,7 @@ public class CompetitionsController(
     {
         try
         {
-            await competitionService.EnterCompetitionAsync(id, req.Consent, ct);
+            await competitionService.EnterCompetitionAsync(id, req.Consent, req.Status, ct);
             return NoContent();
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }

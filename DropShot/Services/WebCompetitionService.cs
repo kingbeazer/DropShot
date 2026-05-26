@@ -133,11 +133,13 @@ public sealed class WebCompetitionService(
             // projection because the entry-consent dialog needs it before
             // the caller is in the participants list. Always populated for
             // the caller themselves (rule #1 in PhoneVisibilityService).
-            myMobileNumber = await db.Players
-                .AsNoTracking()
-                .Where(p => p.UserId == currentUser.UserId)
-                .Select(p => p.MobileNumber)
-                .FirstOrDefaultAsync(ct);
+            // Lazy-sync from ApplicationUser.PhoneNumber if the Player row
+            // is empty — covers historical accounts that set their number
+            // before the save-time sync was added.
+            var callerPlayer = await db.Players
+                .FirstOrDefaultAsync(p => p.UserId == currentUser.UserId, ct);
+            if (callerPlayer is not null)
+                myMobileNumber = await EnsurePlayerMobileSyncedAsync(db, callerPlayer, ct);
         }
 
         var ratingsByPlayer = await ratings.GetRosterRatingsAsync(id, ct);
@@ -308,6 +310,7 @@ public sealed class WebCompetitionService(
         var player = await db.Players.FirstOrDefaultAsync(p => p.UserId == currentUser.UserId, ct)
             ?? throw new KeyNotFoundException("Could not find your player record.");
 
+        await EnsurePlayerMobileSyncedAsync(db, player, ct);
         RequirePhoneAndConsent(player, consent);
 
         var existing = await db.CompetitionParticipants
@@ -342,6 +345,7 @@ public sealed class WebCompetitionService(
                 && cp.Player!.UserId == currentUser.UserId, ct)
             ?? throw new KeyNotFoundException("Could not find your participant record.");
 
+        await EnsurePlayerMobileSyncedAsync(db, participant.Player!, ct);
         RequirePhoneAndConsent(participant.Player!, consent);
 
         participant.Status = status;
@@ -357,6 +361,32 @@ public sealed class WebCompetitionService(
         return new LadderSimulationResultDto(
             r.Participants, r.ActivePlayers, r.IdlePlayers,
             r.FixturesGenerated, r.DecayEventsGenerated);
+    }
+
+    /// <summary>
+    /// Lazy-sync helper: if <paramref name="player"/>.MobileNumber is empty
+    /// but the linked Identity user has a PhoneNumber, copy it onto the
+    /// player row and save. Covers users who set their phone on /Account/Manage
+    /// before the save-time sync existed — the two columns weren't kept
+    /// aligned, so competition entry (which reads Player.MobileNumber) blocked
+    /// them even though their account showed a number. Returns the effective
+    /// mobile number after any backfill.
+    /// </summary>
+    private static async Task<string?> EnsurePlayerMobileSyncedAsync(
+        MyDbContext db, Player player, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(player.MobileNumber)) return player.MobileNumber;
+        if (string.IsNullOrEmpty(player.UserId)) return null;
+
+        var identityPhone = await db.Users
+            .Where(u => u.Id == player.UserId)
+            .Select(u => u.PhoneNumber)
+            .FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(identityPhone)) return null;
+
+        player.MobileNumber = identityPhone.Trim();
+        await db.SaveChangesAsync(ct);
+        return player.MobileNumber;
     }
 
     private static void RequirePhoneAndConsent(Player player, PhoneShareConsent consent)
@@ -856,11 +886,12 @@ public sealed class WebCompetitionService(
         var available = candidates
             .Where(c => EligibilityEvaluator.Evaluate(c, eligibilityPlayer).Count == 0)
             .Select(ToDto).ToList();
+        var myMobile = await EnsurePlayerMobileSyncedAsync(db, eligibilityPlayer, ct);
         return new MyCompetitionsViewDto(
             true,
             enteredEntities.Select(ToDto).ToList(),
             available,
-            eligibilityPlayer.MobileNumber);
+            myMobile);
     }
 
     public async Task<List<CompetitionFixtureDto>> GetPendingVerificationFixturesAsync(CancellationToken ct = default)
@@ -1044,8 +1075,15 @@ public sealed class WebCompetitionService(
     }
 
     public async Task EnterCompetitionAsync(
-        int competitionId, PhoneShareConsent consent, CancellationToken ct = default)
+        int competitionId,
+        PhoneShareConsent consent,
+        ParticipantStatus status = ParticipantStatus.FullPlayer,
+        CancellationToken ct = default)
     {
+        if (status is not (ParticipantStatus.FullPlayer or ParticipantStatus.Substitute))
+            throw new InvalidOperationException(
+                "Choose to enter as a full player or as a substitute.");
+
         if (string.IsNullOrEmpty(currentUser.UserId))
             throw new InvalidOperationException("Not authenticated.");
 
@@ -1054,6 +1092,7 @@ public sealed class WebCompetitionService(
             .FirstOrDefaultAsync(p => p.UserId == currentUser.UserId && !p.IsLight, ct)
             ?? throw new InvalidOperationException("You need a player profile before entering competitions.");
 
+        await EnsurePlayerMobileSyncedAsync(db, player, ct);
         RequirePhoneAndConsent(player, consent);
 
         var comp = await db.Competition
@@ -1075,10 +1114,13 @@ public sealed class WebCompetitionService(
         if (violations.Count > 0)
             throw new InvalidOperationException($"You're not eligible for this competition: {violations[0].Message}");
 
-        if (comp.MaxParticipants.HasValue)
+        // MaxParticipants caps the full roster only — substitutes don't count
+        // against it (they're explicitly extra coverage).
+        if (status == ParticipantStatus.FullPlayer && comp.MaxParticipants.HasValue)
         {
             var currentCount = await db.CompetitionParticipants
-                .CountAsync(cp => cp.CompetitionId == competitionId, ct);
+                .CountAsync(cp => cp.CompetitionId == competitionId
+                    && cp.Status == ParticipantStatus.FullPlayer, ct);
             if (currentCount >= comp.MaxParticipants.Value)
                 throw new InvalidOperationException("This competition is full.");
         }
@@ -1093,7 +1135,7 @@ public sealed class WebCompetitionService(
             CompetitionId = competitionId,
             PlayerId = player.PlayerId,
             RegisteredAt = DateTime.UtcNow,
-            Status = ParticipantStatus.Registered
+            Status = status
         });
         db.CompetitionEntryConsents.Add(BuildConsentRow(competitionId, player.PlayerId, consent));
         await db.SaveChangesAsync(ct);
