@@ -1,0 +1,12 @@
+@page "/team-match/{FixtureId:int}/rubber/{RubberId:int}/submit"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<MudProviders />
+<DropShot.UI.Components.Pages.RubberScorePage FixtureId="@FixtureId" RubberId="@RubberId" />
+
+@code {
+    [Parameter] public int FixtureId { get; set; }
+    [Parameter] public int RubberId { get; set; }
+}

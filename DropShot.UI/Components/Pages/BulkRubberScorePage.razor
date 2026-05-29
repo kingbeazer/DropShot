@@ -1,0 +1,548 @@
+@inject ICompetitionService CompetitionService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISiteAlertService SiteAlerts
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="pt-2 pb-4 rubber-page">
+    @if (_loading)
+    {
+        <div class="d-flex justify-center"><MudProgressCircular Indeterminate="true" /></div>
+    }
+    else if (_context is null)
+    {
+        <MudAlert Severity="Severity.Error">Fixture not available.</MudAlert>
+        <div class="d-flex justify-center mt-3"><MudButton OnClick="Cancel">Back</MudButton></div>
+    }
+    else
+    {
+        <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="rubber-stack mx-auto">
+
+            <MudPaper Class="frosted-card pa-3 rubber-section" Elevation="0">
+                <MudText Typo="Typo.h6" Align="Align.Center">Enter all rubber scores</MudText>
+                <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-1">
+                    <strong>@_context.HomeTeamName</strong> vs <strong>@_context.AwayTeamName</strong>
+                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="d-block mt-1">
+                    @(_context.MatchFormat == MatchFormatType.FixedSets ? $"{_bestOf} sets" : $"Best of {_bestOf}")
+                    &nbsp;·&nbsp;@_context.GamesPerSet games/set
+                    &nbsp;·&nbsp;@(_context.SetWinMode == SetWinMode.WinBy2 ? "Win by 2" : "First to")
+                </MudText>
+            </MudPaper>
+
+            @if (_adminOverrideActive)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="frosted-card rubber-section">
+                    Override Result — score validation is bypassed.
+                </MudAlert>
+            }
+
+            @for (int r = 0; r < _rubbers.Count; r++)
+            {
+                int rIdx = r;
+                var rubber = _rubbers[rIdx];
+                var homePair = string.Join(" & ", new[] { rubber.HomePlayer1Name, rubber.HomePlayer2Name }.Where(n => !string.IsNullOrEmpty(n)));
+                var awayPair = string.Join(" & ", new[] { rubber.AwayPlayer1Name, rubber.AwayPlayer2Name }.Where(n => !string.IsNullOrEmpty(n)));
+                <MudPaper Class="frosted-card pa-3 rubber-section" Elevation="0">
+                    <MudText Typo="Typo.subtitle2" Align="Align.Center">@rubber.Name</MudText>
+                    @if (!string.IsNullOrEmpty(homePair) || !string.IsNullOrEmpty(awayPair))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="d-block mt-1">
+                            @(string.IsNullOrEmpty(homePair) ? "TBD" : homePair) — @(string.IsNullOrEmpty(awayPair) ? "TBD" : awayPair)
+                        </MudText>
+                    }
+                    <div class="mt-2">
+                        @for (int i = 0; i < _bestOf; i++)
+                        {
+                            int sIdx = i;
+                            bool rowActive = rIdx == _activeRubber && sIdx == _activeSet && _focused;
+                            <div class="@($"rubber-set-row{(rowActive ? " rubber-set-row-active" : "")}")">
+                                <div></div>
+                                <button type="button"
+                                        class="@CellClass(rIdx, sIdx, home: true)"
+                                        @onclick="@(() => SetActive(rIdx, sIdx, true))">
+                                    @(_home[rIdx][sIdx]?.ToString() ?? "–")
+                                </button>
+                                <span class="rubber-set-label">Set @(sIdx + 1)</span>
+                                <button type="button"
+                                        class="@CellClass(rIdx, sIdx, home: false)"
+                                        @onclick="@(() => SetActive(rIdx, sIdx, false))">
+                                    @(_away[rIdx][sIdx]?.ToString() ?? "–")
+                                </button>
+                                <div class="rubber-set-status">
+                                    @if (IsSetInvalid(rIdx, sIdx))
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small" />
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            }
+
+            <MudPaper Class="frosted-card pa-2 rubber-section keypad-sticky" Elevation="0">
+                <div class="rubber-keypad">
+                    @for (int n = 1; n <= 6; n++)
+                    {
+                        int digit = n;
+                        <button type="button" class="rubber-key" @onclick="@(() => PressDigit(digit))">@digit</button>
+                    }
+                    <button type="button" class="rubber-key rubber-key-control"
+                            @onclick="PressBack" aria-label="Previous field">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Medium" />
+                    </button>
+                    <button type="button" class="rubber-key" @onclick="@(() => PressDigit(7))">7</button>
+                    <button type="button" class="rubber-key rubber-key-tb"
+                            @onclick="OpenTieBreakDialogAsync"
+                            aria-label="Tie break — pick a number">
+                        Tie Break +
+                    </button>
+                    <button type="button" class="rubber-key rubber-key-cancel"
+                            @onclick="Cancel" disabled="@_saving"
+                            aria-label="Cancel">
+                        <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Medium" />
+                    </button>
+                    <button type="button" class="rubber-key" @onclick="@(() => PressDigit(0))">0</button>
+                    @if (CanSubmit)
+                    {
+                        <button type="button" class="rubber-key rubber-key-submit"
+                                @onclick="SubmitAsync" disabled="@_saving"
+                                aria-label="Submit all">
+                            <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Medium" />
+                        </button>
+                    }
+                </div>
+            </MudPaper>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="frosted-card rubber-section">@_error</MudAlert>
+            }
+        </MudStack>
+    }
+</MudContainer>
+
+<style>
+    .rubber-stack { width: 100%; max-width: 380px; }
+    .rubber-section { width: 100%; }
+    .keypad-sticky { position: sticky; bottom: 8px; z-index: 5; }
+
+    @@media (max-width: 600px) {
+        .rubber-page {
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+        }
+        .rubber-stack { max-width: 100%; }
+    }
+    @@media (min-width: 601px) {
+        .rubber-stack { max-width: 520px; }
+        .rubber-score-cell { font-size: 1.2rem; min-height: 38px; padding: 5px 0; }
+        .rubber-set-row-active .rubber-score-cell { font-size: 2rem; min-height: 64px; padding: 12px 0; }
+        .rubber-score-cell.side-left, .rubber-score-cell.side-right { max-width: 120px; }
+        .rubber-keypad { gap: 10px; }
+        .rubber-key { height: 64px; font-size: 1.6rem; }
+        .rubber-key-tb { font-size: 0.95rem; }
+        .rubber-set-label { font-size: 1.05rem; }
+    }
+
+    .rubber-set-row {
+        display: grid;
+        grid-template-columns: 28px 1fr auto 1fr 28px;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 0;
+    }
+    .rubber-set-row:first-child { padding-top: 0; }
+    .rubber-set-row:last-child  { padding-bottom: 0; }
+    .rubber-set-row + .rubber-set-row { border-top: 1px solid rgba(255,255,255,0.06); }
+    [data-theme="light"] .rubber-set-row + .rubber-set-row { border-top-color: rgba(0,0,0,0.08); }
+    .rubber-set-status { display: flex; align-items: center; justify-content: center; }
+
+    .rubber-score-cell {
+        font-weight: 600;
+        font-size: 1rem;
+        line-height: 1;
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.18);
+        color: inherit;
+        border-radius: 8px;
+        padding: 3px 0;
+        min-height: 30px;
+        cursor: pointer;
+        transition: background 120ms, border-color 120ms, color 120ms,
+                    font-size 150ms, min-height 150ms, padding 150ms;
+    }
+    .rubber-set-row-active .rubber-score-cell {
+        font-size: 1.7rem;
+        padding: 9px 0;
+        min-height: 54px;
+    }
+    .rubber-score-cell.side-left  { justify-self: end;   width: 100%; max-width: 90px; }
+    .rubber-score-cell.side-right { justify-self: start; width: 100%; max-width: 90px; }
+    [data-theme="light"] .rubber-score-cell { border-color: rgba(0,0,0,0.18); }
+    .rubber-score-cell.active {
+        border-color: var(--mud-palette-primary);
+        background: rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0.15);
+        color: var(--mud-palette-primary);
+    }
+    .rubber-score-cell.unentered { color: var(--mud-palette-text-disabled); opacity: 0.7; }
+    .rubber-score-cell.unentered.active { color: var(--mud-palette-primary); opacity: 1; }
+
+    .rubber-set-label {
+        font-size: 0.9rem;
+        color: var(--mud-palette-text-secondary);
+        white-space: nowrap;
+        padding: 0 4px;
+    }
+
+    .rubber-keypad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    .rubber-key {
+        height: 52px;
+        font: 600 1.3rem/1 inherit;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: inherit;
+        border-radius: 9px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 120ms;
+        padding: 0 6px;
+    }
+    [data-theme="light"] .rubber-key {
+        background: rgba(255,255,255,0.55);
+        border-color: rgba(0,0,0,0.1);
+    }
+    .rubber-key:hover { background: rgba(255,255,255,0.16); }
+    [data-theme="light"] .rubber-key:hover { background: rgba(255,255,255,0.85); }
+    .rubber-key:active { transform: scale(0.97); }
+    .rubber-key:disabled { opacity: 0.5; cursor: not-allowed; }
+    .rubber-key-tb { font-size: 0.8rem; letter-spacing: 0.2px; }
+    .rubber-key-submit,
+    [data-theme="light"] .rubber-key-submit {
+        background: var(--mud-palette-primary);
+        color: var(--mud-palette-primary-text);
+        border-color: var(--mud-palette-primary);
+        animation: rubber-submit-pulse 1.6s ease-out infinite;
+    }
+    .rubber-key-submit:hover,
+    [data-theme="light"] .rubber-key-submit:hover { background: var(--mud-palette-primary-darken); }
+    @@keyframes rubber-submit-pulse {
+        0%   { box-shadow: 0 0 0 0   rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0.65); }
+        70%  { box-shadow: 0 0 0 8px rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0);    }
+        100% { box-shadow: 0 0 0 0   rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0);    }
+    }
+    .rubber-key-cancel,
+    [data-theme="light"] .rubber-key-cancel {
+        background: var(--mud-palette-error);
+        color: var(--mud-palette-error-text);
+        border-color: var(--mud-palette-error);
+    }
+    .rubber-key-cancel:hover,
+    [data-theme="light"] .rubber-key-cancel:hover { background: var(--mud-palette-error-darken); }
+</style>
+
+@code {
+    [Parameter, EditorRequired] public int FixtureId { get; set; }
+
+    private FixtureRubberContextDto? _context;
+    private List<RubberDialogDto> _rubbers = [];
+    private int _bestOf = 3;
+    private int?[][] _home = [];
+    private int?[][] _away = [];
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+
+    private string _returnUrl = "/";
+    private bool _adminRequested;
+    private bool _adminOverrideActive;
+
+    // Active cell spans rubbers: (rubberIdx, setIdx, isHome).
+    private int _activeRubber;
+    private int _activeSet;
+    private bool _activeIsHome = true;
+    private bool _focused = true;
+
+    private bool _isLastCell =>
+        _activeRubber == _rubbers.Count - 1
+        && _activeSet == _bestOf - 1
+        && !_activeIsHome;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var rawReturn = query["returnUrl"];
+        _returnUrl = !string.IsNullOrWhiteSpace(rawReturn) ? rawReturn : $"/team-match/{FixtureId}";
+        _adminRequested = query["admin"] == "1";
+
+        _context = await CompetitionService.GetFixtureRubberContextAsync(FixtureId);
+        if (_context is null) { _loading = false; return; }
+
+        _bestOf = _context.MatchFormat == MatchFormatType.FixedSets
+            ? Math.Max(1, _context.NumberOfSets)
+            : Math.Max(1, _context.BestOf);
+
+        _rubbers = _context.Rubbers.OrderBy(r => r.Order).ToList();
+        _home = new int?[_rubbers.Count][];
+        _away = new int?[_rubbers.Count][];
+        for (int r = 0; r < _rubbers.Count; r++)
+        {
+            _home[r] = new int?[_bestOf];
+            _away[r] = new int?[_bestOf];
+            var existing = _rubbers[r].ExistingSetScores;
+            for (int s = 0; s < existing.Count && s < _bestOf; s++)
+            {
+                _home[r][s] = existing[s].Home;
+                _away[r][s] = existing[s].Away;
+            }
+        }
+
+        _activeRubber = 0;
+        _activeSet = 0;
+        _activeIsHome = true;
+        _focused = true;
+        _adminOverrideActive = _adminRequested;
+        _loading = false;
+    }
+
+    private string CellClass(int rubberIdx, int setIdx, bool home)
+    {
+        bool isActive = _focused
+            && rubberIdx == _activeRubber
+            && setIdx == _activeSet
+            && home == _activeIsHome;
+        bool hasValue = (home ? _home[rubberIdx][setIdx] : _away[rubberIdx][setIdx]).HasValue;
+        return $"rubber-score-cell {(home ? "side-left" : "side-right")}{(isActive ? " active" : "")}{(hasValue ? "" : " unentered")}";
+    }
+
+    private void SetActive(int rubberIdx, int setIdx, bool home)
+    {
+        _activeRubber = rubberIdx;
+        _activeSet = setIdx;
+        _activeIsHome = home;
+        _focused = true;
+        _error = null;
+    }
+
+    private int?[] ActiveArray => _activeIsHome ? _home[_activeRubber] : _away[_activeRubber];
+
+    private void WriteAndAdvance(int value)
+    {
+        _error = null;
+        _focused = true;
+        ActiveArray[_activeSet] = value;
+        if (!_isLastCell) AdvanceOne();
+        else _focused = false;
+    }
+
+    private void PressDigit(int digit) => WriteAndAdvance(digit);
+
+    private void PressBack()
+    {
+        _error = null;
+        _focused = true;
+        var current = _activeIsHome ? _home[_activeRubber] : _away[_activeRubber];
+        if (current[_activeSet].HasValue)
+        {
+            current[_activeSet] = null;
+            return;
+        }
+        // Walk one cell backwards.
+        if (_activeIsHome)
+        {
+            if (_activeSet == 0)
+            {
+                if (_activeRubber == 0) return;
+                _activeRubber--;
+                _activeSet = _bestOf - 1;
+                _activeIsHome = false;
+            }
+            else
+            {
+                _activeSet--;
+                _activeIsHome = false;
+            }
+        }
+        else
+        {
+            _activeIsHome = true;
+        }
+        (_activeIsHome ? _home[_activeRubber] : _away[_activeRubber])[_activeSet] = null;
+    }
+
+    private void AdvanceOne()
+    {
+        if (_activeIsHome)
+        {
+            _activeIsHome = false;
+        }
+        else if (_activeSet < _bestOf - 1)
+        {
+            _activeSet++;
+            _activeIsHome = true;
+        }
+        else if (_activeRubber < _rubbers.Count - 1)
+        {
+            _activeRubber++;
+            _activeSet = 0;
+            _activeIsHome = true;
+        }
+    }
+
+    private async Task OpenTieBreakDialogAsync()
+    {
+        int? otherSide = _activeIsHome ? _away[_activeRubber][_activeSet] : _home[_activeRubber][_activeSet];
+        var parameters = new DialogParameters<TieBreakPickerDialog>
+        {
+            { x => x.HighlightValue, otherSide }
+        };
+        var dialog = await DialogService.ShowAsync<TieBreakPickerDialog>("Tie break score", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: int picked })
+        {
+            WriteAndAdvance(picked);
+        }
+    }
+
+    private void Cancel() => Navigation.NavigateTo(_returnUrl);
+
+    private bool IsSetInvalid(int rubberIdx, int idx)
+    {
+        if (_context is null) return false;
+        if (!_home[rubberIdx][idx].HasValue || !_away[rubberIdx][idx].HasValue) return false;
+        int a = _home[rubberIdx][idx]!.Value, b = _away[rubberIdx][idx]!.Value;
+        if (a == b) return true;
+        return !ScorePassesRegularSetRules(a, b);
+    }
+
+    private bool ScorePassesRegularSetRules(int a, int b)
+    {
+        int target = _context!.GamesPerSet;
+        int winner = Math.Max(a, b), loser = Math.Min(a, b);
+        if (_context.SetWinMode == SetWinMode.FirstTo)
+        {
+            return winner == target && loser < target;
+        }
+        if (winner < target) return false;
+        if (winner == target) return loser <= target - 2;
+        if (winner == target + 1) return loser == target - 1 || loser == target;
+        return loser == winner - 2;
+    }
+
+    private bool RubberCanSubmit(int rubberIdx)
+    {
+        if (_context is null) return false;
+        if (_adminOverrideActive)
+        {
+            for (int i = 0; i < _bestOf; i++)
+                if (_home[rubberIdx][i].HasValue || _away[rubberIdx][i].HasValue) return true;
+            return false;
+        }
+        int s1 = 0, s2 = 0;
+        for (int i = 0; i < _bestOf; i++)
+        {
+            bool hasA = _home[rubberIdx][i].HasValue;
+            bool hasB = _away[rubberIdx][i].HasValue;
+            if (hasA != hasB) return false;
+            if (IsSetInvalid(rubberIdx, i)) return false;
+            if (hasA && hasB)
+            {
+                if (_home[rubberIdx][i] > _away[rubberIdx][i]) s1++;
+                else if (_away[rubberIdx][i] > _home[rubberIdx][i]) s2++;
+            }
+        }
+        if (_context.MatchFormat == MatchFormatType.FixedSets)
+        {
+            for (int i = 0; i < _bestOf; i++)
+                if (!_home[rubberIdx][i].HasValue || !_away[rubberIdx][i].HasValue) return false;
+            return true;
+        }
+        int targetWins = (_bestOf / 2) + 1;
+        return s1 >= targetWins || s2 >= targetWins;
+    }
+
+    private bool CanSubmit
+    {
+        get
+        {
+            if (_context is null || _saving) return false;
+            // Every rubber must be ready to submit.
+            for (int r = 0; r < _rubbers.Count; r++)
+                if (!RubberCanSubmit(r)) return false;
+            return true;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_context is null) return;
+        _error = null;
+
+        var entries = new List<RubberScoreEntry>();
+        for (int r = 0; r < _rubbers.Count; r++)
+        {
+            int homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
+            int? lastHome = null, lastAway = null;
+            var pairs = new List<RubberSetScoreDto>();
+            bool anyEntered = false;
+            for (int i = 0; i < _bestOf; i++)
+            {
+                if (!_home[r][i].HasValue || !_away[r][i].HasValue) continue;
+                anyEntered = true;
+                int h = _home[r][i]!.Value, a = _away[r][i]!.Value;
+
+                if (!_adminOverrideActive && IsSetInvalid(r, i))
+                {
+                    _error = $"{_rubbers[r].Name} – Set {i + 1}: score is not valid for a {_context.GamesPerSet}-game " +
+                             $"({(_context.SetWinMode == SetWinMode.WinBy2 ? "Win by 2" : "First to")}) set.";
+                    return;
+                }
+
+                homeGames += h; awayGames += a;
+                if (h > a) homeSets++; else awaySets++;
+                lastHome = h; lastAway = a;
+                pairs.Add(new RubberSetScoreDto(h, a));
+            }
+
+            if (!anyEntered)
+            {
+                _error = $"{_rubbers[r].Name}: enter at least one set score.";
+                return;
+            }
+
+            bool isFixedSets = _context.MatchFormat == MatchFormatType.FixedSets;
+            if (homeSets == awaySets && !isFixedSets)
+            {
+                _error = $"{_rubbers[r].Name}: sets are tied — enter more sets or correct the scores.";
+                return;
+            }
+
+            entries.Add(new RubberScoreEntry(
+                _rubbers[r].RubberId, homeSets, awaySets, homeGames, awayGames,
+                lastHome, lastAway, pairs));
+        }
+
+        _saving = true;
+        try
+        {
+            var req = new SubmitRubberScoresRequest(_adminOverrideActive, entries);
+            await CompetitionService.SubmitRubberScoresAsync(FixtureId, req);
+            Navigation.NavigateTo(_returnUrl);
+        }
+        catch (Exception)
+        {
+            _error = "Failed to save scores. Please try again.";
+            _saving = false;
+        }
+    }
+}
