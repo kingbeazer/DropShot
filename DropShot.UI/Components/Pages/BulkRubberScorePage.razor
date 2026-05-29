@@ -2,6 +2,7 @@
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISiteAlertService SiteAlerts
+@inject IJSRuntime JS
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="pt-2 pb-4 rubber-page">
     @if (_loading)
@@ -42,7 +43,12 @@
                 var rubber = _rubbers[rIdx];
                 var homePair = string.Join(" & ", new[] { rubber.HomePlayer1Name, rubber.HomePlayer2Name }.Where(n => !string.IsNullOrEmpty(n)));
                 var awayPair = string.Join(" & ", new[] { rubber.AwayPlayer1Name, rubber.AwayPlayer2Name }.Where(n => !string.IsNullOrEmpty(n)));
-                <MudPaper Class="frosted-card pa-3 rubber-section" Elevation="0">
+                string rubberStatusClass = rIdx == _activeRubber
+                    ? "rubber-active"
+                    : rIdx < _activeRubber ? "rubber-completed" : "rubber-upcoming";
+                <MudPaper id="@($"rubber-card-{rIdx}")"
+                          Class="@($"frosted-card pa-3 rubber-section {rubberStatusClass}")"
+                          Elevation="0">
                     <MudText Typo="Typo.subtitle2" Align="Align.Center">@rubber.Name</MudText>
                     @if (!string.IsNullOrEmpty(homePair) || !string.IsNullOrEmpty(awayPair))
                     {
@@ -78,41 +84,46 @@
                         }
                     </div>
                 </MudPaper>
-            }
 
-            <MudPaper Class="frosted-card pa-2 rubber-section keypad-sticky" Elevation="0">
-                <div class="rubber-keypad">
-                    @for (int n = 1; n <= 6; n++)
-                    {
-                        int digit = n;
-                        <button type="button" class="rubber-key" @onclick="@(() => PressDigit(digit))">@digit</button>
-                    }
-                    <button type="button" class="rubber-key rubber-key-control"
-                            @onclick="PressBack" aria-label="Previous field">
-                        <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Medium" />
-                    </button>
-                    <button type="button" class="rubber-key" @onclick="@(() => PressDigit(7))">7</button>
-                    <button type="button" class="rubber-key rubber-key-tb"
-                            @onclick="OpenTieBreakDialogAsync"
-                            aria-label="Tie break — pick a number">
-                        Tie Break +
-                    </button>
-                    <button type="button" class="rubber-key rubber-key-cancel"
-                            @onclick="Cancel" disabled="@_saving"
-                            aria-label="Cancel">
-                        <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Medium" />
-                    </button>
-                    <button type="button" class="rubber-key" @onclick="@(() => PressDigit(0))">0</button>
-                    @if (CanSubmit)
-                    {
-                        <button type="button" class="rubber-key rubber-key-submit"
-                                @onclick="SubmitAsync" disabled="@_saving"
-                                aria-label="Submit all">
-                            <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Medium" />
-                        </button>
-                    }
-                </div>
-            </MudPaper>
+                @* Keypad sits inline immediately after the active rubber so it
+                   travels with the user's focus as they work through the list. *@
+                @if (rIdx == _activeRubber)
+                {
+                    <MudPaper id="bulk-keypad" Class="frosted-card pa-2 rubber-section" Elevation="0">
+                        <div class="rubber-keypad">
+                            @for (int n = 1; n <= 6; n++)
+                            {
+                                int digit = n;
+                                <button type="button" class="rubber-key" @onclick="@(() => PressDigit(digit))">@digit</button>
+                            }
+                            <button type="button" class="rubber-key rubber-key-control"
+                                    @onclick="PressBack" aria-label="Previous field">
+                                <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Medium" />
+                            </button>
+                            <button type="button" class="rubber-key" @onclick="@(() => PressDigit(7))">7</button>
+                            <button type="button" class="rubber-key rubber-key-tb"
+                                    @onclick="OpenTieBreakDialogAsync"
+                                    aria-label="Tie break — pick a number">
+                                Tie Break +
+                            </button>
+                            <button type="button" class="rubber-key rubber-key-cancel"
+                                    @onclick="Cancel" disabled="@_saving"
+                                    aria-label="Cancel">
+                                <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Medium" />
+                            </button>
+                            <button type="button" class="rubber-key" @onclick="@(() => PressDigit(0))">0</button>
+                            @if (CanSubmit)
+                            {
+                                <button type="button" class="rubber-key rubber-key-submit"
+                                        @onclick="SubmitAsync" disabled="@_saving"
+                                        aria-label="Submit all">
+                                    <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Medium" />
+                                </button>
+                            }
+                        </div>
+                    </MudPaper>
+                }
+            }
 
             @if (!string.IsNullOrEmpty(_error))
             {
@@ -125,7 +136,13 @@
 <style>
     .rubber-stack { width: 100%; max-width: 380px; }
     .rubber-section { width: 100%; }
-    .keypad-sticky { position: sticky; bottom: 8px; z-index: 5; }
+
+    /* Rubber state: completed cards stay at full opacity (you can scroll back
+       to verify), the active card is the one above the keypad (no extra
+       chrome — already highlighted via .rubber-set-row-active inside), and
+       upcoming cards are muted so the eye is drawn to the active one. */
+    .rubber-upcoming { opacity: 0.45; }
+    .rubber-upcoming:hover { opacity: 0.75; }
 
     @@media (max-width: 600px) {
         .rubber-page {
@@ -279,6 +296,10 @@
     private bool _activeIsHome = true;
     private bool _focused = true;
 
+    // Last rubber index we scrolled into view, so the JS scroll only fires
+    // when the active rubber actually moves (not on every render).
+    private int _lastScrolledRubber = -1;
+
     private bool _isLastCell =>
         _activeRubber == _rubbers.Count - 1
         && _activeSet == _bestOf - 1
@@ -328,6 +349,26 @@
         _focused = true;
         _adminOverrideActive = _adminRequested;
         _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Whenever the active rubber moves (auto-advance, user tap), scroll
+        // its card to the top of the viewport so the user can see both the
+        // card and the inline keypad sitting right below it without manual
+        // scrolling.
+        if (_loading || _context is null) return;
+        if (_activeRubber == _lastScrolledRubber) return;
+        _lastScrolledRubber = _activeRubber;
+        try
+        {
+            await JS.InvokeVoidAsync("eval",
+                $"document.getElementById('rubber-card-{_activeRubber}')?.scrollIntoView({{behavior:'smooth',block:'start'}});");
+        }
+        catch
+        {
+            // JS interop can fail on first prerender pass; harmless to ignore.
+        }
     }
 
     private string CellClass(int rubberIdx, int setIdx, bool home)
