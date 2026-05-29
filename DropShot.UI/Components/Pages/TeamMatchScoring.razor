@@ -214,10 +214,12 @@ else
     {
         var returnUrl = $"/team-match/{FixtureId}";
         var admin = _isCompetitionAdmin ? "&admin=1" : "";
-        // forceLoad bypasses Blazor enhanced navigation. We saw the rubber
-        // page nav fall back to the team-match page intermittently otherwise.
+        // Use a route prefix that doesn't share any segments with /team-match/
+        // so server-side routing can never collide with TeamMatchScoring,
+        // which redirects to home when CanScoreMatch is briefly false during
+        // load.
         Navigation.NavigateTo(
-            $"/team-match/{FixtureId}/submit-all?returnUrl={Uri.EscapeDataString(returnUrl)}{admin}",
+            $"/score-all-rubbers?fixtureId={FixtureId}&returnUrl={Uri.EscapeDataString(returnUrl)}{admin}",
             forceLoad: true);
     }
 
@@ -226,7 +228,7 @@ else
         var returnUrl = $"/team-match/{FixtureId}";
         var admin = _isCompetitionAdmin ? "&admin=1" : "";
         Navigation.NavigateTo(
-            $"/team-match/{FixtureId}/rubber-submit?rubberId={rubber.RubberId}&returnUrl={Uri.EscapeDataString(returnUrl)}{admin}",
+            $"/score-rubber?fixtureId={FixtureId}&rubberId={rubber.RubberId}&returnUrl={Uri.EscapeDataString(returnUrl)}{admin}",
             forceLoad: true);
     }
 

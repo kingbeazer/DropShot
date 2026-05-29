@@ -1,11 +1,18 @@
-@page "/team-match/{FixtureId:int}/submit-all"
+@page "/score-all-rubbers"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @rendermode InteractiveServer
+@inject NavigationManager Navigation
 
 <MudProviders />
-<DropShot.UI.Components.Pages.BulkRubberScorePage FixtureId="@FixtureId" />
+<DropShot.UI.Components.Pages.BulkRubberScorePage FixtureId="@_fixtureId" />
 
 @code {
-    [Parameter] public int FixtureId { get; set; }
+    private int _fixtureId;
+
+    protected override void OnParametersSet()
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
+        if (int.TryParse(query["fixtureId"], out var f)) _fixtureId = f;
+    }
 }

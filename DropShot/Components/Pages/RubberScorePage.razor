@@ -1,23 +1,24 @@
-@page "/team-match/{FixtureId:int}/rubber-submit"
+@page "/score-rubber"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 
 <MudProviders />
-<DropShot.UI.Components.Pages.RubberScorePage FixtureId="@FixtureId" RubberId="@_rubberId" />
+<DropShot.UI.Components.Pages.RubberScorePage FixtureId="@_fixtureId" RubberId="@_rubberId" />
 
 @code {
-    [Parameter] public int FixtureId { get; set; }
-
+    private int _fixtureId;
     private int _rubberId;
 
     protected override void OnParametersSet()
     {
-        // Single-int route parameter pattern is the only shape this codebase
-        // relies on for shim binding; carry the rubber id in a query string
-        // instead of as a second route segment.
+        // Both ids come from the query string. We used to use route parameters
+        // but the /team-match/{int}/... shape was clashing with the existing
+        // TeamMatchScoring route on the server side and intermittently routing
+        // users to the wrong page.
         var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
-        if (int.TryParse(query["rubberId"], out var v)) _rubberId = v;
+        if (int.TryParse(query["fixtureId"], out var f)) _fixtureId = f;
+        if (int.TryParse(query["rubberId"], out var r)) _rubberId = r;
     }
 }
