@@ -132,18 +132,14 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Team-match scoring is gated by subscription. Anyone who can't score
-        // (anonymous, non-subscriber acting as plain User) is redirected home
-        // so the URL can't be entered directly. Admins/club-admins acting in
-        // their admin role bypass via CanScoreMatch — they may need to
-        // record results on behalf of teams.
+        // Authentication is enforced by [Authorize] on the routing shim. We
+        // intentionally do NOT gate the page on CurrentUser.CanScoreMatch
+        // here: a player acting in their plain User role (no admin bypass,
+        // no subscription) is a legitimate participant who reaches this URL
+        // by clicking their own fixture on the home page. Write actions are
+        // still gated server-side, so an unauthorised user typing the URL
+        // only sees the read-only state.
         await CurrentUser.EnsureLoadedAsync();
-        if (!CurrentUser.CanScoreMatch)
-        {
-            Navigation.NavigateTo("/", replace: true);
-            return;
-        }
-
         await LoadAsync();
     }
 
