@@ -414,7 +414,22 @@
         }
     }
 
-    private void Cancel() => Navigation.NavigateTo(_returnUrl);
+    private async Task Cancel()
+    {
+        bool anyEntered = false;
+        for (int r = 0; r < _rubbers.Count && !anyEntered; r++)
+            for (int i = 0; i < _bestOf; i++)
+                if (_home[r][i].HasValue || _away[r][i].HasValue) { anyEntered = true; break; }
+        if (anyEntered)
+        {
+            var confirmed = await DialogService.ShowMessageBoxAsync(
+                "Discard scores?",
+                "You've entered scores that haven't been submitted yet. Leave anyway?",
+                yesText: "Discard", cancelText: "Stay");
+            if (confirmed != true) return;
+        }
+        Navigation.NavigateTo(_returnUrl);
+    }
 
     private bool IsSetInvalid(int rubberIdx, int idx)
     {
