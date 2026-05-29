@@ -158,6 +158,15 @@ else
         _context = await CompetitionService.GetFixtureRubberContextAsync(FixtureId);
         if (_context is not null)
         {
+            // Score-entry pages are reachable only by admins on the host club
+            // and by participants on either team. A logged-in stranger who
+            // types the URL gets bounced home — matches the server-side
+            // check on SubmitRubberScores.
+            if (!_context.CanUserScore)
+            {
+                Navigation.NavigateTo("/", replace: true);
+                return;
+            }
             _isCompetitionAdmin = CurrentUser.CanEditCompetition(_context.HostClubId);
             ComputeScores();
         }
