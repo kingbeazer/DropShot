@@ -210,40 +210,20 @@ else
         }
     }
 
-    private async Task OpenBulkRubberDialogAsync()
+    private void OpenBulkRubberDialogAsync()
     {
-        var parameters = new DialogParameters<BulkRubberScoreDialog>
-        {
-            { x => x.FixtureId, FixtureId },
-            { x => x.AdminOverride, _isCompetitionAdmin }
-        };
-        var dlg = await DialogService.ShowAsync<BulkRubberScoreDialog>(
-            "Enter all rubber scores",
-            parameters,
-            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Medium, CloseOnEscapeKey = true });
-        var res = await dlg.Result;
-        if (res is not null && !res.Canceled)
-        {
-            await LoadAsync();
-            StateHasChanged();
-        }
+        var returnUrl = $"/team-match/{FixtureId}";
+        var admin = _isCompetitionAdmin ? "&admin=1" : "";
+        Navigation.NavigateTo(
+            $"/team-match/{FixtureId}/submit-all?returnUrl={Uri.EscapeDataString(returnUrl)}{admin}");
     }
 
-    private async Task EnterRubberScore(RubberDialogDto rubber)
+    private void EnterRubberScore(RubberDialogDto rubber)
     {
-        var parameters = new DialogParameters<RubberScoreDialog>
-        {
-            { x => x.FixtureId, FixtureId },
-            { x => x.RubberId, rubber.RubberId },
-            { x => x.AdminOverride, _isCompetitionAdmin }
-        };
-        var dialog = await DialogService.ShowAsync<RubberScoreDialog>("Enter rubber score", parameters);
-        var result = await dialog.Result;
-        if (result != null && !result.Canceled)
-        {
-            await LoadAsync();
-            StateHasChanged();
-        }
+        var returnUrl = $"/team-match/{FixtureId}";
+        var admin = _isCompetitionAdmin ? "&admin=1" : "";
+        Navigation.NavigateTo(
+            $"/team-match/{FixtureId}/rubber/{rubber.RubberId}/submit?returnUrl={Uri.EscapeDataString(returnUrl)}{admin}");
     }
 
     private RenderFragment RenderRubber(RubberDialogDto rubber) => __builder =>

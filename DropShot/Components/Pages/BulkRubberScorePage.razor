@@ -1,0 +1,11 @@
+@page "/team-match/{FixtureId:int}/submit-all"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<MudProviders />
+<DropShot.UI.Components.Pages.BulkRubberScorePage FixtureId="@FixtureId" />
+
+@code {
+    [Parameter] public int FixtureId { get; set; }
+}
