@@ -1,7 +1,9 @@
 @page "/team-match/{FixtureId:int}"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
-@rendermode InteractiveServer
+@* Prerender disabled — the OnInitializedAsync load otherwise runs twice
+   (SSR + interactive handoff) and flashes the loading skeleton. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 <MudProviders />
 

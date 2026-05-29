@@ -1,7 +1,10 @@
 @page "/score-rubber"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
-@rendermode InteractiveServer
+@* Skip prerendering — the OnParametersSetAsync fetch otherwise runs twice
+   (once during SSR, once when the interactive circuit takes over) and the
+   loading skeleton briefly re-appears, producing a visible flicker. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 
 <MudProviders />
