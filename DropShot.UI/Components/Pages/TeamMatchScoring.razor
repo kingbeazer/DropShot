@@ -14,7 +14,7 @@
 else if (_resolutionError != null)
 {
     <MudContainer MaxWidth="MaxWidth.Medium" Class="py-4">
-        <MudAlert Severity="Severity.Error" Class="mb-3">
+        <MudAlert Severity="Severity.Error" Class="frosted-card mb-3">
             <MudText Typo="Typo.body1" Class="mb-2">@_resolutionError</MudText>
             @if (_isCompetitionAdmin)
             {
@@ -53,12 +53,12 @@ else if (_resolutionError != null)
 }
 else if (_context is null)
 {
-    <MudAlert Severity="Severity.Error">Fixture not found.</MudAlert>
+    <MudAlert Severity="Severity.Error" Class="frosted-card">Fixture not found.</MudAlert>
 }
 else
 {
     <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
-        <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudPaper Class="frosted-card pa-4 mb-4" Elevation="0">
             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
                 <MudStack Spacing="0">
                     <MudText Typo="Typo.h5">@_context.CompetitionName</MudText>
@@ -99,7 +99,7 @@ else
 
         @if (_allComplete)
         {
-            <MudAlert Severity="Severity.Success" Class="mt-4">
+            <MudAlert Severity="Severity.Success" Class="frosted-card mt-4">
                 Match complete: @_context.HomeTeamName @_homeScore — @_awayScore @_scoreUnit @_context.AwayTeamName
                 @if (_homeScore == _awayScore)
                 {
@@ -243,7 +243,7 @@ else
         var awayTeam = _context?.AwayTeamName ?? "Away";
         var homePair = $"{rubber.HomePlayer1Name} & {rubber.HomePlayer2Name}";
         var awayPair = $"{rubber.AwayPlayer1Name} & {rubber.AwayPlayer2Name}";
-        <MudCard Class="mb-2" Outlined="true">
+        <MudCard Class="frosted-card mb-2" Elevation="0">
             <MudCardContent>
                 <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="3">
                     <MudStack Spacing="1" Style="flex:1; min-width:0">
