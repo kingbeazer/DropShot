@@ -173,6 +173,17 @@ public interface ICompetitionService
     Task SubmitRubberScoresAsync(int fixtureId, SubmitRubberScoresRequest request, CancellationToken ct = default);
 
     /// <summary>
+    /// Clears the saved score for a single rubber on a team-match fixture and
+    /// un-finalises the parent fixture: rubber.IsComplete=false with all sets/
+    /// games/winner cleared, plus fixture.Status reset to Scheduled with all
+    /// aggregates, ResultSummary, CompletedAt and VerificationToken cleared.
+    /// Used by the team-match landing page when a participant or admin needs
+    /// to redo a rubber's score. Authorisation matches SubmitRubberScores —
+    /// non-admins must be on one of the two teams.
+    /// </summary>
+    Task ClearRubberScoreAsync(int fixtureId, int rubberId, CancellationToken ct = default);
+
+    /// <summary>
     /// Anonymous lookup for the <c>/verify-result/{token}</c> page.
     /// Resolves the fixture by VerificationToken only when its Status is
     /// AwaitingVerification — already-completed or no-longer-awaiting

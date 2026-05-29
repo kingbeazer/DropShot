@@ -847,6 +847,46 @@ public sealed class WebCompetitionService(
         }
     }
 
+    public async Task ClearRubberScoreAsync(int fixtureId, int rubberId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var rub = await db.Rubbers
+            .Include(r => r.Fixture)
+            .FirstOrDefaultAsync(r => r.CompetitionFixtureId == fixtureId && r.RubberId == rubberId, ct)
+            ?? throw new KeyNotFoundException($"Rubber {rubberId} not found on fixture {fixtureId}.");
+
+        // Reset the rubber itself.
+        rub.IsComplete = false;
+        rub.HomeSetsWon = null;
+        rub.AwaySetsWon = null;
+        rub.HomeGamesTotal = null;
+        rub.AwayGamesTotal = null;
+        rub.HomeGames = 0;
+        rub.AwayGames = 0;
+        rub.WinnerTeamId = null;
+        rub.SavedMatchId = null;
+        rub.SetScoresJson = null;
+
+        // The parent fixture must be un-finalised — its aggregates and any
+        // verification token now reflect a result that no longer holds.
+        var fx = rub.Fixture;
+        if (fx is not null)
+        {
+            fx.Status = FixtureStatus.Scheduled;
+            fx.ResultSummary = null;
+            fx.HomeSetsWon = null;
+            fx.AwaySetsWon = null;
+            fx.HomeGamesTotal = null;
+            fx.AwayGamesTotal = null;
+            fx.WinnerTeamId = null;
+            fx.CompletedAt = null;
+            fx.VerificationToken = null;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
     private static CompetitionDto ToDto(Competition c) => new(
         c.CompetitionID, c.CompetitionName,
         c.CompetitionFormat,

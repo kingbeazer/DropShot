@@ -136,6 +136,13 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task ClearRubberScoreAsync(int fixtureId, int rubberId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/fixtures/{fixtureId}/rubbers/{rubberId}/clear-score", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
     public async Task EnsureFixtureRubbersAsync(int fixtureId, CancellationToken ct = default)
     {
         var resp = await http.PostAsync(

@@ -618,6 +618,47 @@ public class CompetitionsController(
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
     }
 
+    /// <summary>
+    /// Clears a single rubber's recorded score and un-finalises the parent
+    /// fixture. Mirrors the SubmitRubberScores auth model: competition admins,
+    /// or participants on one of the two teams.
+    /// </summary>
+    [HttpPost("fixtures/{fixtureId:int}/rubbers/{rubberId:int}/clear-score")]
+    public async Task<IActionResult> ClearRubberScore(
+        int fixtureId, int rubberId, CancellationToken ct)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return NotFound();
+
+        var canEdit = await authzService.CanEditCompetitionAsync(User, fx.Competition?.HostClubId, fx.CompetitionId);
+        if (!canEdit)
+        {
+            var userId = userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId)) return Forbid();
+            var myPlayerId = await db.Players
+                .Where(p => p.UserId == userId)
+                .Select(p => (int?)p.PlayerId)
+                .FirstOrDefaultAsync(ct);
+            if (myPlayerId is null) return Forbid();
+            var onATeam = await db.CompetitionParticipants
+                .AnyAsync(cp => cp.CompetitionId == fx.CompetitionId
+                    && cp.PlayerId == myPlayerId
+                    && cp.TeamId.HasValue
+                    && (cp.TeamId == fx.HomeTeamId || cp.TeamId == fx.AwayTeamId), ct);
+            if (!onATeam) return Forbid();
+        }
+
+        try
+        {
+            await competitionService.ClearRubberScoreAsync(fixtureId, rubberId, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
     /// <summary>Awaiting-verification fixtures the caller is allowed to review.</summary>
     [HttpGet("pending-verification")]
     public async Task<ActionResult<List<CompetitionFixtureDto>>> GetPendingVerificationFixtures(CancellationToken ct)
