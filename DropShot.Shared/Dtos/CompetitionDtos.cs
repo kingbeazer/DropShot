@@ -536,7 +536,12 @@ public record FixtureRubberContextDto(
     bool IsAlreadyFinalised,
     IReadOnlyList<RubberDialogDto> Rubbers,
     LeagueScoringMode LeagueScoring = LeagueScoringMode.WinPoints,
-    int? HostClubId = null);
+    int? HostClubId = null,
+    // True when the calling user is allowed to score this fixture — i.e.
+    // they're a competition admin OR a participant on one of the two
+    // teams. Pages that exist solely for score entry redirect home when
+    // this is false so non-participants can't open them by URL.
+    bool CanUserScore = false);
 
 public record RubberDialogDto(
     int RubberId,

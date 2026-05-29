@@ -550,6 +550,33 @@ public sealed class WebCompetitionService(
         if (fx is null) return null;
 
         var comp = fx.Competition;
+
+        // Compute whether the calling user is allowed to score this fixture.
+        // The pages that exist solely for score entry redirect home when this
+        // is false so a logged-in non-participant can't reach them by URL.
+        // Mirrors the controller-level check in SubmitRubberScores.
+        bool canUserScore = false;
+        var principal = await GetPrincipalAsync();
+        if (await authzService.CanEditCompetitionAsync(principal, comp?.HostClubId, fx.CompetitionId))
+        {
+            canUserScore = true;
+        }
+        else if (!string.IsNullOrEmpty(currentUser.UserId))
+        {
+            var myPlayerId = await db.Players.AsNoTracking()
+                .Where(p => p.UserId == currentUser.UserId)
+                .Select(p => (int?)p.PlayerId)
+                .FirstOrDefaultAsync(ct);
+            if (myPlayerId is { } pid)
+            {
+                canUserScore = await db.CompetitionParticipants.AsNoTracking()
+                    .AnyAsync(cp => cp.CompetitionId == fx.CompetitionId
+                        && cp.PlayerId == pid
+                        && cp.TeamId.HasValue
+                        && (cp.TeamId == fx.HomeTeamId || cp.TeamId == fx.AwayTeamId), ct);
+            }
+        }
+
         var rubbers = fx.Rubbers
             .OrderBy(r => r.Order)
             .Select(r => new RubberDialogDto(
@@ -583,7 +610,8 @@ public sealed class WebCompetitionService(
                 || fx.Status == FixtureStatus.Completed,
             rubbers,
             comp?.LeagueScoring ?? LeagueScoringMode.WinPoints,
-            comp?.HostClubId);
+            comp?.HostClubId,
+            CanUserScore: canUserScore);
     }
 
     public async Task EnsureFixtureRubbersAsync(int fixtureId, CancellationToken ct = default)

@@ -287,6 +287,11 @@
 
         _context = await CompetitionService.GetFixtureRubberContextAsync(FixtureId);
         if (_context is null) { _loading = false; return; }
+        if (!_context.CanUserScore)
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
 
         _bestOf = _context.MatchFormat == MatchFormatType.FixedSets
             ? Math.Max(1, _context.NumberOfSets)

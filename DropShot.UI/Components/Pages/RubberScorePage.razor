@@ -277,6 +277,11 @@
         _context = await CompetitionService.GetFixtureRubberContextAsync(FixtureId);
         _rubber = _context?.Rubbers.FirstOrDefault(r => r.RubberId == RubberId);
 
+        if (_context is not null && !_context.CanUserScore)
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
         if (_context is not null && _rubber is not null)
         {
             _bestOf = _context.MatchFormat == MatchFormatType.FixedSets
