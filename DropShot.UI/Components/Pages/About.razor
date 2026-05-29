@@ -1,14 +1,90 @@
 @page "/about"
 
-<HeadContent>
-    <meta name="robots" content="noindex" />
-</HeadContent>
-
-<PageTitle>About - DropShot</PageTitle>
+<PageTitle>About DropShot - Real-Time Tennis Scoring &amp; Competition Software</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
-    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">About</MudText>
-    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary">
-        Coming Soon
+    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">About DropShot</MudText>
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary" Class="mb-6" Style="max-width: 640px; margin: 0 auto;">
+        Real-time scoring and competition management for tennis players, clubs, and tournament organisers.
     </MudText>
+
+    <MudText Typo="Typo.body1" Class="mb-4">
+        DropShot is a tennis scoring platform built for everyone who keeps the game running — from
+        players tracking a casual match to clubs and organisers managing full tournaments. Score
+        singles and doubles point-by-point with proper deuce, advantage, and tiebreak handling; drive
+        courtside and broadcast scoreboards that update live across every connected screen; and run
+        complete competitions from group stages through to a final, with fixtures, result
+        verification, and player ratings all in one place.
+    </MudText>
+
+    <MudText Typo="Typo.body1" Class="mb-4">
+        We started DropShot because scoring a match and running a competition shouldn't mean
+        paper draws, spreadsheets, and a scramble to work out who plays next. Everything updates in
+        real time, so the score on court, the scoreboard on the wall, and the league table online
+        are always the same.
+    </MudText>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Who DropShot is for</MudText>
+    <ul class="mud-typography mud-typography-body1" style="padding-left:1.5rem;">
+        <li class="mb-2">
+            <strong>Players</strong> — score casual singles or doubles matches with flexible rules,
+            keep a saved history of every result, and track your form over time with an ELO rating
+            that weights wins by margin of victory.
+        </li>
+        <li class="mb-2">
+            <strong>Clubs</strong> — manage club profiles, courts, and scheduling templates; appoint
+            club administrators; and put live scoreboards on screens around the venue.
+        </li>
+        <li class="mb-2">
+            <strong>Organisers</strong> — run singles, doubles, mixed, or team competitions across
+            round-robin groups and knockout brackets, with automatic progression as results are
+            verified.
+        </li>
+    </ul>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-2">How it works</MudText>
+    <ol class="mud-typography mud-typography-body1" style="padding-left:1.5rem;">
+        <li class="mb-2">
+            <strong>Create a free account</strong> and add the players you regularly play with, or
+            link to verified player profiles.
+        </li>
+        <li class="mb-2">
+            <strong>Set up a match or competition</strong> with a guided wizard — pick the format,
+            the players, and the rules before play begins.
+        </li>
+        <li class="mb-2">
+            <strong>Score live</strong> from any device. Scores broadcast instantly to every
+            scoreboard, phone, and browser connected to the match.
+        </li>
+        <li class="mb-2">
+            <strong>Results are saved automatically</strong> and feed into league tables, player
+            ratings, and tournament progression.
+        </li>
+    </ol>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Built for real courts</MudText>
+    <MudText Typo="Typo.body1" Class="mb-4">
+        DropShot works on the web and as a native app for Android and iOS, so you can manage
+        competitions from the clubhouse and score from courtside on your phone. QR-code login means
+        you can sign in on a shared scoreboard screen in seconds, without typing a password in front
+        of everyone.
+    </MudText>
+
+    <MudText Typo="Typo.body1" Class="mb-4">
+        Want to see everything DropShot can do? Browse the
+        <MudLink Href="/features">full feature list</MudLink>, or
+        <MudLink Href="/contact">get in touch</MudLink> — we read every message and would love your
+        feedback.
+    </MudText>
+
+    <GoogleAd />
+
+    <MudPaper Class="pa-6 mt-8 rounded-lg" Style="text-align: center; background: var(--mud-palette-primary); color: white;">
+        <MudText Typo="Typo.h6" Style="color: inherit;" GutterBottom="true">
+            Start scoring your next match
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Dark" Size="Size.Large" Href="/Account/Register">
+            Sign Up Free
+        </MudButton>
+    </MudPaper>
 </MudContainer>

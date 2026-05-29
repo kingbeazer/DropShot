@@ -1,14 +1,125 @@
 @page "/support"
 
-<HeadContent>
-    <meta name="robots" content="noindex" />
-</HeadContent>
-
-<PageTitle>Support - DropShot</PageTitle>
+<PageTitle>Support &amp; Help - DropShot</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
-    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">Support</MudText>
-    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary">
-        Coming Soon
+    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">Support &amp; Help</MudText>
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary" Class="mb-6" Style="max-width: 640px; margin: 0 auto;">
+        Answers to common questions about scoring matches, running competitions, and managing your account.
     </MudText>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-3">Getting started</MudText>
+
+    <MudExpansionPanels MultiExpansion="true" Class="mb-6">
+        <MudExpansionPanel Text="How do I create an account?">
+            <MudText Typo="Typo.body2">
+                Choose <MudLink Href="/Account/Register">Sign Up</MudLink> and register with your email
+                address and a password. A free account lets you score casual matches, build your player
+                list, and join competitions you're invited to.
+            </MudText>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="How do I log in on a scoreboard or shared screen?">
+            <MudText Typo="Typo.body2">
+                Use QR-code login. On the shared screen, open the login page to display a QR code, then
+                scan it with your phone where you're already signed in. You'll be logged in on the screen
+                in a couple of seconds — no need to type a password in front of anyone courtside.
+            </MudText>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="Is there a mobile app?">
+            <MudText Typo="Typo.body2">
+                Yes. DropShot runs in any web browser and as a native app for Android and iOS, so you can
+                manage competitions on a laptop and score from courtside on your phone.
+            </MudText>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-3">Scoring matches</MudText>
+
+    <MudExpansionPanels MultiExpansion="true" Class="mb-6">
+        <MudExpansionPanel Text="How do I score a match?">
+            <MudText Typo="Typo.body2">
+                Start a match and follow the setup wizard — it walks you through match type (singles or
+                doubles), player selection, and the rules to use. Once play begins you score
+                point-by-point, and DropShot handles deuce, advantage, and tiebreaks for you.
+            </MudText>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="What rule formats are supported?">
+            <MudText Typo="Typo.body2">
+                You can play best-of-1 or best-of-3 sets, switch on no-ad (sudden-death) deuce, and choose
+                whether the final set uses a tiebreak. Organisers can also save named rule sets and reuse
+                them across competitions.
+            </MudText>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="Can I correct a score I entered by mistake?">
+            <MudText Typo="Typo.body2">
+                Yes. Scores can be edited during a match, and on submission screens the back control clears
+                the cell it lands on so you can re-enter a value before confirming.
+            </MudText>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="Can I put the score on a big screen?">
+            <MudText Typo="Typo.body2">
+                Yes — choose between a clean default scoreboard or a broadcast-style layout with match
+                time. Scoreboards sync live across every connected screen, and you can manage multiple
+                courts from a single display-control page.
+            </MudText>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-3">Competitions &amp; results</MudText>
+
+    <MudExpansionPanels MultiExpansion="true" Class="mb-6">
+        <MudExpansionPanel Text="How do I set up a competition?">
+            <MudText Typo="Typo.body2">
+                Create a competition, choose the format (singles, doubles, mixed, or team), and set up the
+                stages — for example round-robin groups feeding into knockout rounds. You can then schedule
+                fixtures to dates, times, and courts.
+            </MudText>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="How does result verification work?">
+            <MudText Typo="Typo.body2">
+                Results go through a two-tier check: a player submits the score, and an administrator can
+                quick-approve it or open a full review. Once verified, winners progress through the bracket
+                automatically and the league table updates.
+            </MudText>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="How are player ratings calculated?">
+            <MudText Typo="Typo.body2">
+                DropShot uses an ELO rating system that weights each result by margin of victory, so a
+                comfortable win moves your rating more than a tight one. Ratings update as verified results
+                come in.
+            </MudText>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-3">Account &amp; privacy</MudText>
+
+    <MudExpansionPanels MultiExpansion="true" Class="mb-6">
+        <MudExpansionPanel Text="How do I edit my profile?">
+            <MudText Typo="Typo.body2">
+                Open your account page to update your display name, contact details, date of birth, and
+                avatar. You can also maintain your own list of players you regularly play with.
+            </MudText>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="How is my data handled?">
+            <MudText Typo="Typo.body2">
+                See our <MudLink Href="/privacy">Privacy Policy</MudLink> for how we collect and use your
+                data, and our <MudLink Href="/cookie-policy">Cookie Policy</MudLink> for details on cookies
+                and advertising.
+            </MudText>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+
+    <GoogleAd />
+
+    <MudPaper Class="pa-6 mt-8 rounded-lg" Style="text-align: center; background: var(--mud-palette-primary); color: white;">
+        <MudText Typo="Typo.h6" Style="color: inherit;" GutterBottom="true">
+            Still need help?
+        </MudText>
+        <MudText Typo="Typo.body2" Style="color: inherit; opacity: 0.85;" Class="mb-4">
+            We respond to every message and would love to hear your feedback or suggestions.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Dark" Size="Size.Large" Href="/contact">
+            Contact Us
+        </MudButton>
+    </MudPaper>
 </MudContainer>
