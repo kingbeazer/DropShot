@@ -1,0 +1,251 @@
+@inject ICurrentUser CurrentUser
+@inject IMatchService MatchService
+@inject ICompetitionService CompetitionService
+@inject ICourtClaimService CourtClaim
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+
+<PageTitle>Fixtures &amp; Results</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Fixtures &amp; Results</MudText>
+
+@if (_loading)
+{
+    <div class="d-flex justify-center my-8">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (!_upcomingFixtures.Any() && !_recentItems.Any())
+{
+    <MudAlert Severity="Severity.Info">
+        You have no upcoming matches or recent results yet.
+    </MudAlert>
+}
+else
+{
+    <MudGrid>
+        @if (_upcomingFixtures.Any())
+        {
+            <MudItem xs="12" md="@(_recentItems.Any() ? 7 : 12)">
+                <MudCard Class="frosted-card" Elevation="0">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Event" Color="Color.Primary" />
+                                <MudText Typo="Typo.h6">Upcoming Matches</MudText>
+                            </MudStack>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Class="pa-0">
+                        <MudTable Items="@_upcomingFixtures" Dense="true" Hover="true">
+                            <HeaderContent>
+                                <MudTh>Date / Time</MudTh>
+                                <MudTh>Competition</MudTh>
+                                <MudTh>Opponent(s)</MudTh>
+                                <MudTh>Status</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Date / Time">@(context.ScheduledAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</MudTd>
+                                <MudTd DataLabel="Competition">
+                                    <MudText Typo="Typo.body2" Style="font-weight:500">@(context.CompetitionName ?? "—")</MudText>
+                                    @if (!string.IsNullOrEmpty(context.FixtureLabel))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.FixtureLabel</MudText>
+                                    }
+                                </MudTd>
+                                <MudTd DataLabel="Opponent(s)">@FixtureOpponents(context)</MudTd>
+                                <MudTd DataLabel="Status">
+                                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+                                </MudTd>
+                                <MudTd>
+                                    <MudStack Row="true" Spacing="2">
+                                        @if (CurrentUser.CanScoreMatch)
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                                                       OnClick="@(() => StartFixtureMatchAsync(context))">
+                                                Play
+                                            </MudButton>
+                                        }
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
+                                                   StartIcon="@Icons.Material.Filled.Edit"
+                                                   OnClick="@(() => OpenSubmitScore(context))">
+                                            Submit Score
+                                        </MudButton>
+                                    </MudStack>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+
+        @if (_recentItems.Any())
+        {
+            <MudItem xs="12" md="@(_upcomingFixtures.Any() ? 5 : 12)">
+                <MudCard Class="frosted-card" Elevation="0">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" />
+                                <MudText Typo="Typo.h6">Recent Results</MudText>
+                            </MudStack>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Class="pa-0">
+                        <MudStack Spacing="0">
+                            @foreach (var item in _recentItems)
+                            {
+                                <div style="padding: 8px 16px; border-bottom: 1px solid var(--mud-palette-lines-default);">
+                                    @if (item.Fixture != null)
+                                    {
+                                        var fixture = item.Fixture!;
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                                            <MudText Typo="Typo.caption" Style="font-weight:500">@(fixture.CompetitionName ?? "Competition")</MudText>
+                                            @if (!string.IsNullOrEmpty(fixture.FixtureLabel))
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">@fixture.FixtureLabel</MudText>
+                                            }
+                                            @{
+                                                var resultDate = fixture.CompletedAt ?? fixture.ScheduledAt;
+                                            }
+                                            @if (resultDate.HasValue)
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-left:auto">@resultDate.Value.ToString("dd MMM yyyy")</MudText>
+                                            }
+                                        </MudStack>
+                                        <FixtureResultCard Fixture="@fixture" Compact="true" />
+                                    }
+                                    else if (item.CasualMatch != null)
+                                    {
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                                            <MudText Typo="Typo.caption" Style="font-weight:500">Casual Match</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-left:auto">@item.Date.ToString("dd MMM yyyy")</MudText>
+                                        </MudStack>
+                                        <CasualMatchResultCard CasualMatch="@item.CasualMatch" Compact="true" />
+                                    }
+                                </div>
+                            }
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private List<CompetitionFixtureDto> _upcomingFixtures = [];
+    private List<RecentMatchItem> _recentItems = [];
+    private bool _loading = true;
+
+    private sealed record RecentMatchItem(
+        DateTime Date,
+        CompetitionFixtureDto? Fixture,
+        RecentCasualMatchDto? CasualMatch);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _upcomingFixtures = await CompetitionService.GetMyUpcomingFixturesAsync();
+
+        var recentFixtures = await CompetitionService.GetMyRecentCompletedFixturesAsync(20);
+        var recentCasuals = await MatchService.GetMyRecentCasualMatchesAsync(20);
+
+        _recentItems = recentFixtures
+            .Select(f => new RecentMatchItem(f.CompletedAt ?? f.ScheduledAt ?? DateTime.MinValue, f, null))
+            .Concat(recentCasuals.Select(m => new RecentMatchItem(m.CompletedAt ?? m.CreatedAt, null, m)))
+            .OrderByDescending(i => i.Date)
+            .Take(20)
+            .ToList();
+
+        _loading = false;
+    }
+
+    private void OpenSubmitScore(CompetitionFixtureDto fixture)
+    {
+        // Team match fixtures (with rubbers) are scored on the team-match page,
+        // not via the individual-match scoring flow.
+        if (fixture.HomeTeamId.HasValue || fixture.AwayTeamId.HasValue)
+        {
+            Navigation.NavigateTo($"/team-match/{fixture.CompetitionFixtureId}");
+            return;
+        }
+
+        Navigation.NavigateTo($"/match/submit/{fixture.CompetitionFixtureId}?returnUrl=/fixtures");
+    }
+
+    private string FixtureOpponents(CompetitionFixtureDto f)
+    {
+        if (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+        {
+            var home = f.HomeTeamName ?? "TBD";
+            var away = f.AwayTeamName ?? "TBD";
+            return $"{home} vs {away}";
+        }
+
+        var side1 = new[] { f.Player1Name, f.Player3Name }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        var side2 = new[] { f.Player2Name, f.Player4Name }
+            .Where(n => n != null).DefaultIfEmpty("TBD").Aggregate((a, b) => $"{a} & {b}");
+        return $"{side1} vs {side2}";
+    }
+
+    private string FixturePlayUrl(CompetitionFixtureDto f) =>
+        (f.HomeTeamId.HasValue || f.AwayTeamId.HasValue)
+            ? $"/team-match/{f.CompetitionFixtureId}"
+            : $"/match/0?fixtureId={f.CompetitionFixtureId}&autoStart=true";
+
+    private Task StartFixtureMatchAsync(CompetitionFixtureDto fixture) =>
+        NavigateToMatchWithActiveGuardAsync(FixturePlayUrl(fixture));
+
+    private async Task NavigateToMatchWithActiveGuardAsync(string targetUrl)
+    {
+        var active = (await MatchService.GetMyActiveMatchesAsync(deviceToken: null))
+            .FirstOrDefault();
+        if (active is not null)
+        {
+            var choice = await DialogService.ShowMessageBoxAsync(new MessageBoxOptions
+            {
+                Title = "Match already in progress",
+                Message = $"You're already scoring {OccupantLabel(active)}. What would you like to do?",
+                YesText = "Resume match",
+                NoText = "End and start new",
+                CancelText = "Cancel"
+            });
+            if (choice is null) return;
+            if (choice == true)
+            {
+                Navigation.NavigateTo($"/match/{active.SavedMatchId}");
+                return;
+            }
+            await CourtClaim.EndMatchAsync(active.SavedMatchId);
+        }
+        Navigation.NavigateTo(targetUrl);
+    }
+
+    private static string OccupantLabel(ActiveMatchDto m)
+    {
+        var a = !string.IsNullOrWhiteSpace(m.Player3)
+            ? $"{m.Player1} & {m.Player2}"
+            : m.Player1 ?? "";
+        var b = !string.IsNullOrWhiteSpace(m.Player3)
+            ? $"{m.Player3} & {m.Player4}"
+            : m.Player2 ?? "";
+        if (string.IsNullOrWhiteSpace(a) && string.IsNullOrWhiteSpace(b))
+            return "a match";
+        if (string.IsNullOrWhiteSpace(b)) return $"a match ({a})";
+        return $"{a} vs {b}";
+    }
+
+    private static Color StatusColor(FixtureStatus s) => s switch
+    {
+        FixtureStatus.Scheduled => Color.Default,
+        FixtureStatus.InProgress => Color.Warning,
+        FixtureStatus.Completed => Color.Success,
+        FixtureStatus.Cancelled => Color.Error,
+        FixtureStatus.Walkover => Color.Info,
+        _ => Color.Default
+    };
+}
