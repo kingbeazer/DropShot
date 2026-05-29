@@ -1,7 +1,8 @@
 @page "/match/submit/{FixtureId:int}"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
-@rendermode InteractiveServer
+@* Prerender disabled — see RubberScorePage shim for rationale. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 <MudProviders />
 <DropShot.UI.Components.Pages.SubmitScorePage FixtureId="@FixtureId" />
