@@ -223,7 +223,7 @@ else
         var returnUrl = $"/team-match/{FixtureId}";
         var admin = _isCompetitionAdmin ? "&admin=1" : "";
         Navigation.NavigateTo(
-            $"/team-match/{FixtureId}/rubber/{rubber.RubberId}/submit?returnUrl={Uri.EscapeDataString(returnUrl)}{admin}");
+            $"/team-match/{FixtureId}/rubber-submit?rubberId={rubber.RubberId}&returnUrl={Uri.EscapeDataString(returnUrl)}{admin}");
     }
 
     private RenderFragment RenderRubber(RubberDialogDto rubber) => __builder =>

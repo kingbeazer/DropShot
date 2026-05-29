@@ -1,12 +1,23 @@
-@page "/team-match/{FixtureId:int}/rubber/{RubberId:int}/submit"
+@page "/team-match/{FixtureId:int}/rubber-submit"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @rendermode InteractiveServer
+@inject NavigationManager Navigation
 
 <MudProviders />
-<DropShot.UI.Components.Pages.RubberScorePage FixtureId="@FixtureId" RubberId="@RubberId" />
+<DropShot.UI.Components.Pages.RubberScorePage FixtureId="@FixtureId" RubberId="@_rubberId" />
 
 @code {
     [Parameter] public int FixtureId { get; set; }
-    [Parameter] public int RubberId { get; set; }
+
+    private int _rubberId;
+
+    protected override void OnParametersSet()
+    {
+        // Single-int route parameter pattern is the only shape this codebase
+        // relies on for shim binding; carry the rubber id in a query string
+        // instead of as a second route segment.
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
+        if (int.TryParse(query["rubberId"], out var v)) _rubberId = v;
+    }
 }
