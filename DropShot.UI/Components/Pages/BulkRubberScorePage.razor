@@ -11,7 +11,7 @@
     }
     else if (_context is null)
     {
-        <MudAlert Severity="Severity.Error">Fixture not available.</MudAlert>
+        <MudAlert Severity="Severity.Error" Class="frosted-card">Fixture not available.</MudAlert>
         <div class="d-flex justify-center mt-3"><MudButton OnClick="Cancel">Back</MudButton></div>
     }
     else
@@ -138,11 +138,18 @@
     .rubber-section { width: 100%; }
 
     /* Rubber state: completed cards stay at full opacity (you can scroll back
-       to verify), the active card is the one above the keypad (no extra
-       chrome — already highlighted via .rubber-set-row-active inside), and
-       upcoming cards are muted so the eye is drawn to the active one. */
-    .rubber-upcoming { opacity: 0.45; }
-    .rubber-upcoming:hover { opacity: 0.75; }
+       to verify), the active card is the one above the keypad (already
+       highlighted via .rubber-set-row-active inside). Upcoming cards are
+       muted — but we dim only the contents, not the card itself, so the
+       frosted glass background stays visible on every section. */
+    .rubber-upcoming .mud-typography,
+    .rubber-upcoming .rubber-set-label,
+    .rubber-upcoming .rubber-score-cell,
+    .rubber-upcoming .rubber-set-status { opacity: 0.5; transition: opacity 150ms; }
+    .rubber-upcoming:hover .mud-typography,
+    .rubber-upcoming:hover .rubber-set-label,
+    .rubber-upcoming:hover .rubber-score-cell,
+    .rubber-upcoming:hover .rubber-set-status { opacity: 0.85; }
 
     @@media (max-width: 600px) {
         .rubber-page {
