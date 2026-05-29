@@ -57,6 +57,10 @@ public static class NavCatalog
         new("competitions", "Competitions",
             Icons.Material.Filled.EmojiEvents,
             "Browse and manage events"),
+
+        new("fixtures", "Fixtures",
+            Icons.Material.Filled.Event,
+            "Upcoming matches & results"),
     ];
 
     public static readonly IReadOnlyList<NavLinkEntry> Secondary =
