@@ -137,6 +137,11 @@
     .rubber-stack { width: 100%; max-width: 380px; }
     .rubber-section { width: 100%; }
 
+    /* The top navbar is position: sticky, so scrollIntoView lands rubber
+       cards under it unless we tell the browser to leave room. ~80px covers
+       the navbar on mobile. */
+    .rubber-section { scroll-margin-top: 80px; }
+
     /* Rubber state: completed cards stay at full opacity (you can scroll back
        to verify), the active card is the one above the keypad (already
        highlighted via .rubber-set-row-active inside). Upcoming cards are
