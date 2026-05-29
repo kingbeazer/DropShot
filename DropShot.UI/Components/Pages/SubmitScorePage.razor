@@ -3,7 +3,7 @@
 @inject ISiteAlertService SiteAlerts
 @inject IDialogService DialogService
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="pt-2 pb-4 submit-score-page">
+<MudContainer MaxWidth="MaxWidth.Medium" Class="pt-2 pb-4 submit-score-page">
     @if (!_loaded)
     {
         <div class="d-flex justify-center"><MudProgressCircular Indeterminate="true" /></div>
@@ -140,16 +140,27 @@
 
     /* On desktop the default mobile-sized layout looks cramped on a large
        monitor. Scale up the column and the keypad / score cells so the page
-       fills the available space without losing its phone-first feel. */
+       fills the available space without losing its phone-first feel. The
+       tablet tier kicks in at 601px and a larger desktop tier at 961px. */
     @@media (min-width: 601px) {
-        .submit-score-stack { max-width: 480px; }
-        .score-cell { font-size: 1.2rem; min-height: 38px; padding: 5px 0; }
-        .set-row-active .score-cell { font-size: 2.2rem; min-height: 72px; padding: 14px 0; }
-        .score-cell.side-left, .score-cell.side-right { max-width: 120px; }
+        .submit-score-stack { max-width: 500px; }
+        .score-cell { font-size: 1.3rem; min-height: 42px; padding: 6px 0; }
+        .set-row-active .score-cell { font-size: 2.4rem; min-height: 80px; padding: 16px 0; }
+        .score-cell.side-left, .score-cell.side-right { max-width: 130px; }
         .keypad { gap: 10px; }
-        .keypad-key { height: 72px; font-size: 1.7rem; }
-        .keypad-tb { font-size: 1rem; }
-        .set-label { font-size: 1.1rem; }
+        .keypad-key { height: 80px; font-size: 1.9rem; }
+        .keypad-tb { font-size: 1.05rem; }
+        .set-label { font-size: 1.15rem; }
+    }
+    @@media (min-width: 961px) {
+        .submit-score-stack { max-width: 640px; }
+        .score-cell { font-size: 1.5rem; min-height: 50px; padding: 8px 0; }
+        .set-row-active .score-cell { font-size: 3rem; min-height: 96px; padding: 20px 0; }
+        .score-cell.side-left, .score-cell.side-right { max-width: 160px; }
+        .keypad { gap: 12px; }
+        .keypad-key { height: 96px; font-size: 2.2rem; }
+        .keypad-tb { font-size: 1.2rem; }
+        .set-label { font-size: 1.3rem; }
     }
 
     .set-row {

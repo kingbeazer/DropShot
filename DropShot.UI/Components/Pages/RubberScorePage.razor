@@ -3,7 +3,7 @@
 @inject NavigationManager Navigation
 @inject ISiteAlertService SiteAlerts
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="pt-2 pb-4 rubber-page">
+<MudContainer MaxWidth="MaxWidth.Medium" Class="pt-2 pb-4 rubber-page">
     @if (_loading)
     {
         <div class="d-flex justify-center"><MudProgressCircular Indeterminate="true" /></div>
@@ -128,14 +128,24 @@
         .rubber-stack { max-width: 100%; }
     }
     @@media (min-width: 601px) {
-        .rubber-stack { max-width: 480px; }
-        .rubber-score-cell { font-size: 1.2rem; min-height: 38px; padding: 5px 0; }
-        .rubber-set-row-active .rubber-score-cell { font-size: 2.2rem; min-height: 72px; padding: 14px 0; }
-        .rubber-score-cell.side-left, .rubber-score-cell.side-right { max-width: 120px; }
+        .rubber-stack { max-width: 500px; }
+        .rubber-score-cell { font-size: 1.3rem; min-height: 42px; padding: 6px 0; }
+        .rubber-set-row-active .rubber-score-cell { font-size: 2.4rem; min-height: 80px; padding: 16px 0; }
+        .rubber-score-cell.side-left, .rubber-score-cell.side-right { max-width: 130px; }
         .rubber-keypad { gap: 10px; }
-        .rubber-key { height: 72px; font-size: 1.7rem; }
-        .rubber-key-tb { font-size: 1rem; }
-        .rubber-set-label { font-size: 1.1rem; }
+        .rubber-key { height: 80px; font-size: 1.9rem; }
+        .rubber-key-tb { font-size: 1.05rem; }
+        .rubber-set-label { font-size: 1.15rem; }
+    }
+    @@media (min-width: 961px) {
+        .rubber-stack { max-width: 640px; }
+        .rubber-score-cell { font-size: 1.5rem; min-height: 50px; padding: 8px 0; }
+        .rubber-set-row-active .rubber-score-cell { font-size: 3rem; min-height: 96px; padding: 20px 0; }
+        .rubber-score-cell.side-left, .rubber-score-cell.side-right { max-width: 160px; }
+        .rubber-keypad { gap: 12px; }
+        .rubber-key { height: 96px; font-size: 2.2rem; }
+        .rubber-key-tb { font-size: 1.2rem; }
+        .rubber-set-label { font-size: 1.3rem; }
     }
 
     .rubber-set-row {
