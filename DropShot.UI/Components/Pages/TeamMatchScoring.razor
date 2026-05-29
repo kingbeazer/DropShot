@@ -214,8 +214,11 @@ else
     {
         var returnUrl = $"/team-match/{FixtureId}";
         var admin = _isCompetitionAdmin ? "&admin=1" : "";
+        // forceLoad bypasses Blazor enhanced navigation. We saw the rubber
+        // page nav fall back to the team-match page intermittently otherwise.
         Navigation.NavigateTo(
-            $"/team-match/{FixtureId}/submit-all?returnUrl={Uri.EscapeDataString(returnUrl)}{admin}");
+            $"/team-match/{FixtureId}/submit-all?returnUrl={Uri.EscapeDataString(returnUrl)}{admin}",
+            forceLoad: true);
     }
 
     private void EnterRubberScore(RubberDialogDto rubber)
@@ -223,7 +226,8 @@ else
         var returnUrl = $"/team-match/{FixtureId}";
         var admin = _isCompetitionAdmin ? "&admin=1" : "";
         Navigation.NavigateTo(
-            $"/team-match/{FixtureId}/rubber-submit?rubberId={rubber.RubberId}&returnUrl={Uri.EscapeDataString(returnUrl)}{admin}");
+            $"/team-match/{FixtureId}/rubber-submit?rubberId={rubber.RubberId}&returnUrl={Uri.EscapeDataString(returnUrl)}{admin}",
+            forceLoad: true);
     }
 
     private RenderFragment RenderRubber(RubberDialogDto rubber) => __builder =>
