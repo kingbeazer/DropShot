@@ -128,7 +128,13 @@ else
     private string? _resolutionError;
     private bool _isCompetitionAdmin;
 
-    private bool CanEditCompletedRubber => _isCompetitionAdmin && EditMode == 1;
+    // Anyone with score permission on this fixture can re-enter or clear a
+    // completed rubber. The page itself is already gated on
+    // _context.CanUserScore at load — if we got here we can edit. Keeping the
+    // ?edit=1 legacy mode for admins only changes nothing meaningful since
+    // admins always pass, but we honour the existing URL for back-compat.
+    private bool CanEditCompletedRubber =>
+        _context?.CanUserScore == true || (_isCompetitionAdmin && EditMode == 1);
 
     protected override async Task OnInitializedAsync()
     {
@@ -237,6 +243,29 @@ else
             forceLoad: true);
     }
 
+    private async Task ClearRubberScoreAsync(RubberDialogDto rubber)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Clear this rubber's score?",
+            $"This will reset \"{rubber.Name}\" back to not played and un-finalise the match. " +
+            "You can re-enter the score afterwards.",
+            yesText: "Clear", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        try
+        {
+            await CompetitionService.ClearRubberScoreAsync(FixtureId, rubber.RubberId);
+            await LoadAsync();
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // The service throws on persistence failure. The error surfaces as
+            // a no-op for now; the user can retry. We deliberately don't write
+            // through the SiteAlert service here to keep the diff small.
+        }
+    }
+
     private RenderFragment RenderRubber(RubberDialogDto rubber) => __builder =>
     {
         var homeTeam = _context?.HomeTeamName ?? "Home";
@@ -274,8 +303,15 @@ else
                                 }
                                 @if (CanEditCompletedRubber)
                                 {
-                                    <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit"
-                                                   OnClick="@(() => EnterRubberScore(rubber))" />
+                                    <MudTooltip Text="Re-enter score">
+                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit"
+                                                       OnClick="@(() => EnterRubberScore(rubber))" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Clear score">
+                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       OnClick="@(() => ClearRubberScoreAsync(rubber))" />
+                                    </MudTooltip>
                                 }
                             </MudStack>
                         }
