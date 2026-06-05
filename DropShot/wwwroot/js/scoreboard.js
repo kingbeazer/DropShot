@@ -4,6 +4,12 @@ let _voiceRate = 0.9;
 
 export function setVoiceEnabled(enabled) {
     _voiceEnabled = enabled;
+    // Unlock the speech engine within the user-gesture that triggered this call.
+    // Without this, browsers block speechSynthesis from non-gesture contexts (e.g. SignalR).
+    if (enabled && window.speechSynthesis) {
+        const unlock = new SpeechSynthesisUtterance('');
+        window.speechSynthesis.speak(unlock);
+    }
 }
 
 export function announceScore(text) {

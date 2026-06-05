@@ -4,6 +4,10 @@ let _voiceRate = 0.9;
 
 export function setVoiceEnabled(enabled) {
     _voiceEnabled = enabled;
+    if (enabled && window.speechSynthesis) {
+        const unlock = new SpeechSynthesisUtterance('');
+        window.speechSynthesis.speak(unlock);
+    }
 }
 
 export function announceScore(text) {
