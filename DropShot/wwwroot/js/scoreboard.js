@@ -1,18 +1,35 @@
 let _handler = null;
 let _voiceEnabled = false;
 let _voiceRate = 0.9;
+let _speechUnlocked = false;
+
+function _unlockSpeech() {
+    if (_speechUnlocked || !window.speechSynthesis) return;
+    _speechUnlocked = true;
+    // Speak a silent non-empty utterance synchronously within the user gesture.
+    // Required on iOS (Safari and Chrome/WebKit) — an empty string is ignored,
+    // and the unlock must happen synchronously inside the gesture handler.
+    const unlock = new SpeechSynthesisUtterance(' ');
+    unlock.volume = 0;
+    window.speechSynthesis.speak(unlock);
+}
+
+// Attach native capture-phase listeners so the unlock fires synchronously on
+// the very first touch/click, before Blazor's async interop can run. This is
+// necessary on iOS where the gesture context expires before async callbacks fire.
+export function initVoiceUnlock() {
+    const handler = () => {
+        _unlockSpeech();
+        document.removeEventListener('touchstart', handler, true);
+        document.removeEventListener('click', handler, true);
+    };
+    document.addEventListener('touchstart', handler, { capture: true, once: true });
+    document.addEventListener('click', handler, { capture: true, once: true });
+}
 
 export function setVoiceEnabled(enabled) {
     _voiceEnabled = enabled;
-    // Unlock the speech engine within the user-gesture that triggered this call.
-    // Without this, browsers block speechSynthesis from non-gesture contexts (e.g. SignalR).
-    if (enabled && window.speechSynthesis) {
-        // iOS Safari requires a non-empty utterance to unlock the speech engine.
-        // volume:0 keeps it silent while still satisfying the gesture requirement.
-        const unlock = new SpeechSynthesisUtterance(' ');
-        unlock.volume = 0;
-        window.speechSynthesis.speak(unlock);
-    }
+    if (enabled) _unlockSpeech();
 }
 
 export function announceScore(text) {

@@ -1,14 +1,29 @@
 let _handler = null;
 let _voiceEnabled = false;
 let _voiceRate = 0.9;
+let _speechUnlocked = false;
+
+function _unlockSpeech() {
+    if (_speechUnlocked || !window.speechSynthesis) return;
+    _speechUnlocked = true;
+    const unlock = new SpeechSynthesisUtterance(' ');
+    unlock.volume = 0;
+    window.speechSynthesis.speak(unlock);
+}
+
+export function initVoiceUnlock() {
+    const handler = () => {
+        _unlockSpeech();
+        document.removeEventListener('touchstart', handler, true);
+        document.removeEventListener('click', handler, true);
+    };
+    document.addEventListener('touchstart', handler, { capture: true, once: true });
+    document.addEventListener('click', handler, { capture: true, once: true });
+}
 
 export function setVoiceEnabled(enabled) {
     _voiceEnabled = enabled;
-    if (enabled && window.speechSynthesis) {
-        const unlock = new SpeechSynthesisUtterance(' ');
-        unlock.volume = 0;
-        window.speechSynthesis.speak(unlock);
-    }
+    if (enabled) _unlockSpeech();
 }
 
 export function announceScore(text) {
