@@ -7,7 +7,10 @@ export function setVoiceEnabled(enabled) {
     // Unlock the speech engine within the user-gesture that triggered this call.
     // Without this, browsers block speechSynthesis from non-gesture contexts (e.g. SignalR).
     if (enabled && window.speechSynthesis) {
-        const unlock = new SpeechSynthesisUtterance('');
+        // iOS Safari requires a non-empty utterance to unlock the speech engine.
+        // volume:0 keeps it silent while still satisfying the gesture requirement.
+        const unlock = new SpeechSynthesisUtterance(' ');
+        unlock.volume = 0;
         window.speechSynthesis.speak(unlock);
     }
 }

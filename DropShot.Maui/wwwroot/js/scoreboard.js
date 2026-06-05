@@ -5,7 +5,8 @@ let _voiceRate = 0.9;
 export function setVoiceEnabled(enabled) {
     _voiceEnabled = enabled;
     if (enabled && window.speechSynthesis) {
-        const unlock = new SpeechSynthesisUtterance('');
+        const unlock = new SpeechSynthesisUtterance(' ');
+        unlock.volume = 0;
         window.speechSynthesis.speak(unlock);
     }
 }
