@@ -225,6 +225,7 @@
         _dotNetRef = DotNetObjectReference.Create(this);
         await _jsModule.InvokeVoidAsync("registerEscHandler", _dotNetRef);
         await _jsModule.InvokeVoidAsync("setScoreboardActive", true);
+        await _jsModule.InvokeVoidAsync("initVoiceUnlock");
 
         var savedVoice = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-voice");
         _voiceEnabled = savedVoice == "true";
