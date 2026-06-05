@@ -1,4 +1,19 @@
 let _handler = null;
+let _voiceEnabled = false;
+let _voiceRate = 0.9;
+
+export function setVoiceEnabled(enabled) {
+    _voiceEnabled = enabled;
+}
+
+export function announceScore(text) {
+    if (!_voiceEnabled) return;
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = _voiceRate;
+    window.speechSynthesis.speak(utt);
+}
 
 export function registerEscHandler(dotNetRef) {
     unregisterEscHandler();

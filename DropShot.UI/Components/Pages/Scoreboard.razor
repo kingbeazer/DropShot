@@ -59,6 +59,13 @@
                     <MudSelectItem T="string" Value=@("wimbledon")>Wimbledon</MudSelectItem>
                 </MudSelect>
             </div>
+            <MudTooltip Text="@(_voiceEnabled ? "Mute voice announcements" : "Enable voice announcements")">
+                <MudIconButton Icon="@(_voiceEnabled ? Icons.Material.Filled.VolumeUp : Icons.Material.Filled.VolumeOff)"
+                               aria-label="@(_voiceEnabled ? "Mute voice announcements" : "Enable voice announcements")"
+                               Color="@(_voiceEnabled ? Color.Primary : Color.Default)"
+                               OnClick="ToggleVoiceAsync"
+                               Size="Size.Large" />
+            </MudTooltip>
         </div>
     }
 
@@ -140,6 +147,7 @@
     private string _selectedLayout = "default";
 
     private bool _isFullscreen;
+    private bool _voiceEnabled;
     private DotNetObjectReference<Scoreboard>? _dotNetRef;
     private IJSObjectReference? _jsModule;
 
@@ -218,6 +226,10 @@
         await _jsModule.InvokeVoidAsync("registerEscHandler", _dotNetRef);
         await _jsModule.InvokeVoidAsync("setScoreboardActive", true);
 
+        var savedVoice = await JS.InvokeAsync<string?>("localStorage.getItem", "scoreboard-voice");
+        _voiceEnabled = savedVoice == "true";
+        await _jsModule.InvokeVoidAsync("setVoiceEnabled", _voiceEnabled);
+
         hubConnection = HubFactory.Create();
         hubConnection.On<string, string>("ReceiveMessage", OnReceiveMatchMessageAsync);
         hubConnection.On<int, string, string>("ReceiveDisplayCommand", OnReceiveDisplayCommandAsync);
@@ -253,8 +265,19 @@
             GameState? gameState;
             try { gameState = JsonConvert.DeserializeObject<GameState>(user); }
             catch (JsonException) { return; }
+
             if (gameState != null)
+            {
+                var previous = slot.CurrentScore;
                 slot.CurrentScore = gameState;
+
+                if (_voiceEnabled && _jsModule is not null)
+                {
+                    var announcement = BuildScoreAnnouncement(previous, gameState);
+                    if (!string.IsNullOrEmpty(announcement))
+                        await _jsModule.InvokeVoidAsync("announceScore", announcement);
+                }
+            }
 
             // Reload the cached match whenever the incoming scoreboard names
             // don't match what we have — otherwise a new match on the same
@@ -442,6 +465,14 @@
         }
     }
 
+    private async Task ToggleVoiceAsync()
+    {
+        _voiceEnabled = !_voiceEnabled;
+        await JS.InvokeVoidAsync("localStorage.setItem", "scoreboard-voice", _voiceEnabled ? "true" : "false");
+        if (_jsModule is not null)
+            await _jsModule.InvokeVoidAsync("setVoiceEnabled", _voiceEnabled);
+    }
+
     private Task ToggleFullscreenAsync() =>
         _isFullscreen ? ExitFullscreenAsync() : EnterFullscreenAsync();
 
@@ -515,6 +546,66 @@
         }
 
         return myPts switch { 0 => "0", 1 => "15", 2 => "30", _ => "40" };
+    }
+
+    private static string BuildScoreAnnouncement(GameState prev, GameState next)
+    {
+        var user = string.IsNullOrWhiteSpace(next.UserName) ? "Player one" : next.UserName.Split(' ')[0];
+        var opp  = string.IsNullOrWhiteSpace(next.OpponentName) ? "Player two" : next.OpponentName.Split(' ')[0];
+
+        // Match complete
+        if (next.isComplete && !prev.isComplete)
+        {
+            var winner = next.UserPts > next.OppPts ? user : opp;
+            return $"{winner} wins the match";
+        }
+
+        // New set started (set count increased)
+        int prevSets = prev.SetScores?.Count ?? 0;
+        int nextSets = next.SetScores?.Count ?? 0;
+        if (nextSets > prevSets && nextSets > 0)
+        {
+            var lastSet = next.SetScores![nextSets - 1];
+            var setWinner = lastSet.UserGames > lastSet.OpponentGames ? user : opp;
+            var setsUser = next.SetScores.Count(s => s.UserGames > s.OpponentGames);
+            var setsOpp  = next.SetScores.Count(s => s.OpponentGames > s.UserGames);
+            return $"Game, set, {setWinner}. {setsUser} sets to {setsOpp}";
+        }
+
+        // Game won in current set (games total changed)
+        int prevGames = prev.UserG + prev.OppG;
+        int nextGames = next.UserG + next.OppG;
+        if (nextGames < prevGames || (next.UserG == 0 && next.OppG == 0 && prevGames > 0))
+        {
+            // games reset — a set just finished (handled above) or game won
+        }
+        else if (nextGames > prevGames)
+        {
+            var gameWinner = next.UserG > prev.UserG ? user : opp;
+            return $"Game {gameWinner}. {next.UserG} games to {next.OppG}";
+        }
+
+        // Point scored — announce current point score
+        if (next.UserPts != prev.UserPts || next.OppPts != prev.OppPts || next.DeuceCount != prev.DeuceCount)
+        {
+            if (next.TieBreak)
+                return $"{next.UserPts} {next.OppPts}";
+
+            if (next.DeuceCount > 0)
+            {
+                if (next.UserPts > next.OppPts) return $"Advantage {user}";
+                if (next.OppPts > next.UserPts) return $"Advantage {opp}";
+                return "Deuce";
+            }
+
+            static string Pts(int p) => p switch { 0 => "love", 1 => "fifteen", 2 => "thirty", _ => "forty" };
+            if (next.UserPts == next.OppPts)
+                return next.UserPts == 3 ? "Deuce" : $"{Pts(next.UserPts)} all";
+
+            return $"{Pts(next.UserPts)} {Pts(next.OppPts)}";
+        }
+
+        return string.Empty;
     }
 
     private static string BuildYouTubeEmbedUrl(string url)
