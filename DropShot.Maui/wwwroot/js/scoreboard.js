@@ -29,7 +29,7 @@ export function setVoiceEnabled(enabled) {
 export function announceScore(text) {
     if (!_voiceEnabled) return;
     if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    // Do NOT call cancel() — on iOS it invalidates the speech permission.
     const utt = new SpeechSynthesisUtterance(text);
     utt.rate = _voiceRate;
     window.speechSynthesis.speak(utt);
