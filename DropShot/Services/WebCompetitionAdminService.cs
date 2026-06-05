@@ -93,6 +93,7 @@ public sealed class WebCompetitionAdminService(
                 HostClubCourts: [],
                 Clubs: clubs, RulesSets: rulesSets, Events: events,
                 AllowedPlayerIds: [],
+                CalendarExceptions: [],
                 CanEdit: canCreate,
                 IsSuperAdmin: isSuperAdminCreate);
         }
@@ -125,6 +126,7 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.MatchWindows).ThenInclude(w => w.Division)
             .Include(c => c.Divisions)
             .Include(c => c.AllowedPlayers)
+            .Include(c => c.CalendarExceptions).ThenInclude(e => e.Division)
             .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == id, ct);
@@ -272,6 +274,12 @@ public sealed class WebCompetitionAdminService(
             HostClubCourts: hostClubCourts,
             Clubs: clubs, RulesSets: rulesSets, Events: events,
             AllowedPlayerIds: comp.AllowedPlayers.Select(ap => ap.PlayerId).ToList(),
+            CalendarExceptions: comp.CalendarExceptions
+                .OrderBy(e => e.ExceptionDate)
+                .Select(e => new CompetitionCalendarExceptionDto(
+                    e.CompetitionCalendarExceptionId, e.CompetitionId, e.CompetitionDivisionId,
+                    e.Division?.Name, e.ExceptionDate, e.Note))
+                .ToList(),
             CanEdit: canEdit,
             IsSuperAdmin: isSuperAdmin,
             Description: comp.Description);
@@ -2594,5 +2602,39 @@ public sealed class WebCompetitionAdminService(
         db.CompetitionMatchWindows.AddRange(toAdd);
         await db.SaveChangesAsync(ct);
         return toAdd.Count;
+    }
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    public async Task<int> AddCalendarExceptionAsync(
+        int competitionId, SaveCalendarExceptionRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        var entry = new CompetitionCalendarException
+        {
+            CompetitionId        = competitionId,
+            CompetitionDivisionId = request.CompetitionDivisionId,
+            ExceptionDate        = request.ExceptionDate,
+            Note                 = request.Note?.Trim(),
+        };
+        db.CompetitionCalendarExceptions.Add(entry);
+        await db.SaveChangesAsync(ct);
+        return entry.CompetitionCalendarExceptionId;
+    }
+
+    public async Task DeleteCalendarExceptionAsync(int competitionId, int exceptionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        var entry = await db.CompetitionCalendarExceptions
+            .FirstOrDefaultAsync(e => e.CompetitionCalendarExceptionId == exceptionId
+                                      && e.CompetitionId == competitionId, ct)
+            ?? throw new KeyNotFoundException("Calendar exception not found.");
+
+        db.CompetitionCalendarExceptions.Remove(entry);
+        await db.SaveChangesAsync(ct);
     }
 }

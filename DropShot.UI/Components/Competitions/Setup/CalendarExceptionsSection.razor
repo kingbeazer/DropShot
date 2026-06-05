@@ -1,0 +1,227 @@
+@using DropShot.Shared.Dtos
+
+<MudPaper id="section-calendar-exceptions" Class="pa-4 mb-4 setup-section" Elevation="0"
+     Style="background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: white;">
+    <MudText Typo="Typo.h6" Class="mb-1">Calendar Exceptions</MudText>
+    <MudText Typo="Typo.caption" Style="opacity:0.8" Class="mb-3">
+        Dates excluded from auto-scheduling. Competition-wide exceptions block all divisions; division-scoped exceptions only block that division.
+    </MudText>
+
+    @* ── Add form ───────────────────────────────────────────────────────── *@
+    <MudGrid Spacing="1" Class="mb-3">
+        <MudItem xs="12" sm="3">
+            <MudDatePicker Date="_newDate" DateChanged="@(v => _newDate = v)"
+                           Label="Exception date" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           DateFormat="dd/MM/yyyy" />
+        </MudItem>
+        @if (Divisions.Count > 0)
+        {
+            <MudItem xs="12" sm="3">
+                <MudSelect T="int?" @bind-Value="_newDivisionId" Label="Division (blank = all)"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                    @foreach (var d in Divisions.OrderBy(d => d.Rank))
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)d.CompetitionDivisionId)">@d.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        }
+        <MudItem xs="12" sm="@(Divisions.Count > 0 ? 4 : 6)">
+            <MudTextField T="string" @bind-Value="_newNote" Label="Note (optional)"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="200" />
+        </MudItem>
+        <MudItem xs="12" sm="2" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       Disabled="@(!_newDate.HasValue)"
+                       OnClick="AddExceptionAsync">Add</MudButton>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Suggested dates ────────────────────────────────────────────────── *@
+    @if (_suggestedDates.Count > 0)
+    {
+        <MudText Typo="Typo.caption" Style="opacity:0.7" Class="mb-1">Suggested dates</MudText>
+        <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1" Class="mb-3">
+            @foreach (var s in _suggestedDates)
+            {
+                var alreadyAdded = Exceptions.Any(e =>
+                    e.ExceptionDate == s.Date
+                    && e.CompetitionDivisionId == _newDivisionId);
+                var chipStyle = alreadyAdded ? "cursor:default; opacity:0.5" : "cursor:pointer";
+                <MudTooltip Text="@(alreadyAdded ? "Already added" : $"Add {s.Date:dd MMM yyyy}")">
+                    <MudChip T="string" Label="true" Size="Size.Small"
+                             Variant="@(alreadyAdded ? Variant.Text : Variant.Outlined)"
+                             Color="@(alreadyAdded ? Color.Default : Color.Primary)"
+                             Style="@chipStyle"
+                             OnClick="@(alreadyAdded ? (Func<Task>?)null : () => QuickAddAsync(s.Date, s.Label))">
+                        @s.Label (@s.Date.ToString("d MMM"))
+                    </MudChip>
+                </MudTooltip>
+            }
+        </MudStack>
+    }
+
+    @* ── Existing exceptions table ──────────────────────────────────────── *@
+    @if (Exceptions.Count > 0)
+    {
+        <MudSimpleTable Dense="true">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Applies to</th>
+                    <th>Note</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var ex in Exceptions.OrderBy(e => e.CompetitionDivisionId.HasValue).ThenBy(e => e.ExceptionDate))
+                {
+                    <tr>
+                        <td>@ex.ExceptionDate.ToString("ddd dd MMM yyyy")</td>
+                        <td>
+                            @if (ex.CompetitionDivisionId.HasValue)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@(ex.DivisionName ?? "Division")</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Info">All divisions</MudChip>
+                            }
+                        </td>
+                        <td style="opacity:0.8">@ex.Note</td>
+                        <td>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => OnDelete.InvokeAsync(ex))" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    }
+    else
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            No calendar exceptions defined — auto-schedule will not skip any specific dates.
+        </MudText>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionCalendarExceptionDto> Exceptions { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionDivisionDto> Divisions { get; set; } = [];
+    [Parameter] public DateTime? CompetitionStartDate { get; set; }
+    [Parameter] public DateTime? CompetitionEndDate { get; set; }
+    [Parameter] public EventCallback<SaveCalendarExceptionRequest> OnAdd { get; set; }
+    [Parameter] public EventCallback<CompetitionCalendarExceptionDto> OnDelete { get; set; }
+
+    private DateTime? _newDate;
+    private int? _newDivisionId;
+    private string _newNote = "";
+
+    private record SuggestedDate(DateOnly Date, string Label);
+    private List<SuggestedDate> _suggestedDates = [];
+
+    protected override void OnParametersSet() => RebuildSuggestions();
+
+    private void RebuildSuggestions()
+    {
+        var startYear = (CompetitionStartDate ?? DateTime.Today).Year;
+        var endYear   = (CompetitionEndDate   ?? CompetitionStartDate ?? DateTime.Today).Year;
+
+        var result = new List<SuggestedDate>();
+        for (var y = startYear; y <= endYear; y++)
+            result.AddRange(GetSuggestionsForYear(y));
+
+        _suggestedDates = result
+            .OrderBy(s => s.Date)
+            .DistinctBy(s => s.Date)
+            .ToList();
+    }
+
+    private static IEnumerable<SuggestedDate> GetSuggestionsForYear(int y)
+    {
+        var easter = EasterSunday(y);
+        yield return new(new DateOnly(y, 1, 1),   "New Year's Day");
+        yield return new(easter.AddDays(-2),       "Good Friday");
+        yield return new(easter,                   "Easter Sunday");
+        yield return new(easter.AddDays(1),        "Easter Monday");
+        yield return new(MotheringSunday(easter),  "Mothering Sunday");
+        yield return new(EarlyMayBankHoliday(y),  "Early May BH");
+        yield return new(SpringBankHoliday(y),    "Spring Bank Holiday");
+        yield return new(FathersDay(y),            "Father's Day");
+        yield return new(SummerBankHoliday(y),    "Summer Bank Holiday");
+        yield return new(new DateOnly(y, 12, 24),  "Christmas Eve");
+        yield return new(new DateOnly(y, 12, 25),  "Christmas Day");
+        yield return new(new DateOnly(y, 12, 26),  "Boxing Day");
+        yield return new(new DateOnly(y, 12, 31),  "New Year's Eve");
+    }
+
+    private async Task AddExceptionAsync()
+    {
+        if (!_newDate.HasValue) return;
+        await OnAdd.InvokeAsync(new SaveCalendarExceptionRequest(
+            DateOnly.FromDateTime(_newDate.Value),
+            string.IsNullOrWhiteSpace(_newNote) ? null : _newNote.Trim(),
+            _newDivisionId));
+        _newDate = null;
+        _newNote = "";
+    }
+
+    private async Task QuickAddAsync(DateOnly date, string label)
+    {
+        await OnAdd.InvokeAsync(new SaveCalendarExceptionRequest(
+            date, label, _newDivisionId));
+    }
+
+    // ── Holiday calculators ────────────────────────────────────────────────
+
+    private static DateOnly EasterSunday(int y)
+    {
+        int a = y % 19, b = y / 100, c = y % 100;
+        int d = b / 4, e = b % 4, f = (b + 8) / 25;
+        int g = (b - f + 1) / 3;
+        int h = (19 * a + b - d - g + 15) % 30;
+        int i = c / 4, k = c % 4;
+        int l = (32 + 2 * e + 2 * i - h - k) % 7;
+        int m = (a + 11 * h + 22 * l) / 451;
+        int month = (h + l - 7 * m + 114) / 31;
+        int day   = ((h + l - 7 * m + 114) % 31) + 1;
+        return new DateOnly(y, month, day);
+    }
+
+    // Mothering Sunday = 3 weeks before Easter (the 4th Sunday of Lent)
+    private static DateOnly MotheringSunday(DateOnly easter) => easter.AddDays(-21);
+
+    // First Monday in May
+    private static DateOnly EarlyMayBankHoliday(int y)
+    {
+        var d = new DateOnly(y, 5, 1);
+        while (d.DayOfWeek != DayOfWeek.Monday) d = d.AddDays(1);
+        return d;
+    }
+
+    // Last Monday in May
+    private static DateOnly SpringBankHoliday(int y)
+    {
+        var d = new DateOnly(y, 5, 31);
+        while (d.DayOfWeek != DayOfWeek.Monday) d = d.AddDays(-1);
+        return d;
+    }
+
+    // 3rd Sunday in June
+    private static DateOnly FathersDay(int y)
+    {
+        var d = new DateOnly(y, 6, 1);
+        while (d.DayOfWeek != DayOfWeek.Sunday) d = d.AddDays(1);
+        return d.AddDays(14); // first Sunday + 2 weeks = 3rd Sunday
+    }
+
+    // Last Monday in August
+    private static DateOnly SummerBankHoliday(int y)
+    {
+        var d = new DateOnly(y, 8, 31);
+        while (d.DayOfWeek != DayOfWeek.Monday) d = d.AddDays(-1);
+        return d;
+    }
+}

@@ -225,6 +225,32 @@
                         }
                     }
 
+                    @* Calendar exceptions sub-section *@
+                    @if (CalendarExceptions.Count > 0 || true)
+                    {
+                        var divExceptions = CalendarExceptions
+                            .Where(e => e.CompetitionDivisionId == divId)
+                            .OrderBy(e => e.ExceptionDate)
+                            .ToList();
+                        if (divExceptions.Count > 0)
+                        {
+                            <MudDivider Class="my-3" />
+                            <MudText Typo="Typo.subtitle1" Class="mb-1">Calendar Exceptions</MudText>
+                            <MudText Typo="Typo.caption" Style="opacity:0.7" Class="mb-2">
+                                Dates excluded from auto-scheduling for this division only. Competition-wide exceptions are managed in the Calendar Exceptions section.
+                            </MudText>
+                            <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
+                                @foreach (var ex in divExceptions)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                             OnClose="@(() => OnDeleteCalendarException.InvokeAsync(ex))">
+                                        @ex.ExceptionDate.ToString("ddd d MMM yyyy")@(ex.Note != null ? $" ({ex.Note})" : "")
+                                    </MudChip>
+                                }
+                            </MudStack>
+                        }
+                    }
+
                     @* Match windows sub-section *@
                     <MudDivider Class="my-3" />
                     <MudText Typo="Typo.subtitle1" Class="mb-2">Match Windows</MudText>
@@ -374,6 +400,7 @@
     [Parameter, EditorRequired] public IReadOnlyList<CompetitionTeamDto> Teams { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<CompetitionParticipantDto> Participants { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<CompetitionMatchWindowDto> MatchWindows { get; set; } = [];
+    [Parameter] public IReadOnlyList<CompetitionCalendarExceptionDto> CalendarExceptions { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<CourtDto> Courts { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<CompetitionSeedSourceDto> SeedSourceCandidates { get; set; } = [];
     [Parameter] public CompetitionFormat? Format { get; set; }
@@ -428,6 +455,7 @@
     [Parameter] public EventCallback<CompetitionMatchWindowDto> OnCopyDivisionMatchWindowToForm { get; set; }
     [Parameter] public EventCallback<CompetitionMatchWindowDto> OnEditDivisionMatchWindow { get; set; }
     [Parameter] public EventCallback<CompetitionMatchWindowDto> OnDeleteMatchWindow { get; set; }
+    [Parameter] public EventCallback<CompetitionCalendarExceptionDto> OnDeleteCalendarException { get; set; }
     [Parameter] public EventCallback<(CompetitionTeamDto Team, int? PlayerId)> OnAssignCaptain { get; set; }
     [Parameter] public EventCallback<CompetitionTeamDto> OnValidateTeam { get; set; }
     [Parameter] public EventCallback<CompetitionTeamDto> OnOpenEditTeamDialog { get; set; }

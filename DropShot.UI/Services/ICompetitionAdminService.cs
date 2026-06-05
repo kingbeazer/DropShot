@@ -380,4 +380,17 @@ public interface ICompetitionAdminService
     /// </summary>
     Task<int> ImportMatchWindowsFromTemplateAsync(
         int competitionId, ImportMatchWindowsFromTemplateRequest request, CancellationToken ct = default);
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Add a calendar exception date to exclude from auto-scheduling. When
+    /// <see cref="SaveCalendarExceptionRequest.CompetitionDivisionId"/> is null
+    /// the exception applies competition-wide; when set it is division-scoped.
+    /// Returns the new exception's id.
+    /// </summary>
+    Task<int> AddCalendarExceptionAsync(
+        int competitionId, SaveCalendarExceptionRequest request, CancellationToken ct = default);
+
+    Task DeleteCalendarExceptionAsync(int competitionId, int exceptionId, CancellationToken ct = default);
 }

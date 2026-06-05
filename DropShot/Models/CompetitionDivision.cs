@@ -18,4 +18,5 @@ public class CompetitionDivision
     public Competition Competition { get; set; } = null!;
     public ICollection<CompetitionParticipant> Participants { get; set; } = [];
     public ICollection<CompetitionTeam> Teams { get; set; } = [];
+    public ICollection<CompetitionCalendarException> CalendarExceptions { get; set; } = [];
 }

@@ -618,4 +618,24 @@ public class CompetitionsAdminController(
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    [HttpPost("{id:int}/calendar-exceptions")]
+    public async Task<ActionResult<int>> AddCalendarException(
+        int id, [FromBody] SaveCalendarExceptionRequest req, CancellationToken ct)
+    {
+        try { return await admin.AddCalendarExceptionAsync(id, req, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpDelete("{id:int}/calendar-exceptions/{exceptionId:int}")]
+    public async Task<IActionResult> DeleteCalendarException(int id, int exceptionId, CancellationToken ct)
+    {
+        try { await admin.DeleteCalendarExceptionAsync(id, exceptionId, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
 }
