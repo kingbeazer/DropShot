@@ -121,6 +121,7 @@ namespace DropShot.Models
         public ICollection<CompetitionAdmin> Admins { get; set; } = [];
         public ICollection<CourtPair> CourtPairs { get; set; } = [];
         public ICollection<CompetitionAllowedPlayer> AllowedPlayers { get; set; } = [];
+        public ICollection<CompetitionCalendarException> CalendarExceptions { get; set; } = [];
         public CompetitionRubberTemplate? RubberTemplate { get; set; }
     }
 }

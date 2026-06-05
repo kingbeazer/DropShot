@@ -515,6 +515,15 @@ else
                     OnAutoGenerate="AutoGenerateMatchWindowsAsync" />
             }
 
+            @* ── Calendar Exceptions ──────────────────────────── *@
+            <CalendarExceptionsSection
+                Exceptions="_calendarExceptions"
+                Divisions="_divisions"
+                CompetitionStartDate="Model.StartDateDt"
+                CompetitionEndDate="Model.EndDateDt"
+                OnAdd="AddCalendarExceptionAsync"
+                OnDelete="DeleteCalendarExceptionAsync" />
+
             @* ── Rubber Template ─────────────────────────────── *@
             @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
             {
@@ -613,6 +622,8 @@ else
                     OnCopyDivisionMatchWindowToForm="CopyDivisionMatchWindowToForm"
                     OnEditDivisionMatchWindow="EditDivisionMatchWindow"
                     OnDeleteMatchWindow="DeleteMatchWindow"
+                    CalendarExceptions="_calendarExceptions"
+                    OnDeleteCalendarException="DeleteCalendarExceptionAsync"
                     OnAssignCaptain="@((args) => AssignCaptain(args.Team, args.PlayerId))"
                     OnValidateTeam="ValidateTeam"
                     OnOpenEditTeamDialog="OpenEditTeamDialog"
@@ -2198,6 +2209,9 @@ else
     private List<ClubSchedulingTemplateDto> _clubTemplates = [];
     private int? _selectedTemplateId;
 
+    // Calendar exceptions
+    private List<CompetitionCalendarExceptionDto> _calendarExceptions = [];
+
     // Competition templates
     private List<CompetitionTemplateDto> _competitionTemplates = [];
     private int? _selectedCompetitionTemplateId;
@@ -2472,6 +2486,7 @@ else
             _teams = view.Teams.ToList();
             _divisions = view.Divisions.ToList();
             _matchWindows = view.MatchWindows.ToList();
+            _calendarExceptions = view.CalendarExceptions.ToList();
             _seedSourceCandidates = view.SeedSourceCandidates.ToList();
             _courtPairs = view.CourtPairs.ToList();
             _courts = view.HostClubCourts.ToList();
@@ -2804,6 +2819,7 @@ else
         _teams = view.Teams.ToList();
         _divisions = view.Divisions.ToList();
         _matchWindows = view.MatchWindows.ToList();
+        _calendarExceptions = view.CalendarExceptions.ToList();
         _courtPairs = view.CourtPairs.ToList();
         _competitionAdmins = view.Admins.ToList();
         _isStarted = view.IsStarted;
@@ -4447,6 +4463,39 @@ else
             SiteAlerts.Add("All windows from that template are already present.", Severity.Info);
         else
             SiteAlerts.Add($"Imported {imported} window(s) from template.", Severity.Success);
+    }
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    private async Task AddCalendarExceptionAsync(SaveCalendarExceptionRequest request)
+    {
+        try
+        {
+            var id = await Admin.AddCalendarExceptionAsync(Id, request);
+            var divisionName = request.CompetitionDivisionId.HasValue
+                ? _divisions.FirstOrDefault(d => d.CompetitionDivisionId == request.CompetitionDivisionId.Value)?.Name
+                : null;
+            _calendarExceptions.Add(new CompetitionCalendarExceptionDto(
+                id, Id, request.CompetitionDivisionId, divisionName,
+                request.ExceptionDate, request.Note));
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add($"Failed to add exception: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteCalendarExceptionAsync(CompetitionCalendarExceptionDto exception)
+    {
+        try
+        {
+            await Admin.DeleteCalendarExceptionAsync(Id, exception.CompetitionCalendarExceptionId);
+            _calendarExceptions.Remove(exception);
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add($"Failed to delete exception: {ex.Message}", Severity.Error);
+        }
     }
 
     // ── Competition Templates ────────────────────────────────────────────────

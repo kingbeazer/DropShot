@@ -70,9 +70,18 @@ public record CompetitionEditDto(
     IReadOnlyList<RulesSetDto> RulesSets,
     IReadOnlyList<EventDto> Events,
     IReadOnlyList<int> AllowedPlayerIds,
+    IReadOnlyList<CompetitionCalendarExceptionDto> CalendarExceptions,
     bool CanEdit,
     bool IsSuperAdmin,
     string? Description = null);
+
+public record CompetitionCalendarExceptionDto(
+    int CompetitionCalendarExceptionId,
+    int CompetitionId,
+    int? CompetitionDivisionId,
+    string? DivisionName,
+    DateOnly ExceptionDate,
+    string? Note);
 
 public record CompetitionMatchWindowDto(
     int CompetitionMatchWindowId,
@@ -374,4 +383,7 @@ public record ConfirmFixtureAssignmentResultDto(
     bool IsValid,
     IReadOnlyList<string> Violations);
 
-
+public record SaveCalendarExceptionRequest(
+    DateOnly ExceptionDate,
+    string? Note,
+    int? CompetitionDivisionId);

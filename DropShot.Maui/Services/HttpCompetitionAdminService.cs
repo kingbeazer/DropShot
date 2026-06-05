@@ -586,4 +586,26 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
     }
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    public async Task<int> AddCalendarExceptionAsync(
+        int competitionId, SaveCalendarExceptionRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/calendar-exceptions", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to add calendar exception." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task DeleteCalendarExceptionAsync(int competitionId, int exceptionId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync(
+            $"api/competitions/admin/{competitionId}/calendar-exceptions/{exceptionId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }

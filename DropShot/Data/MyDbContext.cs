@@ -47,6 +47,7 @@ namespace DropShot.Data
         public DbSet<PlayerRatingSnapshot> PlayerRatingSnapshots { get; set; }
         public DbSet<LadderInactivityDecay> LadderInactivityDecays { get; set; }
         public DbSet<CompetitionEntryConsent> CompetitionEntryConsents { get; set; }
+        public DbSet<CompetitionCalendarException> CompetitionCalendarExceptions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -715,6 +716,24 @@ namespace DropShot.Data
 
                 // Hot path: "any active consent row for (competition, player)?"
                 entity.HasIndex(c => new { c.CompetitionId, c.PlayerId, c.WithdrawnUtc });
+            });
+
+            // ── CompetitionCalendarException ────────────────────────────────────
+            builder.Entity<CompetitionCalendarException>(entity =>
+            {
+                entity.Property(e => e.Note).HasMaxLength(200);
+                entity.HasIndex(e => new { e.CompetitionId, e.CompetitionDivisionId, e.ExceptionDate })
+                      .IsUnique();
+
+                entity.HasOne(e => e.Competition)
+                      .WithMany(c => c.CalendarExceptions)
+                      .HasForeignKey(e => e.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Division)
+                      .WithMany(d => d.CalendarExceptions)
+                      .HasForeignKey(e => e.CompetitionDivisionId)
+                      .OnDelete(DeleteBehavior.NoAction);
             });
 
             // ── RoleSwitchLog ───────────────────────────────────────────────────
