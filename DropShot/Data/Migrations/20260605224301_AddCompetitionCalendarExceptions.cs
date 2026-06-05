@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -26,17 +26,22 @@ namespace DropShot.Data.Migrations
                 {
                     table.PrimaryKey("PK_CompetitionCalendarExceptions", x => x.CompetitionCalendarExceptionId);
                     table.ForeignKey(
+                        name: "FK_CompetitionCalendarExceptions_CompetitionDivisions_CompetitionDivisionId",
+                        column: x => x.CompetitionDivisionId,
+                        principalTable: "CompetitionDivisions",
+                        principalColumn: "CompetitionDivisionId");
+                    table.ForeignKey(
                         name: "FK_CompetitionCalendarExceptions_Competition_CompetitionId",
                         column: x => x.CompetitionId,
                         principalTable: "Competition",
                         principalColumn: "CompetitionID",
                         onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_CompetitionCalendarExceptions_CompetitionDivisions_CompetitionDivisionId",
-                        column: x => x.CompetitionDivisionId,
-                        principalTable: "CompetitionDivisions",
-                        principalColumn: "CompetitionDivisionId");
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CompetitionCalendarExceptions_CompetitionDivisionId",
+                table: "CompetitionCalendarExceptions",
+                column: "CompetitionDivisionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CompetitionCalendarExceptions_CompetitionId_CompetitionDivisionId_ExceptionDate",
@@ -44,11 +49,6 @@ namespace DropShot.Data.Migrations
                 columns: new[] { "CompetitionId", "CompetitionDivisionId", "ExceptionDate" },
                 unique: true,
                 filter: "[CompetitionDivisionId] IS NOT NULL");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CompetitionCalendarExceptions_CompetitionDivisionId",
-                table: "CompetitionCalendarExceptions",
-                column: "CompetitionDivisionId");
         }
 
         /// <inheritdoc />
