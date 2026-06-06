@@ -435,11 +435,11 @@ else
                              Summary="@MiscSummary()"
                              OnEdit="@(() => GoToStep(8))" />
             }
-            else if (_currentStep == 8 && !_savedCompetitionId.HasValue)
+            else if (_currentStep == 8)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Misc settings</MudText>
-                    @StepIntro("Fine controls — minimum gap between a player's matches when auto-scheduling, and whether results need an admin to verify them before counting toward the standings. Clicking Save creates the competition; the optional setup steps that follow apply to that saved competition.")
+                    @StepIntro("Fine controls — minimum gap between a player's matches when auto-scheduling, and whether results need an admin to verify them before counting toward the standings.")
 
                     <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Minimum days between matches</MudText>
                     <MudText Typo="Typo.caption" Class="mb-2" Style="opacity:0.75">
@@ -458,49 +458,12 @@ else
                         <MudAlert Severity="Severity.Error" Class="mt-3">@_serverError</MudAlert>
                     }
 
-                    <div class="d-flex justify-space-between mt-4">
-                        <MudButton Variant="Variant.Text" Color="Color.Default"
-                                   StartIcon="@Icons.Material.Filled.ArrowBack"
-                                   Disabled="@_isSaving"
-                                   OnClick="GoBack">Back</MudButton>
-                        <MudStack Row="true" Spacing="2">
-                            <MudButton Variant="Variant.Outlined" Color="Color.Default"
-                                       Disabled="@_isSaving"
-                                       OnClick="@(() => Nav.NavigateTo("/Competitions"))">Cancel</MudButton>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                       EndIcon="@Icons.Material.Filled.ArrowForward"
-                                       Disabled="@_isSaving"
-                                       OnClick="CreateAsync">
-                                @if (_isSaving)
-                                {
-                                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
-                                }
-                                Next
-                            </MudButton>
-                        </MudStack>
-                    </div>
+                    @StepActions(canBack: true, advance: TryAdvance)
                 </MudPaper>
             }
 
-            @* ── Step 8 post-save: shown when navigating back from post-save steps ── *@
-            @if (_currentStep == 8 && _savedCompetitionId.HasValue)
-            {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Misc settings</MudText>
-                    @StepIntro("Competition already saved. Click Next to continue to the optional setup steps.")
-                    <div class="d-flex justify-space-between mt-4">
-                        <MudButton Variant="Variant.Text" Color="Color.Default"
-                                   StartIcon="@Icons.Material.Filled.ArrowBack"
-                                   OnClick="GoBack">Back</MudButton>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                   EndIcon="@Icons.Material.Filled.ArrowForward"
-                                   OnClick="TryAdvance">Next</MudButton>
-                    </div>
-                </MudPaper>
-            }
-
-            @* ── Step 9: Admins (optional, post-save) ─────────── *@
-            @if (_currentStep == StepAdmins && _savedCompetitionId.HasValue)
+            @* ── Step 9: Admins (optional) ─────────── *@
+            @if (_currentStep == StepAdmins)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Competition admins (optional)</MudText>
@@ -510,24 +473,23 @@ else
                         <MudTextField T="string" @bind-Value="_newAdminEmail" Label="User email"
                                       Variant="Variant.Outlined" Style="max-width:300px" Margin="Margin.Dense" />
                         <MudButton Variant="Variant.Outlined" Size="Size.Small"
-                                   Disabled="@(string.IsNullOrWhiteSpace(_newAdminEmail) || _stepBusy)"
-                                   OnClick="AddWizardAdminAsync">Add admin</MudButton>
+                                   Disabled="@string.IsNullOrWhiteSpace(_newAdminEmail)"
+                                   OnClick="AddWizardAdmin">Add admin</MudButton>
                     </MudStack>
 
-                    @if (_addedAdmins.Count > 0)
+                    @if (_pendingAdminEmails.Count > 0)
                     {
                         <MudSimpleTable Dense="true" Class="mt-3">
                             <thead><tr><th>User</th><th></th></tr></thead>
                             <tbody>
-                                @foreach (var a in _addedAdmins)
+                                @foreach (var email in _pendingAdminEmails.ToList())
                                 {
                                     <tr>
-                                        <td>@a.UserEmail</td>
+                                        <td>@email</td>
                                         <td>
                                             <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                                            Size="Size.Small" Color="Color.Error"
-                                                           Disabled="@_stepBusy"
-                                                           OnClick="@(() => RemoveWizardAdminAsync(a))" />
+                                                           OnClick="@(() => _pendingAdminEmails.Remove(email))" />
                                         </td>
                                     </tr>
                                 }
@@ -540,7 +502,7 @@ else
             }
 
             @* ── Step 10: Stages (optional) ─────────────────────── *@
-            @if (_currentStep == StepStages && _savedCompetitionId.HasValue)
+            @if (_currentStep == StepStages)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Stages (optional)</MudText>
@@ -552,26 +514,16 @@ else
                             var selected = _selectedStages.Contains(t);
                             <MudCheckBox T="bool" Value="@selected"
                                          ValueChanged="@((bool v) => ToggleStage(t, v))"
-                                         Disabled="@_stepBusy"
                                          Label="@StageDisplayLabel(t)" />
                         }
                     </MudStack>
 
-                    <div class="d-flex justify-space-between mt-4">
-                        <MudButton Variant="Variant.Text" Color="Color.Default"
-                                   StartIcon="@Icons.Material.Filled.ArrowBack"
-                                   Disabled="@_stepBusy"
-                                   OnClick="GoBack">Back</MudButton>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                   EndIcon="@Icons.Material.Filled.ArrowForward"
-                                   Disabled="@_stepBusy"
-                                   OnClick="SaveStagesAndAdvanceAsync">Next</MudButton>
-                    </div>
+                    @StepActions(canBack: true, advance: SaveStagesAndAdvance)
                 </MudPaper>
             }
 
             @* ── Step 11: Rubber template (optional, TeamMatch only) ──── *@
-            @if (_currentStep == StepRubber && _savedCompetitionId.HasValue)
+            @if (_currentStep == StepRubber)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Rubber template (optional)</MudText>
@@ -581,44 +533,15 @@ else
                     }
                     else
                     {
-                        @StepIntro("Pick a preset describing the rubbers in each fixture (e.g. 1st men's singles, 2nd men's singles, mixed doubles). You can switch presets or build a custom template later.")
-
-                        @if (_rubberPresets.Count == 0)
-                        {
-                            <MudText Typo="Typo.caption" Class="mt-3" Color="Color.Secondary">
-                                No presets are available for this competition.
-                            </MudText>
-                        }
-                        else
-                        {
-                            <MudRadioGroup T="string" Value="_selectedRubberPresetKey"
-                                           ValueChanged="OnRubberPresetChanged"
-                                           Class="mt-3">
-                                <MudStack Spacing="1">
-                                    @foreach (var p in _rubberPresets)
-                                    {
-                                        <MudRadio T="string" Value="@p.Key" Color="Color.Primary">@p.Label</MudRadio>
-                                    }
-                                </MudStack>
-                            </MudRadioGroup>
-                        }
+                        @StepIntro("Rubber template presets are available once the competition has been created. You can apply a preset from the competition page straight after finishing this wizard.")
                     }
 
-                    <div class="d-flex justify-space-between mt-4">
-                        <MudButton Variant="Variant.Text" Color="Color.Default"
-                                   StartIcon="@Icons.Material.Filled.ArrowBack"
-                                   Disabled="@_stepBusy"
-                                   OnClick="GoBack">Back</MudButton>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                   EndIcon="@Icons.Material.Filled.ArrowForward"
-                                   Disabled="@_stepBusy"
-                                   OnClick="SaveRubberPresetAndAdvanceAsync">Next</MudButton>
-                    </div>
+                    @StepActions(canBack: true, advance: TryAdvance)
                 </MudPaper>
             }
 
             @* ── Step 12: Divisions (required when HasDivisions) ── *@
-            @if (_currentStep == StepDivs && _savedCompetitionId.HasValue)
+            @if (_currentStep == StepDivs)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Divisions @(Model.HasDivisions ? "" : "(optional)")</MudText>
@@ -643,8 +566,8 @@ else
                             </MudItem>
                             <MudItem xs="6" sm="3">
                                 <MudButton Variant="Variant.Outlined" Size="Size.Small"
-                                           Disabled="@(string.IsNullOrWhiteSpace(_newDivisionName) || _stepBusy)"
-                                           OnClick="AddWizardDivisionAsync">Add</MudButton>
+                                           Disabled="@string.IsNullOrWhiteSpace(_newDivisionName)"
+                                           OnClick="AddWizardDivision">Add</MudButton>
                             </MudItem>
                         </MudGrid>
 
@@ -673,7 +596,7 @@ else
             }
 
             @* ── Step 13: Calendar exceptions ──────────────────── *@
-            @if (_currentStep == StepCalendar && _savedCompetitionId.HasValue)
+            @if (_currentStep == StepCalendar)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Calendar Exceptions</MudText>
@@ -681,7 +604,7 @@ else
 
                     <CalendarExceptionsSection
                         Exceptions="_wizardCalendarExceptions"
-                        Divisions="_wizardDivisions"
+                        Divisions="@(new List<CompetitionDivisionDto>())"
                         CompetitionStartDate="@(Model.StartDateDt)"
                         CompetitionEndDate="@(Model.EndDateDt)"
                         OnAdd="AddWizardCalendarExceptionAsync"
@@ -692,20 +615,31 @@ else
             }
 
             @* ── Step 14: Finish ───────────────────────────────── *@
-            @if (_currentStep == StepFinish && _savedCompetitionId.HasValue)
+            @if (_currentStep == StepFinish)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">All done</MudText>
-                    @StepIntro("Your competition is ready. Click Finish to open the competition page — from there you can add participants, fixtures, and tweak anything you skipped.")
+                    @StepIntro("Review your choices above, then click Create to save your competition. You'll be taken straight to the competition page where you can add participants and fixtures.")
+
+                    @if (!string.IsNullOrWhiteSpace(_serverError))
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mt-3">@_serverError</MudAlert>
+                    }
 
                     <div class="d-flex justify-space-between mt-4">
                         <MudButton Variant="Variant.Text" Color="Color.Default"
                                    StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   Disabled="@_isSaving"
                                    OnClick="GoBack">Back</MudButton>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                    EndIcon="@Icons.Material.Filled.Check"
-                                   OnClick="@(() => Nav.NavigateTo($"/competition/{_savedCompetitionId}", forceLoad: true))">
-                            Finish &amp; open competition
+                                   Disabled="@_isSaving"
+                                   OnClick="FinishAsync">
+                            @if (_isSaving)
+                            {
+                                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                            }
+                            Create competition
                         </MudButton>
                     </div>
                 </MudPaper>
@@ -750,24 +684,20 @@ else
     private bool _lockHostClub;   // ClubAdmin: field shown but locked to their club
     private bool _hideHostClub;   // Regular/premium user with no clubs: field hidden
 
-    // Post-save state — populated after the user clicks "Save & continue" on
-    // step 9. From this point optional config steps mutate the persisted
-    // competition directly via Admin.*.
-    private int? _savedCompetitionId;
-    private bool _stepBusy;
 
-    // Admins step
+    // Admins step — collected in memory, applied on Finish
     private string _newAdminEmail = "";
-    private List<CompetitionAdminRowDto> _addedAdmins = new();
+    private List<string> _pendingAdminEmails = new();
 
     // Divisions step
     private string _newDivisionName = "";
     private byte _newDivisionRank = 1;
     private List<(int Id, string Name, byte Rank)> _addedDivisions = new();
 
-    // Calendar exceptions step
+    // Calendar exceptions step — collected in memory, applied on Finish.
+    // Placeholder IDs count down from -1 so the delete callback can find the row.
     private List<CompetitionCalendarExceptionDto> _wizardCalendarExceptions = new();
-    private List<CompetitionDivisionDto> _wizardDivisions = new();
+    private int _calendarExceptionPlaceholderId = 0;
 
     // Stages step — checkbox selections persisted on Next. Display order
     // walks the stages chronologically (RR → QF → SF → F); the underlying
@@ -958,10 +888,6 @@ else
             Snackbar.Add("Add at least one division before continuing.", Severity.Warning);
             return;
         }
-        // Populate division list for use in the calendar-exceptions step.
-        _wizardDivisions = _addedDivisions
-            .Select(d => new CompetitionDivisionDto(d.Id, _savedCompetitionId ?? 0, d.Rank, d.Name))
-            .ToList();
         TryAdvance();
     }
 
@@ -983,7 +909,9 @@ else
     private IEnumerable<RulesSetDto> VisibleRulesSets() =>
         Model.HostClubId is null ? [] : _rulesSets.Where(r => r.ClubId == Model.HostClubId.Value);
 
-    private async Task CreateAsync()
+    // Called by the Finish button — saves the competition then applies all
+    // the optional settings collected in steps 9–13.
+    private async Task FinishAsync()
     {
         if (string.IsNullOrWhiteSpace(Model.CompetitionName))
         {
@@ -1010,6 +938,7 @@ else
         _serverError = null;
         try
         {
+            // ── 1. Save the competition ────────────────────────────
             var request = new SaveCompetitionEditRequest(
                 CompetitionName: Model.CompetitionName.Trim(),
                 CompetitionFormat: CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) ?? CompetitionFormat.Singles,
@@ -1047,27 +976,34 @@ else
                 LadderUseMarginOfVictory: Model.LadderUseMarginOfVictory);
 
             var savedId = await Admin.SaveCompetitionAsync(null, request);
-            _savedCompetitionId = savedId;
-            _highWaterMark = Math.Max(_highWaterMark, _currentStep);
-            Snackbar.Add("Competition created.", Severity.Success);
 
-            // Preload rubber presets so the rubber-template step has something
-            // to show without an extra wait when the user lands on it.
-            if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) == CompetitionFormat.TeamMatch)
+            // ── 2. Apply optional collected settings ───────────────
+            if (_selectedStages.Count > 0)
             {
-                try
-                {
-                    var rt = await Admin.LoadRubberTemplateStateAsync(savedId);
-                    _rubberPresets = rt.AvailablePresets.ToList();
-                    _selectedRubberPresetKey = rt.SelectedPresetKey;
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning(ex, "Failed to preload rubber presets for new competition {Id}.", savedId);
-                }
+                try { await Admin.ApplyStageFollowUpAsync(savedId, new ApplyStageFollowUpRequest(_selectedStages.ToList())); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Wizard apply stages failed for {Id}.", savedId); }
             }
 
-            TryAdvance();
+            foreach (var email in _pendingAdminEmails)
+            {
+                try { await Admin.AddCompetitionAdminAsync(savedId, new AddCompetitionAdminRequest(email)); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Wizard add admin {Email} failed for {Id}.", email, savedId); Snackbar.Add($"Could not add admin '{email}'.", Severity.Warning); }
+            }
+
+            foreach (var div in _addedDivisions.OrderBy(d => d.Rank))
+            {
+                try { await Admin.SaveDivisionAsync(savedId, null, new SaveDivisionRequest(div.Name, div.Rank)); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Wizard create division {Name} failed for {Id}.", div.Name, savedId); }
+            }
+
+            foreach (var exc in _wizardCalendarExceptions)
+            {
+                try { await Admin.AddCalendarExceptionAsync(savedId, new SaveCalendarExceptionRequest(exc.ExceptionDate, exc.Note, null)); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Wizard add calendar exception failed for {Id}.", savedId); }
+            }
+
+            Snackbar.Add("Competition created.", Severity.Success);
+            Nav.NavigateTo($"/competition/{savedId}", forceLoad: true);
         }
         catch (InvalidOperationException ex) { _serverError = ex.Message; }
         catch (Exception ex)
@@ -1152,7 +1088,7 @@ else
         5  => "Divisions",
         6  => "Match scoring",
         7  => "League scoring",
-        8  => "Misc & save",
+        8  => "Misc settings",
         9  => "Competition admins",
         10 => "Stages",
         11 => "Rubber template",
@@ -1174,117 +1110,48 @@ else
 
     // ── Post-save step handlers ─────────────────────────────────
 
-    private async Task AddWizardAdminAsync()
+    private void AddWizardAdmin()
     {
-        if (_savedCompetitionId is not int compId) return;
         var email = _newAdminEmail.Trim();
         if (string.IsNullOrEmpty(email)) return;
-
-        _stepBusy = true;
-        try
+        if (_pendingAdminEmails.Contains(email, StringComparer.OrdinalIgnoreCase))
         {
-            await Admin.AddCompetitionAdminAsync(compId, new AddCompetitionAdminRequest(email));
-            // Refresh from server so we have the canonical row (UserId, AssignedAt).
-            var view = await Admin.GetCompetitionForEditAsync(compId);
-            if (view is not null) _addedAdmins = view.Admins.ToList();
-            _newAdminEmail = "";
-            Snackbar.Add($"Added admin {email}.", Severity.Success);
+            Snackbar.Add($"'{email}' is already in the list.", Severity.Info);
+            return;
         }
-        catch (KeyNotFoundException)
-        {
-            Snackbar.Add($"No user found for email '{email}'.", Severity.Warning);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Warning);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Wizard add admin failed for {Email}.", email);
-            Snackbar.Add("Failed to add admin.", Severity.Error);
-        }
-        finally { _stepBusy = false; }
+        _pendingAdminEmails.Add(email);
+        _newAdminEmail = "";
     }
 
-    private async Task RemoveWizardAdminAsync(CompetitionAdminRowDto row)
+    private void AddWizardDivision()
     {
-        if (_savedCompetitionId is not int compId) return;
-        _stepBusy = true;
-        try
-        {
-            await Admin.RemoveCompetitionAdminAsync(compId, row.UserId);
-            _addedAdmins.RemoveAll(a => a.UserId == row.UserId);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Wizard remove admin failed for {UserId}.", row.UserId);
-            Snackbar.Add("Failed to remove admin.", Severity.Error);
-        }
-        finally { _stepBusy = false; }
-    }
-
-    private async Task AddWizardDivisionAsync()
-    {
-        if (_savedCompetitionId is not int compId) return;
         var name = _newDivisionName.Trim();
         if (string.IsNullOrEmpty(name)) return;
-
-        _stepBusy = true;
-        try
-        {
-            var id = await Admin.SaveDivisionAsync(compId, null,
-                new SaveDivisionRequest(name, _newDivisionRank));
-            _addedDivisions.Add((id, name, _newDivisionRank));
-            _newDivisionName = "";
-            _newDivisionRank = (byte)(_newDivisionRank + 1);
-            Snackbar.Add($"Added division {name}.", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Wizard add division failed for {Name}.", name);
-            Snackbar.Add("Failed to add division.", Severity.Error);
-        }
-        finally { _stepBusy = false; }
+        // Use a placeholder ID of 0 — the real ID is assigned on Finish.
+        _addedDivisions.Add((0, name, _newDivisionRank));
+        _newDivisionName = "";
+        _newDivisionRank = (byte)(_newDivisionRank + 1);
     }
 
-    private async Task AddWizardCalendarExceptionAsync(SaveCalendarExceptionRequest req)
+    private Task AddWizardCalendarExceptionAsync(SaveCalendarExceptionRequest req)
     {
-        if (_savedCompetitionId is not int compId) return;
-        _stepBusy = true;
-        try
-        {
-            var id = await Admin.AddCalendarExceptionAsync(compId, req);
-            var divName = req.CompetitionDivisionId.HasValue
-                ? _wizardDivisions.FirstOrDefault(d => d.CompetitionDivisionId == req.CompetitionDivisionId)?.Name
-                : null;
-            _wizardCalendarExceptions.Add(new CompetitionCalendarExceptionDto(
-                id, compId, req.CompetitionDivisionId, divName,
-                req.ExceptionDate, req.Note));
-            Snackbar.Add($"Added exception for {req.ExceptionDate:dd MMM yyyy}.", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Wizard add calendar exception failed.");
-            Snackbar.Add("Failed to add exception.", Severity.Error);
-        }
-        finally { _stepBusy = false; }
+        // Use a negative placeholder ID; will be created with real IDs on Finish.
+        var placeholder = new CompetitionCalendarExceptionDto(
+            CompetitionCalendarExceptionId: --_calendarExceptionPlaceholderId,
+            CompetitionId: 0,
+            CompetitionDivisionId: null,
+            DivisionName: null,
+            ExceptionDate: req.ExceptionDate,
+            Note: req.Note);
+        _wizardCalendarExceptions.Add(placeholder);
+        Snackbar.Add($"Added exception for {req.ExceptionDate:dd MMM yyyy}.", Severity.Success);
+        return Task.CompletedTask;
     }
 
-    private async Task DeleteWizardCalendarExceptionAsync(CompetitionCalendarExceptionDto ex)
+    private Task DeleteWizardCalendarExceptionAsync(CompetitionCalendarExceptionDto ex)
     {
-        if (_savedCompetitionId is not int compId) return;
-        _stepBusy = true;
-        try
-        {
-            await Admin.DeleteCalendarExceptionAsync(compId, ex.CompetitionCalendarExceptionId);
-            _wizardCalendarExceptions.RemoveAll(e => e.CompetitionCalendarExceptionId == ex.CompetitionCalendarExceptionId);
-        }
-        catch (Exception e)
-        {
-            Logger.LogError(e, "Wizard delete calendar exception failed.");
-            Snackbar.Add("Failed to remove exception.", Severity.Error);
-        }
-        finally { _stepBusy = false; }
+        _wizardCalendarExceptions.RemoveAll(e => e.CompetitionCalendarExceptionId == ex.CompetitionCalendarExceptionId);
+        return Task.CompletedTask;
     }
 
     private void ToggleStage(StageType t, bool selected)
@@ -1293,56 +1160,11 @@ else
         else _selectedStages.Remove(t);
     }
 
-    private async Task SaveStagesAndAdvanceAsync()
-    {
-        if (_savedCompetitionId is not int compId) { TryAdvance(); return; }
-        if (_selectedStages.Count == 0) { TryAdvance(); return; }
-
-        _stepBusy = true;
-        try
-        {
-            await Admin.ApplyStageFollowUpAsync(compId,
-                new ApplyStageFollowUpRequest(_selectedStages.ToList()));
-            Snackbar.Add($"Added {_selectedStages.Count} stage(s).", Severity.Success);
-            TryAdvance();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Wizard add stages failed.");
-            Snackbar.Add("Failed to add stages.", Severity.Error);
-        }
-        finally { _stepBusy = false; }
-    }
+    private void SaveStagesAndAdvance() => TryAdvance();
 
     private void OnRubberPresetChanged(string value)
     {
         _selectedRubberPresetKey = value;
-    }
-
-    private async Task SaveRubberPresetAndAdvanceAsync()
-    {
-        if (_savedCompetitionId is not int compId) { TryAdvance(); return; }
-        if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) != CompetitionFormat.TeamMatch
-            || string.IsNullOrEmpty(_selectedRubberPresetKey))
-        {
-            TryAdvance();
-            return;
-        }
-
-        _stepBusy = true;
-        try
-        {
-            await Admin.ApplyRubberPresetAsync(compId,
-                new ApplyRubberPresetRequest(_selectedRubberPresetKey));
-            Snackbar.Add("Rubber template applied.", Severity.Success);
-            TryAdvance();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Wizard apply rubber preset failed.");
-            Snackbar.Add("Failed to apply rubber preset.", Severity.Error);
-        }
-        finally { _stepBusy = false; }
     }
 
 
