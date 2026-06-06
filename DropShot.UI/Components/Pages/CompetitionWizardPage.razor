@@ -864,7 +864,8 @@ else
         {
             _pendingScroll = false;
             await JS.InvokeVoidAsync("eval",
-                "var el=document.querySelector('.wizard-step');if(el){window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-80,behavior:'smooth'});}");
+                "var el=document.querySelector('.wizard-step');if(el){window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-110,behavior:'smooth'});}");
+
 
         }
     }
