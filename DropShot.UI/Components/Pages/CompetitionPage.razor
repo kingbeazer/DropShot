@@ -98,6 +98,26 @@ else
                                 Clone
                             </MudButton>
                         </MudTooltip>
+                        <MudTooltip Text="@(_isArchived ? "Unarchive this competition" : "Archive this competition")">
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="@(_isArchived ? Color.Default : Color.Warning)"
+                                       StartIcon="@(_isArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                       Class="competition-action-button"
+                                       OnClick="ToggleArchiveAsync">
+                                @(_isArchived ? "Unarchive" : "Archive")
+                            </MudButton>
+                        </MudTooltip>
+                        @if (_isArchived)
+                        {
+                            <MudTooltip Text="Permanently delete this competition">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                           StartIcon="@Icons.Material.Filled.DeleteForever"
+                                           Class="competition-action-button"
+                                           OnClick="ConfirmDeleteAsync">
+                                    Delete
+                                </MudButton>
+                            </MudTooltip>
+                        }
                     }
                     <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility"
                                Class="competition-action-button"
@@ -2000,6 +2020,7 @@ else
     private bool _canCreateUserComp;
     private bool _authChecked;
     private bool _isSuperAdmin;
+    private bool _isArchived;
     private bool _showSimulateConfirm;
     private bool _simulateRunning;
 
@@ -2445,6 +2466,7 @@ else
         if (IsEdit)
         {
             _isStarted = view.IsStarted;
+            _isArchived = view.IsArchived;
             _nameManuallySet = true; // Existing competition — don't auto-overwrite its name
 
             var (loadedCategory, loadedFormat) = SplitPersistedFormat(
@@ -2612,6 +2634,26 @@ else
     {
         _isStarted = await Admin.ToggleStartedAsync(Id);
         SiteAlerts.Add(_isStarted ? "Competition started." : "Competition stopped.", Severity.Success);
+    }
+
+    private async Task ToggleArchiveAsync()
+    {
+        await Competitions.ToggleArchiveAsync(Id);
+        _isArchived = !_isArchived;
+        SiteAlerts.Add(_isArchived ? "Competition archived." : "Competition unarchived.", Severity.Success);
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        var result = await DialogService.ShowMessageBoxAsync(
+            "Delete competition",
+            "This will permanently delete the competition and all its data. This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (result != true) return;
+
+        await Competitions.DeleteCompetitionAsync(Id);
+        SiteAlerts.Add("Competition deleted.", Severity.Success);
+        Nav.NavigateTo("/competitions");
     }
 
     // ── Add New Entity Helpers ─────────────────────────────────────────────
