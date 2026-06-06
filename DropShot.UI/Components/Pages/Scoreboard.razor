@@ -274,9 +274,14 @@
 
                 if (_voiceEnabled && _jsModule is not null)
                 {
-                    var announcement = BuildScoreAnnouncement(previous, gameState);
-                    if (!string.IsNullOrEmpty(announcement))
-                        await _jsModule.InvokeVoidAsync("announceScore", announcement);
+                    var (text, audioKey, isTiebreak) = BuildScoreAnnouncement(previous, gameState);
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        if (isTiebreak)
+                            await _jsModule.InvokeVoidAsync("announceTiebreak", gameState.UserPts, gameState.OppPts);
+                        else
+                            await _jsModule.InvokeVoidAsync("announceScore", text, audioKey);
+                    }
                 }
             }
 
@@ -549,64 +554,75 @@
         return myPts switch { 0 => "0", 1 => "15", 2 => "30", _ => "40" };
     }
 
-    private static string BuildScoreAnnouncement(GameState prev, GameState next)
+    // Returns (speechText, audioKey, isTiebreak).
+    // audioKey maps to a pre-recorded file in /audio/*.wav used on iOS.
+    private static (string Text, string? AudioKey, bool IsTiebreak) BuildScoreAnnouncement(GameState prev, GameState next)
     {
         var user = string.IsNullOrWhiteSpace(next.UserName) ? "Player one" : next.UserName.Split(' ')[0];
         var opp  = string.IsNullOrWhiteSpace(next.OpponentName) ? "Player two" : next.OpponentName.Split(' ')[0];
 
+        // Determine server/receiver label for pre-recorded audio keys.
+        // "user" in GameState is always the scorer; IsUserServing indicates their role.
+        bool userIsServer = next.IsUserServing;
+        string UserSide(bool userWon) => (userWon == userIsServer) ? "server" : "receiver";
+
         // Match complete
         if (next.isComplete && !prev.isComplete)
         {
-            var winner = next.UserPts > next.OppPts ? user : opp;
-            return $"{winner} wins the match";
+            bool userWon = next.UserPts >= next.OppPts;
+            var winner = userWon ? user : opp;
+            return ($"{winner} wins the match", $"match-{UserSide(userWon)}", false);
         }
 
-        // New set started (set count increased)
+        // New set completed (set count increased)
         int prevSets = prev.SetScores?.Count ?? 0;
         int nextSets = next.SetScores?.Count ?? 0;
         if (nextSets > prevSets && nextSets > 0)
         {
             var lastSet = next.SetScores![nextSets - 1];
-            var setWinner = lastSet.UserGames > lastSet.OpponentGames ? user : opp;
+            bool userWonSet = lastSet.UserGames > lastSet.OpponentGames;
+            var setWinner = userWonSet ? user : opp;
             var setsUser = next.SetScores.Count(s => s.UserGames > s.OpponentGames);
             var setsOpp  = next.SetScores.Count(s => s.OpponentGames > s.UserGames);
-            return $"Game, set, {setWinner}. {setsUser} sets to {setsOpp}";
+            return ($"Game, set, {setWinner}. {setsUser} sets to {setsOpp}", $"set-{UserSide(userWonSet)}", false);
         }
 
-        // Game won in current set (games total changed)
+        // Game won in current set
         int prevGames = prev.UserG + prev.OppG;
         int nextGames = next.UserG + next.OppG;
-        if (nextGames < prevGames || (next.UserG == 0 && next.OppG == 0 && prevGames > 0))
+        if (nextGames > prevGames)
         {
-            // games reset — a set just finished (handled above) or game won
-        }
-        else if (nextGames > prevGames)
-        {
-            var gameWinner = next.UserG > prev.UserG ? user : opp;
-            return $"Game {gameWinner}. {next.UserG} games to {next.OppG}";
+            bool userWonGame = next.UserG > prev.UserG;
+            var gameWinner = userWonGame ? user : opp;
+            return ($"Game {gameWinner}. {next.UserG} games to {next.OppG}", $"game-{UserSide(userWonGame)}", false);
         }
 
-        // Point scored — announce current point score
+        // Point scored
         if (next.UserPts != prev.UserPts || next.OppPts != prev.OppPts || next.DeuceCount != prev.DeuceCount)
         {
             if (next.TieBreak)
-                return $"{next.UserPts} {next.OppPts}";
+                return ($"{next.UserPts} {next.OppPts}", null, true);
 
             if (next.DeuceCount > 0)
             {
-                if (next.UserPts > next.OppPts) return $"Advantage {user}";
-                if (next.OppPts > next.UserPts) return $"Advantage {opp}";
-                return "Deuce";
+                if (next.UserPts > next.OppPts) return ($"Advantage {user}", $"advantage-{UserSide(true)}", false);
+                if (next.OppPts > next.UserPts) return ($"Advantage {opp}", $"advantage-{UserSide(false)}", false);
+                return ("Deuce", "deuce", false);
             }
 
             static string Pts(int p) => p switch { 0 => "love", 1 => "fifteen", 2 => "thirty", _ => "forty" };
             if (next.UserPts == next.OppPts)
-                return next.UserPts == 3 ? "Deuce" : $"{Pts(next.UserPts)} all";
+            {
+                var allText = next.UserPts == 3 ? "Deuce" : $"{Pts(next.UserPts)} all";
+                var allKey  = next.UserPts == 3 ? "deuce" : $"{Pts(next.UserPts)}-all";
+                return (allText, allKey, false);
+            }
 
-            return $"{Pts(next.UserPts)} {Pts(next.OppPts)}";
+            var key = $"{Pts(next.UserPts)}-{Pts(next.OppPts)}";
+            return ($"{Pts(next.UserPts)} {Pts(next.OppPts)}", key, false);
         }
 
-        return string.Empty;
+        return (string.Empty, null, false);
     }
 
     private static string BuildYouTubeEmbedUrl(string url)
