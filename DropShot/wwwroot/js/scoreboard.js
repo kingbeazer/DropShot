@@ -2,6 +2,7 @@ let _handler = null;
 let _voiceEnabled = false;
 let _voiceRate = 0.9;
 let _speechUnlocked = false;
+let _iosKeepalive = null;
 
 function _unlockSpeech() {
     if (_speechUnlocked || !window.speechSynthesis) return;
@@ -11,6 +12,8 @@ function _unlockSpeech() {
     const unlock = new SpeechSynthesisUtterance(' ');
     unlock.volume = 0;
     window.speechSynthesis.speak(unlock);
+    // Resume immediately in case iOS starts the engine in a paused state.
+    window.speechSynthesis.resume();
 }
 
 // Register native capture-phase listeners so the unlock fires synchronously on
@@ -28,17 +31,34 @@ export function initVoiceUnlock() {
 
 export function setVoiceEnabled(enabled) {
     _voiceEnabled = enabled;
-    if (enabled) _unlockSpeech();
+    if (enabled) {
+        _unlockSpeech();
+        // iOS silently pauses speechSynthesis after ~15 s of inactivity.
+        // A periodic pause+resume prevents this without making any sound.
+        if (!_iosKeepalive) {
+            _iosKeepalive = setInterval(() => {
+                if (!window.speechSynthesis || window.speechSynthesis.speaking) return;
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }, 10000);
+        }
+    } else {
+        if (_iosKeepalive) {
+            clearInterval(_iosKeepalive);
+            _iosKeepalive = null;
+        }
+    }
 }
 
 export function announceScore(text) {
     if (!_voiceEnabled) return;
     if (!window.speechSynthesis) return;
-    // Do NOT call cancel() here — on iOS it invalidates the speech permission
-    // and the next speak() call is silently blocked.
     const utt = new SpeechSynthesisUtterance(text);
     utt.rate = _voiceRate;
     window.speechSynthesis.speak(utt);
+    // iOS sometimes starts (or leaves) the engine in a paused state;
+    // resume() kicks it into playing without requiring a new gesture.
+    window.speechSynthesis.resume();
 }
 
 export function registerEscHandler(dotNetRef) {

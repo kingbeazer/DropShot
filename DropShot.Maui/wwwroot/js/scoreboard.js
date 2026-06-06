@@ -2,6 +2,7 @@ let _handler = null;
 let _voiceEnabled = false;
 let _voiceRate = 0.9;
 let _speechUnlocked = false;
+let _iosKeepalive = null;
 
 function _unlockSpeech() {
     if (_speechUnlocked || !window.speechSynthesis) return;
@@ -9,6 +10,7 @@ function _unlockSpeech() {
     const unlock = new SpeechSynthesisUtterance(' ');
     unlock.volume = 0;
     window.speechSynthesis.speak(unlock);
+    window.speechSynthesis.resume();
 }
 
 export function initVoiceUnlock() {
@@ -23,16 +25,30 @@ export function initVoiceUnlock() {
 
 export function setVoiceEnabled(enabled) {
     _voiceEnabled = enabled;
-    if (enabled) _unlockSpeech();
+    if (enabled) {
+        _unlockSpeech();
+        if (!_iosKeepalive) {
+            _iosKeepalive = setInterval(() => {
+                if (!window.speechSynthesis || window.speechSynthesis.speaking) return;
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }, 10000);
+        }
+    } else {
+        if (_iosKeepalive) {
+            clearInterval(_iosKeepalive);
+            _iosKeepalive = null;
+        }
+    }
 }
 
 export function announceScore(text) {
     if (!_voiceEnabled) return;
     if (!window.speechSynthesis) return;
-    // Do NOT call cancel() — on iOS it invalidates the speech permission.
     const utt = new SpeechSynthesisUtterance(text);
     utt.rate = _voiceRate;
     window.speechSynthesis.speak(utt);
+    window.speechSynthesis.resume();
 }
 
 export function registerEscHandler(dotNetRef) {
