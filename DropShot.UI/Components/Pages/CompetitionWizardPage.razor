@@ -46,7 +46,7 @@ else
             }
             else
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Name & Category</MudText>
                     @StepIntro("Category controls who is considered for entry and who will be offered a spot. Male / Female restricts entry based on the competition preference selected at sign-up; Mixed is open to all.")
 
@@ -92,7 +92,7 @@ else
             }
             else if (_currentStep == 1)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Format</MudText>
                     @StepIntro("Singles is 1 vs 1. Doubles is 2 vs 2 fixed pairs. Team is a squad-vs-squad format with multiple rubbers in each fixture.")
 
@@ -166,7 +166,7 @@ else
             }
             else if (_currentStep == 2)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Age options</MudText>
                     @StepIntro("Set the age range for eligible players. Leave either field blank for no upper or lower limit.")
 
@@ -198,7 +198,7 @@ else
             }
             else if (_currentStep == 3)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Rule set</MudText>
                     @StepIntro("Pick the host club (whose courts and admins apply) and an optional rules set that defines defaults like tie-break rules and ball type. Linking the comp to an event is also optional.")
 
@@ -258,7 +258,7 @@ else
             }
             else if (_currentStep == 4)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Dates and participants</MudText>
                     @StepIntro("When the competition runs, when registrations close, and the cap on how many players can join. All dates are optional.")
 
@@ -296,7 +296,7 @@ else
             }
             else if (_currentStep == 5 && !_isLadder)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Split into divisions?</MudText>
                     @StepIntro("Divisions let you tier the field (for example Premier / A / B). Teams only play others in their own division and league tables render per-division. You'll create each division after the competition is saved.")
 
@@ -319,7 +319,7 @@ else
             }
             else if (_currentStep == 6)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Match / rubber scoring</MudText>
                     @StepIntro("How each individual match is scored. For Team competitions, this controls the format of each rubber inside a fixture.")
 
@@ -410,7 +410,7 @@ else
             }
             else if (_currentStep == 7)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">League scoring</MudText>
                     @StepIntro("How standings are calculated across the competition. Win Points rewards results; Sets / Games Won reward dominance in close matches. For Team competitions, sets and games aggregate across every rubber in the fixture.")
 
@@ -437,7 +437,7 @@ else
             }
             else if (_currentStep == 8)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Misc settings</MudText>
                     @StepIntro("Fine controls — minimum gap between a player's matches when auto-scheduling, and whether results need an admin to verify them before counting toward the standings.")
 
@@ -465,7 +465,7 @@ else
             @* ── Step 9: Admins (optional) ─────────── *@
             @if (_currentStep == StepAdmins)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Competition admins (optional)</MudText>
                     @StepIntro("Grant other users admin rights to this competition by their account email. They can edit the competition without needing club-admin access.")
 
@@ -504,7 +504,7 @@ else
             @* ── Step 10: Stages (optional) ─────────────────────── *@
             @if (_currentStep == StepStages)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Stages (optional)</MudText>
                     @StepIntro("Pick the stages this competition runs through, in the order they'll happen. Round Robin schedules everyone against each other; the knockout rounds create direct elimination brackets. You can add more later from the competition page.")
 
@@ -525,7 +525,7 @@ else
             @* ── Step 11: Rubber template (optional, TeamMatch only) ──── *@
             @if (_currentStep == StepRubber)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Rubber template (optional)</MudText>
                     @if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) != CompetitionFormat.TeamMatch)
                     {
@@ -543,7 +543,7 @@ else
             @* ── Step 12: Divisions (required when HasDivisions) ── *@
             @if (_currentStep == StepDivs)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Divisions @(Model.HasDivisions ? "" : "(optional)")</MudText>
                     @if (!Model.HasDivisions)
                     {
@@ -598,7 +598,7 @@ else
             @* ── Step 13: Calendar exceptions ──────────────────── *@
             @if (_currentStep == StepCalendar)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Calendar Exceptions</MudText>
                     @StepIntro("Optionally block specific dates from auto-scheduling — e.g. bank holidays. You can also add or remove exceptions later from the competition page.")
 
@@ -617,7 +617,7 @@ else
             @* ── Step 14: Finish ───────────────────────────────── *@
             @if (_currentStep == StepFinish)
             {
-                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">All done</MudText>
                     @StepIntro("Review your choices above, then click Create to save your competition. You'll be taken straight to the competition page where you can add participants and fixtures.")
 
