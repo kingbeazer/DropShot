@@ -819,9 +819,18 @@ else
     {
         if (_currentStep >= TotalSteps - 1) return;
         _highWaterMark = Math.Max(_highWaterMark, _currentStep);
-        _currentStep++;
-        while (_currentStep < TotalSteps - 1 && !StepApplies(_currentStep))
+        if (_currentStep < _highWaterMark)
+        {
+            // User edited an earlier step — jump straight back to the furthest reached step.
+            _currentStep = _highWaterMark;
+        }
+        else
+        {
             _currentStep++;
+            while (_currentStep < TotalSteps - 1 && !StepApplies(_currentStep))
+                _currentStep++;
+            _highWaterMark = _currentStep;
+        }
         _pendingScroll = true;
     }
 
@@ -830,7 +839,8 @@ else
         if (_pendingScroll)
         {
             _pendingScroll = false;
-            await JS.InvokeVoidAsync("eval", "window.scrollTo(0,0)");
+            await JS.InvokeVoidAsync("eval",
+                "var el=document.querySelector('.wizard-step');if(el){window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-80,behavior:'smooth'});}");
         }
     }
 
