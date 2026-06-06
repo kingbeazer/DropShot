@@ -64,8 +64,26 @@ public sealed class WebCompetitionAdminService(
         if (!competitionId.HasValue || competitionId.Value <= 0)
         {
             // Create-mode payload: lookups + authz flags, no entity data.
+            var principal = await GetCurrentPrincipalAsync();
             var canCreate = await CanEditCompetitionAsync(null, ct);
-            var isSuperAdminCreate = authzService.IsSuperAdmin(await GetCurrentPrincipalAsync());
+            var isSuperAdminCreate = authzService.IsSuperAdmin(principal);
+
+            // ClubAdmins (not full Admin/SuperAdmin) must create competitions under
+            // their own club. Pre-seed HostClubId and restrict the clubs list so the
+            // wizard can lock the field to a read-only display.
+            int? seedHostClubId = null;
+            string? seedHostClubName = null;
+            if (!authzService.IsAdmin(principal))
+            {
+                var adminClubIds = await authzService.GetAdminClubIdsAsync(principal);
+                if (adminClubIds.Count > 0)
+                {
+                    seedHostClubId = adminClubIds[0];
+                    clubs = clubs.Where(c => adminClubIds.Contains(c.ClubId)).ToList();
+                    seedHostClubName = clubs.FirstOrDefault()?.Name;
+                }
+            }
+
             return new CompetitionEditDto(
                 CompetitionId: null,
                 CompetitionName: "",
@@ -73,7 +91,7 @@ public sealed class WebCompetitionAdminService(
                 MaxParticipants: null,
                 StartDate: null, EndDate: null, RegisterByDate: null,
                 MaxAge: null, MinAge: null, EligibleSex: null,
-                RulesSetId: null, HostClubId: null, HostClubName: null,
+                RulesSetId: null, HostClubId: seedHostClubId, HostClubName: seedHostClubName,
                 EventId: null, EventName: null,
                 BestOf: 3, RequireVerification: false, IsArchived: false, IsStarted: false,
                 CreatorUserId: null, IsRestricted: false,

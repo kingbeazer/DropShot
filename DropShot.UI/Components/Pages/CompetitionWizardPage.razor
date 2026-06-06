@@ -523,17 +523,35 @@ else
             }
 
             @* ── Step 11: Rubber template (optional, TeamMatch only) ──── *@
-            @if (_currentStep == StepRubber)
+            @if (_highWaterMark >= StepRubber && _currentStep != StepRubber)
+            {
+                <StepSummary Label="Rubber template"
+                             Icon="@Icons.Material.Filled.TableChart"
+                             AccentColor="#ff9800"
+                             Summary="@(_selectedRubberPresetKey is null ? "No preset (default)" : (_rubberPresets.FirstOrDefault(p => p.Key == _selectedRubberPresetKey)?.Label ?? _selectedRubberPresetKey))"
+                             OnEdit="@(() => GoToStep(StepRubber))" />
+            }
+            else if (_currentStep == StepRubber)
             {
                 <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Rubber template (optional)</MudText>
-                    @if (CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) != CompetitionFormat.TeamMatch)
+                    @StepIntro("Choose a preset to define the rubber order, court assignments, and player roles for this team competition. You can customise it further from the competition page after creation.")
+
+                    <MudSelect T="string?" Label="Preset template" Clearable="true"
+                               Value="_selectedRubberPresetKey"
+                               ValueChanged="@((string? v) => _selectedRubberPresetKey = v)"
+                               Variant="Variant.Outlined" Class="mt-3" Style="max-width:360px">
+                        @foreach (var p in _rubberPresets)
+                        {
+                            <MudSelectItem T="string?" Value="@p.Key">@p.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    @if (_selectedRubberPresetKey is not null)
                     {
-                        @StepIntro("Rubber templates only apply to Team competitions. Click Next to continue.")
-                    }
-                    else
-                    {
-                        @StepIntro("Rubber template presets are available once the competition has been created. You can apply a preset from the competition page straight after finishing this wizard.")
+                        <MudText Typo="Typo.caption" Class="mt-2" Style="opacity:0.75">
+                            Preset will be applied when you click Create competition on the final step.
+                        </MudText>
                     }
 
                     @StepActions(canBack: true, advance: TryAdvance)
@@ -733,6 +751,10 @@ else
             _rulesSets = view.RulesSets.OrderBy(r => r.Name).ToList();
             _events = view.Events.ToList();
 
+            _rubberPresets = RubberTemplateRegistry.AvailablePresets()
+                .Select(p => new RubberPresetDto(p.Key, p.Label))
+                .ToList();
+
             Model = new CompetitionFormModel();
 
             // Same role-aware seeding the existing create flow uses:
@@ -805,7 +827,6 @@ else
             _pendingScroll = false;
             await JS.InvokeVoidAsync("eval",
                 "var el=document.querySelector('.wizard-step');if(el){window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-110,behavior:'smooth'});}");
-
 
         }
     }
@@ -955,7 +976,7 @@ else
                 BestOf: Model.BestOf,
                 RequireVerification: Model.RequireVerification,
                 TeamSize: Model.TeamSize,
-                RubberTemplateKey: null,
+                RubberTemplateKey: _selectedRubberPresetKey,
                 MatchFormat: Model.MatchFormat,
                 NumberOfSets: Model.NumberOfSets,
                 GamesPerSet: Model.GamesPerSet,
