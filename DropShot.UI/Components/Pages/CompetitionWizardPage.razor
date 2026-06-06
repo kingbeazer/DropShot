@@ -620,13 +620,15 @@ else
                     <MudText Typo="Typo.h6" Class="mb-2">Calendar Exceptions</MudText>
                     @StepIntro("Optionally block specific dates from auto-scheduling — e.g. bank holidays. You can also add or remove exceptions later from the competition page.")
 
-                    <CalendarExceptionsSection
-                        Exceptions="_wizardCalendarExceptions"
-                        Divisions="@(new List<CompetitionDivisionDto>())"
-                        CompetitionStartDate="@(Model.StartDateDt)"
-                        CompetitionEndDate="@(Model.EndDateDt)"
-                        OnAdd="AddWizardCalendarExceptionAsync"
-                        OnDelete="DeleteWizardCalendarExceptionAsync" />
+                    <div class="mt-3">
+                        <CalendarExceptionsSection
+                            Exceptions="_wizardCalendarExceptions"
+                            Divisions="@(new List<CompetitionDivisionDto>())"
+                            CompetitionStartDate="@(Model.StartDateDt)"
+                            CompetitionEndDate="@(Model.EndDateDt)"
+                            OnAdd="AddWizardCalendarExceptionAsync"
+                            OnDelete="DeleteWizardCalendarExceptionAsync" />
+                    </div>
 
                     @StepActions(canBack: true, advance: TryAdvance)
                 </MudPaper>
