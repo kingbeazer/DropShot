@@ -44,8 +44,8 @@ else if (_resolutionError != null)
             @if (_context is not null)
             {
                 <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
-                           Href="@($"/competition/{_context.CompetitionId}")">
-                    Back to Competition
+                           OnClick="NavigateBack">
+                    Back
                 </MudButton>
             }
         </MudStack>
@@ -106,11 +106,14 @@ else
                     <span> (Draw)</span>
                 }
             </MudAlert>
+            <MudAlert Severity="Severity.Info" Class="mt-2">
+                Scores are still editable — tap any rubber above to make changes.
+            </MudAlert>
         }
 
         <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
-                   Href="@($"/competition/{_context.CompetitionId}")">
-            Back to Competition
+                   OnClick="NavigateBack">
+            Back
         </MudButton>
     </MudContainer>
 }
@@ -118,6 +121,10 @@ else
 @code {
     [Parameter] public int FixtureId { get; set; }
     [SupplyParameterFromQuery(Name = "edit")] public int? EditMode { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? ReturnUrl { get; set; }
+
+    private void NavigateBack() =>
+        Navigation.NavigateTo(ReturnUrl ?? (_context is not null ? $"/competition/{_context.CompetitionId}" : "/"));
 
     private FixtureRubberContextDto? _context;
     private bool _loading = true;

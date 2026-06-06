@@ -3,7 +3,8 @@ name: Deploy Blazor App to Azure
 on:
   push:
     branches:
-      - main  # or your deployment branch
+      - main
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
