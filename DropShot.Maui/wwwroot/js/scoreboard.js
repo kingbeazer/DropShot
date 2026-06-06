@@ -7,7 +7,7 @@ let _voiceURI = null;       // null = browser default
 const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 // ── Pre-recorded audio (iOS path) ────────────────────────────────────────────
-let _audioUnlocked = false;
+let _audioUnlocked = false;  // true only after AudioContext is confirmed running
 let _audioBuffers = {};
 let _audioCtx = null;
 
@@ -32,7 +32,6 @@ async function _loadAudioBuffers() {
     }));
 }
 
-// Returns the duration (seconds) of the buffer, or 0 if not loaded.
 function _bufferDuration(key) {
     return _audioBuffers[key]?.duration ?? 0;
 }
@@ -40,17 +39,37 @@ function _bufferDuration(key) {
 function _playBuffer(key, whenSeconds) {
     const buf = _audioBuffers[key];
     if (!buf || !_audioCtx) return;
+    // If iOS suspended the context (e.g. after backgrounding), try to resume.
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
     const src = _audioCtx.createBufferSource();
     src.buffer = buf;
     src.connect(_audioCtx.destination);
     src.start(whenSeconds ?? _audioCtx.currentTime);
 }
 
+// Called as many times as needed — only unlocks once the context is actually running.
+// IMPORTANT: do NOT set _audioUnlocked = true until resume() confirms state === 'running'.
+// If called outside a gesture, resume() silently fails on iOS; we must retry on the
+// next gesture rather than assuming we're done.
 function _unlockAudio() {
-    if (_audioUnlocked || !_isIOS) return;
-    _audioUnlocked = true;
-    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    _audioCtx.resume().then(() => _loadAudioBuffers());
+    if (!_isIOS) return;
+    if (!_audioCtx) {
+        _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (_audioCtx.state === 'running') {
+        if (!_audioUnlocked) {
+            _audioUnlocked = true;
+            _loadAudioBuffers();
+        }
+        return;
+    }
+    // Attempt resume — only succeeds when inside a user gesture on iOS.
+    _audioCtx.resume().then(() => {
+        if (_audioCtx.state === 'running' && !_audioUnlocked) {
+            _audioUnlocked = true;
+            _loadAudioBuffers();
+        }
+    });
 }
 
 // ── Web Speech API (desktop path) ────────────────────────────────────────────
@@ -78,22 +97,28 @@ function _makeUtt(text) {
 }
 
 // ── Shared unlock on first gesture ───────────────────────────────────────────
+// Re-registers itself until the AudioContext is confirmed running, so that a
+// page-load call to setVoiceEnabled() (outside a gesture) doesn't permanently
+// block the proper gesture-based unlock.
 export function initVoiceUnlock() {
     const handler = () => {
         _unlockSpeech();
         _unlockAudio();
-        document.removeEventListener('touchstart', handler, true);
-        document.removeEventListener('click', handler, true);
+        // Re-register if the AudioContext still isn't running after this gesture.
+        if (_isIOS && _audioCtx && _audioCtx.state !== 'running') {
+            document.addEventListener('touchstart', handler, { capture: true, once: true });
+            document.addEventListener('click',      handler, { capture: true, once: true });
+        }
     };
     document.addEventListener('touchstart', handler, { capture: true, once: true });
-    document.addEventListener('click', handler, { capture: true, once: true });
+    document.addEventListener('click',      handler, { capture: true, once: true });
 }
 
 export function setVoiceEnabled(enabled) {
     _voiceEnabled = enabled;
     if (enabled) {
         _unlockSpeech();
-        _unlockAudio();
+        _unlockAudio();  // May not fully unlock outside a gesture — initVoiceUnlock handles the rest.
         if (!_isIOS && !_keepalive) {
             _keepalive = setInterval(() => {
                 if (!window.speechSynthesis || window.speechSynthesis.speaking) return;
@@ -119,10 +144,6 @@ export function getAvailableVoices() {
 }
 
 // ── Core announcement ─────────────────────────────────────────────────────────
-// primaryAudioKey  – pre-recorded file for iOS
-// followUpText     – optional text to speak after a delay (desktop)
-// followUpAudioKey – pre-recorded file for the follow-up (iOS)
-// followUpDelayMs  – gap before follow-up (default 1400 ms)
 export function announceScore(text, primaryAudioKey, followUpText, followUpAudioKey, followUpDelayMs) {
     if (!_voiceEnabled) return;
 
@@ -132,7 +153,6 @@ export function announceScore(text, primaryAudioKey, followUpText, followUpAudio
         if (primaryAudioKey && _audioBuffers[primaryAudioKey]) {
             _playBuffer(primaryAudioKey);
             if (followUpAudioKey && _audioBuffers[followUpAudioKey]) {
-                // Schedule follow-up after the primary clip finishes + gap
                 const gap = _bufferDuration(primaryAudioKey) * 1000 + delay;
                 setTimeout(() => _playBuffer(followUpAudioKey), gap);
             }
@@ -151,7 +171,7 @@ export function announceScore(text, primaryAudioKey, followUpText, followUpAudio
     }
 }
 
-// ── Tiebreak (iOS): two numbered clips with a gap ────────────────────────────
+// ── Tiebreak ─────────────────────────────────────────────────────────────────
 export function announceTiebreak(userPts, oppPts) {
     if (!_voiceEnabled) return;
     if (_isIOS) {
