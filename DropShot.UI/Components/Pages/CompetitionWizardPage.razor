@@ -2,6 +2,7 @@
 @using DropShot.Shared
 @using DropShot.Shared.Dtos
 @using DropShot.UI.Components.Competitions
+@using DropShot.UI.Components.Competitions.Setup
 @using DropShot.UI.Services
 @using DropShot.UI.Services.Auth
 
@@ -636,7 +637,26 @@ else
                 </MudPaper>
             }
 
-            @* ── Step 13: Finish ───────────────────────────────── *@
+            @* ── Step 13: Calendar exceptions ──────────────────── *@
+            @if (_currentStep == StepCalendar && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Calendar Exceptions</MudText>
+                    @StepIntro("Optionally block specific dates from auto-scheduling — e.g. bank holidays. You can also add or remove exceptions later from the competition page.")
+
+                    <CalendarExceptionsSection
+                        Exceptions="_wizardCalendarExceptions"
+                        Divisions="_wizardDivisions"
+                        CompetitionStartDate="@(Model.StartDateDt)"
+                        CompetitionEndDate="@(Model.EndDateDt)"
+                        OnAdd="AddWizardCalendarExceptionAsync"
+                        OnDelete="DeleteWizardCalendarExceptionAsync" />
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 14: Finish ───────────────────────────────── *@
             @if (_currentStep == StepFinish && _savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
@@ -662,16 +682,17 @@ else
 }
 
 @code {
-    private const int TotalSteps = 14;
+    private const int TotalSteps = 15;
 
     // Post-save step indices — read by render conditions and CreateAsync's
     // post-success jump. Defined here so the layout has a single source of
     // truth if the order changes again.
-    private const int StepAdmins   = 9;
-    private const int StepStages   = 10;
-    private const int StepRubber   = 11;
-    private const int StepDivs     = 12;
-    private const int StepFinish   = 13;
+    private const int StepAdmins      = 9;
+    private const int StepStages      = 10;
+    private const int StepRubber      = 11;
+    private const int StepDivs        = 12;
+    private const int StepCalendar    = 13;
+    private const int StepFinish      = 14;
 
     private CompetitionFormModel Model { get; set; } = new();
 
@@ -705,6 +726,10 @@ else
     private string _newDivisionName = "";
     private byte _newDivisionRank = 1;
     private List<(int Id, string Name, byte Rank)> _addedDivisions = new();
+
+    // Calendar exceptions step
+    private List<CompetitionCalendarExceptionDto> _wizardCalendarExceptions = new();
+    private List<CompetitionDivisionDto> _wizardDivisions = new();
 
     // Stages step — checkbox selections persisted on Next. Display order
     // walks the stages chronologically (RR → QF → SF → F); the underlying
@@ -866,6 +891,10 @@ else
             Snackbar.Add("Add at least one division before continuing.", Severity.Warning);
             return;
         }
+        // Populate division list for use in the calendar-exceptions step.
+        _wizardDivisions = _addedDivisions
+            .Select(d => new CompetitionDivisionDto(d.Id, _savedCompetitionId ?? 0, d.Rank, d.Name))
+            .ToList();
         TryAdvance();
     }
 
@@ -1060,7 +1089,8 @@ else
         10 => "Stages",
         11 => "Rubber template",
         12 => "Divisions setup",
-        13 => "Finish",
+        13 => "Calendar exceptions",
+        14 => "Finish",
         _  => ""
     };
 
@@ -1145,6 +1175,46 @@ else
         {
             Logger.LogError(ex, "Wizard add division failed for {Name}.", name);
             Snackbar.Add("Failed to add division.", Severity.Error);
+        }
+        finally { _stepBusy = false; }
+    }
+
+    private async Task AddWizardCalendarExceptionAsync(SaveCalendarExceptionRequest req)
+    {
+        if (_savedCompetitionId is not int compId) return;
+        _stepBusy = true;
+        try
+        {
+            var id = await Admin.AddCalendarExceptionAsync(compId, req);
+            var divName = req.CompetitionDivisionId.HasValue
+                ? _wizardDivisions.FirstOrDefault(d => d.CompetitionDivisionId == req.CompetitionDivisionId)?.Name
+                : null;
+            _wizardCalendarExceptions.Add(new CompetitionCalendarExceptionDto(
+                id, compId, req.CompetitionDivisionId, divName,
+                req.ExceptionDate, req.Note));
+            Snackbar.Add($"Added exception for {req.ExceptionDate:dd MMM yyyy}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wizard add calendar exception failed.");
+            Snackbar.Add("Failed to add exception.", Severity.Error);
+        }
+        finally { _stepBusy = false; }
+    }
+
+    private async Task DeleteWizardCalendarExceptionAsync(CompetitionCalendarExceptionDto ex)
+    {
+        if (_savedCompetitionId is not int compId) return;
+        _stepBusy = true;
+        try
+        {
+            await Admin.DeleteCalendarExceptionAsync(compId, ex.CompetitionCalendarExceptionId);
+            _wizardCalendarExceptions.RemoveAll(e => e.CompetitionCalendarExceptionId == ex.CompetitionCalendarExceptionId);
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "Wizard delete calendar exception failed.");
+            Snackbar.Add("Failed to remove exception.", Severity.Error);
         }
         finally { _stepBusy = false; }
     }
