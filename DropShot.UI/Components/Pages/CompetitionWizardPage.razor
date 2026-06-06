@@ -740,7 +740,7 @@ else
             //  • Premium user (no clubs visible): hide host club entirely.
             if (view.HostClubId.HasValue)
             {
-                _lockHostClub = true;
+                _hideHostClub = true;
                 Model.HostClubId = view.HostClubId;
             }
             else if (_clubs.Count == 0)
@@ -805,7 +805,6 @@ else
             _pendingScroll = false;
             await JS.InvokeVoidAsync("eval",
                 "var el=document.querySelector('.wizard-step');if(el){window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-110,behavior:'smooth'});}");
-
 
         }
     }
