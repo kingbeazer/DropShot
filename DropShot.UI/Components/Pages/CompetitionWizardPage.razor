@@ -202,7 +202,16 @@ else
                     <MudText Typo="Typo.h6" Class="mb-2">Rule set</MudText>
                     @StepIntro("Pick the host club (whose courts and admins apply) and an optional rules set that defines defaults like tie-break rules and ball type. Linking the comp to an event is also optional.")
 
-                    @if (!_hideHostClub)
+                    @if (_lockHostClub)
+                    {
+                        <MudTextField T="string"
+                                      Value="@(_clubs.FirstOrDefault(c => c.ClubId == Model.HostClubId)?.Name ?? "Your club")"
+                                      Label="Host Club"
+                                      Variant="Variant.Outlined"
+                                      Disabled="true"
+                                      Class="mt-3" />
+                    }
+                    else if (!_hideHostClub)
                     {
                         <MudSelect T="int?" Value="Model.HostClubId"
                                    ValueChanged="OnHostClubChanged"
@@ -738,7 +747,8 @@ else
     private List<EventDto> _events = new();
 
     // Host-club gating mirrors CompetitionPage create flow.
-    private bool _hideHostClub;
+    private bool _lockHostClub;   // ClubAdmin: field shown but locked to their club
+    private bool _hideHostClub;   // Regular/premium user with no clubs: field hidden
 
     // Post-save state — populated after the user clicks "Save & continue" on
     // step 9. From this point optional config steps mutate the persisted
@@ -800,7 +810,7 @@ else
             //  • Premium user (no clubs visible): hide host club entirely.
             if (view.HostClubId.HasValue)
             {
-                _hideHostClub = true;
+                _lockHostClub = true;
                 Model.HostClubId = view.HostClubId;
             }
             else if (_clubs.Count == 0)
