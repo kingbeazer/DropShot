@@ -2,12 +2,14 @@
 @using DropShot.Shared
 @using DropShot.Shared.Dtos
 @using DropShot.UI.Components.Competitions
+@using DropShot.UI.Components.Competitions.Setup
 @using DropShot.UI.Services
 @using DropShot.UI.Services.Auth
 
 @inject ICompetitionAdminService Admin
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 @inject Microsoft.Extensions.Logging.ILogger<CompetitionWizardPage> Logger
 
 @if (!_loaded)
@@ -34,7 +36,7 @@ else
         <MudStack Spacing="3">
 
             @* ── Step 0: Name + Category ───────────────────── *@
-            @if (_currentStep > 0)
+            @if (_currentStep != 0)
             {
                 <StepSummary Label="Name & Category"
                              Icon="@Icons.Material.Filled.Person"
@@ -46,7 +48,7 @@ else
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Name & Category</MudText>
-                    @StepIntro("Category controls who is considered for entry and who will be offered a spot. Male / Female restricts by registered sex; Mixed is open to all.")
+                    @StepIntro("Category controls who is considered for entry and who will be offered a spot. Male / Female restricts entry based on the competition preference selected at sign-up; Mixed is open to all.")
 
                     <MudTextField T="string" Value="Model.CompetitionName"
                                   ValueChanged="OnCompetitionNameChanged"
@@ -66,12 +68,21 @@ else
                         </MudRadioGroup>
                     </MudField>
 
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-4 mb-1" Spacing="1">
+                        <MudText Typo="Typo.subtitle2">General Info</MudText>
+                        <MudTooltip Text="Optional: provide a description or welcome message for this competition. Shown to all players on the competition page." Placement="Placement.Right">
+                            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Style="opacity: 0.6" />
+                        </MudTooltip>
+                    </MudStack>
+                    <GeneralInfoSection Description="@Model.Description"
+                                        DescriptionChanged="@((string? v) => Model.Description = v)" />
+
                     @StepActions(canBack: false, advance: TryAdvanceFromCategory)
                 </MudPaper>
             }
 
             @* ── Step 1: Format ─────────────────────────────── *@
-            @if (_currentStep > 1)
+            @if (_highWaterMark >= 1 && _currentStep != 1)
             {
                 <StepSummary Label="Format"
                              Icon="@Icons.Material.Filled.SportsTennis"
@@ -89,6 +100,7 @@ else
                                Required="true" RequiredError="Please pick a format."
                                Value="Model.Format"
                                ValueChanged="OnFormatChanged"
+                               Error="@(_formatError != null)" ErrorText="@_formatError"
                                Class="mt-3">
                         @foreach (var f in CompetitionFormHelpers.AllowedFormats(Model.Category))
                         {
@@ -144,7 +156,7 @@ else
             }
 
             @* ── Step 2: Age ────────────────────────────────── *@
-            @if (_currentStep > 2)
+            @if (_highWaterMark >= 2 && _currentStep != 2)
             {
                 <StepSummary Label="Age range"
                              Icon="@Icons.Material.Filled.Cake"
@@ -176,7 +188,7 @@ else
             }
 
             @* ── Step 3: Rule set ──────────────────────────── *@
-            @if (_currentStep > 3)
+            @if (_highWaterMark >= 3 && _currentStep != 3)
             {
                 <StepSummary Label="Rule set"
                              Icon="@Icons.Material.Filled.Gavel"
@@ -194,11 +206,9 @@ else
                     {
                         <MudSelect T="int?" Value="Model.HostClubId"
                                    ValueChanged="OnHostClubChanged"
-                                   Label="@(_lockHostClub ? "Host Club" : "Host Club (optional)")"
+                                   Label="Host Club (optional)"
                                    Variant="Variant.Outlined"
-                                   Clearable="@(!_lockHostClub)"
-                                   ReadOnly="@_lockHostClub"
-                                   Disabled="@_lockHostClub"
+                                   Clearable="true"
                                    Class="mt-3">
                             @foreach (var c in _clubs)
                             {
@@ -229,7 +239,7 @@ else
             }
 
             @* ── Step 4: Dates + max participants ──────────── *@
-            @if (_currentStep > 4)
+            @if (_highWaterMark >= 4 && _currentStep != 4)
             {
                 <StepSummary Label="Dates & participants"
                              Icon="@Icons.Material.Filled.CalendarMonth"
@@ -267,7 +277,7 @@ else
                 var _persistedFmt = CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format);
                 var _isLadder = _persistedFmt == CompetitionFormat.SinglesLadder;
             }
-            @if (_currentStep > 5 && !_isLadder)
+            @if (_highWaterMark >= 5 && _currentStep != 5 && !_isLadder)
             {
                 <StepSummary Label="Divisions"
                              Icon="@Icons.Material.Filled.AccountTree"
@@ -290,7 +300,7 @@ else
             }
 
             @* ── Step 6: Match/rubber scoring ──────────────── *@
-            @if (_currentStep > 6)
+            @if (_highWaterMark >= 6 && _currentStep != 6)
             {
                 <StepSummary Label="Match scoring"
                              Icon="@Icons.Material.Filled.EmojiEvents"
@@ -381,7 +391,7 @@ else
             }
 
             @* ── Step 7: League scoring ─────────────────────── *@
-            @if (_currentStep > 7)
+            @if (_highWaterMark >= 7 && _currentStep != 7)
             {
                 <StepSummary Label="League scoring"
                              Icon="@Icons.Material.Filled.Leaderboard"
@@ -408,7 +418,7 @@ else
             }
 
             @* ── Step 8: Misc settings ──────────────────────── *@
-            @if (_currentStep > 8)
+            @if (_highWaterMark >= 8 && _currentStep != 8)
             {
                 <StepSummary Label="Misc"
                              Icon="@Icons.Material.Filled.Tune"
@@ -419,7 +429,7 @@ else
             else if (_currentStep == 8 && !_savedCompetitionId.HasValue)
             {
                 <MudPaper Class="pa-4 wizard-step" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Misc settings &amp; save</MudText>
+                    <MudText Typo="Typo.h6" Class="mb-2">Misc settings</MudText>
                     @StepIntro("Fine controls — minimum gap between a player's matches when auto-scheduling, and whether results need an admin to verify them before counting toward the standings. Clicking Save creates the competition; the optional setup steps that follow apply to that saved competition.")
 
                     <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Minimum days between matches</MudText>
@@ -456,9 +466,26 @@ else
                                 {
                                     <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
                                 }
-                                Save &amp; continue
+                                Next
                             </MudButton>
                         </MudStack>
+                    </div>
+                </MudPaper>
+            }
+
+            @* ── Step 8 post-save: shown when navigating back from post-save steps ── *@
+            @if (_currentStep == 8 && _savedCompetitionId.HasValue)
+            {
+                <MudPaper Class="pa-4 wizard-step" Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Misc settings</MudText>
+                    @StepIntro("Competition already saved. Click Next to continue to the optional setup steps.")
+                    <div class="d-flex justify-space-between mt-4">
+                        <MudButton Variant="Variant.Text" Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   OnClick="GoBack">Back</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                   OnClick="TryAdvance">Next</MudButton>
                     </div>
                 </MudPaper>
             }
@@ -676,11 +703,14 @@ else
     private CompetitionFormModel Model { get; set; } = new();
 
     private int _currentStep = 0;
+    private int _highWaterMark = 0;
+    private bool _pendingScroll;
     private bool _loaded;
     private bool _isSaving;
     private string? _serverError;
     private string? _categoryError;
     private string? _nameError;
+    private string? _formatError;
 
     // Lookup data
     private List<ClubDto> _clubs = new();
@@ -688,7 +718,6 @@ else
     private List<EventDto> _events = new();
 
     // Host-club gating mirrors CompetitionPage create flow.
-    private bool _lockHostClub;
     private bool _hideHostClub;
 
     // Post-save state — populated after the user clicks "Save & continue" on
@@ -747,7 +776,7 @@ else
             //  • Premium user (no clubs visible): hide host club entirely.
             if (view.HostClubId.HasValue)
             {
-                _lockHostClub = true;
+                _hideHostClub = true;
                 Model.HostClubId = view.HostClubId;
             }
             else if (_clubs.Count == 0)
@@ -769,25 +798,40 @@ else
     private void GoToStep(int step)
     {
         if (step < 0 || step >= TotalSteps) return;
+        _highWaterMark = Math.Max(_highWaterMark, _currentStep);
         _currentStep = step;
         _serverError = null;
+        _pendingScroll = true;
     }
 
     private void GoBack()
     {
         if (_currentStep <= 0) { _serverError = null; return; }
+        _highWaterMark = Math.Max(_highWaterMark, _currentStep);
         _currentStep--;
         while (_currentStep > 0 && !StepApplies(_currentStep))
             _currentStep--;
         _serverError = null;
+        _pendingScroll = true;
     }
 
     private void TryAdvance()
     {
         if (_currentStep >= TotalSteps - 1) return;
+        _highWaterMark = Math.Max(_highWaterMark, _currentStep);
         _currentStep++;
         while (_currentStep < TotalSteps - 1 && !StepApplies(_currentStep))
             _currentStep++;
+        _pendingScroll = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pendingScroll)
+        {
+            _pendingScroll = false;
+            await JS.InvokeVoidAsync("eval", "window.scrollTo(0,0)");
+        }
     }
 
     // Returns false for steps that should be skipped given the current Model.
@@ -811,6 +855,7 @@ else
     private void OnFormatChanged(CompetitionFormatUi? format)
     {
         Model.Format = format;
+        if (format != null) _formatError = null;
         // Divisions don't apply to a SinglesLadder. Clear the toggle so the
         // wizard's Divisions question (and subsequent divisions-list step) is
         // skipped via StepApplies.
@@ -853,9 +898,10 @@ else
     {
         if (Model.Format == null)
         {
-            Snackbar.Add("Please pick a format.", Severity.Warning);
+            _formatError = "Please pick a format.";
             return;
         }
+        _formatError = null;
         TryAdvance();
     }
 
@@ -952,6 +998,7 @@ else
 
             var savedId = await Admin.SaveCompetitionAsync(null, request);
             _savedCompetitionId = savedId;
+            _highWaterMark = Math.Max(_highWaterMark, _currentStep);
             Snackbar.Add("Competition created.", Severity.Success);
 
             // Preload rubber presets so the rubber-template step has something
