@@ -6,7 +6,7 @@
     </TitleContent>
     <DialogContent>
         <div class="tb-dialog-list">
-            @for (int n = 8; n <= 99; n++)
+            @for (int n = 8; n <= MaxValue; n++)
             {
                 int val = n;
                 bool highlight = HighlightValue == val;
@@ -66,6 +66,13 @@
     /// 8-99 list.
     /// </summary>
     [Parameter] public int? HighlightValue { get; set; }
+
+    /// <summary>
+    /// Upper bound for the list. Pass <c>FinalSetTieBreakGames</c> when the
+    /// competition uses "First to N" tie-break mode so the picker only shows
+    /// reachable scores.
+    /// </summary>
+    [Parameter] public int MaxValue { get; set; } = 99;
 
     private bool _scrolled;
 
