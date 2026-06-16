@@ -291,20 +291,165 @@ else
                 <StepSummary Label="Divisions"
                              Icon="@Icons.Material.Filled.AccountTree"
                              AccentColor="#9c27b0"
-                             Summary="@(Model.HasDivisions ? "Split into ranked divisions" : "Single field, no divisions")"
+                             Summary="@(Model.HasDivisions ? $"{_addedDivisions.Count} division(s)" : "Single field, no divisions")"
                              OnEdit="@(() => GoToStep(5))" />
             }
             else if (_currentStep == 5 && !_isLadder)
             {
                 <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <MudText Typo="Typo.h6" Class="mb-2">Split into divisions?</MudText>
-                    @StepIntro("Divisions let you tier the field (for example Premier / A / B). Teams only play others in their own division and league tables render per-division. You'll create each division after the competition is saved.")
+                    @StepIntro("Divisions let you tier the field (for example Premier / A / B). Teams only play others in their own division and league tables render per-division.")
 
                     <MudCheckBox @bind-Value="Model.HasDivisions"
                                  Label="Split this competition into ranked divisions"
                                  Class="mt-3" />
 
-                    @StepActions(canBack: true, advance: TryAdvance)
+                    @if (Model.HasDivisions)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Add divisions</MudText>
+
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="6">
+                                <MudTextField T="string" @bind-Value="_newDivisionName"
+                                              Label="Division name" Variant="Variant.Outlined"
+                                              Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField T="byte" @bind-Value="_newDivisionRank"
+                                                 Label="Rank" Min="1" Max="20"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3" Class="d-flex align-center">
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                           Disabled="@string.IsNullOrWhiteSpace(_newDivisionName)"
+                                           OnClick="AddWizardDivision">Add division</MudButton>
+                            </MudItem>
+                        </MudGrid>
+
+                        @if (_addedDivisions.Count == 0)
+                        {
+                            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-3">
+                                Add at least one division before continuing.
+                            </MudAlert>
+                        }
+                        else
+                        {
+                            @foreach (var div in _addedDivisions.OrderBy(d => d.Rank))
+                            {
+                                var d = div;
+                                bool divValid = d.Windows.Count > 0 ||
+                                               (d.UseCompetitionWindows && _competitionMatchWindows.Count > 0);
+                                <MudPaper Elevation="0" Class="mt-3 pa-3"
+                                          Style="border:1px solid rgba(255,255,255,0.15);border-radius:8px;">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                                        <MudText Typo="Typo.subtitle2" Style="flex:1">
+                                            Rank @d.Rank — @d.Name
+                                            @if (!divValid)
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.Warning"
+                                                         Color="Color.Warning" Size="Size.Small"
+                                                         Class="ml-1" Style="vertical-align:middle" />
+                                            }
+                                        </MudText>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Size="Size.Small" Color="Color.Error"
+                                                       OnClick="@(() => _addedDivisions.Remove(d))" />
+                                    </MudStack>
+
+                                    @* "Use competition-level slots" checkbox — only when comp windows exist *@
+                                    @if (_competitionMatchWindows.Count > 0)
+                                    {
+                                        <MudCheckBox @bind-Value="d.UseCompetitionWindows"
+                                                     Label="Use competition-level match windows"
+                                                     Dense="true" Class="mb-2" />
+                                    }
+
+                                    @if (!d.UseCompetitionWindows || _competitionMatchWindows.Count == 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Style="opacity:0.75" Class="mb-1 d-block">
+                                            Match windows for this division
+                                        </MudText>
+                                        <MudGrid Spacing="1">
+                                            <MudItem xs="12" sm="4">
+                                                <MudSelect T="DayOfWeek" Value="d.NewDay"
+                                                           ValueChanged="@((DayOfWeek v) => d.NewDay = v)"
+                                                           Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                                    @foreach (DayOfWeek day in Enum.GetValues<DayOfWeek>())
+                                                    {
+                                                        <MudSelectItem Value="@day">@day</MudSelectItem>
+                                                    }
+                                                </MudSelect>
+                                            </MudItem>
+                                            <MudItem xs="6" sm="3">
+                                                <MudTimePicker Time="d.NewStart"
+                                                               TimeChanged="@((TimeSpan? v) => d.NewStart = v)"
+                                                               Label="From" Variant="Variant.Outlined"
+                                                               Margin="Margin.Dense" AmPm="false" />
+                                            </MudItem>
+                                            <MudItem xs="6" sm="3">
+                                                <MudTimePicker Time="d.NewEnd"
+                                                               TimeChanged="@((TimeSpan? v) => d.NewEnd = v)"
+                                                               Label="To" Variant="Variant.Outlined"
+                                                               Margin="Margin.Dense" AmPm="false" />
+                                            </MudItem>
+                                            <MudItem xs="12" sm="2" Class="d-flex align-center">
+                                                <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                                           Disabled="@(d.NewStart == null || d.NewEnd == null)"
+                                                           OnClick="@(() => AddDivisionWindow(d))">Add</MudButton>
+                                            </MudItem>
+                                        </MudGrid>
+
+                                        @if (d.Windows.Count > 0)
+                                        {
+                                            <MudSimpleTable Dense="true" Class="mt-2">
+                                                <thead>
+                                                    <tr><th>Day</th><th>From</th><th>To</th><th></th></tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var w in d.Windows.ToList())
+                                                    {
+                                                        var win = w;
+                                                        <tr>
+                                                            <td>@win.DayOfWeek</td>
+                                                            <td>@win.StartTime.ToString(@"hh\:mm")</td>
+                                                            <td>@win.EndTime.ToString(@"hh\:mm")</td>
+                                                            <td>
+                                                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                                               Size="Size.Small" Color="Color.Error"
+                                                                               OnClick="@(() => d.Windows.Remove(win))" />
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </MudSimpleTable>
+                                        }
+                                        else
+                                        {
+                                            <MudAlert Severity="Severity.Warning" Dense="true"
+                                                      Variant="Variant.Outlined" Class="mt-2">
+                                                Add at least one match window@(_competitionMatchWindows.Count > 0 ? " or tick \"Use competition-level match windows\" above" : "").
+                                                @if (_competitionMatchWindows.Count == 0)
+                                                {
+                                                    <MudText Typo="Typo.caption" Class="mt-1 d-block" Style="opacity:0.8">
+                                                        Tip: configure competition-level windows in step 12, then return here to share them across divisions.
+                                                    </MudText>
+                                                }
+                                            </MudAlert>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Success" Class="d-block">
+                                            Using @_competitionMatchWindows.Count competition-level window(s).
+                                        </MudText>
+                                    }
+                                </MudPaper>
+                            }
+                        }
+                    }
+
+                    @StepActions(canBack: true, advance: TryAdvanceFromDivisions)
                 </MudPaper>
             }
 
@@ -558,58 +703,79 @@ else
                 </MudPaper>
             }
 
-            @* ── Step 12: Divisions (required when HasDivisions) ── *@
-            @if (_currentStep == StepDivs)
+            @* ── Step 12: Competition match windows ──────────────── *@
+            @if (_currentStep == StepMatchWindows)
             {
                 <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
-                    <MudText Typo="Typo.h6" Class="mb-2">Divisions @(Model.HasDivisions ? "" : "(optional)")</MudText>
-                    @if (!Model.HasDivisions)
+                    <MudText Typo="Typo.h6" Class="mb-2">Competition match windows (optional)</MudText>
+                    @StepIntro("Set the time slots when auto-scheduling can book fixtures across the whole competition. Divisions can inherit these or override them with their own slots. You can skip this and configure windows later from the competition page.")
+
+                    <MudGrid Spacing="1" Class="mt-3">
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="DayOfWeek" @bind-Value="_newCompWindowDay"
+                                       Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                                {
+                                    <MudSelectItem Value="@d">@d</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudTimePicker @bind-Time="_newCompWindowStart"
+                                           Label="From" Variant="Variant.Outlined"
+                                           Margin="Margin.Dense" AmPm="false" />
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudTimePicker @bind-Time="_newCompWindowEnd"
+                                           Label="To" Variant="Variant.Outlined"
+                                           Margin="Margin.Dense" AmPm="false" />
+                        </MudItem>
+                        <MudItem xs="12" sm="2" Class="d-flex align-center">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                       Disabled="@(_newCompWindowStart == null || _newCompWindowEnd == null)"
+                                       OnClick="AddCompetitionMatchWindow">Add</MudButton>
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (_competitionMatchWindows.Count > 0)
                     {
-                        @StepIntro("This competition isn't split into divisions, so there's nothing to add here. Click Next to continue.")
+                        <MudSimpleTable Dense="true" Class="mt-3">
+                            <thead>
+                                <tr><th>Day</th><th>From</th><th>To</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var w in _competitionMatchWindows.ToList())
+                                {
+                                    var cw = w;
+                                    <tr>
+                                        <td>@cw.DayOfWeek</td>
+                                        <td>@cw.StartTime.ToString(@"hh\:mm")</td>
+                                        <td>@cw.EndTime.ToString(@"hh\:mm")</td>
+                                        <td>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                           Size="Size.Small" Color="Color.Error"
+                                                           OnClick="@(() => _competitionMatchWindows.Remove(cw))" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
                     }
                     else
                     {
-                        @StepIntro("Add each division (e.g. Premier, A, B). Rank 1 is the highest. At least one division is required — you can edit or seed divisions from the competition page later.")
-
-                        <MudGrid Spacing="2" Class="mt-3">
-                            <MudItem xs="12" sm="6">
-                                <MudTextField T="string" @bind-Value="_newDivisionName"
-                                              Label="Division name" Variant="Variant.Outlined"
-                                              Margin="Margin.Dense" />
-                            </MudItem>
-                            <MudItem xs="6" sm="3">
-                                <MudNumericField T="byte" @bind-Value="_newDivisionRank"
-                                                 Label="Rank" Min="1" Max="20"
-                                                 Variant="Variant.Outlined" Margin="Margin.Dense" />
-                            </MudItem>
-                            <MudItem xs="6" sm="3">
-                                <MudButton Variant="Variant.Outlined" Size="Size.Small"
-                                           Disabled="@string.IsNullOrWhiteSpace(_newDivisionName)"
-                                           OnClick="AddWizardDivision">Add</MudButton>
-                            </MudItem>
-                        </MudGrid>
-
-                        @if (_addedDivisions.Count > 0)
-                        {
-                            <MudSimpleTable Dense="true" Class="mt-3">
-                                <thead><tr><th>Rank</th><th>Name</th></tr></thead>
-                                <tbody>
-                                    @foreach (var d in _addedDivisions.OrderBy(d => d.Rank))
-                                    {
-                                        <tr><td>@d.Rank</td><td>@d.Name</td></tr>
-                                    }
-                                </tbody>
-                            </MudSimpleTable>
-                        }
-                        else
-                        {
-                            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-3">
-                                Add at least one division before continuing.
-                            </MudAlert>
-                        }
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 d-block">
+                            No competition-level windows added — auto-scheduling will use default time slots.
+                        </MudText>
                     }
 
-                    @StepActions(canBack: true, advance: TryAdvanceFromDivisions)
+                    @if (Model.HasDivisions && _competitionMatchWindows.Count > 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mt-3">
+                            You can now go back to Step 5 and tick "Use competition-level match windows" for any division that should share these slots.
+                        </MudAlert>
+                    }
+
+                    @StepActions(canBack: true, advance: TryAdvance)
                 </MudPaper>
             }
 
@@ -676,12 +842,12 @@ else
     // Post-save step indices — read by render conditions and CreateAsync's
     // post-success jump. Defined here so the layout has a single source of
     // truth if the order changes again.
-    private const int StepAdmins      = 9;
-    private const int StepStages      = 10;
-    private const int StepRubber      = 11;
-    private const int StepDivs        = 12;
-    private const int StepCalendar    = 13;
-    private const int StepFinish      = 14;
+    private const int StepAdmins       = 9;
+    private const int StepStages       = 10;
+    private const int StepRubber       = 11;
+    private const int StepMatchWindows = 12;
+    private const int StepCalendar     = 13;
+    private const int StepFinish       = 14;
 
     private CompetitionFormModel Model { get; set; } = new();
 
@@ -709,10 +875,16 @@ else
     private string _newAdminEmail = "";
     private List<string> _pendingAdminEmails = new();
 
-    // Divisions step
+    // Divisions step — inline on Step 5, applied on Finish
     private string _newDivisionName = "";
     private byte _newDivisionRank = 1;
-    private List<(int Id, string Name, byte Rank)> _addedDivisions = new();
+    private List<WizardDivision> _addedDivisions = new();
+
+    // Competition-level match windows — Step 12, applied on Finish
+    private List<WizardMatchWindow> _competitionMatchWindows = new();
+    private DayOfWeek _newCompWindowDay = DayOfWeek.Monday;
+    private TimeSpan? _newCompWindowStart = new TimeSpan(19, 0, 0);
+    private TimeSpan? _newCompWindowEnd = new TimeSpan(22, 0, 0);
 
     // Calendar exceptions step — collected in memory, applied on Finish.
     // Placeholder IDs count down from -1 so the delete callback can find the row.
@@ -847,7 +1019,6 @@ else
         if (step == 5 && isLadder) return false;
         if (step == StepStages && isLadder) return false;
         if (step == StepRubber && persisted != CompetitionFormat.TeamMatch) return false;
-        if (step == StepDivs && (isLadder || !Model.HasDivisions)) return false;
         return true;
     }
 
@@ -906,11 +1077,29 @@ else
 
     private void TryAdvanceFromDivisions()
     {
-        if (Model.HasDivisions && _addedDivisions.Count == 0)
+        if (!Model.HasDivisions) { TryAdvance(); return; }
+
+        if (_addedDivisions.Count == 0)
         {
             Snackbar.Add("Add at least one division before continuing.", Severity.Warning);
             return;
         }
+
+        foreach (var div in _addedDivisions)
+        {
+            bool hasOwnWindows = div.Windows.Count > 0;
+            bool usesCompWindows = div.UseCompetitionWindows && _competitionMatchWindows.Count > 0;
+            if (!hasOwnWindows && !usesCompWindows)
+            {
+                Snackbar.Add(
+                    _competitionMatchWindows.Count > 0
+                        ? $"'{div.Name}': add match windows or tick \"Use competition-level match windows\"."
+                        : $"'{div.Name}': add at least one match window before continuing.",
+                    Severity.Warning);
+                return;
+            }
+        }
+
         TryAdvance();
     }
 
@@ -1013,9 +1202,39 @@ else
                 catch (Exception ex) { Logger.LogWarning(ex, "Wizard add admin {Email} failed for {Id}.", email, savedId); Snackbar.Add($"Could not add admin '{email}'.", Severity.Warning); }
             }
 
+            // ── 3a. Competition-level match windows ────────────────────
+            foreach (var w in _competitionMatchWindows)
+            {
+                try
+                {
+                    await Admin.AddMatchWindowAsync(savedId,
+                        new SaveMatchWindowRequest(w.DayOfWeek, w.StartTime, w.EndTime, null, null));
+                }
+                catch (Exception ex) { Logger.LogWarning(ex, "Wizard add comp match window failed for {Id}.", savedId); }
+            }
+
+            // ── 3b. Divisions + per-division windows ───────────────────
             foreach (var div in _addedDivisions.OrderBy(d => d.Rank))
             {
-                try { await Admin.SaveDivisionAsync(savedId, null, new SaveDivisionRequest(div.Name, div.Rank)); }
+                try
+                {
+                    bool useShared = div.UseCompetitionWindows && _competitionMatchWindows.Count > 0;
+                    var divId = await Admin.SaveDivisionAsync(savedId, null,
+                        new SaveDivisionRequest(div.Name, div.Rank, UseSharedMatchWindows: useShared));
+
+                    if (!useShared)
+                    {
+                        foreach (var w in div.Windows)
+                        {
+                            try
+                            {
+                                await Admin.AddDivisionMatchWindowAsync(savedId, divId,
+                                    new SaveMatchWindowRequest(w.DayOfWeek, w.StartTime, w.EndTime, null, divId));
+                            }
+                            catch (Exception ex) { Logger.LogWarning(ex, "Wizard add div window failed for div {DivId}.", divId); }
+                        }
+                    }
+                }
                 catch (Exception ex) { Logger.LogWarning(ex, "Wizard create division {Name} failed for {Id}.", div.Name, savedId); }
             }
 
@@ -1115,7 +1334,7 @@ else
         9  => "Competition admins",
         10 => "Stages",
         11 => "Rubber template",
-        12 => "Divisions setup",
+        12 => "Competition match windows",
         13 => "Calendar exceptions",
         14 => "Finish",
         _  => ""
@@ -1150,10 +1369,31 @@ else
     {
         var name = _newDivisionName.Trim();
         if (string.IsNullOrEmpty(name)) return;
-        // Use a placeholder ID of 0 — the real ID is assigned on Finish.
-        _addedDivisions.Add((0, name, _newDivisionRank));
+        _addedDivisions.Add(new WizardDivision { Name = name, Rank = _newDivisionRank });
         _newDivisionName = "";
         _newDivisionRank = (byte)(_newDivisionRank + 1);
+    }
+
+    private void AddDivisionWindow(WizardDivision div)
+    {
+        if (div.NewStart == null || div.NewEnd == null) return;
+        div.Windows.Add(new WizardMatchWindow
+        {
+            DayOfWeek = div.NewDay,
+            StartTime = div.NewStart.Value,
+            EndTime = div.NewEnd.Value,
+        });
+    }
+
+    private void AddCompetitionMatchWindow()
+    {
+        if (_newCompWindowStart == null || _newCompWindowEnd == null) return;
+        _competitionMatchWindows.Add(new WizardMatchWindow
+        {
+            DayOfWeek = _newCompWindowDay,
+            StartTime = _newCompWindowStart.Value,
+            EndTime = _newCompWindowEnd.Value,
+        });
     }
 
     private Task AddWizardCalendarExceptionAsync(SaveCalendarExceptionRequest req)
@@ -1218,4 +1458,24 @@ else
                        OnClick="advance">Next</MudButton>
         </div>
     };
+
+    // ── Wizard helper types ─────────────────────────────────────
+    private sealed class WizardDivision
+    {
+        public string Name { get; set; } = "";
+        public byte Rank { get; set; } = 1;
+        public List<WizardMatchWindow> Windows { get; } = new();
+        public bool UseCompetitionWindows { get; set; } = false;
+        // Per-division add-window form state
+        public DayOfWeek NewDay { get; set; } = DayOfWeek.Monday;
+        public TimeSpan? NewStart { get; set; } = new TimeSpan(19, 0, 0);
+        public TimeSpan? NewEnd { get; set; } = new TimeSpan(22, 0, 0);
+    }
+
+    private sealed class WizardMatchWindow
+    {
+        public DayOfWeek DayOfWeek { get; set; }
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
+    }
 }
