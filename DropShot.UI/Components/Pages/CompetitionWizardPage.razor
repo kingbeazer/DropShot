@@ -354,7 +354,152 @@ else
                         </MudText>
                     }
 
-                    @StepActions(canBack: true, advance: TryAdvance)
+                    @if (Model.HasDivisions)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Add divisions</MudText>
+
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="6">
+                                <MudTextField T="string" @bind-Value="_newDivisionName"
+                                              Label="Division name" Variant="Variant.Outlined"
+                                              Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField T="byte" @bind-Value="_newDivisionRank"
+                                                 Label="Rank" Min="1" Max="20"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3" Class="d-flex align-center">
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                           Disabled="@string.IsNullOrWhiteSpace(_newDivisionName)"
+                                           OnClick="AddWizardDivision">Add division</MudButton>
+                            </MudItem>
+                        </MudGrid>
+
+                        @if (_addedDivisions.Count == 0)
+                        {
+                            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-3">
+                                Add at least one division before continuing.
+                            </MudAlert>
+                        }
+                        else
+                        {
+                            @foreach (var div in _addedDivisions.OrderBy(d => d.Rank))
+                            {
+                                var d = div;
+                                bool divValid = d.Windows.Count > 0 ||
+                                               (d.UseCompetitionWindows && _competitionMatchWindows.Count > 0);
+                                <MudPaper Elevation="0" Class="mt-3 pa-3"
+                                          Style="border:1px solid rgba(255,255,255,0.15);border-radius:8px;">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                                        <MudText Typo="Typo.subtitle2" Style="flex:1">
+                                            Rank @d.Rank — @d.Name
+                                            @if (!divValid)
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.Warning"
+                                                         Color="Color.Warning" Size="Size.Small"
+                                                         Class="ml-1" Style="vertical-align:middle" />
+                                            }
+                                        </MudText>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Size="Size.Small" Color="Color.Error"
+                                                       OnClick="@(() => _addedDivisions.Remove(d))" />
+                                    </MudStack>
+
+                                    @* "Use competition-level slots" checkbox — only when comp windows exist *@
+                                    @if (_competitionMatchWindows.Count > 0)
+                                    {
+                                        <MudCheckBox @bind-Value="d.UseCompetitionWindows"
+                                                     Label="Use competition-level match windows"
+                                                     Dense="true" Class="mb-2" />
+                                    }
+
+                                    @if (!d.UseCompetitionWindows || _competitionMatchWindows.Count == 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Style="opacity:0.75" Class="mb-1 d-block">
+                                            Match windows for this division
+                                        </MudText>
+                                        <MudGrid Spacing="1">
+                                            <MudItem xs="12" sm="4">
+                                                <MudSelect T="DayOfWeek" Value="d.NewDay"
+                                                           ValueChanged="@((DayOfWeek v) => d.NewDay = v)"
+                                                           Label="Day" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                                    @foreach (DayOfWeek day in Enum.GetValues<DayOfWeek>())
+                                                    {
+                                                        <MudSelectItem Value="@day">@day</MudSelectItem>
+                                                    }
+                                                </MudSelect>
+                                            </MudItem>
+                                            <MudItem xs="6" sm="3">
+                                                <MudTimePicker Time="d.NewStart"
+                                                               TimeChanged="@((TimeSpan? v) => d.NewStart = v)"
+                                                               Label="From" Variant="Variant.Outlined"
+                                                               Margin="Margin.Dense" AmPm="false" />
+                                            </MudItem>
+                                            <MudItem xs="6" sm="3">
+                                                <MudTimePicker Time="d.NewEnd"
+                                                               TimeChanged="@((TimeSpan? v) => d.NewEnd = v)"
+                                                               Label="To" Variant="Variant.Outlined"
+                                                               Margin="Margin.Dense" AmPm="false" />
+                                            </MudItem>
+                                            <MudItem xs="12" sm="2" Class="d-flex align-center">
+                                                <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                                           Disabled="@(d.NewStart == null || d.NewEnd == null)"
+                                                           OnClick="@(() => AddDivisionWindow(d))">Add</MudButton>
+                                            </MudItem>
+                                        </MudGrid>
+
+                                        @if (d.Windows.Count > 0)
+                                        {
+                                            <MudSimpleTable Dense="true" Class="mt-2">
+                                                <thead>
+                                                    <tr><th>Day</th><th>From</th><th>To</th><th></th></tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var w in d.Windows.ToList())
+                                                    {
+                                                        var win = w;
+                                                        <tr>
+                                                            <td>@win.DayOfWeek</td>
+                                                            <td>@win.StartTime.ToString(@"hh\:mm")</td>
+                                                            <td>@win.EndTime.ToString(@"hh\:mm")</td>
+                                                            <td>
+                                                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                                               Size="Size.Small" Color="Color.Error"
+                                                                               OnClick="@(() => d.Windows.Remove(win))" />
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </MudSimpleTable>
+                                        }
+                                        else
+                                        {
+                                            <MudAlert Severity="Severity.Warning" Dense="true"
+                                                      Variant="Variant.Outlined" Class="mt-2">
+                                                Add at least one match window@(_competitionMatchWindows.Count > 0 ? " or tick \"Use competition-level match windows\" above" : "").
+                                                @if (_competitionMatchWindows.Count == 0)
+                                                {
+                                                    <MudText Typo="Typo.caption" Class="mt-1 d-block" Style="opacity:0.8">
+                                                        Tip: configure competition-level windows in step 12, then return here to share them across divisions.
+                                                    </MudText>
+                                                }
+                                            </MudAlert>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Success" Class="d-block">
+                                            Using @_competitionMatchWindows.Count competition-level window(s).
+                                        </MudText>
+                                    }
+                                </MudPaper>
+                            }
+                        }
+                    }
+
+                    @StepActions(canBack: true, advance: TryAdvanceFromDivisions)
                 </MudPaper>
             }
 
