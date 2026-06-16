@@ -218,7 +218,11 @@ RenderFragment allCompetitionsGrid =
                 </TemplateColumn>
                 <TemplateColumn CellClass="d-flex flex-wrap justify-end align-center gap-1">
                     <CellTemplate>
-                        @if (!context.Item.IsStarted)
+                        @if (context.Item.WizardStep.HasValue)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Setup in progress</MudChip>
+                        }
+                        else if (!context.Item.IsStarted)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not Started</MudChip>
                         }
@@ -234,7 +238,16 @@ RenderFragment allCompetitionsGrid =
                         </MudTooltip>
                         @if (CanEdit(context.Item))
                         {
-                            @if (!context.Item.IsArchived)
+                            @if (context.Item.WizardStep.HasValue)
+                            {
+                                <MudTooltip Text="Continue setup">
+                                    <MudIconButton Size="@Size.Small"
+                                                   Icon="@Icons.Material.Filled.PlayArrow"
+                                                   Color="@Color.Info"
+                                                   OnClick="@(() => Nav.NavigateTo($"/competition/wizard/{context.Item.CompetitionId}"))" />
+                                </MudTooltip>
+                            }
+                            else if (!context.Item.IsArchived)
                             {
                                 <MudTooltip Text="Edit">
                                     <MudIconButton Size="@Size.Small"

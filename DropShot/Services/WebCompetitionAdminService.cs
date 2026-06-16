@@ -300,7 +300,8 @@ public sealed class WebCompetitionAdminService(
                 .ToList(),
             CanEdit: canEdit,
             IsSuperAdmin: isSuperAdmin,
-            Description: comp.Description);
+            Description: comp.Description,
+            WizardStep: comp.WizardStep);
     }
 
     public async Task<List<CompetitionSeedSourceDto>> GetSeedSourceCandidatesAsync(
@@ -460,6 +461,7 @@ public sealed class WebCompetitionAdminService(
         comp.LadderStartingRating = req.LadderStartingRating;
         comp.LadderProvisionalMatches = req.LadderProvisionalMatches;
         comp.LadderUseMarginOfVictory = req.LadderUseMarginOfVictory;
+        comp.WizardStep = req.WizardStep;
     }
 
     public async Task<CloneCompetitionResultDto> CloneCompetitionAsync(

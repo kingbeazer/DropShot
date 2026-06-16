@@ -1,0 +1,40 @@
+@* Confirmation dialog for the "Leave competition" action on ViewCompetition.
+   Mirrors the look of EnterCompetitionConsentDialog so the leave flow feels
+   like the inverse of the join flow. Returns DialogResult.Ok(true) on
+   confirm; Cancel returns DialogResult.Cancel(). *@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Leave @CompetitionName?</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2" Class="pa-2">
+            <MudText Typo="Typo.body2">
+                Are you sure you want to leave <b>@CompetitionName</b>? If you continue:
+            </MudText>
+            <ul class="mud-typography mud-typography-body2" style="padding-left:1.5rem; margin:0;">
+                <li>Your status in this competition will be set to <b>Withdrawn</b>.</li>
+                <li>Your mobile number will stop being shared with other competitors in this competition.</li>
+                <li>Match results you've already recorded stay on the record.</li>
+                <li>You can rejoin later if the competition is still open for entry.</li>
+            </ul>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                   StartIcon="@Icons.Material.Filled.ExitToApp"
+                   OnClick="Confirm">
+            Leave competition
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public string CompetitionName { get; set; } = "";
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(true));
+    private void Cancel() => MudDialog.Cancel();
+}
