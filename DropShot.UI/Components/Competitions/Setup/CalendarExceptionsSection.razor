@@ -53,7 +53,7 @@
                              Variant="@(alreadyAdded ? Variant.Text : Variant.Outlined)"
                              Color="@(alreadyAdded ? Color.Default : Color.Primary)"
                              Style="@chipStyle"
-                             OnClick="@(alreadyAdded ? (Func<Task>?)null : () => QuickAddAsync(s.Date, s.Label))">
+                             OnClick="@(async () => { if (!alreadyAdded) await QuickAddAsync(s.Date, s.Label); })">
                         @s.Label (@s.Date.ToString("d MMM"))
                     </MudChip>
                 </MudTooltip>

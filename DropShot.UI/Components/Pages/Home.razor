@@ -334,18 +334,12 @@
         CompetitionFixtureDto? Fixture,
         RecentCasualMatchDto? CasualMatch);
 
-    private bool _showUpgradeBanner;
-    private bool _eligibleForUpgradeBanner;
     private bool _isAuthenticated;
 
     protected override async Task OnInitializedAsync()
     {
         _isAuthenticated = CurrentUser.IsAuthenticated;
         if (!_isAuthenticated) return;
-
-        // Subscription banner gate. Reveal happens in OnAfterRenderAsync once
-        // we've checked the dismissal timestamp — never flash on initial render.
-        _eligibleForUpgradeBanner = !CurrentUser.IsSubscribed;
 
         _pendingReviews = await CompetitionService.GetPendingVerificationFixturesAsync();
         _upcomingFixtures = await CompetitionService.GetMyUpcomingFixturesAsync();
@@ -441,35 +435,6 @@
             return "a match";
         if (string.IsNullOrWhiteSpace(b)) return $"a match ({a})";
         return $"{a} vs {b}";
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender && _eligibleForUpgradeBanner)
-        {
-            // Check localStorage for dismiss timestamp; re-show after 7 days.
-            var dismissed = await JS.InvokeAsync<string?>("localStorage.getItem", "upgradeBannerDismissed");
-            var recentlyDismissed = false;
-            if (!string.IsNullOrEmpty(dismissed) && long.TryParse(dismissed, out var ts))
-            {
-                var dismissedAt = DateTimeOffset.FromUnixTimeMilliseconds(ts);
-                if (DateTimeOffset.UtcNow - dismissedAt < TimeSpan.FromDays(7))
-                    recentlyDismissed = true;
-            }
-
-            if (!recentlyDismissed)
-            {
-                _showUpgradeBanner = true;
-                StateHasChanged();
-            }
-        }
-    }
-
-    private async Task DismissBanner()
-    {
-        _showUpgradeBanner = false;
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
-        await JS.InvokeVoidAsync("localStorage.setItem", "upgradeBannerDismissed", now);
     }
 
     private static Color StatusColor(FixtureStatus s) => s switch
