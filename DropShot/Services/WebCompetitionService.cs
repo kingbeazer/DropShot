@@ -894,7 +894,7 @@ public sealed class WebCompetitionService(
         c.EligibleSex,
         c.HostClubId, c.HostClub?.Name, c.RulesSetId, c.Rules?.Name,
         c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted,
-        c.CreatorUserId, c.IsRestricted, c.RegisterByDate);
+        c.CreatorUserId, c.IsRestricted, c.RegisterByDate, c.WizardStep);
 
     public async Task<MyCompetitionsViewDto> GetMyCompetitionsViewAsync(CancellationToken ct = default)
     {

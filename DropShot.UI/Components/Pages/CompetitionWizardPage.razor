@@ -1004,6 +1004,9 @@ else
     private bool _loaded;
     private bool _isSaving;
     private string? _serverError;
+    private int? _savedId;
+
+    [Parameter] public int? CompetitionId { get; set; }
     private string? _categoryError;
     private string? _nameError;
     private string? _formatError;
@@ -1061,7 +1064,7 @@ else
     {
         try
         {
-            var view = await Admin.GetCompetitionForEditAsync(null);
+            var view = await Admin.GetCompetitionForEditAsync(CompetitionId);
             if (view is null || !view.CanEdit)
             {
                 Nav.NavigateTo("/", replace: true);
@@ -1076,15 +1079,59 @@ else
                 .Select(p => new RubberPresetDto(p.Key, p.Label))
                 .ToList();
 
-            Model = new CompetitionFormModel();
+            if (CompetitionId.HasValue && view.CompetitionId.HasValue && view.WizardStep.HasValue)
+            {
+                // Resume an in-progress wizard competition — restore all form state.
+                _savedId = view.CompetitionId;
+                var (cat, fmt) = view.CompetitionFormat.HasValue
+                    ? ReverseFormatMapping(view.CompetitionFormat.Value, view.EligibleSex)
+                    : ((CompetitionCategoryUi?)null, (CompetitionFormatUi?)null);
+                Model = new CompetitionFormModel
+                {
+                    CompetitionName             = view.CompetitionName,
+                    Category                    = cat,
+                    Format                      = fmt,
+                    MaxParticipants             = view.MaxParticipants,
+                    StartDateDt                 = view.StartDate,
+                    EndDateDt                   = view.EndDate,
+                    RegisterByDateDt            = view.RegisterByDate,
+                    MaxAge                      = view.MaxAge,
+                    MinAge                      = view.MinAge,
+                    HostClubId                  = view.HostClubId,
+                    RulesSetId                  = view.RulesSetId,
+                    EventId                     = view.EventId,
+                    BestOf                      = view.BestOf,
+                    RequireVerification         = view.RequireVerification,
+                    TeamSize                    = view.TeamSize,
+                    MatchFormat                 = view.MatchFormat,
+                    NumberOfSets                = view.NumberOfSets,
+                    GamesPerSet                 = view.GamesPerSet,
+                    SetWinMode                  = view.SetWinMode,
+                    FinalSetTieBreakGames       = view.FinalSetTieBreakGames,
+                    FinalSetTieBreakWinMode     = view.FinalSetTieBreakWinMode,
+                    LeagueScoring               = view.LeagueScoring,
+                    RubberTieBreak              = view.RubberTieBreak,
+                    MinDaysBetweenPlayerMatches = view.MinDaysBetweenPlayerMatches,
+                    HasDivisions                = view.HasDivisions,
+                    Description                 = view.Description,
+                };
+                _selectedRubberPresetKey = view.RubberTemplateKey;
+                _currentStep   = view.WizardStep.Value;
+                _highWaterMark = view.WizardStep.Value;
+            }
+            else
+            {
+                Model = new CompetitionFormModel();
+            }
 
-            // Same role-aware seeding the existing create flow uses:
-            //  • ClubAdmin (single seeded HostClubId): lock to that club.
-            //  • Premium user (no clubs visible): hide host club entirely.
+            // Role-aware host-club gating (applies in both create and resume modes).
+            //  • ClubAdmin (single seeded HostClubId): lock the field to their club.
+            //  • Premium user with no clubs visible: hide the field entirely.
             if (view.HostClubId.HasValue)
             {
                 _lockHostClub = true;
-                Model.HostClubId = view.HostClubId;
+                if (!CompetitionId.HasValue)
+                    Model.HostClubId = view.HostClubId;
             }
             else if (_clubs.Count == 0)
             {
@@ -1101,6 +1148,24 @@ else
             _loaded = true;
         }
     }
+
+    private static (CompetitionCategoryUi? category, CompetitionFormatUi? format)
+        ReverseFormatMapping(CompetitionFormat format, PlayerSex? eligibleSex) =>
+        (format, eligibleSex) switch
+        {
+            (CompetitionFormat.MixedDoubles, _)            => (CompetitionCategoryUi.Mixed,  CompetitionFormatUi.Doubles),
+            (CompetitionFormat.TeamMatch, _)               => (CompetitionCategoryUi.Mixed,  CompetitionFormatUi.Team),
+            (CompetitionFormat.SinglesLadder, _)           => (CompetitionCategoryUi.Mixed,  CompetitionFormatUi.SinglesLadder),
+            (CompetitionFormat.Singles, PlayerSex.Male)    => (CompetitionCategoryUi.Male,   CompetitionFormatUi.Singles),
+            (CompetitionFormat.Singles, PlayerSex.Female)  => (CompetitionCategoryUi.Female, CompetitionFormatUi.Singles),
+            (CompetitionFormat.Singles, _)                 => (CompetitionCategoryUi.Mixed,  CompetitionFormatUi.Singles),
+            (CompetitionFormat.Doubles, PlayerSex.Male)    => (CompetitionCategoryUi.Male,   CompetitionFormatUi.Doubles),
+            (CompetitionFormat.Doubles, PlayerSex.Female)  => (CompetitionCategoryUi.Female, CompetitionFormatUi.Doubles),
+            (CompetitionFormat.Team, PlayerSex.Male)       => (CompetitionCategoryUi.Male,   CompetitionFormatUi.Team),
+            (CompetitionFormat.Team, PlayerSex.Female)     => (CompetitionCategoryUi.Female, CompetitionFormatUi.Team),
+            (CompetitionFormat.Team, _)                    => (CompetitionCategoryUi.Mixed,  CompetitionFormatUi.Team),
+            _                                              => (null, null)
+        };
 
     private void GoToStep(int step)
     {
@@ -1139,6 +1204,57 @@ else
             _highWaterMark = _currentStep;
         }
         _pendingScroll = true;
+
+        // Auto-save once we have the minimum required fields (name + category + format).
+        // The first save creates the DB record; subsequent saves update it with the new step.
+        if (Model.Format != null && !string.IsNullOrWhiteSpace(Model.CompetitionName) && Model.Category != null)
+            _ = AutoSaveAsync(_currentStep);
+    }
+
+    private async Task AutoSaveAsync(int wizardStep)
+    {
+        try
+        {
+            var request = new SaveCompetitionEditRequest(
+                CompetitionName: Model.CompetitionName.Trim(),
+                CompetitionFormat: CompetitionFormHelpers.EffectivePersistedFormat(Model.Category, Model.Format) ?? CompetitionFormat.Singles,
+                EligibleSex: CompetitionFormHelpers.EffectiveEligibleSex(Model.Category),
+                MaxParticipants: Model.MaxParticipants,
+                StartDate: Model.StartDateDt,
+                EndDate: Model.EndDateDt,
+                RegisterByDate: Model.RegisterByDateDt,
+                MaxAge: Model.MaxAge,
+                MinAge: Model.MinAge,
+                HostClubId: Model.HostClubId,
+                RulesSetId: Model.RulesSetId,
+                EventId: Model.EventId,
+                BestOf: Model.BestOf,
+                RequireVerification: Model.RequireVerification,
+                TeamSize: Model.TeamSize,
+                RubberTemplateKey: _selectedRubberPresetKey,
+                MatchFormat: Model.MatchFormat,
+                NumberOfSets: Model.NumberOfSets,
+                GamesPerSet: Model.GamesPerSet,
+                SetWinMode: Model.SetWinMode,
+                LeagueScoring: Model.LeagueScoring,
+                RubberTieBreak: Model.RubberTieBreak,
+                MinDaysBetweenPlayerMatches: Model.MinDaysBetweenPlayerMatches,
+                HasDivisions: Model.HasDivisions,
+                SeededFromCompetitionId: null,
+                FinalSetTieBreakGames: Model.FinalSetTieBreakGames,
+                FinalSetTieBreakWinMode: Model.FinalSetTieBreakWinMode,
+                Description: Model.Description,
+                LadderKFactor: Model.LadderKFactor,
+                LadderStartingRating: Model.LadderStartingRating,
+                LadderProvisionalMatches: Model.LadderProvisionalMatches,
+                LadderUseMarginOfVictory: Model.LadderUseMarginOfVictory,
+                WizardStep: wizardStep);
+            _savedId = await Admin.SaveCompetitionAsync(_savedId, request);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Wizard auto-save failed at step {Step}.", wizardStep);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1334,7 +1450,7 @@ else
                 LadderProvisionalMatches: Model.LadderProvisionalMatches,
                 LadderUseMarginOfVictory: Model.LadderUseMarginOfVictory);
 
-            var savedId = await Admin.SaveCompetitionAsync(null, request);
+            var savedId = await Admin.SaveCompetitionAsync(_savedId, request);
 
             // ── 2. Apply optional collected settings ───────────────
             if (_selectedStages.Count > 0)

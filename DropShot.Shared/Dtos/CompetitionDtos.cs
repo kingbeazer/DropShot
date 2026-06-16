@@ -20,7 +20,8 @@ public record CompetitionDto(
     bool IsStarted = false,
     string? CreatorUserId = null,
     bool IsRestricted = false,
-    DateTime? RegisterByDate = null);
+    DateTime? RegisterByDate = null,
+    int? WizardStep = null);
 
 public record CompetitionDetailDto(
     int CompetitionId,

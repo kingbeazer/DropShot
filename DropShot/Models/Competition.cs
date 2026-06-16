@@ -108,6 +108,13 @@ namespace DropShot.Models
         public int LadderProvisionalMatches { get; set; } = 10;
         public bool LadderUseMarginOfVictory { get; set; } = true;
 
+        /// <summary>
+        /// When not null, this competition was created through the setup wizard and has not
+        /// yet been fully configured. The value is the wizard step the user last reached.
+        /// Null means the wizard was completed (or the competition was not created via wizard).
+        /// </summary>
+        public int? WizardStep { get; set; }
+
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
         public Event? Event { get; set; }

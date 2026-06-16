@@ -73,7 +73,8 @@ public record CompetitionEditDto(
     IReadOnlyList<CompetitionCalendarExceptionDto> CalendarExceptions,
     bool CanEdit,
     bool IsSuperAdmin,
-    string? Description = null);
+    string? Description = null,
+    int? WizardStep = null);
 
 public record CompetitionCalendarExceptionDto(
     int CompetitionCalendarExceptionId,
@@ -219,7 +220,8 @@ public record SaveCompetitionEditRequest(
     double LadderKFactor = 20.0,
     double LadderStartingRating = 1000.0,
     int LadderProvisionalMatches = 10,
-    bool LadderUseMarginOfVictory = true);
+    bool LadderUseMarginOfVictory = true,
+    int? WizardStep = null);
 
 public record ApplyStageFollowUpRequest(IReadOnlyList<StageType> StageTypes);
 

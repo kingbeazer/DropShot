@@ -1,7 +1,12 @@
 @page "/competition/0"
+@page "/competition/wizard/{Id:int}"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @rendermode InteractiveServer
 
 <MudProviders />
-<DropShot.UI.Components.Pages.CompetitionWizardPage />
+<DropShot.UI.Components.Pages.CompetitionWizardPage CompetitionId="@(Id == 0 ? null : Id)" />
+
+@code {
+    [Parameter] public int Id { get; set; }
+}
