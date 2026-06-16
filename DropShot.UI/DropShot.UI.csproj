@@ -4,6 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- CS8669: Razor source generator emits nullable annotations in files without #nullable enable.
+         This is a generator limitation — the warning is in generated code we cannot edit. -->
+    <NoWarn>$(NoWarn);CS8669</NoWarn>
     <AddRazorSupportForMvc>false</AddRazorSupportForMvc>
   </PropertyGroup>
 

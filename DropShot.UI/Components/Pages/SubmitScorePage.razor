@@ -61,8 +61,10 @@
                         <div class="set-status">
                             @if (IsSetInvalid(idx))
                             {
-                                <MudIcon Icon="@Icons.Material.Filled.Close"
-                                         Color="Color.Error" Size="Size.Small" />
+                                <MudTooltip Text="@GetSetErrorMessage(idx)" Placement="Placement.Left" Arrow="true">
+                                    <MudIcon Icon="@Icons.Material.Filled.Close"
+                                             Color="Color.Error" Size="Size.Small" />
+                                </MudTooltip>
                             }
                         </div>
                     </div>
@@ -371,6 +373,30 @@
         return Math.Abs(a - b) == 2;
     }
 
+    private string GetSetErrorMessage(int idx)
+    {
+        if (_context is null || !_score1[idx].HasValue || !_score2[idx].HasValue) return "";
+        int a = _score1[idx]!.Value, b = _score2[idx]!.Value;
+        if (a == b) return "Scores cannot be tied — one side must win each set.";
+
+        bool isFinalSet = idx == _bestOf - 1;
+        int target = _context.GamesPerSet;
+        string modeLabel = _context.SetWinMode == SetWinMode.FirstTo ? "First to" : "Win by 2";
+
+        if (!isFinalSet)
+        {
+            return _context.SetWinMode == SetWinMode.FirstTo
+                ? $"First to {target}: winner must reach exactly {target} with the other side below {target}."
+                : $"Win by 2 (target {target}): winner must reach {target} or higher with a 2-game lead.";
+        }
+
+        int tbTarget = _context.FinalSetTieBreakGames;
+        string tbMode = _context.FinalSetTieBreakWinMode == SetWinMode.FirstTo
+            ? $"first to {tbTarget}"
+            : $"win by 2 from {tbTarget}";
+        return $"Final set: must be a valid {target}-game set ({modeLabel}) or a tie break ({tbMode}).";
+    }
+
     // Show the submit tick only when every entered set passes validation,
     // at least one set has been entered, and the match has a resolvable
     // outcome (a clear winner, or a fixed-set draw). Admin override
@@ -585,9 +611,13 @@
         // related number in the long 8-99 list — final-set tie-break scores
         // usually correlate (e.g. 12-10, 10-8).
         int? otherSide = _activeIsSide1 ? _score2[_activeSet] : _score1[_activeSet];
+        int maxTb = _context is not null && _context.FinalSetTieBreakWinMode == SetWinMode.FirstTo
+            ? _context.FinalSetTieBreakGames
+            : 99;
         var parameters = new DialogParameters<TieBreakPickerDialog>
         {
-            { x => x.HighlightValue, otherSide }
+            { x => x.HighlightValue, otherSide },
+            { x => x.MaxValue, maxTb }
         };
         var dialog = await DialogService.ShowAsync<TieBreakPickerDialog>("Tie break score", parameters);
         var result = await dialog.Result;

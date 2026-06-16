@@ -77,7 +77,9 @@
                                 <div class="rubber-set-status">
                                     @if (IsSetInvalid(rIdx, sIdx))
                                     {
-                                        <MudIcon Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small" />
+                                        <MudTooltip Text="@GetSetErrorMessage(rIdx, sIdx)" Placement="Placement.Left" Arrow="true">
+                                            <MudIcon Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small" />
+                                        </MudTooltip>
                                     }
                                 </div>
                             </div>
@@ -521,6 +523,17 @@
         if (winner == target) return loser <= target - 2;
         if (winner == target + 1) return loser == target - 1 || loser == target;
         return loser == winner - 2;
+    }
+
+    private string GetSetErrorMessage(int rubberIdx, int idx)
+    {
+        if (_context is null || !_home[rubberIdx][idx].HasValue || !_away[rubberIdx][idx].HasValue) return "";
+        int a = _home[rubberIdx][idx]!.Value, b = _away[rubberIdx][idx]!.Value;
+        if (a == b) return "Scores cannot be tied — one side must win each set.";
+        int target = _context.GamesPerSet;
+        return _context.SetWinMode == SetWinMode.FirstTo
+            ? $"First to {target}: winner must reach exactly {target} with the other side below {target}."
+            : $"Win by 2 (target {target}): winner must reach {target} or higher with a 2-game lead.";
     }
 
     private bool RubberCanSubmit(int rubberIdx)
