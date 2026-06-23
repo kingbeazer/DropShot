@@ -209,6 +209,11 @@
     color: white;
 }
 
+/* ── Responsive visibility helpers ────────────────────────────────── */
+.nav-mobile-only {
+    display: none;
+}
+
 /* ── Mobile hamburger user header ──────────────────────────────────── */
 .nav-mobile-header {
     display: none;
@@ -457,6 +462,10 @@
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         padding-top: 0.5rem;
         margin-top: 0.5rem;
+    }
+
+    .nav-mobile-only {
+        display: block;
     }
 
     /* Mobile user header: shown at top of hamburger panel */

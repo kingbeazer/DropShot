@@ -123,9 +123,10 @@
                     </div>
                 </Authorized>
             </AuthorizeView>
+            @* Account link shown here on mobile only; desktop uses the dropdown. *@
             <AuthorizeView>
                 <Authorized>
-                    <div class="nav-item">
+                    <div class="nav-item nav-mobile-only">
                         <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
                             <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
                             <span class="nav-label-group">
@@ -212,6 +213,15 @@
                                 </span>
                             </NavLink>
                             *@
+                            <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                                <span class="nav-label-group">
+                                    <span class="nav-label">Account</span>
+                                    <span class="nav-sublabel">Profile &amp; settings</span>
+                                </span>
+                            </a>
+
+                            <hr class="nav-dropdown-divider" />
 
                             @* Admin shortcuts — rolled into the user profile dropdown. *@
                             <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin" Context="adminCtx">
