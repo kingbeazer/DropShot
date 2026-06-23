@@ -80,25 +80,24 @@
             <MudImage Class="mx-auto my-auto" Src="_content/DropShot.UI/images/Logo.png" Style="height: 300px;"></MudImage>
         </div>
     </MudCarouselItem>
+    <MudCarouselItem Transition="transition">
+        <div class="d-flex align-center justify-center" style="height:100%; background: linear-gradient(135deg, #1b5e20 0%, #388e3c 55%, #a5d6a7 100%); color:#fff; padding: 24px; text-align:center;">
+            <div>
+                <MudIcon Icon="@Icons.Material.Filled.Groups" Style="font-size: 56px; color: rgba(255,255,255,0.9);" />
+                <MudText Typo="Typo.overline" Style="letter-spacing:3px; opacity:0.85; margin-top:8px;">YOUR LOCAL CLUB</MudText>
+                <MudText Typo="Typo.h3" Style="font-weight:800; margin-top:8px;">Join Your Club on DropShot</MudText>
+                <MudText Typo="Typo.h6" Style="font-weight:400; margin-top:8px; max-width:640px;">
+                    Link to your club to enter competitions, track results and follow your club's competition progress.
+                </MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Dark" Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           Href="/clubs" Class="mt-4">
+                    Find Your Club
+                </MudButton>
+            </div>
+        </div>
+    </MudCarouselItem>
 </MudCarousel>
-
-@if (_showClubBanner)
-{
-    <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4"
-              ShowCloseIcon="true" CloseIconClicked="@(() => _showClubBanner = false)">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Style="flex-wrap: wrap;">
-            <MudIcon Icon="@Icons.Material.Filled.Groups" />
-            <MudText>
-                <strong>Link to your club</strong> — join your club on DropShot to enter competitions, track results, and see your club's competition progress.
-            </MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                       StartIcon="@Icons.Material.Filled.Search"
-                       Href="/clubs">
-                Find Your Club
-            </MudButton>
-        </MudStack>
-    </MudAlert>
-}
 
 <MudCard Class="mt-4 mb-8 frosted-card" Elevation="0">
     <MudCardContent>
@@ -312,8 +311,6 @@
     /// link is a web-Identity feature MAUI doesn't have.
     /// </summary>
     [Parameter] public string? MagicLinkUrl { get; set; } = "/Account/LoginMagicLink";
-
-    private bool _showClubBanner = true;
 
     private List<CompetitionFixtureDto> _upcomingFixtures = [];
     private List<CompetitionFixtureDto> _pendingReviews = [];
