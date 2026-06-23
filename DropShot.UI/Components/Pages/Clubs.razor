@@ -27,13 +27,10 @@
         <MudTh>Email</MudTh>
         <MudTh>Courts</MudTh>
         <MudTh>Link Status</MudTh>
-        @if (CanSeeActionsColumn)
-        {
-            <MudTh>Actions</MudTh>
-        }
+        <MudTh>Actions</MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Name"><MudLink Href="@($"/clubs/{context.ClubId}")">@context.Name</MudLink></MudTd>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
         <MudTd DataLabel="Town">@(context.Town ?? "—")</MudTd>
         <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
         <MudTd DataLabel="Courts">@context.CourtCount</MudTd>
@@ -65,24 +62,23 @@
                     break;
             }
         </MudTd>
-        @if (CanSeeActionsColumn)
-        {
-            <MudTd DataLabel="Actions">
-                @{
-                    var canAdminThis = CurrentUser.IsAdmin || _adminClubIds.Contains(context.ClubId);
-                }
-                @if (canAdminThis)
-                {
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                   OnClick="@(() => Nav.NavigateTo($"/clubs/{context.ClubId}/edit"))" />
-                }
-                @if (CurrentUser.IsAdmin)
-                {
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                   OnClick="@(() => DeleteClub(context))" />
-                }
-            </MudTd>
-        }
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                           aria-label="View club" Href="@($"/clubs/{context.ClubId}")" />
+            @{
+                var canAdminThis = CurrentUser.IsAdmin || _adminClubIds.Contains(context.ClubId);
+            }
+            @if (canAdminThis)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => Nav.NavigateTo($"/clubs/{context.ClubId}/edit"))" />
+            }
+            @if (CurrentUser.IsAdmin)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeleteClub(context))" />
+            }
+        </MudTd>
     </RowTemplate>
     <NoRecordsContent>
         <MudText>No clubs yet.</MudText>
@@ -136,9 +132,6 @@
     private List<int> _adminClubIds = [];
     private HashSet<int> _linkedClubIds = [];
     private HashSet<int> _pendingLinkClubIds = [];
-
-    private bool CanSeeActionsColumn =>
-        CurrentUser.IsAdmin || _adminClubIds.Count > 0;
 
     private enum ClubLinkState { None, Pending, Linked, Administered }
 
