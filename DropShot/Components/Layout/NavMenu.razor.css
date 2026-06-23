@@ -206,6 +206,11 @@
     color: white;
 }
 
+/* ── Mobile hamburger user header ──────────────────────────────────── */
+.nav-mobile-header {
+    display: none;
+}
+
 /* ── Avatar ────────────────────────────────────────────────────────── */
 .nav-avatar {
     width: 24px;
@@ -442,5 +447,45 @@
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         padding-top: 0.5rem;
         margin-top: 0.5rem;
+    }
+
+    /* Mobile user header: shown at top of hamburger panel */
+    .nav-mobile-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 1.25rem 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        width: 100%;
+        flex-shrink: 0;
+    }
+
+    .nav-mobile-header .nav-label-group {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .nav-mobile-header .nav-label {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: white;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .nav-mobile-header .nav-sublabel {
+        display: block;
+    }
+
+    .nav-mobile-avatar {
+        width: 36px;
+        height: 36px;
+    }
+
+    /* Hide the account dropdown trigger on mobile — the header above replaces it,
+       and the dropdown items are already expanded inline via .nav-dropdown-menu. */
+    .nav-dropdown-trigger {
+        display: none;
     }
 }
