@@ -1,0 +1,9 @@
+@page "/clubs/{ClubId:int}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+<DropShot.UI.Components.Pages.ClubDetail ClubId="@ClubId" />
+
+@code {
+    [Parameter] public int ClubId { get; set; }
+}

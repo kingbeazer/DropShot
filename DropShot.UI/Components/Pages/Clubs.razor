@@ -38,7 +38,7 @@
         }
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Name"><MudLink Href="@($"/clubs/{context.ClubId}")">@context.Name</MudLink></MudTd>
         <MudTd DataLabel="Town">@(context.Town ?? "—")</MudTd>
         <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
         <MudTd DataLabel="Courts">@context.CourtCount</MudTd>

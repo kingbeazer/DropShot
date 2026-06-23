@@ -80,37 +80,25 @@
             <MudImage Class="mx-auto my-auto" Src="_content/DropShot.UI/images/Logo.png" Style="height: 300px;"></MudImage>
         </div>
     </MudCarouselItem>
-    <MudCarouselItem Transition="transition">
-        <div class="d-flex align-center justify-center" style="height:100%; background: linear-gradient(135deg, #0f4c3a 0%, #1b8759 55%, #ffd54f 100%); color:#fff; padding: 24px; text-align:center;">
-            <div>
-                <MudText Typo="Typo.overline" Style="letter-spacing:3px; opacity:0.85;">DROPSHOT SUMMER SLAM</MudText>
-                <MudText Typo="Typo.h3" Style="font-weight:800; margin-top:8px;">Enter the Hard Court Classic</MudText>
-                <MudText Typo="Typo.h6" Style="font-weight:400; margin-top:8px; max-width:640px;">
-                    Singles &amp; doubles brackets · Family barbecue on finals day · Registration closes 14 June
-                </MudText>
-                <MudButton Variant="Variant.Filled" Color="Color.Warning" Size="Size.Large"
-                           StartIcon="@Icons.Material.Filled.EmojiEvents"
-                           Href="/competitions" Class="mt-4">
-                    Sign Up Now
-                </MudButton>
-            </div>
-        </div>
-    </MudCarouselItem>
-    <MudCarouselItem Transition="transition">
-        <div class="d-flex align-center justify-center" style="height:100%; background: linear-gradient(135deg, #1a237e 0%, #3949ab 50%, #c5cae9 100%); color:#fff; padding: 24px; text-align:center;">
-            <div>
-                <MudText Typo="Typo.overline" Style="letter-spacing:3px; opacity:0.85;">RIVERSIDE LAWN TENNIS CLUB</MudText>
-                <MudText Typo="Typo.h3" Style="font-weight:800; margin-top:8px;">Your Game. Your Club. Year Round.</MudText>
-                <MudText Typo="Typo.h6" Style="font-weight:400; margin-top:8px; max-width:640px;">
-                    Seven outdoor courts · Four indoor courts · Club night every Thursday
-                </MudText>
-                <MudText Typo="Typo.body2" Class="mt-2" Style="opacity:0.9;">
-                    New member offer — first month free. Visit riverside-ltc.example
-                </MudText>
-            </div>
-        </div>
-    </MudCarouselItem>
 </MudCarousel>
+
+@if (_showClubBanner)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4"
+              ShowCloseIcon="true" CloseIconClicked="@(() => _showClubBanner = false)">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Style="flex-wrap: wrap;">
+            <MudIcon Icon="@Icons.Material.Filled.Groups" />
+            <MudText>
+                <strong>Link to your club</strong> — join your club on DropShot to enter competitions, track results, and see your club's competition progress.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Search"
+                       Href="/clubs">
+                Find Your Club
+            </MudButton>
+        </MudStack>
+    </MudAlert>
+}
 
 <MudCard Class="mt-4 mb-8 frosted-card" Elevation="0">
     <MudCardContent>
@@ -324,6 +312,8 @@
     /// link is a web-Identity feature MAUI doesn't have.
     /// </summary>
     [Parameter] public string? MagicLinkUrl { get; set; } = "/Account/LoginMagicLink";
+
+    private bool _showClubBanner = true;
 
     private List<CompetitionFixtureDto> _upcomingFixtures = [];
     private List<CompetitionFixtureDto> _pendingReviews = [];
