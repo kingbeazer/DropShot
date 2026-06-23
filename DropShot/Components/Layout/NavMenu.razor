@@ -253,7 +253,7 @@
 
                             <hr class="nav-dropdown-divider" />
 
-                            <div class="nav-dropdown-item">
+                            <div class="nav-dropdown-item nav-utility-action">
                                 @* Intentionally let the click bubble: .nav-content has an onclick
                                    that toggles the hamburger checkbox, so the mobile menu closes
                                    right after the theme flips. The desktop dropdown is closed
@@ -274,7 +274,7 @@
                                 </button>
                             </div>
 
-                            <div class="nav-dropdown-item">
+                            <div class="nav-dropdown-item nav-utility-action">
                                 <form action="Account/Logout" method="post">
                                     <AntiforgeryToken />
                                     <input type="hidden" name="ReturnUrl" value="@currentUrl" />
