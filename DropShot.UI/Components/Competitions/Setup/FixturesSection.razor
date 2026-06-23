@@ -2,6 +2,7 @@
 @using DropShot.Shared.Dtos
 @using DropShot.UI.Services.Auth
 @inject ICurrentUser CurrentUser
+@inject IDialogService DialogService
 
 <MudPaper id="section-fixtures" Class="pa-4 setup-section frosted-card" Elevation="0"
      Style="color: white;">
@@ -161,6 +162,20 @@
                                    Color="Color.Info" aria-label="QR Code"
                                    OnClick="@(() => OnShowQr.InvokeAsync(context))" />
                 }
+                @if (CanEdit && Reminders.Count > 0)
+                {
+                    <MudMenu Icon="@Icons.Material.Filled.Email" Size="Size.Small"
+                             Color="Color.Secondary" Dense="true"
+                             title="Send reminder email">
+                        @foreach (var rem in Reminders)
+                        {
+                            var reminder = rem;
+                            <MudMenuItem OnClick="@(() => OnSendReminder.InvokeAsync((context, reminder.CompetitionFixtureReminderId)))">
+                                Send: @rem.Subject (@rem.HoursBefore h before)
+                            </MudMenuItem>
+                        }
+                    </MudMenu>
+                }
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => OnOpenEditDialog.InvokeAsync(context))" />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
@@ -204,4 +219,6 @@
     [Parameter] public EventCallback<CompetitionFixtureDto> OnOpenEditDialog { get; set; }
     [Parameter] public EventCallback<CompetitionFixtureDto> OnDeleteFixture { get; set; }
     [Parameter] public EventCallback<CompetitionFixtureDto> OnShowSetScores { get; set; }
+    [Parameter] public IReadOnlyList<CompetitionFixtureReminderDto> Reminders { get; set; } = [];
+    [Parameter] public EventCallback<(CompetitionFixtureDto Fixture, int ReminderId)> OnSendReminder { get; set; }
 }

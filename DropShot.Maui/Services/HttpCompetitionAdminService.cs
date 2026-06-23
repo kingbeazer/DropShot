@@ -608,4 +608,40 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
             $"api/competitions/admin/{competitionId}/calendar-exceptions/{exceptionId}", ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    // ── Fixture reminder emails ──────────────────────────────────────────────
+
+    public async Task<List<CompetitionFixtureReminderDto>> GetFixtureRemindersAsync(
+        int competitionId, CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<CompetitionFixtureReminderDto>>(
+            $"api/competitions/admin/{competitionId}/fixture-reminders", ct) ?? [];
+
+    public async Task<int> SaveFixtureReminderAsync(
+        int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default)
+    {
+        HttpResponseMessage resp;
+        if (reminderId.HasValue)
+            resp = await http.PutAsJsonAsync(
+                $"api/competitions/admin/{competitionId}/fixture-reminders/{reminderId.Value}", request, ct);
+        else
+            resp = await http.PostAsJsonAsync(
+                $"api/competitions/admin/{competitionId}/fixture-reminders", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<int>(ct);
+    }
+
+    public async Task DeleteFixtureReminderAsync(int competitionId, int reminderId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync(
+            $"api/competitions/admin/{competitionId}/fixture-reminders/{reminderId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task SendFixtureReminderManualAsync(
+        int competitionId, int fixtureId, int reminderId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/fixtures/{fixtureId}/send-reminder/{reminderId}", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }

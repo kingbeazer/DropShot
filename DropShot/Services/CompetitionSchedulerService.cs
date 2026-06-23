@@ -323,6 +323,7 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
                 CompetitionId = competitionId,
                 ScheduledAt = slot.Value.time,
                 Status = FixtureStatus.Scheduled,
+                ResultSubmissionToken = Guid.NewGuid(),
             };
             if (isTeamMatchScheduling) fixture.CourtPairId = slot.Value.courtId;
             else fixture.CourtId = slot.Value.courtId;
@@ -341,6 +342,7 @@ public class CompetitionSchedulerService(IDbContextFactory<MyDbContext> dbFactor
                 CompetitionId = competitionId,
                 ScheduledAt   = slot?.time,
                 Status        = FixtureStatus.Scheduled,
+                ResultSubmissionToken = Guid.NewGuid(),
             };
             if (slot is not null)
             {

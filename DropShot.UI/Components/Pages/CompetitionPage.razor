@@ -543,6 +543,12 @@ else
                 OnAdd="AddCalendarExceptionAsync"
                 OnDelete="DeleteCalendarExceptionAsync" />
 
+            @* ── Fixture reminder emails ──────────────────────── *@
+            <FixtureRemindersSection Reminders="_fixtureReminders"
+                OnAddReminder="AddFixtureReminderAsync"
+                OnUpdateReminder="UpdateFixtureReminderAsync"
+                OnDeleteReminder="DeleteFixtureReminderAsync" />
+
             @* ── Rubber Template ─────────────────────────────── *@
             @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
             {
@@ -1274,7 +1280,9 @@ else
                     OnShowQr="ShowQrCode"
                     OnOpenEditDialog="OpenEditFixtureDialog"
                     OnDeleteFixture="DeleteFixture"
-                    OnShowSetScores="OpenSetScoresDialog" />
+                    OnShowSetScores="OpenSetScoresDialog"
+                    Reminders="_fixtureReminders"
+                    OnSendReminder="SendFixtureReminderAsync" />
             }
             else
             {
@@ -2066,6 +2074,7 @@ else
     private List<CompetitionParticipantDto> _participants = [];
     private List<int> _allowedPlayerIds = [];
     private List<CompetitionFixtureDto> _fixtures = [];
+    private List<CompetitionFixtureReminderDto> _fixtureReminders = [];
     private List<CompetitionTeamDto> _teams = [];
     private List<CourtDto> _courts = [];
     private List<CourtPairDto> _courtPairs = [];
@@ -2516,6 +2525,7 @@ else
             _emailTemplates = view.EmailTemplates.ToList();
             _competitionAdmins = view.Admins.ToList();
             _allowedPlayerIds = view.AllowedPlayerIds.ToList();
+            _fixtureReminders = view.FixtureReminders?.ToList() ?? [];
 
             if (view.RubberTemplate is { } rt)
             {
@@ -4181,6 +4191,19 @@ else
         return false;
     }
 
+    private async Task SendFixtureReminderAsync((CompetitionFixtureDto Fixture, int ReminderId) args)
+    {
+        try
+        {
+            await Admin.SendFixtureReminderManualAsync(Id, args.Fixture.CompetitionFixtureId, args.ReminderId);
+            SiteAlerts.Add("Reminder email sent.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add($"Failed to send reminder: {ex.Message}", Severity.Error);
+        }
+    }
+
     private async Task DeleteFixture(CompetitionFixtureDto fixture)
     {
         bool hasResult = fixture.Status == FixtureStatus.Completed
@@ -4537,6 +4560,40 @@ else
         {
             SiteAlerts.Add($"Failed to delete exception: {ex.Message}", Severity.Error);
         }
+    }
+
+    // ── Fixture Reminder Emails ──────────────────────────────────────────────
+
+    private async Task AddFixtureReminderAsync(SaveFixtureReminderRequest request)
+    {
+        try
+        {
+            var newId = await Admin.SaveFixtureReminderAsync(Id, null, request);
+            _fixtureReminders.Add(new CompetitionFixtureReminderDto(newId, Id, request.HoursBefore, request.Subject, request.Body, request.IncludeResultLink));
+        }
+        catch (Exception ex) { SiteAlerts.Add($"Failed to add reminder: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task UpdateFixtureReminderAsync((int ReminderId, SaveFixtureReminderRequest Request) args)
+    {
+        try
+        {
+            await Admin.SaveFixtureReminderAsync(Id, args.ReminderId, args.Request);
+            var idx = _fixtureReminders.FindIndex(r => r.CompetitionFixtureReminderId == args.ReminderId);
+            if (idx >= 0)
+                _fixtureReminders[idx] = _fixtureReminders[idx] with { HoursBefore = args.Request.HoursBefore, Subject = args.Request.Subject, Body = args.Request.Body, IncludeResultLink = args.Request.IncludeResultLink };
+        }
+        catch (Exception ex) { SiteAlerts.Add($"Failed to update reminder: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task DeleteFixtureReminderAsync(int reminderId)
+    {
+        try
+        {
+            await Admin.DeleteFixtureReminderAsync(Id, reminderId);
+            _fixtureReminders.RemoveAll(r => r.CompetitionFixtureReminderId == reminderId);
+        }
+        catch (Exception ex) { SiteAlerts.Add($"Failed to delete reminder: {ex.Message}", Severity.Error); }
     }
 
     // ── Competition Templates ────────────────────────────────────────────────

@@ -71,6 +71,16 @@ public interface ICompetitionService
     Task<FixtureScoreContextDto?> GetFixtureScoreContextAsync(int fixtureId, CancellationToken ct = default);
 
     /// <summary>
+    /// Token-based (no-auth) version: loads a fixture score context using the
+    /// <see cref="CompetitionFixture.ResultSubmissionToken"/> GUID. Returns null
+    /// when the token is invalid or the fixture isn't in a scorable state.
+    /// </summary>
+    Task<FixtureScoreContextDto?> GetFixtureScoreContextByTokenAsync(Guid token, CancellationToken ct = default);
+
+    /// <summary>Token-based score submission — no auth required.</summary>
+    Task SubmitFixtureScoreByTokenAsync(Guid token, SubmitFixtureScoreRequest request, CancellationToken ct = default);
+
+    /// <summary>
     /// Returns the user-view payload for the "/competitions" page: the list of
     /// competitions the authenticated user has entered, plus the eligible
     /// not-yet-entered competitions still open for registration. Server applies

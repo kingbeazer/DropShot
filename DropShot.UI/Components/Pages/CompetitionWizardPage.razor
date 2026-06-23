@@ -850,7 +850,28 @@ else
                 </MudPaper>
             }
 
-            @* ── Step 11: Admins (optional) ─────────── *@
+            @* ── Step 11: Fixture emails (optional) ──────────────── *@
+            @if (_highWaterMark >= StepEmailReminders && _currentStep != StepEmailReminders)
+            {
+                <StepSummary Label="Fixture emails"
+                             Icon="@Icons.Material.Filled.Email"
+                             AccentColor="#9c27b0"
+                             Summary="@(_wizardReminders.Count == 0 ? "No reminder emails configured" : $"{_wizardReminders.Count} reminder(s) configured")"
+                             OnEdit="@(() => GoToStep(StepEmailReminders))" />
+            }
+            else if (_currentStep == StepEmailReminders)
+            {
+                <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
+                    <FixtureRemindersSection Reminders="_wizardReminders"
+                        OnAddReminder="@(req => { _wizardReminders.Add(new CompetitionFixtureReminderDto(_nextReminderId--, 0, req.HoursBefore, req.Subject, req.Body, req.IncludeResultLink)); })"
+                        OnUpdateReminder="@(args => { var idx = _wizardReminders.FindIndex(r => r.CompetitionFixtureReminderId == args.ReminderId); if (idx >= 0) _wizardReminders[idx] = _wizardReminders[idx] with { HoursBefore = args.Request.HoursBefore, Subject = args.Request.Subject, Body = args.Request.Body, IncludeResultLink = args.Request.IncludeResultLink }; })"
+                        OnDeleteReminder="@(id => _wizardReminders.RemoveAll(r => r.CompetitionFixtureReminderId == id))" />
+
+                    @StepActions(canBack: true, advance: TryAdvance)
+                </MudPaper>
+            }
+
+            @* ── Step 12: Admins (optional) ─────────── *@
             @if (_currentStep == StepAdmins)
             {
                 <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
@@ -983,18 +1004,19 @@ else
 }
 
 @code {
-    private const int TotalSteps = 15;
+    private const int TotalSteps = 16;
 
     // Post-save step indices — read by render conditions and CreateAsync's
     // post-success jump. Defined here so the layout has a single source of
     // truth if the order changes again.
-    private const int StepMatchWindows = 5;
-    private const int StepCalendar    = 6;
-    private const int StepDivisions   = 7;
-    private const int StepAdmins      = 11;
-    private const int StepStages      = 12;
-    private const int StepRubber      = 13;
-    private const int StepFinish      = 14;
+    private const int StepMatchWindows   = 5;
+    private const int StepCalendar      = 6;
+    private const int StepDivisions     = 7;
+    private const int StepEmailReminders = 11;
+    private const int StepAdmins        = 12;
+    private const int StepStages        = 13;
+    private const int StepRubber        = 14;
+    private const int StepFinish        = 15;
 
     private CompetitionFormModel Model { get; set; } = new();
 
@@ -1053,6 +1075,10 @@ else
         StageType.SemiFinal,
         StageType.Final,
     ];
+
+    // Fixture email reminders step — collected in memory, applied on Finish
+    private List<CompetitionFixtureReminderDto> _wizardReminders = new();
+    private int _nextReminderId = -1;
 
     // Rubber template step
     private List<RubberPresetDto> _rubberPresets = new();
@@ -1507,6 +1533,12 @@ else
                 catch (Exception ex) { Logger.LogWarning(ex, "Wizard add calendar exception failed for {Id}.", savedId); }
             }
 
+            foreach (var rem in _wizardReminders)
+            {
+                try { await Admin.SaveFixtureReminderAsync(savedId, null, new SaveFixtureReminderRequest(rem.HoursBefore, rem.Subject, rem.Body, rem.IncludeResultLink)); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Wizard add fixture reminder failed for {Id}.", savedId); }
+            }
+
             Snackbar.Add("Competition created.", Severity.Success);
             Nav.NavigateTo($"/competition/{savedId}", forceLoad: true);
         }
@@ -1596,10 +1628,11 @@ else
         8  => "Match scoring",
         9  => "League scoring",
         10 => "Misc settings",
-        11 => "Competition admins",
-        12 => "Stages",
-        13 => "Rubber template",
-        14 => "Finish",
+        11 => "Fixture emails",
+        12 => "Competition admins",
+        13 => "Stages",
+        14 => "Rubber template",
+        15 => "Finish",
         _  => ""
     };
 

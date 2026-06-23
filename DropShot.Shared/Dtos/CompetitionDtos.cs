@@ -162,7 +162,8 @@ public record CompetitionFixtureDto(
     double? Player2RatingBefore = null,
     double? Player2RatingAfter = null,
     int? HomeGamesTotal = null,
-    int? AwayGamesTotal = null);
+    int? AwayGamesTotal = null,
+    Guid? ResultSubmissionToken = null);
 
 public record CompetitionTeamDto(
     int CompetitionTeamId,
