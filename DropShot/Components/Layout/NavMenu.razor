@@ -129,6 +129,7 @@
             <AuthorizeView>
                 <Authorized>
                     <div class="nav-item nav-dropdown nav-dropdown-right">
+                        <div class="nav-dropdown-trigger-wrapper">
                         <button class="nav-link nav-dropdown-trigger" onclick="event.stopPropagation()">
                             @if (!string.IsNullOrEmpty(_avatarPath))
                             {
@@ -146,6 +147,7 @@
                                 <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
                             </span>
                         </button>
+                        </div>
                         <div class="nav-dropdown-menu">
                             @* Secondary nav links (Clubs, Rules Sets, Players)
                                live inside the account dropdown rather than the

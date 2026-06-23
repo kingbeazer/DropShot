@@ -406,11 +406,12 @@
         min-width: 0;
     }
 
+    /* On mobile the dropdown items are flat — same padding as primary items. */
     .nav-dropdown-menu ::deep .nav-link,
     .nav-dropdown-menu > .nav-link,
     .nav-dropdown-menu a.nav-link,
     .nav-dropdown-item .nav-link {
-        padding: 0.5rem 1.25rem 0.5rem 2.75rem;
+        padding: 0.5rem 1.25rem;
         min-height: 3rem;
         height: auto;
     }
@@ -419,23 +420,9 @@
         display: none;
     }
 
-    .nav-dropdown-trigger {
-        min-height: 3rem;
-        height: auto;
-        padding: 0.5rem 1.25rem;
-        width: 100%;
-        align-items: center;
-    }
-
     /* Show the descriptive second line for each menu item on mobile. */
     .nav-sublabel {
         display: block;
-    }
-
-    /* Dropdown-trigger items (Admin, Account) need the label group to
-       take the remaining width so the chevron stays right-aligned. */
-    .nav-dropdown-trigger .nav-label-group {
-        flex: 1;
     }
 
     .nav-label {
@@ -483,9 +470,9 @@
         height: 36px;
     }
 
-    /* Hide the account dropdown trigger on mobile — the header above replaces it,
-       and the dropdown items are already expanded inline via .nav-dropdown-menu. */
-    .nav-dropdown-trigger {
+    /* Hide the trigger button on mobile — the nav-mobile-header replaces it.
+       Dropdown items are already expanded inline via .nav-dropdown-menu. */
+    .nav-dropdown-trigger-wrapper {
         display: none;
     }
 }
