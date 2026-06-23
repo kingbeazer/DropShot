@@ -123,6 +123,19 @@
                     </div>
                 </Authorized>
             </AuthorizeView>
+            <AuthorizeView>
+                <Authorized>
+                    <div class="nav-item">
+                        <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                            <span class="nav-label-group">
+                                <span class="nav-label">Account</span>
+                                <span class="nav-sublabel">Profile &amp; settings</span>
+                            </span>
+                        </a>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
         </nav>
 
         <div class="nav-utils">
@@ -190,8 +203,6 @@
                                 }
                             }
 
-                            <hr class="nav-dropdown-divider" />
-
                             @* TODO: re-enable upgrade nav item when Premium ships.
                             <NavLink class="nav-link" href="upgrade">
                                 <MudIcon Icon="@Icons.Material.Filled.Star" Class="nav-icon" />
@@ -201,13 +212,6 @@
                                 </span>
                             </NavLink>
                             *@
-                            <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
-                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
-                                <span class="nav-label-group">
-                                    <span class="nav-label">Account</span>
-                                    <span class="nav-sublabel">Profile &amp; settings</span>
-                                </span>
-                            </a>
 
                             @* Admin shortcuts — rolled into the user profile dropdown. *@
                             <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin" Context="adminCtx">
