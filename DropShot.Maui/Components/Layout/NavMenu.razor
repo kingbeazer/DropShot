@@ -69,7 +69,8 @@
     </AuthorizeView>
     <AuthorizeView>
         <Authorized>
-            @if (CurrentUser.ActiveRole is not ("ClubAdmin" or "Admin" or "SuperAdmin"))
+            @if (CurrentUser.ActiveRole is not ("ClubAdmin" or "Admin" or "SuperAdmin")
+                && CurrentUser.CanScoreMatch)
             {
                 <MudNavLink Href="/players/mine" Icon="@Icons.Material.Filled.RecentActors">
                     My Players

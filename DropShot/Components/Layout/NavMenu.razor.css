@@ -137,9 +137,12 @@
     top: 100%;
     left: 0;
     min-width: 200px;
-    background-image: linear-gradient(120deg, rgb(5, 98, 103) 0%, rgb(5, 39, 103) 70%);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    border-radius: 0 0 4px 4px;
+    background: rgba(18, 18, 18, 0.97);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    border-radius: 0 0 8px 8px;
     z-index: 200;
     padding: 0.25rem 0;
 }
@@ -204,6 +207,16 @@
 .nav-dropdown-menu ::deep a.active {
     background-color: rgba(255,255,255,0.37);
     color: white;
+}
+
+/* ── Responsive visibility helpers ────────────────────────────────── */
+.nav-mobile-only {
+    display: none;
+}
+
+/* ── Mobile hamburger user header ──────────────────────────────────── */
+.nav-mobile-header {
+    display: none;
 }
 
 /* ── Avatar ────────────────────────────────────────────────────────── */
@@ -401,36 +414,43 @@
         min-width: 0;
     }
 
+    /* Account/dropdown items match primary items exactly on mobile. */
     .nav-dropdown-menu ::deep .nav-link,
     .nav-dropdown-menu > .nav-link,
     .nav-dropdown-menu a.nav-link,
     .nav-dropdown-item .nav-link {
-        padding: 0.5rem 1.25rem 0.5rem 2.75rem;
+        padding: 0.5rem 1.25rem;
         min-height: 3rem;
         height: auto;
+        width: 100%;
+        border-radius: 0;
+    }
+
+    .nav-dropdown-menu ::deep .nav-link:hover,
+    .nav-dropdown-menu > .nav-link:hover,
+    .nav-dropdown-menu a.nav-link:hover,
+    .nav-dropdown-item .nav-link:hover {
+        background-color: rgba(0, 137, 123, 0.15);
+    }
+
+    /* Hide the internal dividers — everything is a flat list on mobile. */
+    .nav-dropdown-divider {
+        display: none;
+    }
+
+    /* Theme toggle and Logout are utility actions — right-aligned on mobile
+       so they're visually distinct from navigation destinations. */
+    .nav-utility-action .nav-link {
+        justify-content: flex-end;
     }
 
     .nav-expand-icon {
         display: none;
     }
 
-    .nav-dropdown-trigger {
-        min-height: 3rem;
-        height: auto;
-        padding: 0.5rem 1.25rem;
-        width: 100%;
-        align-items: center;
-    }
-
     /* Show the descriptive second line for each menu item on mobile. */
     .nav-sublabel {
         display: block;
-    }
-
-    /* Dropdown-trigger items (Admin, Account) need the label group to
-       take the remaining width so the chevron stays right-aligned. */
-    .nav-dropdown-trigger .nav-label-group {
-        flex: 1;
     }
 
     .nav-label {
@@ -442,5 +462,49 @@
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         padding-top: 0.5rem;
         margin-top: 0.5rem;
+    }
+
+    .nav-mobile-only {
+        display: block;
+    }
+
+    /* Mobile user header: shown at top of hamburger panel */
+    .nav-mobile-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 1.25rem 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        width: 100%;
+        flex-shrink: 0;
+    }
+
+    .nav-mobile-header .nav-label-group {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .nav-mobile-header .nav-label {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: white;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .nav-mobile-header .nav-sublabel {
+        display: block;
+    }
+
+    .nav-mobile-avatar {
+        width: 36px;
+        height: 36px;
+    }
+
+    /* Hide the trigger button on mobile — the nav-mobile-header replaces it.
+       Dropdown items are already expanded inline via .nav-dropdown-menu. */
+    .nav-dropdown-trigger-wrapper {
+        display: none;
     }
 }
