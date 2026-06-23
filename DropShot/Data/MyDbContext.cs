@@ -48,6 +48,8 @@ namespace DropShot.Data
         public DbSet<LadderInactivityDecay> LadderInactivityDecays { get; set; }
         public DbSet<CompetitionEntryConsent> CompetitionEntryConsents { get; set; }
         public DbSet<CompetitionCalendarException> CompetitionCalendarExceptions { get; set; }
+        public DbSet<CompetitionFixtureReminder> CompetitionFixtureReminders { get; set; }
+        public DbSet<CompetitionFixtureReminderLog> CompetitionFixtureReminderLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

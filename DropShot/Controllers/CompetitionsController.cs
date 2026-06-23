@@ -475,6 +475,31 @@ public class CompetitionsController(
         catch (UnauthorizedAccessException) { return Forbid(); }
     }
 
+    // ── Token-based (no-auth) score submission ────────────────────────────────
+
+    [HttpGet("fixtures/by-token/{token:guid}/score-context")]
+    [AllowAnonymous]
+    public async Task<ActionResult<FixtureScoreContextDto>> GetScoreContextByToken(
+        Guid token, CancellationToken ct)
+    {
+        var dto = await competitionService.GetFixtureScoreContextByTokenAsync(token, ct);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    [HttpPost("fixtures/by-token/{token:guid}/submit-score")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SubmitScoreByToken(
+        Guid token, [FromBody] SubmitFixtureScoreRequest req, CancellationToken ct)
+    {
+        try
+        {
+            await competitionService.SubmitFixtureScoreByTokenAsync(token, req, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     /// <summary>
     /// Submit a fixture score (or admin-override an existing one). Backs
     /// the SubmitScorePage (/match/submit/{fixtureId}). Server enforces that
@@ -1490,7 +1515,8 @@ public class CompetitionsController(
         f.ResultSummary, f.WinnerPlayerId,
         f.HomeTeamId, f.HomeTeam?.Name,
         f.AwayTeamId, f.AwayTeam?.Name,
-        f.WinnerTeamId, f.CourtPairId, f.CourtPair?.Name);
+        f.WinnerTeamId, f.CourtPairId, f.CourtPair?.Name,
+        ResultSubmissionToken: f.ResultSubmissionToken);
 
     // ── Team Match Endpoints ─────────────────────────────────────────────────
 

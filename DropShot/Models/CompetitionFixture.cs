@@ -25,6 +25,12 @@ public class CompetitionFixture
     public int? WinnerPlayerId { get; set; }
     public Guid? VerificationToken { get; set; }
 
+    /// <summary>
+    /// Token used to generate a secure, no-login result submission link sent
+    /// in fixture reminder emails. Set on fixture creation; null for legacy rows.
+    /// </summary>
+    public Guid? ResultSubmissionToken { get; set; }
+
     // Audit trail for admin-modified results
     public string? OriginalResultSummary { get; set; }
     public int? OriginalWinnerPlayerId { get; set; }
@@ -69,4 +75,5 @@ public class CompetitionFixture
     public CompetitionTeam? WinnerTeam { get; set; }
     public CourtPair? CourtPair { get; set; }
     public ICollection<Rubber> Rubbers { get; set; } = [];
+    public ICollection<CompetitionFixtureReminderLog> ReminderLogs { get; set; } = [];
 }

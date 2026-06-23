@@ -74,7 +74,8 @@ public record CompetitionEditDto(
     bool CanEdit,
     bool IsSuperAdmin,
     string? Description = null,
-    int? WizardStep = null);
+    int? WizardStep = null,
+    IReadOnlyList<CompetitionFixtureReminderDto>? FixtureReminders = null);
 
 public record CompetitionCalendarExceptionDto(
     int CompetitionCalendarExceptionId,
@@ -389,3 +390,21 @@ public record SaveCalendarExceptionRequest(
     DateOnly ExceptionDate,
     string? Note,
     int? CompetitionDivisionId);
+
+// ── Fixture reminder emails ───────────────────────────────────────────────────
+
+public record CompetitionFixtureReminderDto(
+    int CompetitionFixtureReminderId,
+    int CompetitionId,
+    int HoursBefore,
+    string Subject,
+    string Body,
+    bool IncludeResultLink);
+
+public record SaveFixtureReminderRequest(
+    int HoursBefore,
+    string Subject,
+    string Body,
+    bool IncludeResultLink);
+
+public record SendFixtureReminderManualRequest(int CompetitionFixtureReminderId);

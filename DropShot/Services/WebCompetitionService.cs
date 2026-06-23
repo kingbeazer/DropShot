@@ -295,7 +295,8 @@ public sealed class WebCompetitionService(
         Player2RatingBefore: f.Player2RatingBefore,
         Player2RatingAfter: f.Player2RatingAfter,
         HomeGamesTotal: f.HomeGamesTotal,
-        AwayGamesTotal: f.AwayGamesTotal);
+        AwayGamesTotal: f.AwayGamesTotal,
+        ResultSubmissionToken: f.ResultSubmissionToken);
 
     public async Task SelfRegisterAsync(
         int competitionId,
@@ -673,6 +674,54 @@ public sealed class WebCompetitionService(
             canEdit,
             FinalSetTieBreakGames: fx.Competition?.FinalSetTieBreakGames ?? 10,
             FinalSetTieBreakWinMode: fx.Competition?.FinalSetTieBreakWinMode ?? SetWinMode.WinBy2);
+    }
+
+    public async Task<FixtureScoreContextDto?> GetFixtureScoreContextByTokenAsync(
+        Guid token, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fx = await db.CompetitionFixtures.AsNoTracking()
+            .Include(f => f.Competition)
+            .Include(f => f.Stage)
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Include(f => f.HomeTeam)
+            .Include(f => f.AwayTeam)
+            .FirstOrDefaultAsync(f => f.ResultSubmissionToken == token, ct);
+
+        if (fx is null) return null;
+        if (fx.Status is FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover)
+            return null;
+
+        var dto = ToFixtureDto(fx) with { CompetitionName = fx.Competition?.CompetitionName };
+        return new FixtureScoreContextDto(
+            dto,
+            fx.Competition?.MatchFormat ?? MatchFormatType.BestOf,
+            fx.Competition?.NumberOfSets ?? 3,
+            fx.Competition?.BestOf ?? 3,
+            fx.Competition?.GamesPerSet ?? 6,
+            fx.Competition?.SetWinMode ?? SetWinMode.WinBy2,
+            CanAdminOverride: false,
+            FinalSetTieBreakGames: fx.Competition?.FinalSetTieBreakGames ?? 10,
+            FinalSetTieBreakWinMode: fx.Competition?.FinalSetTieBreakWinMode ?? SetWinMode.WinBy2);
+    }
+
+    public async Task SubmitFixtureScoreByTokenAsync(
+        Guid token, SubmitFixtureScoreRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .FirstOrDefaultAsync(f => f.ResultSubmissionToken == token, ct);
+
+        if (fx is null) throw new KeyNotFoundException("Fixture not found.");
+        if (fx.Status is FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover)
+            throw new InvalidOperationException("This fixture has already been completed.");
+
+        // Delegate to the main submission path with the resolved fixture id.
+        await SubmitFixtureScoreAsync(fx.CompetitionFixtureId, request, ct);
     }
 
     public async Task SubmitRubberScoresAsync(
