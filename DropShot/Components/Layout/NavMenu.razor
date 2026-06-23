@@ -20,6 +20,26 @@
     <input type="checkbox" id="nav-toggle" title="Navigation menu" class="navbar-toggler" />
 
     <div class="nav-content" onclick="document.getElementById('nav-toggle').click()">
+        @* Mobile-only header shown at the top of the hamburger panel *@
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-mobile-header">
+                    @if (!string.IsNullOrEmpty(_avatarPath))
+                    {
+                        <img src="@_avatarPath" alt="Avatar" class="nav-avatar nav-mobile-avatar" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                    }
+                    <span class="nav-label-group">
+                        <span class="nav-label"><CurrentUserBadge /></span>
+                        <span class="nav-sublabel">Signed in</span>
+                    </span>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
         <nav class="nav-primary">
             @* Primary nav entries come from DropShot.UI.Services.Navigation.NavCatalog
                so the web and MAUI menus can't drift. Host-specific entries
@@ -90,7 +110,7 @@
                                 </span>
                             </NavLink>
                         }
-                        else
+                        else if (CurrentUser.CanScoreMatch)
                         {
                             <NavLink class="nav-link" href="players/mine">
                                 <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" />

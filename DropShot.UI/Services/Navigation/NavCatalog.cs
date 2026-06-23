@@ -61,14 +61,14 @@ public static class NavCatalog
         new("fixtures", "Fixtures",
             Icons.Material.Filled.Event,
             "Upcoming matches & results"),
+
+        new("clubs", "Clubs",
+            Icons.Material.Filled.Business,
+            "Browse tennis clubs"),
     ];
 
     public static readonly IReadOnlyList<NavLinkEntry> Secondary =
     [
-        new("clubs", "Clubs",
-            Icons.Material.Filled.Business,
-            "Browse tennis clubs"),
-
         new("rulessets", "Rules Sets",
             Icons.Material.Filled.Gavel,
             "Match rules templates",
