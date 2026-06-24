@@ -82,6 +82,81 @@ public class AdminEmailService(
             }));
     }
 
+    /// <summary>
+    /// Sends a fixture reminder email to every player in the fixture.
+    /// Supports variables: {PlayerName}, {OpponentName}, {CompetitionName},
+    /// {MatchDate}, {MatchLink}, {ResultLink}.
+    /// </summary>
+    public async Task SendFixtureReminderAsync(
+        CompetitionFixture fixture,
+        CompetitionFixtureReminder reminder,
+        CancellationToken ct = default)
+    {
+        var competitionName = fixture.Competition?.CompetitionName ?? "";
+        var matchDate = fixture.ScheduledAt?.ToString("dddd dd MMMM yyyy 'at' HH:mm") ?? "";
+        var matchLink = $"{BaseUrl}/competition/{fixture.CompetitionId}/view";
+
+        var resultLink = reminder.IncludeResultLink && fixture.ResultSubmissionToken.HasValue
+            ? $"{BaseUrl}/match/submit/{fixture.ResultSubmissionToken.Value}"
+            : matchLink;
+
+        // Collect all players with their "opponent" label for substitution.
+        var sides = new[]
+        {
+            (Player: fixture.Player1, OpponentName: SideName(fixture.Player2, fixture.Player4)),
+            (Player: fixture.Player2, OpponentName: SideName(fixture.Player1, fixture.Player3)),
+            (Player: fixture.Player3, OpponentName: SideName(fixture.Player2, fixture.Player4)),
+            (Player: fixture.Player4, OpponentName: SideName(fixture.Player1, fixture.Player3)),
+        };
+
+        // For team matches, send to team captains.
+        if (fixture.HomeTeam is not null || fixture.AwayTeam is not null)
+        {
+            var captains = new List<(Player player, string opponentLabel)>();
+
+            if (fixture.HomeTeam?.Captain?.Email != null)
+                captains.Add((fixture.HomeTeam.Captain, fixture.AwayTeam?.Name ?? "Away team"));
+            if (fixture.AwayTeam?.Captain?.Email != null)
+                captains.Add((fixture.AwayTeam.Captain, fixture.HomeTeam?.Name ?? "Home team"));
+
+            await Task.WhenAll(captains.Select(c =>
+            {
+                var subject = SubstituteReminderVars(reminder.Subject, c.player.DisplayName, c.opponentLabel, competitionName, matchDate, matchLink, resultLink);
+                var body = SubstituteReminderVars(reminder.Body, c.player.DisplayName, c.opponentLabel, competitionName, matchDate, matchLink, resultLink);
+                var html = emailTemplateService.AdminCustomEmail(body);
+                return SendSafe(c.player.Email!, subject, html, "fixture reminder", isHtml: true);
+            }));
+            return;
+        }
+
+        await Task.WhenAll(sides
+            .Where(s => s.Player?.Email != null)
+            .Select(s =>
+            {
+                var subject = SubstituteReminderVars(reminder.Subject, s.Player!.DisplayName, s.OpponentName, competitionName, matchDate, matchLink, resultLink);
+                var body = SubstituteReminderVars(reminder.Body, s.Player.DisplayName, s.OpponentName, competitionName, matchDate, matchLink, resultLink);
+                var html = emailTemplateService.AdminCustomEmail(body);
+                return SendSafe(s.Player.Email!, subject, html, "fixture reminder", isHtml: true);
+            }));
+    }
+
+    private static string SideName(Player? a, Player? b)
+    {
+        var parts = new[] { a?.DisplayName, b?.DisplayName }.Where(n => n != null).ToList();
+        return parts.Count > 0 ? string.Join(" & ", parts) : "";
+    }
+
+    private static string SubstituteReminderVars(
+        string template, string playerName, string opponentName,
+        string competitionName, string matchDate, string matchLink, string resultLink)
+        => template
+            .Replace("{PlayerName}", System.Net.WebUtility.HtmlEncode(playerName))
+            .Replace("{OpponentName}", System.Net.WebUtility.HtmlEncode(opponentName))
+            .Replace("{CompetitionName}", System.Net.WebUtility.HtmlEncode(competitionName))
+            .Replace("{MatchDate}", System.Net.WebUtility.HtmlEncode(matchDate))
+            .Replace("{MatchLink}", System.Net.WebUtility.HtmlEncode(matchLink))
+            .Replace("{ResultLink}", System.Net.WebUtility.HtmlEncode(resultLink));
+
     private static string SubstituteVariables(string template, string playerName, string competitionName, string matchLink)
         => template
             .Replace("{PlayerName}", System.Net.WebUtility.HtmlEncode(playerName))

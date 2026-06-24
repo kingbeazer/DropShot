@@ -1,0 +1,483 @@
+@page "/match/submit/{Token}"
+@using DropShot.Shared
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Services
+
+@inject ICompetitionService CompetitionService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+
+@* Token-based, no-login result submission page. Linked from fixture reminder
+   emails. Uses the same scoring UI as SubmitScorePage but authenticates via
+   the ResultSubmissionToken on the fixture rather than the user's session. *@
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="pt-2 pb-4 submit-score-page">
+    @if (!_loaded)
+    {
+        <div class="d-flex justify-center"><MudProgressCircular Indeterminate="true" /></div>
+    }
+    else if (_context is null)
+    {
+        <MudAlert Severity="Severity.Error">
+            This link is no longer valid. The fixture may have already been completed or cancelled.
+        </MudAlert>
+        <div class="d-flex justify-center mt-3">
+            <MudButton Href="/">Back to home</MudButton>
+        </div>
+    }
+    else if (_submitted)
+    {
+        <MudAlert Severity="Severity.Success">
+            Score submitted successfully. Thank you!
+        </MudAlert>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-2">
+            <strong>@_side1</strong> vs <strong>@_side2</strong>
+        </MudText>
+        <MudText Typo="Typo.h5" Align="Align.Center" Class="mt-1">@_submittedSummary</MudText>
+    }
+    else
+    {
+        <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="submit-score-stack mx-auto">
+
+            <MudPaper Class="frosted-card pa-4 score-section" Elevation="0">
+                <MudText Typo="Typo.h5" Align="Align.Center">Submit Score</MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center" Class="mt-1">
+                    <strong>@_side1</strong> vs <strong>@_side2</strong>
+                </MudText>
+                @if (!string.IsNullOrEmpty(_context.Fixture.CompetitionName))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="d-block mt-1">
+                        @_context.Fixture.CompetitionName@(_context.Fixture.FixtureLabel != null ? $" — {_context.Fixture.FixtureLabel}" : "")
+                        @if (_context.Fixture.ScheduledAt.HasValue)
+                        {
+                            <text>&nbsp;·&nbsp;@_context.Fixture.ScheduledAt.Value.ToString("dd MMM yyyy HH:mm")</text>
+                        }
+                    </MudText>
+                }
+            </MudPaper>
+
+            <MudPaper Class="frosted-card pa-4 score-section" Elevation="0">
+                @for (int i = 0; i < _bestOf; i++)
+                {
+                    int idx = i;
+                    bool rowActive = idx == _activeSet && _focused;
+                    <div class="@($"set-row{(rowActive ? " set-row-active" : "")}")">
+                        <div></div>
+                        <button type="button"
+                                class="@CellClass(idx, side1: true)"
+                                @onclick="@(() => SetActive(idx, true))">
+                            @(_score1[idx]?.ToString() ?? "–")
+                        </button>
+                        <span class="set-label">Set @(idx + 1)</span>
+                        <button type="button"
+                                class="@CellClass(idx, side1: false)"
+                                @onclick="@(() => SetActive(idx, false))">
+                            @(_score2[idx]?.ToString() ?? "–")
+                        </button>
+                        <div class="set-status">
+                            @if (IsSetInvalid(idx))
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Close"
+                                         Color="Color.Error" Size="Size.Small" />
+                            }
+                        </div>
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Class="frosted-card pa-3 score-section" Elevation="0">
+                <div class="keypad">
+                    @for (int n = 1; n <= 6; n++)
+                    {
+                        int digit = n;
+                        <button type="button" class="keypad-key" @onclick="@(() => PressDigit(digit))">@digit</button>
+                    }
+                    <button type="button" class="keypad-key keypad-control"
+                            @onclick="PressBack" aria-label="Previous field">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Medium" />
+                    </button>
+                    <button type="button" class="keypad-key" @onclick="@(() => PressDigit(7))">7</button>
+                    <button type="button" class="keypad-key keypad-tb"
+                            @onclick="OpenTieBreakDialogAsync"
+                            aria-label="Tie break — pick a number">
+                        Tie Break +
+                    </button>
+                    <button type="button" class="keypad-key keypad-cancel"
+                            @onclick="ClearAll" disabled="@_saving"
+                            aria-label="Clear all scores">
+                        <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Medium" />
+                    </button>
+                    <button type="button" class="keypad-key" @onclick="@(() => PressDigit(0))">0</button>
+                    @if (CanSubmit)
+                    {
+                        <button type="button" class="keypad-key keypad-submit"
+                                @onclick="SubmitAsync" disabled="@_saving"
+                                aria-label="Submit score">
+                            <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Medium" />
+                        </button>
+                    }
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="frosted-card pa-3 score-section" Elevation="0">
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="d-block">Winner</MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center" Class="mt-1" Style="font-weight:600;">
+                    @(_winnerName ?? "—")
+                </MudText>
+            </MudPaper>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="frosted-card score-section">@_error</MudAlert>
+            }
+
+        </MudStack>
+    }
+</MudContainer>
+
+<style>
+    .submit-score-stack { width: 100%; max-width: 360px; }
+    .score-section { width: 100%; }
+    @@media (max-width: 600px) {
+        .submit-score-page { padding-left: 6px !important; padding-right: 6px !important; }
+        .submit-score-stack { max-width: 100%; }
+    }
+    @@media (min-width: 601px) {
+        .submit-score-stack { max-width: 500px; }
+        .score-cell { font-size: 1.3rem; min-height: 42px; padding: 6px 0; }
+        .set-row-active .score-cell { font-size: 2.4rem; min-height: 80px; padding: 16px 0; }
+        .keypad { gap: 10px; }
+        .keypad-key { height: 80px; font-size: 1.9rem; }
+    }
+    .set-row {
+        display: grid;
+        grid-template-columns: 28px 1fr auto 1fr 28px;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 0;
+    }
+    .set-row:first-child { padding-top: 0; }
+    .set-row:last-child  { padding-bottom: 0; }
+    .set-status { display: flex; align-items: center; justify-content: center; }
+    .set-row + .set-row { border-top: 1px solid rgba(255,255,255,0.06); }
+    .score-cell {
+        font-weight: 600;
+        font-size: 1rem;
+        line-height: 1;
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.18);
+        color: inherit;
+        border-radius: 8px;
+        padding: 3px 0;
+        min-height: 30px;
+        cursor: pointer;
+        transition: background 120ms, border-color 120ms, color 120ms,
+                    font-size 150ms, min-height 150ms, padding 150ms;
+    }
+    .set-row-active .score-cell { font-size: 1.8rem; padding: 10px 0; min-height: 56px; }
+    .score-cell.side-left { justify-self: end; width: 100%; max-width: 90px; }
+    .score-cell.side-right { justify-self: start; width: 100%; max-width: 90px; }
+    .score-cell.active {
+        border-color: var(--mud-palette-primary);
+        background: rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0.15);
+        color: var(--mud-palette-primary);
+    }
+    .score-cell.unentered { color: var(--mud-palette-text-disabled); opacity: 0.7; }
+    .score-cell.unentered.active { color: var(--mud-palette-primary); opacity: 1; }
+    .set-label { font-size: 0.95rem; color: var(--mud-palette-text-secondary); white-space: nowrap; padding: 0 4px; }
+    .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .keypad-key {
+        height: 56px; font: 600 1.4rem/1 inherit;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: inherit; border-radius: 10px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: background 120ms; padding: 0 8px;
+    }
+    .keypad-key:active { transform: scale(0.97); }
+    .keypad-key:disabled { opacity: 0.5; cursor: not-allowed; }
+    .keypad-tb { font-size: 0.85rem; }
+    .keypad-submit, [data-theme="light"] .keypad-submit {
+        background: var(--mud-palette-primary);
+        color: var(--mud-palette-primary-text);
+        border-color: var(--mud-palette-primary);
+        animation: keypad-submit-pulse 1.6s ease-out infinite;
+    }
+    @@keyframes keypad-submit-pulse {
+        0%   { box-shadow: 0 0 0 0   rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0.65); }
+        70%  { box-shadow: 0 0 0 8px rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0); }
+        100% { box-shadow: 0 0 0 0   rgba(var(--mud-palette-primary-rgb, 25, 118, 210), 0); }
+    }
+    .keypad-cancel, [data-theme="light"] .keypad-cancel {
+        background: var(--mud-palette-error);
+        color: var(--mud-palette-error-text);
+        border-color: var(--mud-palette-error);
+    }
+</style>
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+
+    private bool _loaded;
+    private FixtureScoreContextDto? _context;
+    private CompetitionFixtureDto Fixture => _context!.Fixture;
+
+    private string _side1 = "";
+    private string _side2 = "";
+    private int _bestOf = 3;
+    private int?[] _score1 = [];
+    private int?[] _score2 = [];
+
+    private int _activeSet;
+    private bool _activeIsSide1 = true;
+    private bool _focused = true;
+    private bool _saving;
+    private bool _submitted;
+    private string? _submittedSummary;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        _submitted = false;
+        _error = null;
+
+        if (!Guid.TryParse(Token, out var tokenGuid))
+        {
+            _loaded = true;
+            return;
+        }
+
+        _context = await CompetitionService.GetFixtureScoreContextByTokenAsync(tokenGuid);
+        if (_context is null) { _loaded = true; return; }
+
+        _bestOf = Math.Max(1,
+            _context.MatchFormat == MatchFormatType.FixedSets
+                ? _context.NumberOfSets
+                : _context.BestOf);
+        _score1 = new int?[_bestOf];
+        _score2 = new int?[_bestOf];
+
+        var s1Parts = new[] { Fixture.Player1Name, Fixture.Player3Name }
+            .Where(n => !string.IsNullOrEmpty(n)).ToList();
+        var s2Parts = new[] { Fixture.Player2Name, Fixture.Player4Name }
+            .Where(n => !string.IsNullOrEmpty(n)).ToList();
+        _side1 = s1Parts.Count > 0 ? string.Join(" & ", s1Parts) : (Fixture.HomeTeamName ?? "Home");
+        _side2 = s2Parts.Count > 0 ? string.Join(" & ", s2Parts) : (Fixture.AwayTeamName ?? "Away");
+
+        _activeSet = 0;
+        _activeIsSide1 = true;
+        _loaded = true;
+    }
+
+    private bool IsSetInvalid(int idx)
+    {
+        if (_context is null || !_score1[idx].HasValue || !_score2[idx].HasValue) return false;
+        int a = _score1[idx]!.Value, b = _score2[idx]!.Value;
+        if (a == b) return true;
+        bool isFinalSet = idx == _bestOf - 1;
+        bool regularOk = ScorePassesRegularSetRules(a, b);
+        if (!isFinalSet) return !regularOk;
+        return !regularOk && !ScorePassesTieBreakRules(a, b);
+    }
+
+    private bool ScorePassesRegularSetRules(int a, int b)
+    {
+        int target = _context!.GamesPerSet;
+        int winner = Math.Max(a, b), loser = Math.Min(a, b);
+        if (_context.SetWinMode == SetWinMode.FirstTo) return winner == target && loser < target;
+        if (winner < target) return false;
+        if (winner == target) return loser <= target - 2;
+        if (winner == target + 1) return loser == target - 1 || loser == target;
+        return loser == winner - 2;
+    }
+
+    private bool ScorePassesTieBreakRules(int a, int b)
+    {
+        int target = _context!.FinalSetTieBreakGames;
+        int winner = Math.Max(a, b), loser = Math.Min(a, b);
+        if (_context.FinalSetTieBreakWinMode == SetWinMode.FirstTo) return winner == target && loser < target;
+        if (winner < target) return false;
+        if (winner == target) return loser <= target - 2;
+        return Math.Abs(a - b) == 2;
+    }
+
+    private bool CanSubmit
+    {
+        get
+        {
+            if (_context is null || _saving) return false;
+            int s1 = 0, s2 = 0;
+            for (int i = 0; i < _bestOf; i++)
+            {
+                if (_score1[i].HasValue != _score2[i].HasValue) return false;
+                if (IsSetInvalid(i)) return false;
+                if (_score1[i].HasValue && _score2[i].HasValue)
+                {
+                    if (_score1[i] > _score2[i]) s1++;
+                    else if (_score2[i] > _score1[i]) s2++;
+                }
+            }
+            if (_context.MatchFormat == MatchFormatType.FixedSets)
+            {
+                for (int i = 0; i < _bestOf; i++)
+                    if (!_score1[i].HasValue || !_score2[i].HasValue) return false;
+                return true;
+            }
+            int targetWins = (_bestOf / 2) + 1;
+            return s1 >= targetWins || s2 >= targetWins;
+        }
+    }
+
+    private int? WinnerPlayerId
+    {
+        get
+        {
+            int s1 = 0, s2 = 0;
+            for (int i = 0; i < _bestOf; i++)
+            {
+                if (_score1[i].HasValue && _score2[i].HasValue)
+                {
+                    if (_score1[i] > _score2[i]) s1++;
+                    else if (_score2[i] > _score1[i]) s2++;
+                }
+            }
+            if (s1 > s2) return Fixture.Player1Id;
+            if (s2 > s1) return Fixture.Player2Id;
+            return null;
+        }
+    }
+
+    private string? _winnerName
+    {
+        get
+        {
+            var id = WinnerPlayerId;
+            if (id == Fixture.Player1Id) return _side1;
+            if (id == Fixture.Player2Id) return _side2;
+            return null;
+        }
+    }
+
+    private string CellClass(int setIdx, bool side1)
+    {
+        bool isActive = _focused && setIdx == _activeSet && side1 == _activeIsSide1;
+        bool hasValue = (side1 ? _score1[setIdx] : _score2[setIdx]).HasValue;
+        return $"score-cell {(side1 ? "side-left" : "side-right")}{(isActive ? " active" : "")}{(hasValue ? "" : " unentered")}";
+    }
+
+    private void SetActive(int setIdx, bool side1)
+    {
+        _activeSet = setIdx;
+        _activeIsSide1 = side1;
+        _focused = true;
+        _error = null;
+    }
+
+    private int?[] ActiveArray => _activeIsSide1 ? _score1 : _score2;
+
+    private bool IsLastCell => _activeSet == _bestOf - 1 && !_activeIsSide1;
+
+    private void WriteAndAdvance(int value)
+    {
+        _error = null;
+        _focused = true;
+        ActiveArray[_activeSet] = value;
+        if (!IsLastCell) AdvanceOne();
+        else _focused = false;
+    }
+
+    private void PressDigit(int digit) => WriteAndAdvance(digit);
+
+    private void PressBack()
+    {
+        _error = null;
+        _focused = true;
+        var current = _activeIsSide1 ? _score1 : _score2;
+        if (current[_activeSet].HasValue) { current[_activeSet] = null; return; }
+        if (_activeIsSide1) { if (_activeSet == 0) return; _activeSet--; _activeIsSide1 = false; }
+        else _activeIsSide1 = true;
+        (_activeIsSide1 ? _score1 : _score2)[_activeSet] = null;
+    }
+
+    private void ClearAll()
+    {
+        for (int i = 0; i < _bestOf; i++) { _score1[i] = null; _score2[i] = null; }
+        _activeSet = 0;
+        _activeIsSide1 = true;
+        _focused = true;
+        _error = null;
+    }
+
+    private void AdvanceOne()
+    {
+        if (_activeIsSide1) _activeIsSide1 = false;
+        else if (_activeSet < _bestOf - 1) { _activeSet++; _activeIsSide1 = true; }
+    }
+
+    private async Task OpenTieBreakDialogAsync()
+    {
+        int? otherSide = _activeIsSide1 ? _score2[_activeSet] : _score1[_activeSet];
+        int maxTb = _context is not null && _context.FinalSetTieBreakWinMode == SetWinMode.FirstTo
+            ? _context.FinalSetTieBreakGames : 99;
+        var parameters = new DialogParameters<TieBreakPickerDialog>
+        {
+            { x => x.HighlightValue, otherSide },
+            { x => x.MaxValue, maxTb }
+        };
+        var dialog = await DialogService.ShowAsync<TieBreakPickerDialog>("Tie break score", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: int picked }) WriteAndAdvance(picked);
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        if (_context is null || !Guid.TryParse(Token, out var tokenGuid)) return;
+
+        var enteredIndices = Enumerable.Range(0, _bestOf)
+            .Where(i => _score1[i].HasValue || _score2[i].HasValue).ToList();
+        if (enteredIndices.Count == 0) { _error = "Please enter at least one set score."; return; }
+
+        int side1Sets = 0, side2Sets = 0;
+        foreach (int i in enteredIndices)
+        {
+            if (!_score1[i].HasValue || !_score2[i].HasValue)
+            { _error = $"Set {i + 1}: please enter both scores."; return; }
+            if (_score1[i] == _score2[i])
+            { _error = $"Set {i + 1}: scores are tied."; return; }
+            if (IsSetInvalid(i))
+            { _error = $"Set {i + 1}: invalid score."; return; }
+            if (_score1[i] > _score2[i]) side1Sets++;
+            else side2Sets++;
+        }
+
+        bool isFixedSets = _context.MatchFormat == MatchFormatType.FixedSets;
+        int? winnerPlayerId = WinnerPlayerId;
+        if (winnerPlayerId is null && !(isFixedSets && side1Sets == side2Sets))
+        { _error = "No clear winner — please review the scores."; return; }
+
+        _saving = true;
+        try
+        {
+            var sets = enteredIndices.Select(i => $"{_score1[i] ?? 0}–{_score2[i] ?? 0}").ToList();
+            var resultSummary = string.Join(" ", sets);
+            int homeGames = Enumerable.Range(0, _bestOf).Sum(i => _score1[i] ?? 0);
+            int awayGames = Enumerable.Range(0, _bestOf).Sum(i => _score2[i] ?? 0);
+
+            await CompetitionService.SubmitFixtureScoreByTokenAsync(tokenGuid,
+                new SubmitFixtureScoreRequest(
+                    resultSummary, winnerPlayerId,
+                    side1Sets, side2Sets, homeGames, awayGames,
+                    AdminOverride: false));
+
+            _submittedSummary = resultSummary;
+            _submitted = true;
+        }
+        catch (Exception)
+        {
+            _error = "Failed to save the score. Please try again.";
+            _saving = false;
+        }
+    }
+}

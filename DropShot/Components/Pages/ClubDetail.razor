@@ -1,0 +1,12 @@
+@page "/clubs/{ClubId:int}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+<MudProviders />
+
+<DropShot.UI.Components.Pages.ClubDetail ClubId="@ClubId" />
+
+@code {
+    [Parameter] public int ClubId { get; set; }
+}

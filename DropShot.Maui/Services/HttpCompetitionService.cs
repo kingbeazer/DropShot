@@ -70,6 +70,20 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
         return await resp.Content.ReadFromJsonAsync<FixtureScoreContextDto>(cancellationToken: ct);
     }
 
+    public async Task<FixtureScoreContextDto?> GetFixtureScoreContextByTokenAsync(Guid token, CancellationToken ct = default)
+    {
+        var resp = await http.GetAsync($"api/competitions/fixtures/by-token/{token}/score-context", ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<FixtureScoreContextDto>(cancellationToken: ct);
+    }
+
+    public async Task SubmitFixtureScoreByTokenAsync(Guid token, SubmitFixtureScoreRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync($"api/competitions/fixtures/by-token/{token}/submit-score", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
     public async Task<MyCompetitionsViewDto> GetMyCompetitionsViewAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<MyCompetitionsViewDto>("api/competitions/my-view", ct)
             ?? new MyCompetitionsViewDto(false, [], []);

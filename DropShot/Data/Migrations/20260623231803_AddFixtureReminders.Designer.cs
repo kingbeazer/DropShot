@@ -4,16 +4,19 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace DropShot.Migrations
+namespace DropShot.Data.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260623231803_AddFixtureReminders")]
+    partial class AddFixtureReminders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2291,7 +2294,7 @@ namespace DropShot.Migrations
                     b.HasOne("DropShot.Models.CompetitionFixture", "Fixture")
                         .WithMany("ReminderLogs")
                         .HasForeignKey("CompetitionFixtureId")
-                        .OnDelete(DeleteBehavior.NoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("DropShot.Models.CompetitionFixtureReminder", "Reminder")

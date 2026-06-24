@@ -48,6 +48,8 @@ namespace DropShot.Data
         public DbSet<LadderInactivityDecay> LadderInactivityDecays { get; set; }
         public DbSet<CompetitionEntryConsent> CompetitionEntryConsents { get; set; }
         public DbSet<CompetitionCalendarException> CompetitionCalendarExceptions { get; set; }
+        public DbSet<CompetitionFixtureReminder> CompetitionFixtureReminders { get; set; }
+        public DbSet<CompetitionFixtureReminderLog> CompetitionFixtureReminderLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -745,6 +747,17 @@ namespace DropShot.Data
                 entity.Property(r => r.IpAddress).HasMaxLength(45);
                 entity.HasIndex(r => r.UserId);
                 entity.HasIndex(r => r.Timestamp);
+            });
+
+            // ── CompetitionFixtureReminderLog ────────────────────────────────────
+            // SQL Server disallows two CASCADE paths to the same table, so the
+            // fixture FK must use NoAction (reminder cascade handles log cleanup).
+            builder.Entity<CompetitionFixtureReminderLog>(entity =>
+            {
+                entity.HasOne(l => l.Fixture)
+                      .WithMany(f => f.ReminderLogs)
+                      .HasForeignKey(l => l.CompetitionFixtureId)
+                      .OnDelete(DeleteBehavior.NoAction);
             });
         }
     }

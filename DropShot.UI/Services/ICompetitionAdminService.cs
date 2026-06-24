@@ -393,4 +393,21 @@ public interface ICompetitionAdminService
         int competitionId, SaveCalendarExceptionRequest request, CancellationToken ct = default);
 
     Task DeleteCalendarExceptionAsync(int competitionId, int exceptionId, CancellationToken ct = default);
+
+    // ── Fixture reminder emails ──────────────────────────────────────────────
+
+    Task<List<CompetitionFixtureReminderDto>> GetFixtureRemindersAsync(int competitionId, CancellationToken ct = default);
+
+    Task<int> SaveFixtureReminderAsync(
+        int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default);
+
+    Task DeleteFixtureReminderAsync(int competitionId, int reminderId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Manually send a reminder to all players in a specific fixture, bypassing
+    /// the scheduled sweep timing. Admin-only. Also sends to fixtures that have
+    /// already been sent this reminder.
+    /// </summary>
+    Task SendFixtureReminderManualAsync(
+        int competitionId, int fixtureId, int reminderId, CancellationToken ct = default);
 }

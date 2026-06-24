@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using DropShot.Data;
 using DropShot.Models;
 using DropShot.Shared;
@@ -301,7 +301,15 @@ public sealed class WebCompetitionAdminService(
             CanEdit: canEdit,
             IsSuperAdmin: isSuperAdmin,
             Description: comp.Description,
-            WizardStep: comp.WizardStep);
+            WizardStep: comp.WizardStep,
+            FixtureReminders: await db.CompetitionFixtureReminders
+                .AsNoTracking()
+                .Where(r => r.CompetitionId == comp.CompetitionID)
+                .OrderBy(r => r.HoursBefore)
+                .Select(r => new CompetitionFixtureReminderDto(
+                    r.CompetitionFixtureReminderId, r.CompetitionId,
+                    r.HoursBefore, r.Subject, r.Body, r.IncludeResultLink))
+                .ToListAsync(ct));
     }
 
     public async Task<List<CompetitionSeedSourceDto>> GetSeedSourceCandidatesAsync(
@@ -943,7 +951,8 @@ public sealed class WebCompetitionAdminService(
             f.CompletedAt,
             f.OriginalResultSummary,
             f.ResultModifiedByAdmin,
-            f.Competition?.CompetitionName);
+            f.Competition?.CompetitionName,
+            ResultSubmissionToken: f.ResultSubmissionToken);
 
     private static string StageDisplayName(StageType type) => type switch
     {
@@ -2094,7 +2103,11 @@ public sealed class WebCompetitionAdminService(
 
         if (fixtureId is null)
         {
-            var f = new CompetitionFixture { CompetitionId = competitionId };
+            var f = new CompetitionFixture
+            {
+                CompetitionId = competitionId,
+                ResultSubmissionToken = Guid.NewGuid(),
+            };
             ApplyFixtureRequest(f, request, isTeamMatch);
             db.CompetitionFixtures.Add(f);
             await db.SaveChangesAsync(ct);
@@ -2656,5 +2669,95 @@ public sealed class WebCompetitionAdminService(
 
         db.CompetitionCalendarExceptions.Remove(entry);
         await db.SaveChangesAsync(ct);
+    }
+
+    // ── Fixture reminder emails ──────────────────────────────────────────────
+
+    public async Task<List<CompetitionFixtureReminderDto>> GetFixtureRemindersAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.CompetitionFixtureReminders
+            .AsNoTracking()
+            .Where(r => r.CompetitionId == competitionId)
+            .OrderBy(r => r.HoursBefore)
+            .Select(r => new CompetitionFixtureReminderDto(
+                r.CompetitionFixtureReminderId,
+                r.CompetitionId,
+                r.HoursBefore,
+                r.Subject,
+                r.Body,
+                r.IncludeResultLink))
+            .ToListAsync(ct);
+    }
+
+    public async Task<int> SaveFixtureReminderAsync(
+        int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        CompetitionFixtureReminder reminder;
+        if (reminderId.HasValue)
+        {
+            reminder = await db.CompetitionFixtureReminders
+                .FirstOrDefaultAsync(r => r.CompetitionFixtureReminderId == reminderId.Value
+                                          && r.CompetitionId == competitionId, ct)
+                ?? throw new KeyNotFoundException("Reminder not found.");
+        }
+        else
+        {
+            reminder = new CompetitionFixtureReminder { CompetitionId = competitionId };
+            db.CompetitionFixtureReminders.Add(reminder);
+        }
+
+        reminder.HoursBefore = request.HoursBefore;
+        reminder.Subject = request.Subject;
+        reminder.Body = request.Body;
+        reminder.IncludeResultLink = request.IncludeResultLink;
+
+        await db.SaveChangesAsync(ct);
+        return reminder.CompetitionFixtureReminderId;
+    }
+
+    public async Task DeleteFixtureReminderAsync(int competitionId, int reminderId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        var reminder = await db.CompetitionFixtureReminders
+            .FirstOrDefaultAsync(r => r.CompetitionFixtureReminderId == reminderId
+                                      && r.CompetitionId == competitionId, ct)
+            ?? throw new KeyNotFoundException("Reminder not found.");
+
+        db.CompetitionFixtureReminders.Remove(reminder);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task SendFixtureReminderManualAsync(
+        int competitionId, int fixtureId, int reminderId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        var reminder = await db.CompetitionFixtureReminders
+            .Include(r => r.Competition)
+            .FirstOrDefaultAsync(r => r.CompetitionFixtureReminderId == reminderId
+                                      && r.CompetitionId == competitionId, ct)
+            ?? throw new KeyNotFoundException("Reminder not found.");
+
+        var fixture = await db.CompetitionFixtures
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Captain)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Captain)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId
+                                      && f.CompetitionId == competitionId, ct)
+            ?? throw new KeyNotFoundException("Fixture not found.");
+
+        fixture.Competition = reminder.Competition;
+        await adminEmailService.SendFixtureReminderAsync(fixture, reminder, ct);
     }
 }

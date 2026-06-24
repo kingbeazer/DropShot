@@ -1,0 +1,155 @@
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Services
+
+<MudPaper id="section-fixture-reminders" Class="pa-4 setup-section frosted-card" Elevation="0"
+          Style="color: white;">
+    <MudText Typo="Typo.h6" Class="mb-1">Fixture reminder emails</MudText>
+    <MudText Typo="Typo.caption" Style="opacity:0.75" Class="d-block mb-3">
+        Each reminder is sent automatically X hours before the fixture's scheduled time.
+        Use <strong>{PlayerName}</strong>, <strong>{OpponentName}</strong>,
+        <strong>{CompetitionName}</strong>, <strong>{MatchDate}</strong>,
+        <strong>{MatchLink}</strong>, and <strong>{ResultLink}</strong> as placeholders.
+        The <strong>{ResultLink}</strong> variable is only available when "Include result link" is enabled.
+    </MudText>
+
+    @if (Reminders.Count > 0)
+    {
+        <MudSimpleTable Dense="true" Class="mb-3">
+            <thead>
+                <tr>
+                    <th>Hours before</th>
+                    <th>Subject</th>
+                    <th>Result link</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Reminders)
+                {
+                    var rem = r;
+                    <tr>
+                        <td>@rem.HoursBefore h</td>
+                        <td>@rem.Subject</td>
+                        <td>
+                            @if (rem.IncludeResultLink)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" />
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Close" Color="Color.Default" Size="Size.Small" />
+                            }
+                        </td>
+                        <td>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           OnClick="@(() => StartEdit(rem))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => OnDeleteReminder.InvokeAsync(rem.CompetitionFixtureReminderId))" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    }
+    else
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">
+            No reminders configured — players will not receive automatic fixture emails.
+        </MudText>
+    }
+
+    @if (_editing)
+    {
+        <MudPaper Elevation="0" Class="pa-3 mb-3"
+                  Style="border:1px solid rgba(255,255,255,0.15);border-radius:8px;">
+            <MudText Typo="Typo.subtitle2" Class="mb-2">@(_editId.HasValue ? "Edit reminder" : "Add reminder")</MudText>
+
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="int" @bind-Value="_editHours"
+                                     Label="Hours before match"
+                                     Min="1" Max="720"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField T="string" @bind-Value="_editSubject"
+                                  Label="Email subject"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField T="string" @bind-Value="_editBody"
+                                  Label="Email body (Markdown supported, use {variables})"
+                                  Variant="Variant.Outlined" Lines="6"
+                                  HelperText="{PlayerName}, {OpponentName}, {CompetitionName}, {MatchDate}, {MatchLink}, {ResultLink}" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudCheckBox @bind-Value="_editIncludeResultLink"
+                                 Label="Include result submission link ({ResultLink})"
+                                 Dense="true" />
+                </MudItem>
+            </MudGrid>
+
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           Disabled="@(string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))"
+                           OnClick="SaveEdit">
+                    @(_editId.HasValue ? "Save" : "Add reminder")
+                </MudButton>
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="CancelEdit">Cancel</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+    else
+    {
+        <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="StartAdd">Add reminder</MudButton>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CompetitionFixtureReminderDto> Reminders { get; set; } = [];
+    [Parameter] public EventCallback<SaveFixtureReminderRequest> OnAddReminder { get; set; }
+    [Parameter] public EventCallback<(int ReminderId, SaveFixtureReminderRequest Request)> OnUpdateReminder { get; set; }
+    [Parameter] public EventCallback<int> OnDeleteReminder { get; set; }
+
+    private bool _editing;
+    private int? _editId;
+    private int _editHours = 24;
+    private string _editSubject = "";
+    private string _editBody = "";
+    private bool _editIncludeResultLink = true;
+
+    private void StartAdd()
+    {
+        _editId = null;
+        _editHours = 24;
+        _editSubject = "";
+        _editBody = "";
+        _editIncludeResultLink = true;
+        _editing = true;
+    }
+
+    private void StartEdit(CompetitionFixtureReminderDto r)
+    {
+        _editId = r.CompetitionFixtureReminderId;
+        _editHours = r.HoursBefore;
+        _editSubject = r.Subject;
+        _editBody = r.Body;
+        _editIncludeResultLink = r.IncludeResultLink;
+        _editing = true;
+    }
+
+    private void CancelEdit() => _editing = false;
+
+    private async Task SaveEdit()
+    {
+        var req = new SaveFixtureReminderRequest(_editHours, _editSubject.Trim(), _editBody.Trim(), _editIncludeResultLink);
+        if (_editId.HasValue)
+            await OnUpdateReminder.InvokeAsync((_editId.Value, req));
+        else
+            await OnAddReminder.InvokeAsync(req);
+        _editing = false;
+    }
+}

@@ -20,6 +20,26 @@
     <input type="checkbox" id="nav-toggle" title="Navigation menu" class="navbar-toggler" />
 
     <div class="nav-content" onclick="document.getElementById('nav-toggle').click()">
+        @* Mobile-only header shown at the top of the hamburger panel *@
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-mobile-header">
+                    @if (!string.IsNullOrEmpty(_avatarPath))
+                    {
+                        <img src="@_avatarPath" alt="Avatar" class="nav-avatar nav-mobile-avatar" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                    }
+                    <span class="nav-label-group">
+                        <span class="nav-label"><CurrentUserBadge /></span>
+                        <span class="nav-sublabel">Signed in</span>
+                    </span>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
         <nav class="nav-primary">
             @* Primary nav entries come from DropShot.UI.Services.Navigation.NavCatalog
                so the web and MAUI menus can't drift. Host-specific entries
@@ -90,7 +110,7 @@
                                 </span>
                             </NavLink>
                         }
-                        else
+                        else if (CurrentUser.CanScoreMatch)
                         {
                             <NavLink class="nav-link" href="players/mine">
                                 <MudIcon Icon="@Icons.Material.Filled.RecentActors" Class="nav-icon" />
@@ -103,12 +123,27 @@
                     </div>
                 </Authorized>
             </AuthorizeView>
+            @* Account link shown here on mobile only; desktop uses the dropdown. *@
+            <AuthorizeView>
+                <Authorized>
+                    <div class="nav-item nav-mobile-only">
+                        <a class="nav-link" href="Account/Manage" data-enhance-nav="false">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                            <span class="nav-label-group">
+                                <span class="nav-label">Account</span>
+                                <span class="nav-sublabel">Profile &amp; settings</span>
+                            </span>
+                        </a>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
         </nav>
 
         <div class="nav-utils">
             <AuthorizeView>
                 <Authorized>
                     <div class="nav-item nav-dropdown nav-dropdown-right">
+                        <div class="nav-dropdown-trigger-wrapper">
                         <button class="nav-link nav-dropdown-trigger" onclick="event.stopPropagation()">
                             @if (!string.IsNullOrEmpty(_avatarPath))
                             {
@@ -126,6 +161,7 @@
                                 <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Class="nav-icon" />
                             </span>
                         </button>
+                        </div>
                         <div class="nav-dropdown-menu">
                             @* Secondary nav links (Clubs, Rules Sets, Players)
                                live inside the account dropdown rather than the
@@ -168,8 +204,6 @@
                                 }
                             }
 
-                            <hr class="nav-dropdown-divider" />
-
                             @* TODO: re-enable upgrade nav item when Premium ships.
                             <NavLink class="nav-link" href="upgrade">
                                 <MudIcon Icon="@Icons.Material.Filled.Star" Class="nav-icon" />
@@ -186,6 +220,8 @@
                                     <span class="nav-sublabel">Profile &amp; settings</span>
                                 </span>
                             </a>
+
+                            <hr class="nav-dropdown-divider" />
 
                             @* Admin shortcuts — rolled into the user profile dropdown. *@
                             <AuthorizeView Roles="Admin,SuperAdmin,ClubAdmin" Context="adminCtx">
@@ -231,7 +267,7 @@
 
                             <hr class="nav-dropdown-divider" />
 
-                            <div class="nav-dropdown-item">
+                            <div class="nav-dropdown-item nav-utility-action">
                                 @* Intentionally let the click bubble: .nav-content has an onclick
                                    that toggles the hamburger checkbox, so the mobile menu closes
                                    right after the theme flips. The desktop dropdown is closed
@@ -252,7 +288,7 @@
                                 </button>
                             </div>
 
-                            <div class="nav-dropdown-item">
+                            <div class="nav-dropdown-item nav-utility-action">
                                 <form action="Account/Logout" method="post">
                                     <AntiforgeryToken />
                                     <input type="hidden" name="ReturnUrl" value="@currentUrl" />

@@ -638,4 +638,45 @@ public class CompetitionsAdminController(
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }
+
+    // ── Fixture reminder emails ───────────────────────────────────────────────
+
+    [HttpGet("{id:int}/fixture-reminders")]
+    public async Task<ActionResult<List<CompetitionFixtureReminderDto>>> GetFixtureReminders(
+        int id, CancellationToken ct)
+        => await admin.GetFixtureRemindersAsync(id, ct);
+
+    [HttpPost("{id:int}/fixture-reminders")]
+    public async Task<ActionResult<int>> AddFixtureReminder(
+        int id, [FromBody] SaveFixtureReminderRequest req, CancellationToken ct)
+    {
+        try { return await admin.SaveFixtureReminderAsync(id, null, req, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
+    [HttpPut("{id:int}/fixture-reminders/{reminderId:int}")]
+    public async Task<ActionResult<int>> UpdateFixtureReminder(
+        int id, int reminderId, [FromBody] SaveFixtureReminderRequest req, CancellationToken ct)
+    {
+        try { return await admin.SaveFixtureReminderAsync(id, reminderId, req, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpDelete("{id:int}/fixture-reminders/{reminderId:int}")]
+    public async Task<IActionResult> DeleteFixtureReminder(int id, int reminderId, CancellationToken ct)
+    {
+        try { await admin.DeleteFixtureReminderAsync(id, reminderId, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("{id:int}/fixtures/{fixtureId:int}/send-reminder/{reminderId:int}")]
+    public async Task<IActionResult> SendFixtureReminderManual(
+        int id, int fixtureId, int reminderId, CancellationToken ct)
+    {
+        try { await admin.SendFixtureReminderManualAsync(id, fixtureId, reminderId, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
 }
