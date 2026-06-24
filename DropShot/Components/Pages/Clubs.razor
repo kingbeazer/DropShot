@@ -11,6 +11,8 @@
 @inject IDbContextFactory<MyDbContext> DbFactory
 @inject ISiteAlertService SiteAlerts
 @inject IDialogService DialogService
+@inject DropShot.UI.Services.IPlayerService PlayerService
+@inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
 
 @* The 14 admin-template / rules-management write paths stay web-only on this
    shim until phase 5. The shared RCL component renders the public surface and
@@ -21,6 +23,8 @@
 
 <DropShot.UI.Components.Pages.Clubs>
     <AdminActionsTemplate Context="club">
+        <MudIconButton Icon="@Icons.Material.Filled.People" Size="Size.Small" Color="Color.Primary"
+                       aria-label="Manage players" OnClick="@(() => OpenPlayersDialog(club))" />
         <MudIconButton Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Color="Color.Secondary"
                        aria-label="Scheduling templates" OnClick="@(() => OpenTemplates(club))" />
         <MudIconButton Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Small" Color="Color.Warning"
@@ -356,6 +360,181 @@
             <DialogActions>
                 <MudButton OnClick="@(() => _showEditRulesSetDialog = false)">Cancel</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveEditRulesSet">Save</MudButton>
+            </DialogActions>
+        </MudDialog>
+
+        @* ── Players Dialog ──────────────────────────────────────────── *@
+        <MudDialog @bind-Visible="_showPlayersDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true })">
+            <TitleContent>Players – @_playersClub?.Name</TitleContent>
+            <DialogContent>
+                <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Download"
+                               OnClick="DownloadImportTemplate">
+                        Download Template
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Upload"
+                               OnClick="@(() => _showImportDialog = true)">
+                        Import Players
+                    </MudButton>
+                    <MudSpacer />
+                    <MudToggleGroup T="bool" @bind-Value="_showArchivedPlayers">
+                        <MudToggleItem Value="false">Active</MudToggleItem>
+                        <MudToggleItem Value="true">Archived</MudToggleItem>
+                    </MudToggleGroup>
+                </MudStack>
+
+                @if (_playersLoading)
+                {
+                    <MudProgressLinear Indeterminate="true" />
+                }
+                else
+                {
+                    var filtered = _clubPlayers.Where(p => p.IsActive == !_showArchivedPlayers).ToList();
+                    <MudTable Items="@filtered" Dense="true" Hover="true" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Player</MudTh>
+                            <MudTh>Type</MudTh>
+                            <MudTh>Email</MudTh>
+                            <MudTh>Mobile</MudTh>
+                            <MudTh Style="width:130px;">Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Player">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <MudIcon Icon="@(context.IsLight ? Icons.Material.Filled.PersonOutline : Icons.Material.Filled.Person)"
+                                             Size="Size.Small" Color="@(context.IsLight ? Color.Default : Color.Primary)" />
+                                    <span>@context.DisplayName</span>
+                                </MudStack>
+                            </MudTd>
+                            <MudTd DataLabel="Type">
+                                @if (context.IsLight)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Light</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Full</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
+                            <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                            <MudTd DataLabel="Actions">
+                                <MudStack Row="true" Spacing="1">
+                                    @if (context.IsActive)
+                                    {
+                                        <MudTooltip Text="Archive">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Archive" Size="Size.Small"
+                                                           Color="Color.Warning"
+                                                           OnClick="@(() => ArchivePlayer(context))" />
+                                        </MudTooltip>
+                                    }
+                                    else
+                                    {
+                                        <MudTooltip Text="Unarchive">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Unarchive" Size="Size.Small"
+                                                           Color="Color.Success"
+                                                           OnClick="@(() => UnarchivePlayer(context))" />
+                                        </MudTooltip>
+                                    }
+                                    @if (!context.IsActive || context.IsClubOwned)
+                                    {
+                                        <MudTooltip Text="Delete">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           OnClick="@(() => DeletePlayer(context))" />
+                                        </MudTooltip>
+                                    }
+                                </MudStack>
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudText Typo="Typo.caption">
+                                @(_showArchivedPlayers ? "No archived players." : "No active players.")
+                            </MudText>
+                        </NoRecordsContent>
+                    </MudTable>
+                }
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="@(() => _showPlayersDialog = false)">Close</MudButton>
+            </DialogActions>
+        </MudDialog>
+
+        @* ── Import Players Dialog ───────────────────────────────────── *@
+        <MudDialog @bind-Visible="_showImportDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+            <TitleContent>Import Players</TitleContent>
+            <DialogContent>
+                @if (_importPreviewRows.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mb-3">
+                        Select a CSV file to import. Download the template to see the required column format.
+                        Columns: <strong>DisplayName, FirstName, LastName, Email, MobileNumber, DateOfBirth (dd/MM/yyyy), Sex (Male/Female/Other)</strong>.
+                    </MudText>
+                    <InputFile id="importFileInput" OnChange="OnImportFileSelected" accept=".csv" style="display:none;" />
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.AttachFile"
+                               HtmlTag="label" for="importFileInput">
+                        Select CSV file
+                    </MudButton>
+                    @if (!string.IsNullOrEmpty(_importParseError))
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mt-2">@_importParseError</MudAlert>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        <strong>@_importPreviewRows.Count</strong> player@(_importPreviewRows.Count == 1 ? "" : "s") found. Review and confirm to import.
+                    </MudText>
+                    <MudTable Items="@_importPreviewRows" Dense="true" Elevation="0" Style="max-height:320px;overflow-y:auto;">
+                        <HeaderContent>
+                            <MudTh>Display Name</MudTh>
+                            <MudTh>First</MudTh>
+                            <MudTh>Last</MudTh>
+                            <MudTh>Email</MudTh>
+                            <MudTh>DOB</MudTh>
+                            <MudTh>Sex</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.DisplayName</MudTd>
+                            <MudTd>@(context.FirstName ?? "—")</MudTd>
+                            <MudTd>@(context.LastName ?? "—")</MudTd>
+                            <MudTd>@(context.Email ?? "—")</MudTd>
+                            <MudTd>@(context.DateOfBirth?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
+                            <MudTd>@(context.Sex?.ToString() ?? "—")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+
+                    @if (_importErrors.Count > 0)
+                    {
+                        <MudAlert Severity="Severity.Warning" Class="mt-2">
+                            @_importErrors.Count row@(_importErrors.Count == 1 ? "" : "s") will be skipped:
+                            <ul class="mt-1">
+                                @foreach (var err in _importErrors)
+                                {
+                                    <li>@err</li>
+                                }
+                            </ul>
+                        </MudAlert>
+                    }
+                }
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="CancelImport">Cancel</MudButton>
+                @if (_importPreviewRows.Count > 0)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="@_importRunning"
+                               OnClick="ConfirmImport">
+                        @if (_importRunning)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Import @_importPreviewRows.Count @(_importPreviewRows.Count == 1 ? "player" : "players")
+                    </MudButton>
+                }
             </DialogActions>
         </MudDialog>
     </AdminDialogs>
@@ -720,6 +899,207 @@
         if (dbT != null) { dbc.ClubEmailTemplates.Remove(dbT); await dbc.SaveChangesAsync(); }
         _emailTemplatesList.Remove(t);
         SiteAlerts.Add("Email template deleted.", Severity.Warning);
+    }
+
+    // ── Players ─────────────────────────────────────────────────────────
+
+    private bool _showPlayersDialog;
+    private ClubDto? _playersClub;
+    private List<ClubPlayerDto> _clubPlayers = [];
+    private bool _playersLoading;
+    private bool _showArchivedPlayers;
+
+    private bool _showImportDialog;
+    private List<PlayerImportRow> _importPreviewRows = [];
+    private List<string> _importErrors = [];
+    private string? _importParseError;
+    private bool _importRunning;
+
+    private async Task OpenPlayersDialog(ClubDto club)
+    {
+        _playersClub = club;
+        _showArchivedPlayers = false;
+        await LoadClubPlayers();
+        _showPlayersDialog = true;
+    }
+
+    private async Task LoadClubPlayers()
+    {
+        if (_playersClub is null) return;
+        _playersLoading = true;
+        _clubPlayers = await PlayerService.GetClubPlayersAsync(_playersClub.ClubId);
+        _playersLoading = false;
+    }
+
+    private async Task ArchivePlayer(ClubPlayerDto player)
+    {
+        if (_playersClub is null) return;
+        await PlayerService.ArchivePlayerFromClubAsync(_playersClub.ClubId, player.PlayerId);
+        SiteAlerts.Add($"{player.DisplayName} archived.", Severity.Info);
+        await LoadClubPlayers();
+    }
+
+    private async Task UnarchivePlayer(ClubPlayerDto player)
+    {
+        if (_playersClub is null) return;
+        await PlayerService.UnarchivePlayerFromClubAsync(_playersClub.ClubId, player.PlayerId);
+        SiteAlerts.Add($"{player.DisplayName} restored to active.", Severity.Success);
+        await LoadClubPlayers();
+    }
+
+    private async Task DeletePlayer(ClubPlayerDto player)
+    {
+        if (_playersClub is null) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            $"Delete {player.DisplayName}?",
+            player.IsClubOwned
+                ? "This will permanently remove the player and all their club data."
+                : "This will remove the player from this club.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        await PlayerService.RemovePlayerFromClubAsync(_playersClub.ClubId, player.PlayerId);
+        SiteAlerts.Add($"{player.DisplayName} deleted.", Severity.Warning);
+        await LoadClubPlayers();
+    }
+
+    private void DownloadImportTemplate()
+    {
+        if (_playersClub is null) return;
+        NavigationManager.NavigateTo($"/api/clubs/{_playersClub.ClubId}/players/import-template", forceLoad: true);
+    }
+
+    private async Task OnImportFileSelected(InputFileChangeEventArgs e)
+    {
+        _importParseError = null;
+        _importPreviewRows = [];
+        _importErrors = [];
+
+        var file = e.File;
+        if (file is null) return;
+        if (!file.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            _importParseError = "Please select a .csv file.";
+            return;
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024);
+            var (rows, errors) = ParseImportCsv(stream);
+            _importPreviewRows = rows;
+            _importErrors = errors;
+            if (rows.Count == 0 && errors.Count == 0)
+                _importParseError = "The file contains no data rows.";
+        }
+        catch (Exception ex)
+        {
+            _importParseError = $"Could not read file: {ex.Message}";
+        }
+    }
+
+    private async Task ConfirmImport()
+    {
+        if (_playersClub is null || _importPreviewRows.Count == 0) return;
+        _importRunning = true;
+
+        int imported = 0, skipped = 0;
+        foreach (var row in _importPreviewRows)
+        {
+            if (string.IsNullOrWhiteSpace(row.DisplayName)) { skipped++; continue; }
+            try
+            {
+                await PlayerService.CreateLightPlayerAsync(_playersClub.ClubId,
+                    new CreateLightPlayerRequest(
+                        row.DisplayName.Trim(), row.FirstName, row.LastName,
+                        row.Email, row.MobileNumber, row.DateOfBirth, row.Sex));
+                imported++;
+            }
+            catch
+            {
+                skipped++;
+            }
+        }
+
+        _importRunning = false;
+        _showImportDialog = false;
+        _importPreviewRows = [];
+        _importErrors = [];
+        SiteAlerts.Add($"Import complete: {imported} added, {skipped} skipped.", Severity.Success);
+        await LoadClubPlayers();
+    }
+
+    private void CancelImport()
+    {
+        _showImportDialog = false;
+        _importPreviewRows = [];
+        _importErrors = [];
+        _importParseError = null;
+    }
+
+    private static (List<PlayerImportRow> Rows, List<string> Errors) ParseImportCsv(Stream stream)
+    {
+        var rows = new List<PlayerImportRow>();
+        var errors = new List<string>();
+        using var reader = new System.IO.StreamReader(stream);
+
+        var header = reader.ReadLine();
+        if (header is null) return (rows, errors);
+
+        int lineNum = 1;
+        string? line;
+        while ((line = reader.ReadLine()) != null)
+        {
+            lineNum++;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var parts = SplitCsvLine(line);
+
+            string? Get(int i) => parts.Length > i && !string.IsNullOrWhiteSpace(parts[i]) ? parts[i].Trim() : null;
+
+            var displayName = Get(0);
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                errors.Add($"Line {lineNum}: DisplayName is required — row skipped.");
+                continue;
+            }
+
+            DateOnly? dob = null;
+            if (Get(5) is string dobStr)
+            {
+                if (DateOnly.TryParseExact(dobStr, "dd/MM/yyyy", null,
+                        System.Globalization.DateTimeStyles.None, out var parsed))
+                    dob = parsed;
+                else
+                    errors.Add($"Line {lineNum}: '{dobStr}' is not a valid date (use dd/MM/yyyy) — date ignored.");
+            }
+
+            PlayerSex? sex = null;
+            if (Get(6) is string sexStr)
+            {
+                if (Enum.TryParse<PlayerSex>(sexStr, ignoreCase: true, out var s))
+                    sex = s;
+                else
+                    errors.Add($"Line {lineNum}: '{sexStr}' is not a valid Sex value (Male/Female/Other) — sex ignored.");
+            }
+
+            rows.Add(new PlayerImportRow(displayName, Get(1), Get(2), Get(3), Get(4), dob, sex));
+        }
+        return (rows, errors);
+    }
+
+    private static string[] SplitCsvLine(string line)
+    {
+        var parts = new List<string>();
+        bool inQuotes = false;
+        var current = new System.Text.StringBuilder();
+        foreach (char c in line)
+        {
+            if (c == '"') inQuotes = !inQuotes;
+            else if (c == ',' && !inQuotes) { parts.Add(current.ToString()); current.Clear(); }
+            else current.Append(c);
+        }
+        parts.Add(current.ToString());
+        return [.. parts];
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

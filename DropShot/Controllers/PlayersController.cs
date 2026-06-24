@@ -283,4 +283,29 @@ public class ClubPlayersController(
         await playerService.RemovePlayerFromClubAsync(clubId, playerId, ct);
         return NoContent();
     }
+
+    [HttpPut("{playerId:int}/archive")]
+    public async Task<IActionResult> Archive(int clubId, int playerId, CancellationToken ct)
+    {
+        if (!await authzService.CanEditClubAsync(User, clubId)) return Forbid();
+        await playerService.ArchivePlayerFromClubAsync(clubId, playerId, ct);
+        return NoContent();
+    }
+
+    [HttpPut("{playerId:int}/unarchive")]
+    public async Task<IActionResult> Unarchive(int clubId, int playerId, CancellationToken ct)
+    {
+        if (!await authzService.CanEditClubAsync(User, clubId)) return Forbid();
+        await playerService.UnarchivePlayerFromClubAsync(clubId, playerId, ct);
+        return NoContent();
+    }
+
+    [HttpGet("import-template")]
+    public IActionResult DownloadImportTemplate()
+    {
+        var csv = "DisplayName,FirstName,LastName,Email,MobileNumber,DateOfBirth,Sex\r\n" +
+                  "John Smith,John,Smith,john@example.com,07700900000,01/01/1990,Male\r\n";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(csv);
+        return File(bytes, "text/csv", "player-import-template.csv");
+    }
 }
