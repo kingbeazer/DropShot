@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,76 +11,57 @@ namespace DropShot.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<Guid>(
-                name: "ResultSubmissionToken",
-                table: "CompetitionFixtures",
-                type: "uniqueidentifier",
-                nullable: true);
+            // Guarded SQL handles the case where a previous partial run already
+            // created the column or tables before the migration was recorded.
 
-            migrationBuilder.CreateTable(
-                name: "CompetitionFixtureReminders",
-                columns: table => new
-                {
-                    CompetitionFixtureReminderId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    CompetitionId = table.Column<int>(type: "int", nullable: false),
-                    HoursBefore = table.Column<int>(type: "int", nullable: false),
-                    Subject = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Body = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    IncludeResultLink = table.Column<bool>(type: "bit", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CompetitionFixtureReminders", x => x.CompetitionFixtureReminderId);
-                    table.ForeignKey(
-                        name: "FK_CompetitionFixtureReminders_Competition_CompetitionId",
-                        column: x => x.CompetitionId,
-                        principalTable: "Competition",
-                        principalColumn: "CompetitionID",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            migrationBuilder.Sql(@"
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.columns
+                    WHERE object_id = OBJECT_ID(N'[CompetitionFixtures]')
+                      AND name = N'ResultSubmissionToken')
+                BEGIN
+                    ALTER TABLE [CompetitionFixtures] ADD [ResultSubmissionToken] uniqueidentifier NULL;
+                END");
 
-            migrationBuilder.CreateTable(
-                name: "CompetitionFixtureReminderLogs",
-                columns: table => new
-                {
-                    CompetitionFixtureReminderLogId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    CompetitionFixtureReminderId = table.Column<int>(type: "int", nullable: false),
-                    CompetitionFixtureId = table.Column<int>(type: "int", nullable: false),
-                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CompetitionFixtureReminderLogs", x => x.CompetitionFixtureReminderLogId);
-                    table.ForeignKey(
-                        name: "FK_CompetitionFixtureReminderLogs_CompetitionFixtureReminders_CompetitionFixtureReminderId",
-                        column: x => x.CompetitionFixtureReminderId,
-                        principalTable: "CompetitionFixtureReminders",
-                        principalColumn: "CompetitionFixtureReminderId",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_CompetitionFixtureReminderLogs_CompetitionFixtures_CompetitionFixtureId",
-                        column: x => x.CompetitionFixtureId,
-                        principalTable: "CompetitionFixtures",
-                        principalColumn: "CompetitionFixtureId",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            migrationBuilder.Sql(@"
+                IF OBJECT_ID(N'[CompetitionFixtureReminders]') IS NULL
+                BEGIN
+                    CREATE TABLE [CompetitionFixtureReminders] (
+                        [CompetitionFixtureReminderId] int NOT NULL IDENTITY,
+                        [CompetitionId] int NOT NULL,
+                        [HoursBefore] int NOT NULL,
+                        [Subject] nvarchar(max) NOT NULL,
+                        [Body] nvarchar(max) NOT NULL,
+                        [IncludeResultLink] bit NOT NULL,
+                        CONSTRAINT [PK_CompetitionFixtureReminders] PRIMARY KEY ([CompetitionFixtureReminderId]),
+                        CONSTRAINT [FK_CompetitionFixtureReminders_Competition_CompetitionId]
+                            FOREIGN KEY ([CompetitionId]) REFERENCES [Competition] ([CompetitionID]) ON DELETE CASCADE
+                    );
+                    CREATE INDEX [IX_CompetitionFixtureReminders_CompetitionId]
+                        ON [CompetitionFixtureReminders] ([CompetitionId]);
+                END");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_CompetitionFixtureReminderLogs_CompetitionFixtureId",
-                table: "CompetitionFixtureReminderLogs",
-                column: "CompetitionFixtureId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CompetitionFixtureReminderLogs_CompetitionFixtureReminderId",
-                table: "CompetitionFixtureReminderLogs",
-                column: "CompetitionFixtureReminderId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CompetitionFixtureReminders_CompetitionId",
-                table: "CompetitionFixtureReminders",
-                column: "CompetitionId");
+            migrationBuilder.Sql(@"
+                IF OBJECT_ID(N'[CompetitionFixtureReminderLogs]') IS NULL
+                BEGIN
+                    CREATE TABLE [CompetitionFixtureReminderLogs] (
+                        [CompetitionFixtureReminderLogId] int NOT NULL IDENTITY,
+                        [CompetitionFixtureReminderId] int NOT NULL,
+                        [CompetitionFixtureId] int NOT NULL,
+                        [SentAt] datetime2 NOT NULL,
+                        CONSTRAINT [PK_CompetitionFixtureReminderLogs] PRIMARY KEY ([CompetitionFixtureReminderLogId]),
+                        CONSTRAINT [FK_CompetitionFixtureReminderLogs_CompetitionFixtureReminders_CompetitionFixtureReminderId]
+                            FOREIGN KEY ([CompetitionFixtureReminderId])
+                            REFERENCES [CompetitionFixtureReminders] ([CompetitionFixtureReminderId]) ON DELETE CASCADE,
+                        CONSTRAINT [FK_CompetitionFixtureReminderLogs_CompetitionFixtures_CompetitionFixtureId]
+                            FOREIGN KEY ([CompetitionFixtureId])
+                            REFERENCES [CompetitionFixtures] ([CompetitionFixtureId]) ON DELETE NO ACTION
+                    );
+                    CREATE INDEX [IX_CompetitionFixtureReminderLogs_CompetitionFixtureId]
+                        ON [CompetitionFixtureReminderLogs] ([CompetitionFixtureId]);
+                    CREATE INDEX [IX_CompetitionFixtureReminderLogs_CompetitionFixtureReminderId]
+                        ON [CompetitionFixtureReminderLogs] ([CompetitionFixtureReminderId]);
+                END");
         }
 
         /// <inheritdoc />

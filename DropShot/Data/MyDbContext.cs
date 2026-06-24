@@ -748,6 +748,17 @@ namespace DropShot.Data
                 entity.HasIndex(r => r.UserId);
                 entity.HasIndex(r => r.Timestamp);
             });
+
+            // ── CompetitionFixtureReminderLog ────────────────────────────────────
+            // SQL Server disallows two CASCADE paths to the same table, so the
+            // fixture FK must use NoAction (reminder cascade handles log cleanup).
+            builder.Entity<CompetitionFixtureReminderLog>(entity =>
+            {
+                entity.HasOne(l => l.Fixture)
+                      .WithMany(f => f.ReminderLogs)
+                      .HasForeignKey(l => l.CompetitionFixtureId)
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
         }
     }
 

@@ -2291,7 +2291,7 @@ namespace DropShot.Migrations
                     b.HasOne("DropShot.Models.CompetitionFixture", "Fixture")
                         .WithMany("ReminderLogs")
                         .HasForeignKey("CompetitionFixtureId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("DropShot.Models.CompetitionFixtureReminder", "Reminder")
