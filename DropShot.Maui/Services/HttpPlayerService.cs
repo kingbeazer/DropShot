@@ -70,6 +70,18 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task ArchivePlayerFromClubAsync(int clubId, int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsync($"api/clubs/{clubId}/players/{playerId}/archive", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task UnarchivePlayerFromClubAsync(int clubId, int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsync($"api/clubs/{clubId}/players/{playerId}/unarchive", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
     public async Task LinkExistingPlayerToClubAsync(int clubId, int playerId, CancellationToken ct = default)
     {
         var resp = await http.PostAsync($"api/clubs/{clubId}/players/{playerId}/link", null, ct);

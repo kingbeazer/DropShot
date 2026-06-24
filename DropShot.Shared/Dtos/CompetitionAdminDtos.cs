@@ -1,4 +1,4 @@
-namespace DropShot.Shared.Dtos;
+﻿namespace DropShot.Shared.Dtos;
 
 // ── Phase 7L–7U: CompetitionPage admin/edit surface ────────────────────────────
 //

@@ -52,7 +52,22 @@ public record ClubPlayerDto(
     DateOnly? DateOfBirth,
     string? ProfileImagePath,
     bool IsLight,
-    bool IsClubOwned);
+    bool IsClubOwned,
+    bool IsActive = true);
+
+public record PlayerImportRow(
+    string DisplayName,
+    string? FirstName,
+    string? LastName,
+    string? Email,
+    string? MobileNumber,
+    DateOnly? DateOfBirth,
+    PlayerSex? Sex);
+
+public record PlayerImportResult(
+    int Imported,
+    int Skipped,
+    IReadOnlyList<string> Errors);
 
 public record CreateLightPlayerRequest(
     string DisplayName,
