@@ -9,6 +9,7 @@ using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -161,6 +162,11 @@ builder.Services.AddScoped<ISiteAlertService, SiteAlertService>();
 var app = builder.Build();
 
 // ── HTTP pipeline ─────────────────────────────────────────────────────────────
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
+});
+
 if (app.Environment.IsDevelopment())
     app.UseMigrationsEndPoint();
 else
