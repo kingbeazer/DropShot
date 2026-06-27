@@ -1,6 +1,7 @@
  <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
 @inherits LayoutComponentBase
 @inject DropShot.Services.SiteSettingsService SiteSettings
+@inject IWebHostEnvironment Env
 <MudThemeProvider IsDarkMode="true" Theme="DropShot.UI.Theme.DropShotTheme.Default" />
 <style>:root { --ds-content-max-width: @(_contentMaxWidthPx)px; }</style>
 @* Popover/Dialog/Snackbar providers are intentionally NOT here.
@@ -8,6 +9,12 @@
    so the providers share the page's circuit DI scope.  Having them here too
    caused "duplicate subscriber" errors because SSR and circuit both rendered
    a MudPopoverProvider for the same page. *@
+@if (Env.EnvironmentName == "UAT")
+{
+    <div style="background:#ff6600;color:#fff;text-align:center;padding:6px;font-weight:bold;font-size:0.85rem;letter-spacing:0.05em;z-index:9999;position:relative;">
+        UAT ENVIRONMENT — NOT FOR LIVE USE
+    </div>
+}
 <div class="page">
     <header class="top-navbar">
         <NavMenu />
