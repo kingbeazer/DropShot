@@ -109,8 +109,7 @@ public class AuthController(
     public async Task<IActionResult> RequestMagicLink(
         [FromBody] MagicLinkRequest request,
         [FromServices] EmailService emailService,
-        [FromServices] EmailTemplateService emailTemplateService,
-        [FromServices] IConfiguration config)
+        [FromServices] EmailTemplateService emailTemplateService)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null || !(await userManager.IsEmailConfirmedAsync(user)))
@@ -122,7 +121,7 @@ public class AuthController(
         var code = await userManager.GenerateUserTokenAsync(user, "MagicLogin", "magic-link");
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
 
-        var baseUrl = config["App:BaseUrl"]?.TrimEnd('/') ?? "";
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
         var callbackUrl = $"{baseUrl}/Account/LoginMagicLinkCallback?userId={user.Id}&code={code}";
 
         await emailService.SendEmailAsync(request.Email, "Sign In to DropShot",
