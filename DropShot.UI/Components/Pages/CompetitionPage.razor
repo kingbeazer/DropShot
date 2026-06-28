@@ -544,10 +544,12 @@ else
                 OnDelete="DeleteCalendarExceptionAsync" />
 
             @* ── Fixture reminder emails ──────────────────────── *@
-            <FixtureRemindersSection Reminders="_fixtureReminders"
-                OnAddReminder="AddFixtureReminderAsync"
-                OnUpdateReminder="UpdateFixtureReminderAsync"
-                OnDeleteReminder="DeleteFixtureReminderAsync" />
+            <div class="mb-4">
+                <FixtureRemindersSection Reminders="_fixtureReminders"
+                    OnAddReminder="AddFixtureReminderAsync"
+                    OnUpdateReminder="UpdateFixtureReminderAsync"
+                    OnDeleteReminder="DeleteFixtureReminderAsync" />
+            </div>
 
             @* ── Rubber Template ─────────────────────────────── *@
             @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)

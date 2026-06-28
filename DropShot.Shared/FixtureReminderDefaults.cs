@@ -6,7 +6,6 @@ namespace DropShot.Shared;
 /// </summary>
 public static class FixtureReminderDefaults
 {
-    public const int HoursBefore = 24;
     public static readonly bool IncludeResultLink = true;
 
     public const string Subject = "Reminder: your {CompetitionName} fixture";

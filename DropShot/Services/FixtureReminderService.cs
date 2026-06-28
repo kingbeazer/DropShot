@@ -1,6 +1,5 @@
 using DropShot.Data;
 using DropShot.Models;
-using DropShot.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace DropShot.Services;
@@ -25,7 +24,7 @@ public static class FixtureReminderService
         CancellationToken ct = default)
     {
         // Load fixtures that are scheduled in the future or recently, not yet complete.
-        var windowStart = utcNow.AddHours(-Math.Max(25, FixtureReminderDefaults.HoursBefore + 1));
+        var windowStart = utcNow.AddHours(-25);
         var fixtures = await db.CompetitionFixtures
             .AsNoTracking()
             .Include(f => f.Competition)
@@ -42,18 +41,12 @@ public static class FixtureReminderService
 
         if (fixtures.Count == 0) return new SweepResult(0);
 
-        // Load all custom reminders.
+        // Load all configured reminders.
         var reminders = await db.CompetitionFixtureReminders
             .AsNoTracking()
             .ToListAsync(ct);
 
-        // Competitions that appear in fixtures but have no custom reminders use defaults.
-        var competitionIdsWithReminders = reminders.Select(r => r.CompetitionId).ToHashSet();
-        var defaultCompetitionIds = fixtures
-            .Select(f => f.CompetitionId)
-            .Distinct()
-            .Where(id => !competitionIdsWithReminders.Contains(id))
-            .ToHashSet();
+        if (reminders.Count == 0) return new SweepResult(0);
 
         // Load already-sent logs so we can skip duplicates.
         var fixtureIds = fixtures.Select(f => f.CompetitionFixtureId).ToHashSet();
@@ -90,49 +83,6 @@ public static class FixtureReminderService
                 var log = new CompetitionFixtureReminderLog
                 {
                     CompetitionFixtureReminderId = reminder.CompetitionFixtureReminderId,
-                    CompetitionFixtureId = fixture.CompetitionFixtureId,
-                    SentAt = utcNow,
-                };
-                db.CompetitionFixtureReminderLogs.Add(log);
-                await db.SaveChangesAsync(ct);
-                sentSet.Add(key);
-                sent++;
-            }
-        }
-
-        // ── Default template (competitions with no custom reminders) ─────────
-        if (defaultCompetitionIds.Count > 0)
-        {
-            var defaultReminder = new CompetitionFixtureReminder
-            {
-                HoursBefore = FixtureReminderDefaults.HoursBefore,
-                Subject = FixtureReminderDefaults.Subject,
-                Body = FixtureReminderDefaults.Body,
-                IncludeResultLink = FixtureReminderDefaults.IncludeResultLink,
-            };
-
-            var defaultFixtures = fixtures
-                .Where(f => defaultCompetitionIds.Contains(f.CompetitionId))
-                .ToList();
-
-            foreach (var fixture in defaultFixtures)
-            {
-                if (fixture.ScheduledAt is null) continue;
-                var sendAt = fixture.ScheduledAt.Value.AddHours(-FixtureReminderDefaults.HoursBefore);
-
-                if (sendAt > utcNow) continue;
-                if (utcNow > fixture.ScheduledAt.Value.AddHours(1)) continue;
-
-                // null ReminderId = sent via default template
-                var key = ((int?)null, fixture.CompetitionFixtureId);
-                if (sentSet.Contains(key)) continue;
-
-                defaultReminder.CompetitionId = fixture.CompetitionId;
-                await emailService.SendFixtureReminderAsync(fixture, defaultReminder, ct);
-
-                var log = new CompetitionFixtureReminderLog
-                {
-                    CompetitionFixtureReminderId = null,
                     CompetitionFixtureId = fixture.CompetitionFixtureId,
                     SentAt = utcNow,
                 };
