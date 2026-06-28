@@ -39,7 +39,7 @@ jobs:
         ASPNETCORE_ENVIRONMENT: UAT
 
     - name: Publish
-      run: dotnet publish DropShot/DropShot.csproj -c Release -o ./publish --self-contained true -r win-x64
+      run: dotnet publish DropShot/DropShot.csproj -c Release -o ./publish
 
     - name: Deploy to Azure Web App (UAT)
       uses: azure/webapps-deploy@v2
