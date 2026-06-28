@@ -165,6 +165,17 @@ public sealed class WebClubService(
             RequestedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync(ct);
+
+        var club = await db.Clubs.FindAsync([clubId], ct);
+        var user = await db.Users.FindAsync([userId], ct);
+        if (club is not null && user is not null)
+        {
+            var clubAdmins = await db.ClubAdministrators
+                .Where(ca => ca.ClubId == clubId)
+                .Select(ca => ca.User)
+                .ToListAsync(ct);
+            await adminEmail.SendClubLinkRequestReceivedAsync(club, user, clubAdmins);
+        }
     }
 
     public async Task CancelMyClubLinkRequestAsync(int clubId, CancellationToken ct = default)
