@@ -3,7 +3,7 @@ name: Deploy to UAT
 on:
   push:
     branches:
-      - uat
+      - development
   workflow_dispatch:
 
 concurrency:
