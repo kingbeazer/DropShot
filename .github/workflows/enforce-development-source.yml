@@ -1,0 +1,17 @@
+name: Enforce development source branch
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block PRs not from development
+        if: github.head_ref != 'development'
+        run: |
+          echo "PRs into main must come from the development branch."
+          echo "Source branch was: ${{ github.head_ref }}"
+          exit 1
