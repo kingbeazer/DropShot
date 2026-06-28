@@ -1,0 +1,49 @@
+name: Deploy to UAT
+
+on:
+  push:
+    branches:
+      - development
+  workflow_dispatch:
+
+concurrency:
+  group: azure-deploy-uat
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore DropShot/DropShot.csproj
+
+    - name: Build
+      run: dotnet build DropShot/DropShot.csproj --configuration Release
+
+    - name: Install EF Core tools
+      run: dotnet tool install --global dotnet-ef --version 10.0.*
+
+    - name: Apply EF migrations
+      run: dotnet ef database update --project DropShot/DropShot.csproj --configuration Release
+      env:
+        ConnectionStrings__DefaultConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING_UAT }}
+        ASPNETCORE_ENVIRONMENT: UAT
+
+    - name: Publish
+      run: dotnet publish DropShot/DropShot.csproj -c Release -o ./publish
+
+    - name: Deploy to Azure Web App (UAT)
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: DropShot-UAT
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_UAT }}
+        package: ./publish
