@@ -17,6 +17,12 @@
 {
     <MudProgressLinear Indeterminate="true" Class="mb-4" />
 }
+else if (_activeClubId is null)
+{
+    <MudAlert Severity="Severity.Warning">
+        No clubs available. You may not be an administrator of any club.
+    </MudAlert>
+}
 else
 {
     @if (_availableClubs.Count > 1)
@@ -30,15 +36,6 @@ else
         </MudSelect>
     }
 
-    @if (_activeClubId is null)
-    {
-        <MudAlert Severity="Severity.Warning">
-            No clubs available. You may not be an administrator of any club.
-        </MudAlert>
-    }
-}
-    else
-    {
     @if (_availableClubs.Count == 1)
     {
         <MudText Typo="Typo.subtitle1" Class="mb-3" Color="Color.Secondary">Managing: <strong>@_clubName</strong></MudText>
@@ -181,8 +178,7 @@ else
             <MudText>No players yet. Add a player to get started.</MudText>
         </NoRecordsContent>
     </MudTable>
-    } @* end else (_activeClubId is not null) *@
-} @* end else (!_initialising) *@
+}
 
 <MudDialog @bind-Visible="_showPlayerDialog">
     <TitleContent>@(_editingPlayerId.HasValue ? "Edit Player" : "Add Light Player")</TitleContent>
