@@ -1,3 +1,5 @@
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using DropShot.Components;
 using DropShot.Components.Account;
 using DropShot.Data;
@@ -146,6 +148,9 @@ builder.Services.AddScoped<AdminEmailService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ContactRateLimiter>();
 builder.Services.AddScoped<FuzzySearchService>();
+var blobConnectionString = builder.Configuration["AzureBlobStorage:ConnectionString"];
+if (!string.IsNullOrEmpty(blobConnectionString))
+    builder.Services.AddSingleton(new BlobServiceClient(blobConnectionString));
 builder.Services.AddScoped<ICompetitionRubberTemplateProvider, CompetitionRubberTemplateProvider>();
 builder.Services.AddScoped<RubberResolutionService>();
 builder.Services.AddScoped<PlayerRatingService>();
@@ -356,7 +361,8 @@ app.MapPost("/Account/SwitchClub", async (
 app.MapPost("/Account/Manage/UploadAvatar", async (
     HttpContext httpContext,
     UserManager<ApplicationUser> userManager,
-    IWebHostEnvironment env) =>
+    IConfiguration configuration,
+    BlobServiceClient? blobServiceClient) =>
 {
     var user = await userManager.GetUserAsync(httpContext.User);
     if (user is null) return Results.Redirect("/Account/Login");
@@ -375,18 +381,19 @@ app.MapPost("/Account/Manage/UploadAvatar", async (
     if (file.Length > maxSize)
         return Results.Redirect("/Account/Manage?error=Image+must+be+less+than+2+MB");
 
-    var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "avatars");
-    Directory.CreateDirectory(uploadsDir);
+    if (blobServiceClient is null)
+        return Results.Redirect("/Account/Manage?error=Avatar+storage+is+not+configured");
 
-    foreach (var existing in Directory.GetFiles(uploadsDir, $"{user.Id}.*"))
-        File.Delete(existing);
+    var containerName = configuration["AzureBlobStorage:ContainerName"] ?? "avatars";
+    var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+    await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
 
-    var fileName = $"{user.Id}{ext}";
-    var filePath = Path.Combine(uploadsDir, fileName);
-    await using var stream = new FileStream(filePath, FileMode.Create);
-    await file.CopyToAsync(stream);
+    var blobName = $"{user.Id}{ext}";
+    var blobClient = containerClient.GetBlobClient(blobName);
+    await using var stream = file.OpenReadStream();
+    await blobClient.UploadAsync(stream, overwrite: true);
 
-    user.ProfileImagePath = $"/uploads/avatars/{fileName}";
+    user.ProfileImagePath = blobClient.Uri.ToString();
     await userManager.UpdateAsync(user);
 
     return Results.Redirect("/Account/Manage");
