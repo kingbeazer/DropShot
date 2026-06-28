@@ -36,12 +36,19 @@ else
             <MudTd DataLabel="Email">@(context.UserEmail ?? "—")</MudTd>
             <MudTd DataLabel="Requested">@context.RequestedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</MudTd>
             <MudTd>
-                <MudStack Row="true" Spacing="1">
-                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                               OnClick="@(() => Approve(context))">Approve</MudButton>
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
-                               OnClick="@(() => Reject(context))">Reject</MudButton>
-                </MudStack>
+                @if (_busyRequestId == context.ClubLinkRequestId)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                   OnClick="@(() => Approve(context))">Approve</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                   OnClick="@(() => Reject(context))">Reject</MudButton>
+                    </MudStack>
+                }
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -50,6 +57,7 @@ else
 @code {
     private bool _loading = true;
     private List<ClubLinkRequestDto> _requests = [];
+    private int? _busyRequestId;
 
     protected override async Task OnInitializedAsync() => await LoadRequests();
 
@@ -63,6 +71,7 @@ else
 
     private async Task Approve(ClubLinkRequestDto request)
     {
+        _busyRequestId = request.ClubLinkRequestId;
         try
         {
             await ClubService.ApproveLinkRequestAsync(request.ClubLinkRequestId);
@@ -74,10 +83,15 @@ else
         {
             SiteAlerts.Add(ex.Message, Severity.Error);
         }
+        finally
+        {
+            _busyRequestId = null;
+        }
     }
 
     private async Task Reject(ClubLinkRequestDto request)
     {
+        _busyRequestId = request.ClubLinkRequestId;
         try
         {
             await ClubService.RejectLinkRequestAsync(request.ClubLinkRequestId);
@@ -88,6 +102,10 @@ else
         catch (Exception ex)
         {
             SiteAlerts.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busyRequestId = null;
         }
     }
 }
