@@ -72,7 +72,7 @@
                   Style="border:1px solid rgba(255,255,255,0.15);border-radius:8px;opacity:0.85;">
             <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
                 <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" Style="opacity:0.7" />
-                <MudText Typo="Typo.caption" Style="opacity:0.7">Default template — sent @(FixtureReminderDefaults.HoursBefore)h before each fixture</MudText>
+                <MudText Typo="Typo.caption" Style="opacity:0.7">Default email template — configure timing below to activate</MudText>
             </MudStack>
             <MudText Typo="Typo.caption" Class="d-block"><strong>Subject:</strong> @FixtureReminderDefaults.Subject</MudText>
             <MudText Typo="Typo.caption" Class="d-block mt-1" Style="white-space:pre-wrap"><strong>Body:</strong>&#10;@FixtureReminderDefaults.Body</MudText>
@@ -128,7 +128,7 @@
 
             <MudStack Row="true" Spacing="2" Class="mt-3">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                           Disabled="@(string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))"
+                           Disabled="@(_editHours < 1 || string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))"
                            OnClick="SaveEdit">
                     @(_editId.HasValue ? "Save" : "Save override")
                 </MudButton>
@@ -146,7 +146,7 @@
 
     private bool _editing;
     private int? _editId;
-    private int _editHours = FixtureReminderDefaults.HoursBefore;
+    private int _editHours;
     private string _editSubject = "";
     private string _editBody = "";
     private bool _editIncludeResultLink = FixtureReminderDefaults.IncludeResultLink;
@@ -154,7 +154,7 @@
     private void StartAdd()
     {
         _editId = null;
-        _editHours = FixtureReminderDefaults.HoursBefore;
+        _editHours = 0;
         _editSubject = "";
         _editBody = "";
         _editIncludeResultLink = FixtureReminderDefaults.IncludeResultLink;
@@ -164,7 +164,7 @@
     private void StartOverride()
     {
         _editId = null;
-        _editHours = FixtureReminderDefaults.HoursBefore;
+        _editHours = 0;
         _editSubject = FixtureReminderDefaults.Subject;
         _editBody = FixtureReminderDefaults.Body;
         _editIncludeResultLink = FixtureReminderDefaults.IncludeResultLink;
