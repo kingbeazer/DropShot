@@ -1,5 +1,6 @@
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Azure.Storage.Sas;
 using DropShot.Components;
 using DropShot.Components.Account;
 using DropShot.Data;
@@ -392,14 +393,15 @@ app.MapPost("/Account/Manage/UploadAvatar", async (
 
     var containerName = configuration["AzureBlobStorage:ContainerName"] ?? "avatars";
     var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-    await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
+    await containerClient.CreateIfNotExistsAsync(PublicAccessType.None);
 
     var blobName = $"{user.Id}{ext}";
     var blobClient = containerClient.GetBlobClient(blobName);
     await using var stream = file.OpenReadStream();
     await blobClient.UploadAsync(stream, overwrite: true);
 
-    user.ProfileImagePath = blobClient.Uri.ToString();
+    var sasUri = blobClient.GenerateSasUri(Azure.Storage.Sas.BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddYears(10));
+    user.ProfileImagePath = sasUri.ToString();
     await userManager.UpdateAsync(user);
 
     return Results.Redirect("/Account/Manage");
