@@ -26,6 +26,10 @@
         <MudTh>Town</MudTh>
         <MudTh>Email</MudTh>
         <MudTh>Courts</MudTh>
+        @if (CurrentUser.IsSuperAdmin)
+        {
+            <MudTh>Status</MudTh>
+        }
         <MudTh>Link Status</MudTh>
         <MudTh>Actions</MudTh>
     </HeaderContent>
@@ -34,6 +38,19 @@
         <MudTd DataLabel="Town">@(context.Town ?? "—")</MudTd>
         <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
         <MudTd DataLabel="Courts">@context.CourtCount</MudTd>
+        @if (CurrentUser.IsSuperAdmin)
+        {
+            <MudTd DataLabel="Status">
+                @if (context.IsEnabled)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Enabled</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">Disabled</MudChip>
+                }
+            </MudTd>
+        }
         <MudTd DataLabel="Link Status">
             @{
                 var status = GetStatus(context.ClubId);
@@ -72,6 +89,15 @@
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => Nav.NavigateTo($"/clubs/{context.ClubId}/edit"))" />
+            }
+            @if (CurrentUser.IsSuperAdmin)
+            {
+                <MudTooltip Text="@(context.IsEnabled ? "Disable club" : "Enable club")">
+                    <MudIconButton Icon="@(context.IsEnabled ? Icons.Material.Filled.ToggleOn : Icons.Material.Filled.ToggleOff)"
+                                   Size="Size.Small"
+                                   Color="@(context.IsEnabled ? Color.Success : Color.Default)"
+                                   OnClick="@(() => ToggleEnabled(context))" />
+                </MudTooltip>
             }
             @if (CurrentUser.IsAdmin)
             {
@@ -251,6 +277,19 @@
         await ClubService.DeleteClubAsync(club.ClubId);
         SiteAlerts.Add("Club deleted.", Severity.Warning);
         await LoadClubs();
+    }
+
+    private async Task ToggleEnabled(ClubDto club)
+    {
+        var req = new SaveClubRequest(
+            club.Name, club.AddressLine1, club.AddressLine2, club.Town,
+            club.Postcode, club.Phone, club.Email, club.Website,
+            IsEnabled: !club.IsEnabled);
+        await ClubService.UpdateClubAsync(club.ClubId, req);
+        var idx = _clubs.IndexOf(club);
+        if (idx >= 0)
+            _clubs[idx] = club with { IsEnabled = !club.IsEnabled };
+        SiteAlerts.Add(club.IsEnabled ? $"{club.Name} disabled." : $"{club.Name} enabled.", Severity.Info);
     }
 
     private static string? NullIfEmpty(string? s) =>

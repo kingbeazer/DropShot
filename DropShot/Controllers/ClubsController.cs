@@ -50,8 +50,12 @@ public class ClubsController(
     [AllowAnonymous]
     public async Task<ActionResult<List<ClubDto>>> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
+        var isSuperAdmin = authzService.IsSuperAdmin(User);
         await using var db = dbFactory.CreateDbContext();
-        var clubs = await db.Clubs.Include(c => c.Courts)
+        var q = db.Clubs.Include(c => c.Courts).AsQueryable();
+        if (!isSuperAdmin)
+            q = q.Where(c => c.IsEnabled);
+        var clubs = await q
             .OrderBy(c => c.Name)
             .Skip(skip)
             .Take(Math.Min(take, 200))
@@ -59,7 +63,7 @@ public class ClubsController(
         return clubs.Select(c => new ClubDto(
             c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
             c.Town, c.Postcode, c.Phone, c.Email, c.Website,
-            c.Courts.Count)).ToList();
+            c.Courts.Count, c.IsEnabled)).ToList();
     }
 
     /// <summary>
@@ -74,8 +78,12 @@ public class ClubsController(
         var userId = userManager.GetUserId(User);
         if (userId is null) return Unauthorized();
 
+        var isSuperAdmin = authzService.IsSuperAdmin(User);
         await using var db = dbFactory.CreateDbContext();
-        var clubs = await db.Clubs.Include(c => c.Courts)
+        var q = db.Clubs.Include(c => c.Courts).AsQueryable();
+        if (!isSuperAdmin)
+            q = q.Where(c => c.IsEnabled);
+        var clubs = await q
             .OrderBy(c => c.Name)
             .Skip(skip)
             .Take(Math.Min(take, 200))
@@ -108,7 +116,7 @@ public class ClubsController(
             return new ClubWithLinkStatusDto(
                 c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
                 c.Town, c.Postcode, c.Phone, c.Email, c.Website,
-                c.Courts.Count, status);
+                c.Courts.Count, status, c.IsEnabled);
         }).ToList();
     }
 
@@ -116,9 +124,11 @@ public class ClubsController(
     [AllowAnonymous]
     public async Task<ActionResult<ClubDetailDto>> Get(int id)
     {
+        var isSuperAdmin = authzService.IsSuperAdmin(User);
         await using var db = dbFactory.CreateDbContext();
         var c = await db.Clubs.Include(x => x.Courts).FirstOrDefaultAsync(x => x.ClubId == id);
         if (c is null) return NotFound();
+        if (!c.IsEnabled && !isSuperAdmin) return NotFound();
 
         return new ClubDetailDto(
             c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
@@ -131,13 +141,14 @@ public class ClubsController(
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<ClubDto>> Create([FromBody] SaveClubRequest req)
     {
+        var isSuperAdmin = authzService.IsSuperAdmin(User);
         await using var db = dbFactory.CreateDbContext();
-        var club = Apply(new Club(), req);
+        var club = Apply(new Club(), req, isSuperAdmin);
         db.Clubs.Add(club);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(Get), new { id = club.ClubId },
             new ClubDto(club.ClubId, club.Name, club.AddressLine1, club.AddressLine2,
-                club.Town, club.Postcode, club.Phone, club.Email, club.Website, 0));
+                club.Town, club.Postcode, club.Phone, club.Email, club.Website, 0, club.IsEnabled));
     }
 
     [HttpPut("{id:int}")]
@@ -145,14 +156,15 @@ public class ClubsController(
     {
         if (!await authzService.CanEditClubAsync(User, id)) return Forbid();
 
+        var isSuperAdmin = authzService.IsSuperAdmin(User);
         await using var db = dbFactory.CreateDbContext();
         var club = await db.Clubs.FindAsync(id);
         if (club is null) return NotFound();
 
-        Apply(club, req);
+        Apply(club, req, isSuperAdmin);
         await db.SaveChangesAsync();
         return new ClubDto(club.ClubId, club.Name, club.AddressLine1, club.AddressLine2,
-            club.Town, club.Postcode, club.Phone, club.Email, club.Website, 0);
+            club.Town, club.Postcode, club.Phone, club.Email, club.Website, 0, club.IsEnabled);
     }
 
     [HttpDelete("{id:int}")]
@@ -371,7 +383,7 @@ public class ClubsController(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static Club Apply(Club c, SaveClubRequest r)
+    private static Club Apply(Club c, SaveClubRequest r, bool isSuperAdmin = false)
     {
         c.Name = r.Name.Trim();
         c.AddressLine1 = r.AddressLine1;
@@ -381,6 +393,8 @@ public class ClubsController(
         c.Phone = r.Phone;
         c.Email = r.Email;
         c.Website = r.Website;
+        if (isSuperAdmin && r.IsEnabled.HasValue)
+            c.IsEnabled = r.IsEnabled.Value;
         return c;
     }
 

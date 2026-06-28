@@ -69,6 +69,12 @@ else
                     <MudTextField @bind-Value="_detailsForm.Website" Label="Website" Variant="Variant.Outlined"
                                   InputType="InputType.Url" />
                 </MudItem>
+                @if (CurrentUser.IsSuperAdmin)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_detailsForm.IsEnabled" Label="Club Enabled" Color="Color.Success" />
+                    </MudItem>
+                }
                 <MudItem xs="12">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveDetails"
                                Disabled="string.IsNullOrWhiteSpace(_detailsForm.Name)">
@@ -646,6 +652,7 @@ else
         public string? Phone { get; set; }
         public string? Email { get; set; }
         public string? Website { get; set; }
+        public bool IsEnabled { get; set; }
     }
 
     // ── Courts ───────────────────────────────────────────────────
@@ -714,7 +721,8 @@ else
             Postcode = _club.Postcode,
             Phone = _club.Phone,
             Email = _club.Email,
-            Website = _club.Website
+            Website = _club.Website,
+            IsEnabled = _club.IsEnabled
         };
 
         await LoadCourts();
@@ -739,7 +747,8 @@ else
             NullIfEmpty(_detailsForm.Postcode),
             NullIfEmpty(_detailsForm.Phone),
             NullIfEmpty(_detailsForm.Email),
-            NullIfEmpty(_detailsForm.Website));
+            NullIfEmpty(_detailsForm.Website),
+            IsEnabled: CurrentUser.IsSuperAdmin ? _detailsForm.IsEnabled : null);
         await ClubService.UpdateClubAsync(ClubId, req);
         _club!.Name = _detailsForm.Name.Trim();
         SiteAlerts.Add("Club updated.", Severity.Success);
