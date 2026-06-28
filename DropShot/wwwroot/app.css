@@ -124,7 +124,7 @@ body.scoring-active .content {
     gap: 8px;
     font-size: 0.85rem;
     position: sticky;
-    top: 3.5rem;
+    top: var(--ds-navbar-height, 3.5rem);
     z-index: 10;
 }
 

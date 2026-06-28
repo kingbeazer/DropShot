@@ -3,7 +3,7 @@
 @inject DropShot.Services.SiteSettingsService SiteSettings
 @inject IWebHostEnvironment Env
 <MudThemeProvider IsDarkMode="true" Theme="DropShot.UI.Theme.DropShotTheme.Default" />
-<style>:root { --ds-content-max-width: @(_contentMaxWidthPx)px; }</style>
+<style>:root { --ds-content-max-width: @(_contentMaxWidthPx)px; --ds-navbar-height: @(Env.EnvironmentName == "UAT" ? "5.5rem" : "3.5rem"); }</style>
 @* Popover/Dialog/Snackbar providers are intentionally NOT here.
    Each @rendermode InteractiveServer page injects <MudProviders /> directly
    so the providers share the page's circuit DI scope.  Having them here too
