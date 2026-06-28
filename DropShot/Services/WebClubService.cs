@@ -22,9 +22,10 @@ public sealed class WebClubService(
     public async Task<List<ClubDto>> GetClubsAsync(CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var clubs = await db.Clubs.Include(c => c.Courts)
-            .OrderBy(c => c.Name)
-            .ToListAsync(ct);
+        var q = db.Clubs.Include(c => c.Courts).AsQueryable();
+        if (!currentUser.IsSuperAdmin)
+            q = q.Where(c => c.IsEnabled);
+        var clubs = await q.OrderBy(c => c.Name).ToListAsync(ct);
         return clubs.Select(c => ToDto(c)).ToList();
     }
 
@@ -33,6 +34,7 @@ public sealed class WebClubService(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var c = await db.Clubs.Include(x => x.Courts).FirstOrDefaultAsync(x => x.ClubId == id, ct);
         if (c is null) return null;
+        if (!c.IsEnabled && !currentUser.IsSuperAdmin) return null;
 
         return new ClubDetailDto(
             c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
@@ -423,7 +425,7 @@ public sealed class WebClubService(
         await adminEmail.SendClubAdminRequestRejectedAsync(fresh.Club, fresh.User);
     }
 
-    private static Club ApplyTo(Club c, SaveClubRequest req)
+    private Club ApplyTo(Club c, SaveClubRequest req)
     {
         c.Name = req.Name.Trim();
         c.AddressLine1 = NullIfEmpty(req.AddressLine1);
@@ -433,16 +435,18 @@ public sealed class WebClubService(
         c.Phone = NullIfEmpty(req.Phone);
         c.Email = NullIfEmpty(req.Email);
         c.Website = NullIfEmpty(req.Website);
+        if (currentUser.IsSuperAdmin && req.IsEnabled.HasValue)
+            c.IsEnabled = req.IsEnabled.Value;
         return c;
     }
 
     private static ClubDto ToDto(Club c) => new(
         c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
-        c.Town, c.Postcode, c.Phone, c.Email, c.Website, c.Courts.Count);
+        c.Town, c.Postcode, c.Phone, c.Email, c.Website, c.Courts.Count, c.IsEnabled);
 
     private static ClubDto ToDto(Club c, int courtCount) => new(
         c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
-        c.Town, c.Postcode, c.Phone, c.Email, c.Website, courtCount);
+        c.Town, c.Postcode, c.Phone, c.Email, c.Website, courtCount, c.IsEnabled);
 
     private static string? NullIfEmpty(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
