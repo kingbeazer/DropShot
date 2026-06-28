@@ -69,10 +69,17 @@
                     </div>
                     break;
                 default:
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
-                               OnClick="@(() => RequestLink(context))">
-                        Request to Link
-                    </MudButton>
+                    @if (_busyClubId == context.ClubId)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    }
+                    else
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   OnClick="@(() => RequestLink(context))">
+                            Request to Link
+                        </MudButton>
+                    }
                     break;
             }
         </MudTd>
@@ -147,6 +154,7 @@
     private HashSet<int> _linkedClubIds = [];
     private HashSet<int> _pendingLinkClubIds = [];
     private HashSet<int> _pendingAdminRequestClubIds = [];
+    private int? _busyClubId;
 
     private enum ClubLinkState { None, Pending, Linked, AdminPending, Administered }
 
@@ -219,9 +227,17 @@
 
         if (confirmed != true) return;
 
-        await ClubService.RequestClubLinkAsync(club.ClubId);
-        _pendingLinkClubIds.Add(club.ClubId);
-        SiteAlerts.Add($"Request sent to {club.Name}.", Severity.Success);
+        _busyClubId = club.ClubId;
+        try
+        {
+            await ClubService.RequestClubLinkAsync(club.ClubId);
+            _pendingLinkClubIds.Add(club.ClubId);
+            SiteAlerts.Add($"Request sent to {club.Name}.", Severity.Success);
+        }
+        finally
+        {
+            _busyClubId = null;
+        }
     }
 
     private async Task CancelRequest(ClubDto club)
