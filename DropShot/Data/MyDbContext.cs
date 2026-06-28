@@ -758,6 +758,14 @@ namespace DropShot.Data
                       .WithMany(f => f.ReminderLogs)
                       .HasForeignKey(l => l.CompetitionFixtureId)
                       .OnDelete(DeleteBehavior.NoAction);
+
+                // Nullable: null means the log entry is for the default template
+                // (competition had no custom reminder configured).
+                entity.HasOne(l => l.Reminder)
+                      .WithMany(r => r.Logs)
+                      .HasForeignKey(l => l.CompetitionFixtureReminderId)
+                      .IsRequired(false)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

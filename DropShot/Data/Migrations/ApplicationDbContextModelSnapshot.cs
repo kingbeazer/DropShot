@@ -836,7 +836,7 @@ namespace DropShot.Migrations
                     b.Property<int>("CompetitionFixtureId")
                         .HasColumnType("int");
 
-                    b.Property<int>("CompetitionFixtureReminderId")
+                    b.Property<int?>("CompetitionFixtureReminderId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("SentAt")
@@ -2297,8 +2297,7 @@ namespace DropShot.Migrations
                     b.HasOne("DropShot.Models.CompetitionFixtureReminder", "Reminder")
                         .WithMany("Logs")
                         .HasForeignKey("CompetitionFixtureReminderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Fixture");
 

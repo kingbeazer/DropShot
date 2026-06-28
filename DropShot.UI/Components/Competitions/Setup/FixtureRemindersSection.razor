@@ -1,3 +1,4 @@
+@using DropShot.Shared
 @using DropShot.Shared.Dtos
 @using DropShot.UI.Services
 
@@ -51,19 +52,54 @@
                 }
             </tbody>
         </MudSimpleTable>
+
+        @if (!_editing)
+        {
+            <MudStack Row="true" Spacing="2" Class="mb-1">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="StartAdd">Add reminder</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.RestartAlt"
+                           OnClick="ResetToDefault">Reset to default</MudButton>
+            </MudStack>
+        }
     }
-    else
+    else if (!_editing)
     {
-        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">
-            No reminders configured — players will not receive automatic fixture emails.
-        </MudText>
+        @* Show read-only default template preview *@
+        <MudPaper Elevation="0" Class="pa-3 mb-3"
+                  Style="border:1px solid rgba(255,255,255,0.15);border-radius:8px;opacity:0.85;">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" Style="opacity:0.7" />
+                <MudText Typo="Typo.caption" Style="opacity:0.7">Default template — sent @(FixtureReminderDefaults.HoursBefore)h before each fixture</MudText>
+            </MudStack>
+            <MudText Typo="Typo.caption" Class="d-block"><strong>Subject:</strong> @FixtureReminderDefaults.Subject</MudText>
+            <MudText Typo="Typo.caption" Class="d-block mt-1" Style="white-space:pre-wrap"><strong>Body:</strong>&#10;@FixtureReminderDefaults.Body</MudText>
+            <MudText Typo="Typo.caption" Class="d-block mt-1">
+                <strong>Result link:</strong>
+                @if (FixtureReminderDefaults.IncludeResultLink)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" Style="vertical-align:middle" />
+                    <span> Included</span>
+                }
+                else
+                {
+                    <span>Not included</span>
+                }
+            </MudText>
+        </MudPaper>
+
+        <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                   StartIcon="@Icons.Material.Filled.Edit"
+                   OnClick="StartOverride">Override email configuration</MudButton>
     }
 
     @if (_editing)
     {
         <MudPaper Elevation="0" Class="pa-3 mb-3"
                   Style="border:1px solid rgba(255,255,255,0.15);border-radius:8px;">
-            <MudText Typo="Typo.subtitle2" Class="mb-2">@(_editId.HasValue ? "Edit reminder" : "Add reminder")</MudText>
+            <MudText Typo="Typo.subtitle2" Class="mb-2">@(_editId.HasValue ? "Edit reminder" : "Custom reminder")</MudText>
 
             <MudGrid Spacing="2">
                 <MudItem xs="12" sm="4">
@@ -94,17 +130,11 @@
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                            Disabled="@(string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))"
                            OnClick="SaveEdit">
-                    @(_editId.HasValue ? "Save" : "Add reminder")
+                    @(_editId.HasValue ? "Save" : "Save override")
                 </MudButton>
                 <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="CancelEdit">Cancel</MudButton>
             </MudStack>
         </MudPaper>
-    }
-    else
-    {
-        <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                   StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="StartAdd">Add reminder</MudButton>
     }
 </MudPaper>
 
@@ -116,18 +146,28 @@
 
     private bool _editing;
     private int? _editId;
-    private int _editHours = 24;
+    private int _editHours = FixtureReminderDefaults.HoursBefore;
     private string _editSubject = "";
     private string _editBody = "";
-    private bool _editIncludeResultLink = true;
+    private bool _editIncludeResultLink = FixtureReminderDefaults.IncludeResultLink;
 
     private void StartAdd()
     {
         _editId = null;
-        _editHours = 24;
+        _editHours = FixtureReminderDefaults.HoursBefore;
         _editSubject = "";
         _editBody = "";
-        _editIncludeResultLink = true;
+        _editIncludeResultLink = FixtureReminderDefaults.IncludeResultLink;
+        _editing = true;
+    }
+
+    private void StartOverride()
+    {
+        _editId = null;
+        _editHours = FixtureReminderDefaults.HoursBefore;
+        _editSubject = FixtureReminderDefaults.Subject;
+        _editBody = FixtureReminderDefaults.Body;
+        _editIncludeResultLink = FixtureReminderDefaults.IncludeResultLink;
         _editing = true;
     }
 
@@ -151,5 +191,11 @@
         else
             await OnAddReminder.InvokeAsync(req);
         _editing = false;
+    }
+
+    private async Task ResetToDefault()
+    {
+        foreach (var r in Reminders.ToList())
+            await OnDeleteReminder.InvokeAsync(r.CompetitionFixtureReminderId);
     }
 }
