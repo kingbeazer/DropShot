@@ -2,6 +2,7 @@
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
 @inject ISiteAlertService SiteAlerts
+@inject NavigationManager Nav
 
 @* Routing + auth + MudProviders supplied by host shims. The page used
    to wrap content in its own background-image + dark overlay layer
@@ -12,25 +13,32 @@
 
 <MudText Typo="Typo.h4" Class="mb-4">Club Players</MudText>
 
-@if (_availableClubs.Count > 1)
+@if (_initialising)
 {
-    <MudSelect T="int?" Value="_activeClubId" ValueChanged="OnClubChangedAsync"
-               Label="Club" Variant="Variant.Outlined" Class="mb-4">
-        @foreach (var club in _availableClubs)
-        {
-            <MudSelectItem T="int?" Value="@((int?)club.ClubId)">@club.Name</MudSelectItem>
-        }
-    </MudSelect>
-}
-
-@if (_activeClubId is null)
-{
-    <MudAlert Severity="Severity.Warning">
-        No clubs available. You may not be an administrator of any club.
-    </MudAlert>
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
 }
 else
 {
+    @if (_availableClubs.Count > 1)
+    {
+        <MudSelect T="int?" Value="_activeClubId" ValueChanged="OnClubChangedAsync"
+                   Label="Club" Variant="Variant.Outlined" Class="mb-4">
+            @foreach (var club in _availableClubs)
+            {
+                <MudSelectItem T="int?" Value="@((int?)club.ClubId)">@club.Name</MudSelectItem>
+            }
+        </MudSelect>
+    }
+
+    @if (_activeClubId is null)
+    {
+        <MudAlert Severity="Severity.Warning">
+            No clubs available. You may not be an administrator of any club.
+        </MudAlert>
+    }
+}
+    else
+    {
     @if (_availableClubs.Count == 1)
     {
         <MudText Typo="Typo.subtitle1" Class="mb-3" Color="Color.Secondary">Managing: <strong>@_clubName</strong></MudText>
@@ -173,7 +181,8 @@ else
             <MudText>No players yet. Add a player to get started.</MudText>
         </NoRecordsContent>
     </MudTable>
-}
+    } @* end else (_activeClubId is not null) *@
+} @* end else (!_initialising) *@
 
 <MudDialog @bind-Visible="_showPlayerDialog">
     <TitleContent>@(_editingPlayerId.HasValue ? "Edit Player" : "Add Light Player")</TitleContent>
@@ -279,6 +288,7 @@ else
 </MudDialog>
 
 @code {
+    private bool _initialising = true;
     private bool _loading = true;
     private List<ClubPlayerDto> _players = [];
     private string _searchText = "";
@@ -403,6 +413,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await CurrentUser.EnsureLoadedAsync();
+
         // Admin / SuperAdmin manage every club; ClubAdmin only their own.
         // Build the picker options from whichever scope applies, then default
         // to the user's active club if set, else the first option.
@@ -417,10 +429,17 @@ else
             _availableClubs = allClubs.Where(c => adminIds.Contains(c.ClubId)).ToList();
         }
 
+        if (_availableClubs.Count == 0)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
         _activeClubId = CurrentUser.ActiveClubId
             ?? _availableClubs.FirstOrDefault()?.ClubId;
         _clubName = _availableClubs.FirstOrDefault(c => c.ClubId == _activeClubId)?.Name ?? "";
 
+        _initialising = false;
         await LoadPlayers();
     }
 
