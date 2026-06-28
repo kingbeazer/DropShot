@@ -1,6 +1,7 @@
  <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
 @inherits LayoutComponentBase
 @inject DropShot.Services.SiteSettingsService SiteSettings
+@inject IWebHostEnvironment Env
 <MudThemeProvider IsDarkMode="true" Theme="DropShot.UI.Theme.DropShotTheme.Default" />
 <style>:root { --ds-content-max-width: @(_contentMaxWidthPx)px; }</style>
 @* Popover/Dialog/Snackbar providers are intentionally NOT here.
@@ -10,6 +11,12 @@
    a MudPopoverProvider for the same page. *@
 <div class="page">
     <header class="top-navbar">
+        @if (Env.EnvironmentName == "UAT")
+        {
+            <div style="background:#ff6600;color:#fff;text-align:center;padding:6px;font-weight:bold;font-size:0.85rem;letter-spacing:0.05em;">
+                UAT ENVIRONMENT — NOT FOR LIVE USE
+            </div>
+        }
         <NavMenu />
     </header>
 
