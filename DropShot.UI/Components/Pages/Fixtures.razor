@@ -64,12 +64,14 @@ else
                                         {
                                             <MudButton Size="Size.Medium" Variant="Variant.Filled" Color="Color.Primary"
                                                        StartIcon="@Icons.Material.Filled.PlayArrow"
+                                                       Style="border-radius: 20px;"
                                                        OnClick="@(() => StartFixtureMatchAsync(context))">
                                                 Play
                                             </MudButton>
                                         }
                                         <MudButton Size="Size.Medium" Variant="Variant.Outlined" Color="Color.Secondary"
                                                    StartIcon="@Icons.Material.Filled.Edit"
+                                                   Style="border-radius: 20px;"
                                                    OnClick="@(() => OpenSubmitScore(context))">
                                             Submit Score
                                         </MudButton>
