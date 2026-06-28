@@ -983,12 +983,16 @@ public sealed class WebCompetitionService(
             .ToListAsync(ct);
 
         var today = DateTime.UtcNow.Date;
+
+        var user = await GetPrincipalAsync();
+        var visCtx = await authzService.GetVisibilityContextAsync(user);
+
         // SinglesLadder is a continuous format — players can register at any
         // point in the ladder's lifetime, so the IsStarted flag and the
         // start-date-in-the-past check (both "registration closed" gates for
         // bracket/league formats) don't apply. RegisterByDate still does:
         // admins keep the option of a hard registration cutoff.
-        var candidates = await db.Competition
+        var baseQuery = db.Competition
             .Include(c => c.HostClub)
             .Include(c => c.Event)
             .Include(c => c.AllowedPlayers)
@@ -996,7 +1000,11 @@ public sealed class WebCompetitionService(
                         && (c.CompetitionFormat == CompetitionFormat.SinglesLadder || !c.IsStarted))
             .Where(c => c.CompetitionFormat == CompetitionFormat.SinglesLadder
                         || !c.StartDate.HasValue || c.StartDate.Value >= today)
-            .Where(c => !c.RegisterByDate.HasValue || c.RegisterByDate.Value >= today)
+            .Where(c => !c.RegisterByDate.HasValue || c.RegisterByDate.Value >= today);
+
+        var visibleQuery = authzService.ApplyVisibilityFilter(baseQuery, db, visCtx);
+
+        var candidates = await visibleQuery
             .OrderBy(c => c.StartDate).ThenBy(c => c.CompetitionName)
             .ToListAsync(ct);
 
