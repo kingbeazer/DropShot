@@ -19,6 +19,7 @@ public class Club
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public string? Website { get; set; }
+    public bool IsEnabled { get; set; }
 
     public ICollection<Court> Courts { get; set; } = [];
     public ICollection<ClubPlayer> Players { get; set; } = [];

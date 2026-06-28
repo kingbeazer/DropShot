@@ -4,16 +4,19 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace DropShot.Migrations
+namespace DropShot.Data.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260628225633_AddClubIsEnabled")]
+    partial class AddClubIsEnabled
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -181,48 +184,6 @@ namespace DropShot.Migrations
                     b.HasKey("ClubId");
 
                     b.ToTable("Clubs");
-                });
-
-            modelBuilder.Entity("DropShot.Models.ClubAdminRequest", b =>
-                {
-                    b.Property<int>("ClubAdminRequestId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClubAdminRequestId"));
-
-                    b.Property<int>("ClubId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("RequestedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ResolvedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ResolvedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<byte>("Status")
-                        .HasColumnType("tinyint");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("ClubAdminRequestId");
-
-                    b.HasIndex("ResolvedByUserId");
-
-                    b.HasIndex("ClubId", "Status");
-
-                    b.HasIndex("UserId", "ClubId")
-                        .IsUnique()
-                        .HasFilter("[Status] = 1");
-
-                    b.ToTable("ClubAdminRequests");
                 });
 
             modelBuilder.Entity("DropShot.Models.ClubAdministrator", b =>
@@ -1991,32 +1952,6 @@ namespace DropShot.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
-                });
-
-            modelBuilder.Entity("DropShot.Models.ClubAdminRequest", b =>
-                {
-                    b.HasOne("DropShot.Models.Club", "Club")
-                        .WithMany()
-                        .HasForeignKey("ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Data.ApplicationUser", "ResolvedByUser")
-                        .WithMany()
-                        .HasForeignKey("ResolvedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DropShot.Data.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Club");
-
-                    b.Navigation("ResolvedByUser");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("DropShot.Models.ClubAdministrator", b =>
