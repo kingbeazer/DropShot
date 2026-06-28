@@ -252,4 +252,48 @@ public class AdminEmailService(
         var html = emailTemplateService.ClubLinkRequestRejectedEmail(userName, club.Name);
         await SendSafe(user.Email, subject, html, "club link request rejected", isHtml: true);
     }
+
+    // ── Club admin role requests ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Notifies the site admin address that a user has requested club admin access.
+    /// </summary>
+    public async Task SendClubAdminRequestReceivedAsync(Club club, ApplicationUser requester)
+    {
+        var adminAddress = config["App:AdminNotificationEmail"];
+        if (string.IsNullOrWhiteSpace(adminAddress)) return;
+
+        var manageLink = $"{BaseUrl}/admin/club-admin-requests";
+        var requesterName = requester.DisplayName is { Length: > 0 } ? requester.DisplayName : requester.UserName ?? "A user";
+        var subject = $"New club admin request for {club.Name}";
+        var html = emailTemplateService.ClubAdminRequestReceivedEmail(requesterName, club.Name, manageLink);
+        await SendSafe(adminAddress, subject, html, "club admin request received", isHtml: true);
+    }
+
+    /// <summary>
+    /// Notifies the requesting user that their club admin request was approved.
+    /// </summary>
+    public async Task SendClubAdminRequestApprovedAsync(Club club, ApplicationUser user)
+    {
+        if (string.IsNullOrEmpty(user.Email)) return;
+
+        var clubLink = $"{BaseUrl}/clubs/{club.ClubId}";
+        var userName = user.DisplayName ?? user.UserName ?? "";
+        var subject = $"You're now an admin of {club.Name}";
+        var html = emailTemplateService.ClubAdminRequestApprovedEmail(userName, club.Name, clubLink);
+        await SendSafe(user.Email, subject, html, "club admin request approved", isHtml: true);
+    }
+
+    /// <summary>
+    /// Notifies the requesting user that their club admin request was rejected.
+    /// </summary>
+    public async Task SendClubAdminRequestRejectedAsync(Club club, ApplicationUser user)
+    {
+        if (string.IsNullOrEmpty(user.Email)) return;
+
+        var userName = user.DisplayName ?? user.UserName ?? "";
+        var subject = "Club admin request declined";
+        var html = emailTemplateService.ClubAdminRequestRejectedEmail(userName, club.Name);
+        await SendSafe(user.Email, subject, html, "club admin request rejected", isHtml: true);
+    }
 }

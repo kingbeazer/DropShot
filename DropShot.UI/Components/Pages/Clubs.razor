@@ -43,8 +43,22 @@
                 case ClubLinkState.Administered:
                     <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">Admin</MudChip>
                     break;
+                case ClubLinkState.AdminPending:
+                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Admin Request Pending</MudChip>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       aria-label="Cancel admin request"
+                                       OnClick="@(() => CancelAdminRequest(context))" />
+                    </div>
+                    break;
                 case ClubLinkState.Linked:
-                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Linked</MudChip>
+                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Linked</MudChip>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                   OnClick="@(() => RequestAdminRole(context))">
+                            Request Admin
+                        </MudButton>
+                    </div>
                     break;
                 case ClubLinkState.Pending:
                     <div style="display: inline-flex; align-items: center; gap: 4px;">
@@ -132,12 +146,14 @@
     private List<int> _adminClubIds = [];
     private HashSet<int> _linkedClubIds = [];
     private HashSet<int> _pendingLinkClubIds = [];
+    private HashSet<int> _pendingAdminRequestClubIds = [];
 
-    private enum ClubLinkState { None, Pending, Linked, Administered }
+    private enum ClubLinkState { None, Pending, Linked, AdminPending, Administered }
 
     private ClubLinkState GetStatus(int clubId)
     {
         if (_adminClubIds.Contains(clubId)) return ClubLinkState.Administered;
+        if (_pendingAdminRequestClubIds.Contains(clubId)) return ClubLinkState.AdminPending;
         if (_linkedClubIds.Contains(clubId)) return ClubLinkState.Linked;
         if (_pendingLinkClubIds.Contains(clubId)) return ClubLinkState.Pending;
         return ClubLinkState.None;
@@ -176,6 +192,7 @@
         _adminClubIds = links.AdminClubIds.ToList();
         _linkedClubIds = links.LinkedClubIds.ToHashSet();
         _pendingLinkClubIds = links.PendingClubIds.ToHashSet();
+        _pendingAdminRequestClubIds = links.PendingAdminRequestClubIds.ToHashSet();
     }
 
     private async Task LoadClubs()
@@ -219,6 +236,48 @@
         await ClubService.CancelMyClubLinkRequestAsync(club.ClubId);
         _pendingLinkClubIds.Remove(club.ClubId);
         SiteAlerts.Add($"Request to {club.Name} cancelled.", Severity.Success);
+    }
+
+    private async Task RequestAdminRole(ClubDto club)
+    {
+        if (!CurrentUser.IsAuthenticated)
+        {
+            SiteAlerts.Add("You must be signed in to request admin access.", Severity.Warning);
+            return;
+        }
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            $"Request admin access to {club.Name}?",
+            $"This will send a request to the site administrators for review. " +
+            "You'll be notified by email when a decision is made.",
+            yesText: "Send request", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await ClubService.RequestClubAdminAsync(club.ClubId);
+            _pendingAdminRequestClubIds.Add(club.ClubId);
+            SiteAlerts.Add($"Admin request sent for {club.Name}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CancelAdminRequest(ClubDto club)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            $"Cancel admin request for {club.Name}?",
+            "Your pending admin request will be deleted.",
+            yesText: "Delete request", cancelText: "Keep request");
+
+        if (confirmed != true) return;
+
+        await ClubService.CancelMyClubAdminRequestAsync(club.ClubId);
+        _pendingAdminRequestClubIds.Remove(club.ClubId);
+        SiteAlerts.Add($"Admin request for {club.Name} cancelled.", Severity.Success);
     }
 
     private void OpenAddDialog()

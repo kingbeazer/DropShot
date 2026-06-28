@@ -263,6 +263,15 @@
                                         <span class="nav-sublabel">Approve player links</span>
                                     </span>
                                 </NavLink>
+                                <AuthorizeView Roles="Admin,SuperAdmin" Context="adminReqCtx">
+                                    <NavLink class="nav-link" href="admin/club-admin-requests">
+                                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Class="nav-icon" />
+                                        <span class="nav-label-group">
+                                            <span class="nav-label">Admin Requests</span>
+                                            <span class="nav-sublabel">Approve club admin access</span>
+                                        </span>
+                                    </NavLink>
+                                </AuthorizeView>
                             </AuthorizeView>
 
                             <hr class="nav-dropdown-divider" />

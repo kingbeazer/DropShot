@@ -390,6 +390,41 @@ public class EmailTemplateService
         return WrapInBaseLayout("Club link request declined", body, $"Your request to join {clubName} was declined.");
     }
 
+    // ── Club admin role request emails ──────────────────────────────────────
+
+    public string ClubAdminRequestReceivedEmail(string requesterName, string clubName, string manageLink)
+    {
+        var body = $@"
+<h2 style=""margin:0 0 16px 0;font-size:22px;color:#1b5e20;"">New Club Admin Request</h2>
+<p style=""margin:0 0 8px 0;""><strong>{Encode(requesterName)}</strong> has requested club administrator access for <strong>{Encode(clubName)}</strong>.</p>
+<p style=""margin:0 0 8px 0;"">Review and approve or reject this request from the admin panel.</p>
+{ActionButton("Review Request", manageLink)}";
+
+        return WrapInBaseLayout($"New club admin request for {clubName}", body, $"{requesterName} wants admin access to {clubName}.");
+    }
+
+    public string ClubAdminRequestApprovedEmail(string userName, string clubName, string clubLink)
+    {
+        var body = $@"
+<h2 style=""margin:0 0 16px 0;font-size:22px;color:#1b5e20;"">Admin Access Granted</h2>
+<p style=""margin:0 0 8px 0;"">Hi {Encode(userName)},</p>
+<p style=""margin:0 0 8px 0;"">Your request for administrator access to <strong>{Encode(clubName)}</strong> has been approved.</p>
+{ActionButton("Go to Club", clubLink)}";
+
+        return WrapInBaseLayout($"You're now an admin of {clubName}", body, $"Your admin request for {clubName} was approved.");
+    }
+
+    public string ClubAdminRequestRejectedEmail(string userName, string clubName)
+    {
+        var body = $@"
+<h2 style=""margin:0 0 16px 0;font-size:22px;color:#1b5e20;"">Admin Request Declined</h2>
+<p style=""margin:0 0 8px 0;"">Hi {Encode(userName)},</p>
+<p style=""margin:0 0 8px 0;"">Unfortunately, your request for administrator access to <strong>{Encode(clubName)}</strong> was not approved.</p>
+<p style=""margin:0 0 8px 0;"">If you think this is a mistake, please contact the site administrator.</p>";
+
+        return WrapInBaseLayout("Club admin request declined", body, $"Your admin request for {clubName} was declined.");
+    }
+
     // ── Admin custom email (wraps admin-authored text in branded layout) ──
 
     /// <summary>

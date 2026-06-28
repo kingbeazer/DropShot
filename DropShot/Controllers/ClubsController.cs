@@ -44,6 +44,31 @@ public class ClubsController(
         return NoContent();
     }
 
+    // ── Admin role requests (user-facing) ────────────────────────────────────
+
+    /// <summary>User requests the ClubAdmin role for a club they are linked to.</summary>
+    [HttpPost("{id:int}/admin-requests")]
+    public async Task<IActionResult> RequestAdminRole(int id, CancellationToken ct)
+    {
+        try
+        {
+            await clubService.RequestClubAdminAsync(id, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Cancel the caller's pending admin role request for this club.</summary>
+    [HttpDelete("{id:int}/admin-requests/mine")]
+    public async Task<IActionResult> CancelMyAdminRequest(int id, CancellationToken ct)
+    {
+        await clubService.CancelMyClubAdminRequestAsync(id, ct);
+        return NoContent();
+    }
+
     // ── Clubs directory ───────────────────────────────────────────────────────
 
     [HttpGet]

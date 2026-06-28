@@ -93,4 +93,17 @@ public record UpdateCourtRequest(string Name, CourtSurface Surface, bool IsIndoo
 public record UserClubLinksDto(
     IReadOnlyList<int> AdminClubIds,
     IReadOnlyList<int> LinkedClubIds,
-    IReadOnlyList<int> PendingClubIds);
+    IReadOnlyList<int> PendingClubIds,
+    IReadOnlyList<int> PendingAdminRequestClubIds);
+
+public record ClubAdminRequestDto(
+    int ClubAdminRequestId,
+    int ClubId,
+    string ClubName,
+    string UserId,
+    string UserName,
+    string? UserEmail,
+    string? UserDisplayName,
+    string Status,
+    DateTime RequestedAt,
+    DateTime? ResolvedAt);
