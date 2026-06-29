@@ -23,6 +23,13 @@ public class CompetitionFixtureReminder
     /// </summary>
     public bool IncludeResultLink { get; set; }
 
+    /// <summary>
+    /// For team fixtures: when true, only the team captain receives the reminder.
+    /// When false, every participant on both teams is emailed.
+    /// Has no effect on singles/doubles fixtures.
+    /// </summary>
+    public bool SendToCaptainsOnly { get; set; }
+
     public Competition Competition { get; set; } = null!;
     public ICollection<CompetitionFixtureReminderLog> Logs { get; set; } = [];
 }

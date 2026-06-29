@@ -109,17 +109,31 @@ public class AdminEmailService(
             (Player: fixture.Player4, OpponentName: SideName(fixture.Player1, fixture.Player3)),
         };
 
-        // For team matches, send to team captains.
+        // For team matches, send to captains or all participants depending on the reminder setting.
         if (fixture.HomeTeam is not null || fixture.AwayTeam is not null)
         {
-            var captains = new List<(Player player, string opponentLabel)>();
+            var recipients = new List<(Player player, string opponentLabel)>();
 
-            if (fixture.HomeTeam?.Captain?.Email != null)
-                captains.Add((fixture.HomeTeam.Captain, fixture.AwayTeam?.Name ?? "Away team"));
-            if (fixture.AwayTeam?.Captain?.Email != null)
-                captains.Add((fixture.AwayTeam.Captain, fixture.HomeTeam?.Name ?? "Home team"));
+            if (reminder.SendToCaptainsOnly)
+            {
+                if (fixture.HomeTeam?.Captain?.Email != null)
+                    recipients.Add((fixture.HomeTeam.Captain, fixture.AwayTeam?.Name ?? "Away team"));
+                if (fixture.AwayTeam?.Captain?.Email != null)
+                    recipients.Add((fixture.AwayTeam.Captain, fixture.HomeTeam?.Name ?? "Home team"));
+            }
+            else
+            {
+                var homeOpponent = fixture.AwayTeam?.Name ?? "Away team";
+                var awayOpponent = fixture.HomeTeam?.Name ?? "Home team";
+                if (fixture.HomeTeam?.Participants != null)
+                    foreach (var p in fixture.HomeTeam.Participants.Where(p => p.Player?.Email != null))
+                        recipients.Add((p.Player!, homeOpponent));
+                if (fixture.AwayTeam?.Participants != null)
+                    foreach (var p in fixture.AwayTeam.Participants.Where(p => p.Player?.Email != null))
+                        recipients.Add((p.Player!, awayOpponent));
+            }
 
-            await Task.WhenAll(captains.Select(c =>
+            await Task.WhenAll(recipients.Select(c =>
             {
                 var subject = SubstituteReminderVars(reminder.Subject, c.player.DisplayName, c.opponentLabel, competitionName, matchDate, matchLink, resultLink);
                 var body = SubstituteReminderVars(reminder.Body, c.player.DisplayName, c.opponentLabel, competitionName, matchDate, matchLink, resultLink);

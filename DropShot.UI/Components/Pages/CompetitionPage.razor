@@ -4594,7 +4594,7 @@ else
         try
         {
             var newId = await Admin.SaveFixtureReminderAsync(Id, null, request);
-            _fixtureReminders.Add(new CompetitionFixtureReminderDto(newId, Id, request.HoursBefore, request.Subject, request.Body, request.IncludeResultLink));
+            _fixtureReminders.Add(new CompetitionFixtureReminderDto(newId, Id, request.HoursBefore, request.Subject, request.Body, request.IncludeResultLink, request.SendToCaptainsOnly));
         }
         catch (Exception ex) { SiteAlerts.Add($"Failed to add reminder: {ex.Message}", Severity.Error); }
     }
@@ -4606,7 +4606,7 @@ else
             await Admin.SaveFixtureReminderAsync(Id, args.ReminderId, args.Request);
             var idx = _fixtureReminders.FindIndex(r => r.CompetitionFixtureReminderId == args.ReminderId);
             if (idx >= 0)
-                _fixtureReminders[idx] = _fixtureReminders[idx] with { HoursBefore = args.Request.HoursBefore, Subject = args.Request.Subject, Body = args.Request.Body, IncludeResultLink = args.Request.IncludeResultLink };
+                _fixtureReminders[idx] = _fixtureReminders[idx] with { HoursBefore = args.Request.HoursBefore, Subject = args.Request.Subject, Body = args.Request.Body, IncludeResultLink = args.Request.IncludeResultLink, SendToCaptainsOnly = args.Request.SendToCaptainsOnly };
         }
         catch (Exception ex) { SiteAlerts.Add($"Failed to update reminder: {ex.Message}", Severity.Error); }
     }
