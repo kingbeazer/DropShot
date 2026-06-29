@@ -408,13 +408,6 @@ app.MapPost("/Account/Manage/UploadAvatar", async (
 }).RequireAuthorization()
   .DisableAntiforgery();
 
-// ── Apply pending migrations on startup ───────────────────────────────────────
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<MyDbContext>();
-    await db.Database.MigrateAsync();
-}
-
 // ── Seed roles ────────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
