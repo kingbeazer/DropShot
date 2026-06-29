@@ -597,6 +597,12 @@ else
                     OnUpdateReminder="UpdateFixtureReminderAsync"
                     OnDeleteReminder="DeleteFixtureReminderAsync" />
             </div>
+
+            @if (_isSuperAdmin)
+            {
+                <ScheduledReminderEmailsSection CompetitionId="Id"
+                    LoadEmails="@(id => Admin.GetScheduledReminderEmailsAsync(id))" />
+            }
         }
 
 <div id="nav-anchor-roster" class="section-anchor"></div>

@@ -1,0 +1,75 @@
+@using DropShot.Shared.Dtos
+
+<MudPaper id="section-scheduled-reminder-emails" Class="pa-4 setup-section frosted-card mb-4" Elevation="0"
+          Style="color: white;">
+    <MudText Typo="Typo.h6" Class="mb-1">Scheduled reminder emails</MudText>
+    <MudText Typo="Typo.caption" Style="opacity:0.75" Class="d-block mb-3">
+        All pending and sent reminder emails for scheduled fixtures in this competition.
+    </MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_emails.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Style="opacity:0.6">
+            No scheduled reminder emails — either no fixtures are scheduled or no reminders are configured.
+        </MudText>
+    }
+    else
+    {
+        <MudSimpleTable Dense="true">
+            <thead>
+                <tr>
+                    <th>Fixture</th>
+                    <th>Match time</th>
+                    <th>Hours before</th>
+                    <th>Send at</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in _emails)
+                {
+                    <tr>
+                        <td>@e.FixtureLabel</td>
+                        <td>@e.ScheduledAt.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@e.HoursBefore h</td>
+                        <td style="white-space:nowrap">@e.SendAt.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@e.Subject</td>
+                        <td>
+                            @if (e.AlreadySent)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Sent</MudChip>
+                            }
+                            else if (e.SendAt <= DateTime.UtcNow)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Overdue</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Pending</MudChip>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public int CompetitionId { get; set; }
+    [Parameter, EditorRequired] public Func<int, Task<List<ScheduledReminderEmailDto>>> LoadEmails { get; set; } = default!;
+
+    private List<ScheduledReminderEmailDto> _emails = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _emails = await LoadEmails(CompetitionId);
+        _loading = false;
+    }
+}
