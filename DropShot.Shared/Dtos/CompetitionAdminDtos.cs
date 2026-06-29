@@ -399,13 +399,15 @@ public record CompetitionFixtureReminderDto(
     int HoursBefore,
     string Subject,
     string Body,
-    bool IncludeResultLink);
+    bool IncludeResultLink,
+    bool SendToCaptainsOnly);
 
 public record SaveFixtureReminderRequest(
     int HoursBefore,
     string Subject,
     string Body,
-    bool IncludeResultLink);
+    bool IncludeResultLink,
+    bool SendToCaptainsOnly);
 
 public record SendFixtureReminderManualRequest(int CompetitionFixtureReminderId);
 

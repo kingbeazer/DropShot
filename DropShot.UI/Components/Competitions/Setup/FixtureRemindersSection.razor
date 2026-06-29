@@ -10,7 +10,7 @@
         Use <strong>{PlayerName}</strong>, <strong>{OpponentName}</strong>,
         <strong>{CompetitionName}</strong>, <strong>{MatchDate}</strong>,
         <strong>{MatchLink}</strong>, and <strong>{ResultLink}</strong> as placeholders.
-        The <strong>{ResultLink}</strong> variable is only available when "Include result link" is enabled.
+        The <strong>{ResultLink}</strong> variable is only available when "Include score entry link" is enabled.
     </MudText>
 
     @if (Reminders.Count > 0)
@@ -20,7 +20,8 @@
                 <tr>
                     <th>Hours before</th>
                     <th>Subject</th>
-                    <th>Result link</th>
+                    <th>Score link</th>
+                    <th>Recipients</th>
                     <th></th>
                 </tr>
             </thead>
@@ -41,6 +42,7 @@
                                 <MudIcon Icon="@Icons.Material.Filled.Close" Color="Color.Default" Size="Size.Small" />
                             }
                         </td>
+                        <td>@(rem.SendToCaptainsOnly ? "Captains only" : "All participants")</td>
                         <td>
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                            OnClick="@(() => StartEdit(rem))" />
@@ -83,6 +85,16 @@
                         Uses the default email template. Toggle below to customise.
                     </MudText>
                 </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudCheckBox @bind-Value="_editIncludeResultLink"
+                                 Label="Include score entry link ({ResultLink})"
+                                 Dense="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudCheckBox @bind-Value="_editSendToCaptainsOnly"
+                                 Label="Send to team captains only"
+                                 Dense="true" />
+                </MudItem>
             </MudGrid>
 
             <MudCheckBox @bind-Value="_customiseEmail" Label="Customise email content" Dense="true" Class="mt-2" />
@@ -100,11 +112,6 @@
                                       Label="Email body (Markdown supported, use {variables})"
                                       Variant="Variant.Outlined" Lines="6"
                                       HelperText="{PlayerName}, {OpponentName}, {CompetitionName}, {MatchDate}, {MatchLink}, {ResultLink}" />
-                    </MudItem>
-                    <MudItem xs="12">
-                        <MudCheckBox @bind-Value="_editIncludeResultLink"
-                                     Label="Include result submission link ({ResultLink})"
-                                     Dense="true" />
                     </MudItem>
                 </MudGrid>
             }
@@ -143,9 +150,14 @@
                                   Variant="Variant.Outlined" Lines="6"
                                   HelperText="{PlayerName}, {OpponentName}, {CompetitionName}, {MatchDate}, {MatchLink}, {ResultLink}" />
                 </MudItem>
-                <MudItem xs="12">
+                <MudItem xs="12" sm="6">
                     <MudCheckBox @bind-Value="_editIncludeResultLink"
-                                 Label="Include result submission link ({ResultLink})"
+                                 Label="Include score entry link ({ResultLink})"
+                                 Dense="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudCheckBox @bind-Value="_editSendToCaptainsOnly"
+                                 Label="Send to team captains only"
                                  Dense="true" />
                 </MudItem>
             </MudGrid>
@@ -174,6 +186,7 @@
     private string _editSubject = FixtureReminderDefaults.Subject;
     private string _editBody = FixtureReminderDefaults.Body;
     private bool _editIncludeResultLink = FixtureReminderDefaults.IncludeResultLink;
+    private bool _editSendToCaptainsOnly = FixtureReminderDefaults.SendToCaptainsOnly;
     private bool _customiseEmail;
 
     private void StartAdd()
@@ -183,6 +196,7 @@
         _editSubject = FixtureReminderDefaults.Subject;
         _editBody = FixtureReminderDefaults.Body;
         _editIncludeResultLink = FixtureReminderDefaults.IncludeResultLink;
+        _editSendToCaptainsOnly = FixtureReminderDefaults.SendToCaptainsOnly;
         _editing = true;
     }
 
@@ -193,6 +207,7 @@
         _editSubject = r.Subject;
         _editBody = r.Body;
         _editIncludeResultLink = r.IncludeResultLink;
+        _editSendToCaptainsOnly = r.SendToCaptainsOnly;
         _editing = true;
     }
 
@@ -202,13 +217,15 @@
     {
         var subject = _customiseEmail ? _editSubject.Trim() : FixtureReminderDefaults.Subject;
         var body = _customiseEmail ? _editBody.Trim() : FixtureReminderDefaults.Body;
-        var includeResultLink = _customiseEmail ? _editIncludeResultLink : FixtureReminderDefaults.IncludeResultLink;
 
-        var req = new SaveFixtureReminderRequest(_editHours, subject, body, includeResultLink);
+        var req = new SaveFixtureReminderRequest(
+            _editHours, subject, body, _editIncludeResultLink, _editSendToCaptainsOnly);
+
         if (_editId.HasValue)
             await OnUpdateReminder.InvokeAsync((_editId.Value, req));
         else
             await OnAddReminder.InvokeAsync(req);
+
         _editing = false;
         _customiseEmail = false;
         _editHours = 0;

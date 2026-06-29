@@ -308,7 +308,7 @@ public sealed class WebCompetitionAdminService(
                 .OrderBy(r => r.HoursBefore)
                 .Select(r => new CompetitionFixtureReminderDto(
                     r.CompetitionFixtureReminderId, r.CompetitionId,
-                    r.HoursBefore, r.Subject, r.Body, r.IncludeResultLink))
+                    r.HoursBefore, r.Subject, r.Body, r.IncludeResultLink, r.SendToCaptainsOnly))
                 .ToListAsync(ct));
     }
 
@@ -2687,7 +2687,8 @@ public sealed class WebCompetitionAdminService(
                 r.HoursBefore,
                 r.Subject,
                 r.Body,
-                r.IncludeResultLink))
+                r.IncludeResultLink,
+                r.SendToCaptainsOnly))
             .ToListAsync(ct);
     }
 
@@ -2767,6 +2768,7 @@ public sealed class WebCompetitionAdminService(
         reminder.Subject = request.Subject;
         reminder.Body = request.Body;
         reminder.IncludeResultLink = request.IncludeResultLink;
+        reminder.SendToCaptainsOnly = request.SendToCaptainsOnly;
 
         await db.SaveChangesAsync(ct);
         return reminder.CompetitionFixtureReminderId;
