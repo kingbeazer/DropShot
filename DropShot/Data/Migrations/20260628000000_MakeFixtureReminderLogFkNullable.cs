@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DropShot.Data.Migrations
 {
     /// <inheritdoc />
+    [Migration("20260628000000_MakeFixtureReminderLogFkNullable")]
     public partial class MakeFixtureReminderLogFkNullable : Migration
     {
         /// <inheritdoc />

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace DropShot.Data.Migrations
 {
+    [Migration("20260629000000_AddReminderSendToCaptainsOnly")]
     public partial class AddReminderSendToCaptainsOnly : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
