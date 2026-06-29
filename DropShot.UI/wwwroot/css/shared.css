@@ -66,7 +66,7 @@
     /* `--site-alert-height` is published by site-alert-host.js (a ResizeObserver
        on .site-alert-host) and animates in sync with the alert's grid expansion,
        sliding this band down out of the alert's way and back up on dismiss. */
-    top: calc(4rem + var(--site-alert-height, 0px));
+    top: calc(var(--ds-navbar-height, 3.5rem) + var(--site-alert-height, 0px));
     z-index: 5;
     background-image:
         linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
@@ -97,7 +97,7 @@
    single-line banner case; multi-line wrapping on very narrow viewports
    will produce a small overlap. */
 body:has(.role-banner) .competition-sticky-header {
-    top: calc(5.5rem + var(--site-alert-height, 0px));
+    top: calc(var(--ds-navbar-height, 3.5rem) + 1.6rem + var(--site-alert-height, 0px));
 }
 
 /* ── Competition control bar (action row + section nav) ────────────────
