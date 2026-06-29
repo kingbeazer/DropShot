@@ -535,6 +535,10 @@ else
         if (AppState.TryTakeFromJson<PersistedState>(nameof(Competitions), out var snap) && snap is not null)
         {
             ApplySnapshot(snap);
+            // Still ensure CurrentUser is loaded so CanEdit() / CanEditCompetition()
+            // read a populated _adminClubIds on the first render. Without this,
+            // edit buttons are missing until the Changed event fires later.
+            await CurrentUser.EnsureLoadedAsync();
             return;
         }
 
