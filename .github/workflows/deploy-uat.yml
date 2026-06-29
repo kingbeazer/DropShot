@@ -32,6 +32,12 @@ jobs:
     - name: Install EF Core tools
       run: dotnet tool install --global dotnet-ef --version 10.0.*
 
+    - name: List pending migrations
+      run: dotnet ef migrations list --project DropShot/DropShot.csproj --configuration Release
+      env:
+        ConnectionStrings__DefaultConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING_UAT }}
+        ASPNETCORE_ENVIRONMENT: UAT
+
     - name: Apply EF migrations
       run: dotnet ef database update --project DropShot/DropShot.csproj --configuration Release
       env:
