@@ -16,6 +16,7 @@
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 @inject DropShot.UI.Services.IPlayerService PlayerService
+@inject IJSRuntime JS
 
 <MudProviders />
 
@@ -31,17 +32,60 @@ else if (_notFound)
 }
 else
 {
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
-        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" aria-label="Back to clubs"
-                       OnClick="@(() => Nav.NavigateTo("/clubs"))" />
-        <MudText Typo="Typo.h4">@_club!.Name</MudText>
-    </MudStack>
+<div style="position: relative; min-height: 100vh; background-image: url('images/background.png'); background-repeat: no-repeat; background-size: cover; background-position: center; margin: -24px; padding: 0;">
+    <div style="position: relative; z-index: 1; padding: 0 0.5rem 2rem;">
 
-    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="pa-4 frosted-card mt-2">
+    @* ── Sticky header ─────────────────────────────────────────────── *@
+    <div class="competition-sticky-header">
+        <MudPaper Elevation="0" Class="frosted-card mb-3"
+                  Style="border-radius: 12px; padding: 0.75rem;">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" aria-label="Back to clubs"
+                               OnClick="@(() => Nav.NavigateTo("/clubs"))" />
+                <MudText Typo="Typo.h4" Style="flex:1; word-break:break-word; overflow-wrap:anywhere;">@_club!.Name</MudText>
+            </MudStack>
+        </MudPaper>
 
-        @* ── Details tab ─────────────────────────────────────────── *@
-        <MudTabPanel Text="Details" Icon="@Icons.Material.Filled.Info">
-            <MudGrid Spacing="2" Style="max-width:600px">
+        <MudPaper Elevation="0" Class="frosted-card"
+                  Style="border-radius: 12px; padding: 0.75rem;">
+            <MudStack Row="true" Spacing="2" Style="flex-wrap: wrap;">
+                <MudChip T="int" Value="0" Icon="@Icons.Material.Filled.Info"
+                         Color="@(_activeSection == 0 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeSection == 0 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(0, "nav-anchor-details"))">Details</MudChip>
+                <MudChip T="int" Value="1" Icon="@Icons.Material.Filled.SportsTennis"
+                         Color="@(_activeSection == 1 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeSection == 1 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(1, "nav-anchor-courts"))">Courts</MudChip>
+                <MudChip T="int" Value="2" Icon="@Icons.Material.Filled.Schedule"
+                         Color="@(_activeSection == 2 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeSection == 2 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(2, "nav-anchor-scheduling"))">Scheduling</MudChip>
+                <MudChip T="int" Value="3" Icon="@Icons.Material.Filled.EmojiEvents"
+                         Color="@(_activeSection == 3 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeSection == 3 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(3, "nav-anchor-comp-templates"))">Comp Templates</MudChip>
+                <MudChip T="int" Value="4" Icon="@Icons.Material.Filled.Email"
+                         Color="@(_activeSection == 4 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeSection == 4 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(4, "nav-anchor-email"))">Email</MudChip>
+                <MudChip T="int" Value="5" Icon="@Icons.Material.Filled.Gavel"
+                         Color="@(_activeSection == 5 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeSection == 5 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(5, "nav-anchor-rules"))">Rules</MudChip>
+                <MudChip T="int" Value="6" Icon="@Icons.Material.Filled.People"
+                         Color="@(_activeSection == 6 ? Color.Primary : Color.Default)"
+                         Variant="@(_activeSection == 6 ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ScrollToSectionAsync(6, "nav-anchor-players"))">Players</MudChip>
+            </MudStack>
+        </MudPaper>
+    </div>
+
+    @* ── Details section ─────────────────────────────────────────── *@
+    <div id="nav-anchor-details" class="section-anchor"></div>
+    <MudPaper Class="pa-4 mb-4 frosted-card" Elevation="0">
+        <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
+        <MudGrid Spacing="2" Style="max-width:600px">
                 <MudItem xs="12">
                     <MudTextField @bind-Value="_detailsForm.Name" Label="Club Name" Variant="Variant.Outlined" Required="true" />
                 </MudItem>
@@ -82,10 +126,12 @@ else
                     </MudButton>
                 </MudItem>
             </MudGrid>
-        </MudTabPanel>
+    </MudPaper>
 
-        @* ── Courts tab ───────────────────────────────────────────── *@
-        <MudTabPanel Text="Courts" Icon="@Icons.Material.Filled.SportsTennis">
+    @* ── Courts section ───────────────────────────────────────────── *@
+    <div id="nav-anchor-courts" class="section-anchor"></div>
+    <MudPaper Class="pa-4 mb-4 frosted-card" Elevation="0">
+        <MudText Typo="Typo.h6" Class="mb-3">Courts</MudText>
             <MudGrid Spacing="2" Class="mb-3">
                 <MudItem xs="4">
                     <MudTextField @bind-Value="_courtForm.Name" Label="Court Name" Variant="Variant.Outlined"
@@ -157,10 +203,12 @@ else
                 </RowTemplate>
                 <NoRecordsContent><MudText Typo="Typo.caption">No courts yet.</MudText></NoRecordsContent>
             </MudTable>
-        </MudTabPanel>
+    </MudPaper>
 
-        @* ── Scheduling Templates tab ─────────────────────────────── *@
-        <MudTabPanel Text="Scheduling Templates" Icon="@Icons.Material.Filled.Schedule">
+    @* ── Scheduling Templates section ─────────────────────────────── *@
+    <div id="nav-anchor-scheduling" class="section-anchor"></div>
+    <MudPaper Class="pa-4 mb-4 frosted-card" Elevation="0">
+        <MudText Typo="Typo.h6" Class="mb-3">Scheduling Templates</MudText>
             <MudGrid Spacing="2" Class="mb-3">
                 <MudItem xs="9">
                     <MudTextField @bind-Value="_newTemplateName" Label="Template Name" Variant="Variant.Outlined"
@@ -238,10 +286,12 @@ else
             {
                 <MudText Typo="Typo.caption">No templates yet. Add one above.</MudText>
             }
-        </MudTabPanel>
+    </MudPaper>
 
-        @* ── Competition Templates tab ────────────────────────────── *@
-        <MudTabPanel Text="Competition Templates" Icon="@Icons.Material.Filled.EmojiEvents">
+    @* ── Competition Templates section ────────────────────────────── *@
+    <div id="nav-anchor-comp-templates" class="section-anchor"></div>
+    <MudPaper Class="pa-4 mb-4 frosted-card" Elevation="0">
+        <MudText Typo="Typo.h6" Class="mb-3">Competition Templates</MudText>
             <MudGrid Spacing="2" Class="mb-3">
                 <MudItem xs="9">
                     <MudTextField @bind-Value="_newCompTemplateName" Label="Template Name" Variant="Variant.Outlined"
@@ -333,10 +383,12 @@ else
             {
                 <MudText Typo="Typo.caption">No competition templates yet. Add one above.</MudText>
             }
-        </MudTabPanel>
+    </MudPaper>
 
-        @* ── Email Templates tab ──────────────────────────────────── *@
-        <MudTabPanel Text="Email Templates" Icon="@Icons.Material.Filled.Email">
+    @* ── Email Templates section ──────────────────────────────────── *@
+    <div id="nav-anchor-email" class="section-anchor"></div>
+    <MudPaper Class="pa-4 mb-4 frosted-card" Elevation="0">
+        <MudText Typo="Typo.h6" Class="mb-3">Email Templates</MudText>
             <MudGrid Spacing="2" Class="mb-3">
                 <MudItem xs="12" sm="5">
                     <MudTextField @bind-Value="_newEmailTemplateName" Label="Template Name" Variant="Variant.Outlined" />
@@ -375,10 +427,12 @@ else
             {
                 <MudText Typo="Typo.caption">No email templates yet. Add one above.</MudText>
             }
-        </MudTabPanel>
+    </MudPaper>
 
-        @* ── Rules tab ────────────────────────────────────────────── *@
-        <MudTabPanel Text="Rules" Icon="@Icons.Material.Filled.Gavel">
+    @* ── Rules section ────────────────────────────────────────────── *@
+    <div id="nav-anchor-rules" class="section-anchor"></div>
+    <MudPaper Class="pa-4 mb-4 frosted-card" Elevation="0">
+        <MudText Typo="Typo.h6" Class="mb-3">Rules</MudText>
             <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.Center">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                            StartIcon="@Icons.Material.Filled.Add"
@@ -443,10 +497,12 @@ else
             {
                 <MudText Typo="Typo.caption">No rules sets yet for this club. Add one above.</MudText>
             }
-        </MudTabPanel>
+    </MudPaper>
 
-        @* ── Players tab ──────────────────────────────────────────── *@
-        <MudTabPanel Text="Players" Icon="@Icons.Material.Filled.People">
+    @* ── Players section ──────────────────────────────────────────── *@
+    <div id="nav-anchor-players" class="section-anchor"></div>
+    <MudPaper Class="pa-4 mb-4 frosted-card" Elevation="0">
+        <MudText Typo="Typo.h6" Class="mb-3">Players</MudText>
             <MudStack Row="true" Spacing="2" Class="mb-3" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.Download"
@@ -536,9 +592,10 @@ else
                     </NoRecordsContent>
                 </MudTable>
             }
-        </MudTabPanel>
+    </MudPaper>
 
-    </MudTabs>
+    </div>
+</div>
 
     @* ── Import Players Dialog ───────────────────────────────────── *@
     <MudDialog @bind-Visible="_showImportDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
@@ -638,6 +695,14 @@ else
     private bool _loading = true;
     private bool _notFound;
     private Club? _club;
+    private int _activeSection;
+
+    private async Task ScrollToSectionAsync(int idx, string anchorId)
+    {
+        _activeSection = idx;
+        await JS.InvokeVoidAsync("eval",
+            $"(()=>{{const a=document.getElementById('{anchorId}');if(!a)return;const s=document.querySelector('.competition-sticky-header');const o=s?s.getBoundingClientRect().bottom:0;window.scrollTo({{top:a.getBoundingClientRect().top+window.scrollY-o-12,behavior:'smooth'}});}})()");
+    }
 
     // ── Details ──────────────────────────────────────────────────
     private DetailsForm _detailsForm = new();
