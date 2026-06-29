@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DropShot.Data.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(MyDbContext))]
     [Migration("20260628000000_MakeFixtureReminderLogFkNullable")]
     public partial class MakeFixtureReminderLogFkNullable : Migration
     {

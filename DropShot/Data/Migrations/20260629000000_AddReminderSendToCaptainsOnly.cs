@@ -1,9 +1,11 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace DropShot.Data.Migrations
 {
+    [DbContext(typeof(MyDbContext))]
     [Migration("20260629000000_AddReminderSendToCaptainsOnly")]
     public partial class AddReminderSendToCaptainsOnly : Migration
     {
