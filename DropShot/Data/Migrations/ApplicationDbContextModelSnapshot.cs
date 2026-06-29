@@ -860,7 +860,6 @@ namespace DropShot.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool>("SendToCaptainsOnly")
-                        .HasDefaultValue(true)
                         .HasColumnType("bit");
 
                     b.Property<string>("Subject")
