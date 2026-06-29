@@ -67,11 +67,8 @@ public class ClubAuthorizationService(
     /// <summary>Returns the list of ClubIds the user is an administrator of.</summary>
     public async Task<List<int>> GetAdminClubIdsAsync(ClaimsPrincipal user)
     {
-        var (userId, roles) = GetUserAndRoles(user);
+        var (userId, _) = GetUserAndRoles(user);
         if (userId is null) return [];
-
-        // If the active role is plain User, they have no club admin privileges
-        if (roles.Count == 1 && roles[0] == "User") return [];
 
         await using var db = dbFactory.CreateDbContext();
         return await db.ClubAdministrators
@@ -86,9 +83,6 @@ public class ClubAuthorizationService(
         var (userId, roles) = GetUserAndRoles(user);
         if (userId is null) return false;
         if (roles.Contains("Admin") || roles.Contains("SuperAdmin")) return true;
-
-        // Plain User role has no club admin privileges
-        if (roles.Count == 1 && roles[0] == "User") return false;
 
         await using var db = dbFactory.CreateDbContext();
         return await db.ClubAdministrators
@@ -124,9 +118,6 @@ public class ClubAuthorizationService(
             if (creatorId == userId) return true;
         }
 
-        // Plain User role has no club admin privileges
-        if (roles.Count == 1 && roles[0] == "User") return false;
-
         if (hostClubId is null) return false;
 
         await using var db2 = dbFactory.CreateDbContext();
@@ -137,11 +128,8 @@ public class ClubAuthorizationService(
     /// <summary>Returns the set of CompetitionIds the user is a per-competition admin of.</summary>
     public async Task<HashSet<int>> GetEditableCompetitionIdsAsync(ClaimsPrincipal user)
     {
-        var (userId, roles) = GetUserAndRoles(user);
+        var (userId, _) = GetUserAndRoles(user);
         if (userId is null) return [];
-
-        // If the active role is plain User, they have no competition admin privileges
-        if (roles.Count == 1 && roles[0] == "User") return [];
 
         await using var db = dbFactory.CreateDbContext();
         return (await db.CompetitionAdmins
@@ -235,9 +223,7 @@ public class ClubAuthorizationService(
         // visibility filter must include these so a ClubAdmin sees their
         // host club's competitions even if they aren't also a ClubPlayer
         // member of that club.
-        var adminClubIds = (roles.Count == 1 && roles[0] == "User")
-            ? new HashSet<int>()
-            : (await db.ClubAdministrators
+        var adminClubIds = (await db.ClubAdministrators
                 .Where(ca => ca.UserId == userId)
                 .Select(ca => ca.ClubId)
                 .ToListAsync()).ToHashSet();
