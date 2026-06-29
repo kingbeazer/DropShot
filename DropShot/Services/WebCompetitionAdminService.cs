@@ -2691,6 +2691,58 @@ public sealed class WebCompetitionAdminService(
             .ToListAsync(ct);
     }
 
+    public async Task<List<ScheduledReminderEmailDto>> GetScheduledReminderEmailsAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var reminders = await db.CompetitionFixtureReminders
+            .AsNoTracking()
+            .Where(r => r.CompetitionId == competitionId)
+            .ToListAsync(ct);
+
+        if (reminders.Count == 0) return [];
+
+        var fixtures = await db.CompetitionFixtures
+            .AsNoTracking()
+            .Where(f => f.CompetitionId == competitionId
+                     && f.ScheduledAt != null
+                     && f.Status == FixtureStatus.Scheduled)
+            .OrderBy(f => f.ScheduledAt)
+            .ToListAsync(ct);
+
+        if (fixtures.Count == 0) return [];
+
+        var fixtureIds = fixtures.Select(f => f.CompetitionFixtureId).ToHashSet();
+        var sentSet = (await db.CompetitionFixtureReminderLogs
+            .Where(l => fixtureIds.Contains(l.CompetitionFixtureId)
+                     && l.CompetitionFixtureReminderId != null)
+            .Select(l => new { l.CompetitionFixtureReminderId, l.CompetitionFixtureId })
+            .ToListAsync(ct))
+            .Select(l => (l.CompetitionFixtureReminderId!.Value, l.CompetitionFixtureId))
+            .ToHashSet();
+
+        var result = new List<ScheduledReminderEmailDto>();
+        foreach (var reminder in reminders)
+        {
+            foreach (var fixture in fixtures)
+            {
+                var sendAt = fixture.ScheduledAt!.Value.AddHours(-reminder.HoursBefore);
+                var alreadySent = sentSet.Contains((reminder.CompetitionFixtureReminderId, fixture.CompetitionFixtureId));
+                result.Add(new ScheduledReminderEmailDto(
+                    fixture.CompetitionFixtureId,
+                    fixture.FixtureLabel ?? $"Fixture #{fixture.CompetitionFixtureId}",
+                    fixture.ScheduledAt!.Value,
+                    reminder.HoursBefore,
+                    sendAt,
+                    reminder.Subject,
+                    alreadySent));
+            }
+        }
+
+        return result.OrderBy(r => r.SendAt).ToList();
+    }
+
     public async Task<int> SaveFixtureReminderAsync(
         int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default)
     {

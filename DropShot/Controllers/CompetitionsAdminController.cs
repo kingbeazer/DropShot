@@ -646,6 +646,11 @@ public class CompetitionsAdminController(
         int id, CancellationToken ct)
         => await admin.GetFixtureRemindersAsync(id, ct);
 
+    [HttpGet("{id:int}/scheduled-reminder-emails")]
+    public async Task<ActionResult<List<ScheduledReminderEmailDto>>> GetScheduledReminderEmails(
+        int id, CancellationToken ct)
+        => await admin.GetScheduledReminderEmailsAsync(id, ct);
+
     [HttpPost("{id:int}/fixture-reminders")]
     public async Task<ActionResult<int>> AddFixtureReminder(
         int id, [FromBody] SaveFixtureReminderRequest req, CancellationToken ct)

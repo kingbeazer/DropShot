@@ -408,3 +408,12 @@ public record SaveFixtureReminderRequest(
     bool IncludeResultLink);
 
 public record SendFixtureReminderManualRequest(int CompetitionFixtureReminderId);
+
+public record ScheduledReminderEmailDto(
+    int CompetitionFixtureId,
+    string FixtureLabel,
+    DateTime ScheduledAt,
+    int HoursBefore,
+    DateTime SendAt,
+    string Subject,
+    bool AlreadySent);

@@ -616,6 +616,11 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
         => await http.GetFromJsonAsync<List<CompetitionFixtureReminderDto>>(
             $"api/competitions/admin/{competitionId}/fixture-reminders", ct) ?? [];
 
+    public async Task<List<ScheduledReminderEmailDto>> GetScheduledReminderEmailsAsync(
+        int competitionId, CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<ScheduledReminderEmailDto>>(
+            $"api/competitions/admin/{competitionId}/scheduled-reminder-emails", ct) ?? [];
+
     public async Task<int> SaveFixtureReminderAsync(
         int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default)
     {
