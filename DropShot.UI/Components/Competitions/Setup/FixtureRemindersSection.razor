@@ -133,22 +133,11 @@
             <MudText Typo="Typo.subtitle2" Class="mb-2">@(_editId.HasValue ? "Edit reminder" : "Add reminder")</MudText>
 
             <MudGrid Spacing="2">
-                <MudItem xs="12" sm="4">
+                <MudItem xs="12" sm="5">
                     <MudNumericField T="int" @bind-Value="_editHours"
                                      Label="Hours before match"
                                      Min="1" Max="720"
                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" sm="8">
-                    <MudTextField T="string" @bind-Value="_editSubject"
-                                  Label="Email subject"
-                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudTextField T="string" @bind-Value="_editBody"
-                                  Label="Email body (Markdown supported, use {variables})"
-                                  Variant="Variant.Outlined" Lines="6"
-                                  HelperText="{PlayerName}, {OpponentName}, {CompetitionName}, {MatchDate}, {MatchLink}, {ResultLink}" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudCheckBox @bind-Value="_editIncludeResultLink"
@@ -162,9 +151,28 @@
                 </MudItem>
             </MudGrid>
 
+            <MudCheckBox @bind-Value="_customiseEmail" Label="Customise email content" Dense="true" Class="mt-2" />
+
+            @if (_customiseEmail)
+            {
+                <MudGrid Spacing="2" Class="mt-1">
+                    <MudItem xs="12">
+                        <MudTextField T="string" @bind-Value="_editSubject"
+                                      Label="Email subject"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField T="string" @bind-Value="_editBody"
+                                      Label="Email body (Markdown supported, use {variables})"
+                                      Variant="Variant.Outlined" Lines="6"
+                                      HelperText="{PlayerName}, {OpponentName}, {CompetitionName}, {MatchDate}, {MatchLink}, {ResultLink}" />
+                    </MudItem>
+                </MudGrid>
+            }
+
             <MudStack Row="true" Spacing="2" Class="mt-3">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                           Disabled="@(_editHours < 1 || string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))"
+                           Disabled="@(_editHours < 1 || (_customiseEmail && (string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))))"
                            OnClick="SaveEdit">
                     @(_editId.HasValue ? "Save" : "Add reminder")
                 </MudButton>
@@ -208,6 +216,7 @@
         _editBody = r.Body;
         _editIncludeResultLink = r.IncludeResultLink;
         _editSendToCaptainsOnly = r.SendToCaptainsOnly;
+        _customiseEmail = r.Subject != FixtureReminderDefaults.Subject || r.Body != FixtureReminderDefaults.Body;
         _editing = true;
     }
 
