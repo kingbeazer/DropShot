@@ -1468,6 +1468,20 @@ else
                                                                                Color="Color.Warning" aria-label="Override / Enter Result"
                                                                                OnClick="@(() => OpenOverrideResultAsync(f))" />
                                                             }
+                                                            @if (_canEdit && _fixtureReminders.Count > 0)
+                                                            {
+                                                                <MudMenu Icon="@Icons.Material.Filled.Email" Size="Size.Small"
+                                                                         Color="Color.Secondary" Dense="true"
+                                                                         title="Send reminder email">
+                                                                    @foreach (var rem in _fixtureReminders)
+                                                                    {
+                                                                        var reminder = rem;
+                                                                        <MudMenuItem OnClick="@(() => SendFixtureReminderAsync((f, reminder.CompetitionFixtureReminderId)))">
+                                                                            Send: @reminder.Subject (@reminder.HoursBefore h before)
+                                                                        </MudMenuItem>
+                                                                    }
+                                                                </MudMenu>
+                                                            }
                                                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                                                            OnClick="@(() => OpenEditFixtureDialog(f))" />
                                                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
