@@ -2880,7 +2880,9 @@ public sealed class WebCompetitionAdminService(
             .Include(f => f.Player3)
             .Include(f => f.Player4)
             .Include(f => f.HomeTeam).ThenInclude(t => t!.Captain)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
             .Include(f => f.AwayTeam).ThenInclude(t => t!.Captain)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
             .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId
                                       && f.CompetitionId == competitionId, ct)
             ?? throw new KeyNotFoundException("Fixture not found.");
