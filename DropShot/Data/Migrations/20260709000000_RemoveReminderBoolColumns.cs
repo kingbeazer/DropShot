@@ -8,6 +8,17 @@ namespace DropShot.Data.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Drop default constraints before dropping columns (SQL Server requires this).
+            migrationBuilder.Sql(@"
+                DECLARE @sql NVARCHAR(MAX) = N'';
+                SELECT @sql += N'ALTER TABLE CompetitionFixtureReminders DROP CONSTRAINT ' + QUOTENAME(dc.name) + ';'
+                FROM sys.default_constraints dc
+                INNER JOIN sys.columns c ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
+                WHERE c.object_id = OBJECT_ID('CompetitionFixtureReminders')
+                  AND c.name IN ('SendToCaptainsOnly', 'IncludeResultLink');
+                EXEC sp_executesql @sql;
+            ");
+
             migrationBuilder.Sql(@"
                 IF EXISTS (
                     SELECT 1 FROM sys.columns
