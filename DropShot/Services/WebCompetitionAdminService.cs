@@ -2756,6 +2756,7 @@ public sealed class WebCompetitionAdminService(
                     fixture.ScheduledAt!.Value,
                     reminder.HoursBefore,
                     sendAt,
+                    FixtureReminderService.UkLocalToUtc(sendAt),
                     reminder.Subject,
                     alreadySent));
             }

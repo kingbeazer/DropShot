@@ -18,14 +18,24 @@ public static class FixtureReminderService
 {
     public record SweepResult(int RemindersSent);
 
+    // ScheduledAt values are stored in UK local time (GMT/BST as entered by the user).
+    private static readonly TimeZoneInfo UkZone = TimeZoneInfo.FindSystemTimeZoneById(
+        OperatingSystem.IsWindows() ? "GMT Standard Time" : "Europe/London");
+
+    private static DateTime ToUkLocal(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(utc, UkZone);
+
+    public static DateTime UkLocalToUtc(DateTime local) =>
+        TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), UkZone);
+
     public static async Task<SweepResult> RunSweepAsync(
         MyDbContext db,
         DateTime utcNow,
         AdminEmailService emailService,
         CancellationToken ct = default)
     {
-        // Load fixtures that are scheduled in the future or recently, not yet complete.
-        var windowStart = utcNow.AddHours(-25);
+        // ScheduledAt is stored in UK local time, so filter using a UK local windowStart.
+        var windowStartUk = ToUkLocal(utcNow).AddHours(-25);
         var fixtures = await db.CompetitionFixtures
             .AsNoTracking()
             .Include(f => f.Competition)
@@ -36,7 +46,7 @@ public static class FixtureReminderService
             .Include(f => f.HomeTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
             .Include(f => f.AwayTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
             .Where(f => f.ScheduledAt != null
-                     && f.ScheduledAt >= windowStart
+                     && f.ScheduledAt >= windowStartUk
                      && f.Status == FixtureStatus.Scheduled)
             .ToListAsync(ct);
 
@@ -71,10 +81,12 @@ public static class FixtureReminderService
             foreach (var fixture in competitionFixtures)
             {
                 if (fixture.ScheduledAt is null) continue;
-                var sendAt = fixture.ScheduledAt.Value.AddHours(-reminder.HoursBefore);
+                // ScheduledAt is UK local time — convert to UTC for comparison.
+                var matchUtc = UkLocalToUtc(fixture.ScheduledAt.Value);
+                var sendAtUtc = matchUtc.AddHours(-reminder.HoursBefore);
 
-                if (sendAt > utcNow) continue;
-                if (utcNow > fixture.ScheduledAt.Value.AddHours(1)) continue;
+                if (sendAtUtc > utcNow) continue;
+                if (utcNow > matchUtc.AddHours(1)) continue;
 
                 var key = ((int?)reminder.CompetitionFixtureReminderId, fixture.CompetitionFixtureId);
                 if (sentSet.Contains(key)) continue;

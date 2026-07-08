@@ -417,5 +417,6 @@ public record ScheduledReminderEmailDto(
     DateTime ScheduledAt,
     int HoursBefore,
     DateTime SendAt,
+    DateTime SendAtUtc,
     string Subject,
     bool AlreadySent);

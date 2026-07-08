@@ -36,9 +36,9 @@
             <thead>
                 <tr>
                     <th>Fixture</th>
-                    <th>Match time (UTC)</th>
+                    <th>Match time</th>
                     <th>Hours before</th>
-                    <th>Send at (UTC)</th>
+                    <th>Send at</th>
                     <th>Subject</th>
                     <th>Status</th>
                 </tr>
@@ -57,7 +57,7 @@
                             {
                                 <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Sent</MudChip>
                             }
-                            else if (e.SendAt <= DateTime.UtcNow)
+                            else if (e.SendAtUtc <= DateTime.UtcNow)
                             {
                                 <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Overdue</MudChip>
                             }
