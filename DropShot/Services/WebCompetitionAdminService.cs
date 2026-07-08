@@ -308,7 +308,7 @@ public sealed class WebCompetitionAdminService(
                 .OrderBy(r => r.HoursBefore)
                 .Select(r => new CompetitionFixtureReminderDto(
                     r.CompetitionFixtureReminderId, r.CompetitionId,
-                    r.HoursBefore, r.Subject, r.Body, r.IncludeResultLink))
+                    r.HoursBefore, r.Subject, r.Body))
                 .ToListAsync(ct));
     }
 
@@ -2165,6 +2165,7 @@ public sealed class WebCompetitionAdminService(
 
         if (!hasResult)
         {
+            await RemoveReminderLogsAsync(db, [fx.CompetitionFixtureId], ct);
             db.CompetitionFixtures.Remove(fx);
             await db.SaveChangesAsync(ct);
             return;
@@ -2313,8 +2314,27 @@ public sealed class WebCompetitionAdminService(
             if (savedMatches.Count > 0) db.SavedMatch.RemoveRange(savedMatches);
         }
 
+        await RemoveReminderLogsAsync(db, fixtureIds, ct);
+
         db.CompetitionFixtures.RemoveRange(fixtures);
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Deletes any <see cref="CompetitionFixtureReminderLog"/> rows for the given
+    /// fixtures. The FK from log to fixture is NoAction (SQL Server disallows a
+    /// second cascade path to the same table), so callers must clear these rows
+    /// before removing the fixtures themselves or the delete fails with an FK
+    /// violation — this also guarantees no orphaned reminder-log rows can remain.
+    /// </summary>
+    private static async Task RemoveReminderLogsAsync(
+        MyDbContext db, IReadOnlyCollection<int> fixtureIds, CancellationToken ct)
+    {
+        if (fixtureIds.Count == 0) return;
+        var logs = await db.CompetitionFixtureReminderLogs
+            .Where(l => fixtureIds.Contains(l.CompetitionFixtureId))
+            .ToListAsync(ct);
+        if (logs.Count > 0) db.CompetitionFixtureReminderLogs.RemoveRange(logs);
     }
 
     public async Task<CompetitionFixtureDto?> LoadFixtureForDialogAsync(
@@ -2686,9 +2706,108 @@ public sealed class WebCompetitionAdminService(
                 r.CompetitionId,
                 r.HoursBefore,
                 r.Subject,
-                r.Body,
-                r.IncludeResultLink))
+                r.Body))
             .ToListAsync(ct);
+    }
+
+    public async Task<List<ScheduledReminderEmailDto>> GetScheduledReminderEmailsAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var reminders = await db.CompetitionFixtureReminders
+            .AsNoTracking()
+            .Where(r => r.CompetitionId == competitionId)
+            .ToListAsync(ct);
+
+        if (reminders.Count == 0) return [];
+
+        var fixtures = await db.CompetitionFixtures
+            .AsNoTracking()
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
+            .Where(f => f.CompetitionId == competitionId
+                     && f.ScheduledAt != null
+                     && f.Status == FixtureStatus.Scheduled)
+            .OrderBy(f => f.ScheduledAt)
+            .ToListAsync(ct);
+
+        if (fixtures.Count == 0) return [];
+
+        var fixtureIds = fixtures.Select(f => f.CompetitionFixtureId).ToHashSet();
+        var sentSet = (await db.CompetitionFixtureReminderLogs
+            .Where(l => fixtureIds.Contains(l.CompetitionFixtureId)
+                     && l.CompetitionFixtureReminderId != null)
+            .Select(l => new { l.CompetitionFixtureReminderId, l.CompetitionFixtureId })
+            .ToListAsync(ct))
+            .Select(l => (l.CompetitionFixtureReminderId!.Value, l.CompetitionFixtureId))
+            .ToHashSet();
+
+        var result = new List<ScheduledReminderEmailDto>();
+        foreach (var reminder in reminders)
+        {
+            foreach (var fixture in fixtures)
+            {
+                var sendAt = fixture.ScheduledAt!.Value.AddHours(-reminder.HoursBefore);
+                var alreadySent = sentSet.Contains((reminder.CompetitionFixtureReminderId, fixture.CompetitionFixtureId));
+                var recipients = GetReminderRecipients(fixture, reminder);
+                result.Add(new ScheduledReminderEmailDto(
+                    fixture.CompetitionFixtureId,
+                    reminder.CompetitionFixtureReminderId,
+                    fixture.FixtureLabel ?? $"Fixture #{fixture.CompetitionFixtureId}",
+                    fixture.ScheduledAt!.Value,
+                    reminder.HoursBefore,
+                    sendAt,
+                    FixtureReminderService.UkLocalToUtc(sendAt),
+                    reminder.Subject,
+                    reminder.Body,
+                    alreadySent,
+                    recipients));
+            }
+        }
+
+        return result.OrderBy(r => r.SendAt).ToList();
+    }
+
+    private static List<ScheduledReminderEmailRecipientDto> GetReminderRecipients(
+        CompetitionFixture fixture, CompetitionFixtureReminder reminder)
+    {
+        var result = new List<ScheduledReminderEmailRecipientDto>();
+
+        if (fixture.HomeTeam is not null || fixture.AwayTeam is not null)
+        {
+            var captainIds = new HashSet<int?> {
+                fixture.HomeTeam?.CaptainPlayerId,
+                fixture.AwayTeam?.CaptainPlayerId
+            };
+            foreach (var p in fixture.HomeTeam?.Participants ?? [])
+                if (p.Player is not null)
+                    result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email,
+                        ReceivesScoreLink: captainIds.Contains(p.PlayerId)));
+            foreach (var p in fixture.AwayTeam?.Participants ?? [])
+                if (p.Player is not null)
+                    result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email,
+                        ReceivesScoreLink: captainIds.Contains(p.PlayerId)));
+        }
+        else
+        {
+            foreach (var player in new[] { fixture.Player1, fixture.Player2, fixture.Player3, fixture.Player4 })
+                if (player is not null)
+                    result.Add(new(player.DisplayName ?? player.Email ?? "Unknown", player.Email, ReceivesScoreLink: true));
+        }
+
+        return result;
+    }
+
+    public async Task<int> RunReminderSweepAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var result = await FixtureReminderService.RunSweepAsync(db, DateTime.UtcNow, adminEmailService, ct);
+        return result.RemindersSent;
     }
 
     public async Task<int> SaveFixtureReminderAsync(
@@ -2714,7 +2833,6 @@ public sealed class WebCompetitionAdminService(
         reminder.HoursBefore = request.HoursBefore;
         reminder.Subject = request.Subject;
         reminder.Body = request.Body;
-        reminder.IncludeResultLink = request.IncludeResultLink;
 
         await db.SaveChangesAsync(ct);
         return reminder.CompetitionFixtureReminderId;
@@ -2752,7 +2870,9 @@ public sealed class WebCompetitionAdminService(
             .Include(f => f.Player3)
             .Include(f => f.Player4)
             .Include(f => f.HomeTeam).ThenInclude(t => t!.Captain)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
             .Include(f => f.AwayTeam).ThenInclude(t => t!.Captain)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
             .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId
                                       && f.CompetitionId == competitionId, ct)
             ?? throw new KeyNotFoundException("Fixture not found.");

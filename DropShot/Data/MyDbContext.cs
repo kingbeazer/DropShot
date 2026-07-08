@@ -43,6 +43,7 @@ namespace DropShot.Data
         public DbSet<CompetitionDivision> CompetitionDivisions { get; set; }
         public DbSet<PlayerInvitation> PlayerInvitations { get; set; }
         public DbSet<ClubLinkRequest> ClubLinkRequests { get; set; }
+        public DbSet<ClubAdminRequest> ClubAdminRequests { get; set; }
         public DbSet<CompetitionAllowedPlayer> CompetitionAllowedPlayers { get; set; }
         public DbSet<PlayerRatingSnapshot> PlayerRatingSnapshots { get; set; }
         public DbSet<LadderInactivityDecay> LadderInactivityDecays { get; set; }
@@ -163,6 +164,36 @@ namespace DropShot.Data
 
             // ── ClubLinkRequest ──────────────────────────────────────────────────
             builder.Entity<ClubLinkRequest>(entity =>
+            {
+                entity.Property(r => r.UserId).HasMaxLength(450).IsRequired();
+                entity.Property(r => r.ResolvedByUserId).HasMaxLength(450);
+                entity.Property(r => r.Status).HasConversion<byte>();
+
+                entity.HasOne(r => r.Club)
+                      .WithMany()
+                      .HasForeignKey(r => r.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.User)
+                      .WithMany()
+                      .HasForeignKey(r => r.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(r => r.ResolvedByUser)
+                      .WithMany()
+                      .HasForeignKey(r => r.ResolvedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // At most one Pending request per (User, Club).
+                entity.HasIndex(r => new { r.UserId, r.ClubId })
+                      .IsUnique()
+                      .HasFilter("[Status] = 1");
+
+                entity.HasIndex(r => new { r.ClubId, r.Status });
+            });
+
+            // ── ClubAdminRequest ─────────────────────────────────────────────────
+            builder.Entity<ClubAdminRequest>(entity =>
             {
                 entity.Property(r => r.UserId).HasMaxLength(450).IsRequired();
                 entity.Property(r => r.ResolvedByUserId).HasMaxLength(450);
@@ -758,6 +789,14 @@ namespace DropShot.Data
                       .WithMany(f => f.ReminderLogs)
                       .HasForeignKey(l => l.CompetitionFixtureId)
                       .OnDelete(DeleteBehavior.NoAction);
+
+                // Nullable: null means the log entry is for the default template
+                // (competition had no custom reminder configured).
+                entity.HasOne(l => l.Reminder)
+                      .WithMany(r => r.Logs)
+                      .HasForeignKey(l => l.CompetitionFixtureReminderId)
+                      .IsRequired(false)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

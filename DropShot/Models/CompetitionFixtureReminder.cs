@@ -17,12 +17,6 @@ public class CompetitionFixtureReminder
     public string Subject { get; set; } = "";
     public string Body { get; set; } = "";
 
-    /// <summary>
-    /// When true, a <c>{ResultLink}</c> variable is available in the template
-    /// and the email body should reference it to let recipients submit their result.
-    /// </summary>
-    public bool IncludeResultLink { get; set; }
-
     public Competition Competition { get; set; } = null!;
     public ICollection<CompetitionFixtureReminderLog> Logs { get; set; } = [];
 }

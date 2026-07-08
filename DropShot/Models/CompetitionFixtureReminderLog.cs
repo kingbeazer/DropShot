@@ -8,10 +8,11 @@ namespace DropShot.Models;
 public class CompetitionFixtureReminderLog
 {
     public int CompetitionFixtureReminderLogId { get; set; }
-    public int CompetitionFixtureReminderId { get; set; }
+    /// <summary>Null when the email was sent using the default template.</summary>
+    public int? CompetitionFixtureReminderId { get; set; }
     public int CompetitionFixtureId { get; set; }
     public DateTime SentAt { get; set; }
 
-    public CompetitionFixtureReminder Reminder { get; set; } = null!;
+    public CompetitionFixtureReminder? Reminder { get; set; }
     public CompetitionFixture Fixture { get; set; } = null!;
 }

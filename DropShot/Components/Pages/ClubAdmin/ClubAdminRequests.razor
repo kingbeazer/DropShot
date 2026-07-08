@@ -1,0 +1,8 @@
+@page "/admin/club-admin-requests"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using Microsoft.AspNetCore.Authorization
+
+<MudProviders />
+
+<DropShot.UI.Components.Pages.ClubAdmin.ClubAdminRequests />

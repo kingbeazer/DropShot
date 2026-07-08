@@ -1,3 +1,4 @@
+@using DropShot.Shared
 @using DropShot.Shared.Dtos
 @using DropShot.UI.Services
 
@@ -9,7 +10,7 @@
         Use <strong>{PlayerName}</strong>, <strong>{OpponentName}</strong>,
         <strong>{CompetitionName}</strong>, <strong>{MatchDate}</strong>,
         <strong>{MatchLink}</strong>, and <strong>{ResultLink}</strong> as placeholders.
-        The <strong>{ResultLink}</strong> variable is only available when "Include result link" is enabled.
+        <strong>{ResultLink}</strong> resolves to the score entry page for captains and the match overview for all other participants.
     </MudText>
 
     @if (Reminders.Count > 0)
@@ -19,7 +20,6 @@
                 <tr>
                     <th>Hours before</th>
                     <th>Subject</th>
-                    <th>Result link</th>
                     <th></th>
                 </tr>
             </thead>
@@ -31,16 +31,6 @@
                         <td>@rem.HoursBefore h</td>
                         <td>@rem.Subject</td>
                         <td>
-                            @if (rem.IncludeResultLink)
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" />
-                            }
-                            else
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.Close" Color="Color.Default" Size="Size.Small" />
-                            }
-                        </td>
-                        <td>
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                            OnClick="@(() => StartEdit(rem))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
@@ -51,12 +41,66 @@
                 }
             </tbody>
         </MudSimpleTable>
+
+        @if (!_editing)
+        {
+            <MudStack Row="true" Spacing="2" Class="mb-1">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="StartAdd">Add reminder</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.RestartAlt"
+                           OnClick="ResetToDefault">Reset to default</MudButton>
+            </MudStack>
+        }
     }
-    else
+    else if (!_editing)
     {
-        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">
-            No reminders configured — players will not receive automatic fixture emails.
-        </MudText>
+        @* No reminders yet — show hours input directly with default template *@
+        <MudPaper Elevation="0" Class="pa-3 mb-3"
+                  Style="border:1px solid rgba(255,255,255,0.15);border-radius:8px;">
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Add a reminder</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="5">
+                    <MudNumericField T="int" @bind-Value="_editHours"
+                                     Label="Hours before match"
+                                     Min="1" Max="720"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="7" Class="d-flex align-center">
+                    <MudText Typo="Typo.caption" Style="opacity:0.7">
+                        Uses the default email template. Toggle below to customise.
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+
+            <MudCheckBox @bind-Value="_customiseEmail" Label="Customise email content" Dense="true" Class="mt-2" />
+
+            @if (_customiseEmail)
+            {
+                <MudGrid Spacing="2" Class="mt-1">
+                    <MudItem xs="12">
+                        <MudTextField T="string" @bind-Value="_editSubject"
+                                      Label="Email subject"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField T="string" @bind-Value="_editBody"
+                                      Label="Email body (Markdown supported, use {variables})"
+                                      Variant="Variant.Outlined" Lines="6"
+                                      HelperText="{PlayerName}, {OpponentName}, {CompetitionName}, {MatchDate}, {MatchLink}, {ResultLink}" />
+                    </MudItem>
+                </MudGrid>
+            }
+
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           Disabled="@(_editHours < 1 || (_customiseEmail && (string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))))"
+                           OnClick="SaveEdit">
+                    Add reminder
+                </MudButton>
+            </MudStack>
+        </MudPaper>
     }
 
     @if (_editing)
@@ -66,45 +110,42 @@
             <MudText Typo="Typo.subtitle2" Class="mb-2">@(_editId.HasValue ? "Edit reminder" : "Add reminder")</MudText>
 
             <MudGrid Spacing="2">
-                <MudItem xs="12" sm="4">
+                <MudItem xs="12" sm="5">
                     <MudNumericField T="int" @bind-Value="_editHours"
                                      Label="Hours before match"
                                      Min="1" Max="720"
                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" sm="8">
-                    <MudTextField T="string" @bind-Value="_editSubject"
-                                  Label="Email subject"
-                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudTextField T="string" @bind-Value="_editBody"
-                                  Label="Email body (Markdown supported, use {variables})"
-                                  Variant="Variant.Outlined" Lines="6"
-                                  HelperText="{PlayerName}, {OpponentName}, {CompetitionName}, {MatchDate}, {MatchLink}, {ResultLink}" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudCheckBox @bind-Value="_editIncludeResultLink"
-                                 Label="Include result submission link ({ResultLink})"
-                                 Dense="true" />
-                </MudItem>
             </MudGrid>
+
+            <MudCheckBox @bind-Value="_customiseEmail" Label="Customise email content" Dense="true" Class="mt-2" />
+
+            @if (_customiseEmail)
+            {
+                <MudGrid Spacing="2" Class="mt-1">
+                    <MudItem xs="12">
+                        <MudTextField T="string" @bind-Value="_editSubject"
+                                      Label="Email subject"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField T="string" @bind-Value="_editBody"
+                                      Label="Email body (Markdown supported, use {variables})"
+                                      Variant="Variant.Outlined" Lines="6"
+                                      HelperText="{PlayerName}, {OpponentName}, {CompetitionName}, {MatchDate}, {MatchLink}, {ResultLink}" />
+                    </MudItem>
+                </MudGrid>
+            }
 
             <MudStack Row="true" Spacing="2" Class="mt-3">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                           Disabled="@(string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))"
+                           Disabled="@(_editHours < 1 || (_customiseEmail && (string.IsNullOrWhiteSpace(_editSubject) || string.IsNullOrWhiteSpace(_editBody))))"
                            OnClick="SaveEdit">
                     @(_editId.HasValue ? "Save" : "Add reminder")
                 </MudButton>
                 <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="CancelEdit">Cancel</MudButton>
             </MudStack>
         </MudPaper>
-    }
-    else
-    {
-        <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                   StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="StartAdd">Add reminder</MudButton>
     }
 </MudPaper>
 
@@ -116,18 +157,18 @@
 
     private bool _editing;
     private int? _editId;
-    private int _editHours = 24;
-    private string _editSubject = "";
-    private string _editBody = "";
-    private bool _editIncludeResultLink = true;
+    private int _editHours;
+    private string _editSubject = FixtureReminderDefaults.Subject;
+    private string _editBody = FixtureReminderDefaults.Body;
+    private bool _customiseEmail;
 
     private void StartAdd()
     {
         _editId = null;
-        _editHours = 24;
-        _editSubject = "";
-        _editBody = "";
-        _editIncludeResultLink = true;
+        _editHours = 0;
+        _editSubject = FixtureReminderDefaults.Subject;
+        _editBody = FixtureReminderDefaults.Body;
+        _customiseEmail = false;
         _editing = true;
     }
 
@@ -137,7 +178,7 @@
         _editHours = r.HoursBefore;
         _editSubject = r.Subject;
         _editBody = r.Body;
-        _editIncludeResultLink = r.IncludeResultLink;
+        _customiseEmail = r.Subject != FixtureReminderDefaults.Subject || r.Body != FixtureReminderDefaults.Body;
         _editing = true;
     }
 
@@ -145,11 +186,24 @@
 
     private async Task SaveEdit()
     {
-        var req = new SaveFixtureReminderRequest(_editHours, _editSubject.Trim(), _editBody.Trim(), _editIncludeResultLink);
+        var subject = _customiseEmail ? _editSubject.Trim() : FixtureReminderDefaults.Subject;
+        var body = _customiseEmail ? _editBody.Trim() : FixtureReminderDefaults.Body;
+
+        var req = new SaveFixtureReminderRequest(_editHours, subject, body);
+
         if (_editId.HasValue)
             await OnUpdateReminder.InvokeAsync((_editId.Value, req));
         else
             await OnAddReminder.InvokeAsync(req);
+
         _editing = false;
+        _customiseEmail = false;
+        _editHours = 0;
+    }
+
+    private async Task ResetToDefault()
+    {
+        foreach (var r in Reminders.ToList())
+            await OnDeleteReminder.InvokeAsync(r.CompetitionFixtureReminderId);
     }
 }

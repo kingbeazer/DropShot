@@ -26,7 +26,7 @@ else
 {
 
 <div style="position: relative; min-height: 100vh; background-image: url('images/background.png'); background-repeat: no-repeat; background-size: cover; background-position: center; margin: -24px; padding: 0;">
-    <div style="position: relative; z-index: 1; padding: 1rem 0.5rem 2rem;">
+    <div style="position: relative; z-index: 1; padding: 0 0.5rem 2rem;">
 
 <CascadingValue Value="this" IsFixed="true">
 @* ── Sticky header ─────────────────────────────────────────────
@@ -543,12 +543,6 @@ else
                 OnAdd="AddCalendarExceptionAsync"
                 OnDelete="DeleteCalendarExceptionAsync" />
 
-            @* ── Fixture reminder emails ──────────────────────── *@
-            <FixtureRemindersSection Reminders="_fixtureReminders"
-                OnAddReminder="AddFixtureReminderAsync"
-                OnUpdateReminder="UpdateFixtureReminderAsync"
-                OnDeleteReminder="DeleteFixtureReminderAsync" />
-
             @* ── Rubber Template ─────────────────────────────── *@
             @if (EffectivePersistedFormat() == CompetitionFormat.TeamMatch)
             {
@@ -591,6 +585,25 @@ else
                     Templates="_competitionTemplates"
                     SelectedTemplateId="_selectedCompetitionTemplateId"
                     OnApplyTemplate="ApplyCompetitionTemplate" />
+            }
+        }
+
+        @* ── Fixture reminder emails (all formats) ───────────── *@
+        @if (IsEdit)
+        {
+            <div class="mb-4">
+                <FixtureRemindersSection Reminders="_fixtureReminders"
+                    OnAddReminder="AddFixtureReminderAsync"
+                    OnUpdateReminder="UpdateFixtureReminderAsync"
+                    OnDeleteReminder="DeleteFixtureReminderAsync" />
+            </div>
+
+            @if (_isSuperAdmin)
+            {
+                <ScheduledReminderEmailsSection CompetitionId="Id"
+                    LoadEmails="@(id => Admin.GetScheduledReminderEmailsAsync(id))"
+                    RunSweep="@(() => Admin.RunReminderSweepAsync())"
+                    Resend="@((fixtureId, reminderId) => Admin.SendFixtureReminderManualAsync(Id, fixtureId, reminderId))" />
             }
         }
 
@@ -1456,6 +1469,20 @@ else
                                                                 <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Small"
                                                                                Color="Color.Warning" aria-label="Override / Enter Result"
                                                                                OnClick="@(() => OpenOverrideResultAsync(f))" />
+                                                            }
+                                                            @if (_canEdit && _fixtureReminders.Count > 0)
+                                                            {
+                                                                <MudMenu Icon="@Icons.Material.Filled.Email" Size="Size.Small"
+                                                                         Color="Color.Secondary" Dense="true"
+                                                                         title="Send reminder email">
+                                                                    @foreach (var rem in _fixtureReminders)
+                                                                    {
+                                                                        var reminder = rem;
+                                                                        <MudMenuItem OnClick="@(() => SendFixtureReminderAsync((f, reminder.CompetitionFixtureReminderId)))">
+                                                                            Send: @reminder.Subject (@reminder.HoursBefore h before)
+                                                                        </MudMenuItem>
+                                                                    }
+                                                                </MudMenu>
                                                             }
                                                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                                                            OnClick="@(() => OpenEditFixtureDialog(f))" />
@@ -4569,7 +4596,7 @@ else
         try
         {
             var newId = await Admin.SaveFixtureReminderAsync(Id, null, request);
-            _fixtureReminders.Add(new CompetitionFixtureReminderDto(newId, Id, request.HoursBefore, request.Subject, request.Body, request.IncludeResultLink));
+            _fixtureReminders.Add(new CompetitionFixtureReminderDto(newId, Id, request.HoursBefore, request.Subject, request.Body));
         }
         catch (Exception ex) { SiteAlerts.Add($"Failed to add reminder: {ex.Message}", Severity.Error); }
     }
@@ -4581,7 +4608,7 @@ else
             await Admin.SaveFixtureReminderAsync(Id, args.ReminderId, args.Request);
             var idx = _fixtureReminders.FindIndex(r => r.CompetitionFixtureReminderId == args.ReminderId);
             if (idx >= 0)
-                _fixtureReminders[idx] = _fixtureReminders[idx] with { HoursBefore = args.Request.HoursBefore, Subject = args.Request.Subject, Body = args.Request.Body, IncludeResultLink = args.Request.IncludeResultLink };
+                _fixtureReminders[idx] = _fixtureReminders[idx] with { HoursBefore = args.Request.HoursBefore, Subject = args.Request.Subject, Body = args.Request.Body };
         }
         catch (Exception ex) { SiteAlerts.Add($"Failed to update reminder: {ex.Message}", Severity.Error); }
     }

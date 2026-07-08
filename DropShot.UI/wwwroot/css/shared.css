@@ -66,7 +66,7 @@
     /* `--site-alert-height` is published by site-alert-host.js (a ResizeObserver
        on .site-alert-host) and animates in sync with the alert's grid expansion,
        sliding this band down out of the alert's way and back up on dismiss. */
-    top: calc(4rem + var(--site-alert-height, 0px));
+    top: calc(var(--ds-navbar-height, 3.5rem) + var(--site-alert-height, 0px));
     z-index: 5;
     background-image:
         linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
@@ -76,11 +76,10 @@
     background-repeat: no-repeat, no-repeat;
     margin-left: -0.5rem;
     margin-right: -0.5rem;
-    /* Vertical 0.75rem matches the .mb-3 already on the title paper and the
-       .competition-control-bar's internal gap, so all four bands (title ->
-       action -> nav -> first content section) sit at a uniform 12px apart.
+    /* Top padding matches Bootstrap mb-3 (1rem) so the gap above the title
+       card equals the gap between the title card and the nav chips below.
        Horizontal 0.5rem cancels the negative side margins above. */
-    padding: 0.75rem 0.5rem;
+    padding: 1rem 0.5rem 0.75rem;
 }
 
 /* Light-mode equivalent: swap to the inverted tile + a near-white overlay
@@ -97,7 +96,7 @@
    single-line banner case; multi-line wrapping on very narrow viewports
    will produce a small overlap. */
 body:has(.role-banner) .competition-sticky-header {
-    top: calc(5.5rem + var(--site-alert-height, 0px));
+    top: calc(var(--ds-navbar-height, 3.5rem) + 1.6rem + var(--site-alert-height, 0px));
 }
 
 /* ── Competition control bar (action row + section nav) ────────────────

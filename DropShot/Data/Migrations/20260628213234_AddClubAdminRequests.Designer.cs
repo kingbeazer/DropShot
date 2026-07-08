@@ -4,16 +4,19 @@ using DropShot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace DropShot.Migrations
+namespace DropShot.Data.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260628213234_AddClubAdminRequests")]
+    partial class AddClubAdminRequests
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -153,9 +156,6 @@ namespace DropShot.Migrations
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -856,6 +856,9 @@ namespace DropShot.Migrations
                     b.Property<int>("HoursBefore")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IncludeResultLink")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Subject")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -878,7 +881,7 @@ namespace DropShot.Migrations
                     b.Property<int>("CompetitionFixtureId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("CompetitionFixtureReminderId")
+                    b.Property<int>("CompetitionFixtureReminderId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("SentAt")
@@ -2365,7 +2368,8 @@ namespace DropShot.Migrations
                     b.HasOne("DropShot.Models.CompetitionFixtureReminder", "Reminder")
                         .WithMany("Logs")
                         .HasForeignKey("CompetitionFixtureReminderId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Fixture");
 

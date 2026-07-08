@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using DropShot.Data
+@using DropShot.Models
 @using DropShot.UI.Services.Auth
 @using DropShot.UI.Services.Navigation
 
@@ -257,12 +258,24 @@
                                     </NavLink>
                                 </AuthorizeView>
                                 <NavLink class="nav-link" href="clubadmin/link-requests">
-                                    <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Class="nav-icon" />
+                                    <MudBadge Content="@_pendingLinkRequestCount" Color="Color.Error"
+                                              Visible="@(_pendingLinkRequestCount > 0)" Overlap="true" Class="nav-icon">
+                                        <MudIcon Icon="@Icons.Material.Filled.GroupAdd" />
+                                    </MudBadge>
                                     <span class="nav-label-group">
                                         <span class="nav-label">Link Requests</span>
                                         <span class="nav-sublabel">Approve player links</span>
                                     </span>
                                 </NavLink>
+                                <AuthorizeView Roles="Admin,SuperAdmin" Context="adminReqCtx">
+                                    <NavLink class="nav-link" href="admin/club-admin-requests">
+                                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Class="nav-icon" />
+                                        <span class="nav-label-group">
+                                            <span class="nav-label">Admin Requests</span>
+                                            <span class="nav-sublabel">Approve club admin access</span>
+                                        </span>
+                                    </NavLink>
+                                </AuthorizeView>
                             </AuthorizeView>
 
                             <hr class="nav-dropdown-divider" />
@@ -333,6 +346,7 @@
     private string? currentUrl;
     private string? _avatarPath;
     private bool _isClubAdminActive;
+    private int _pendingLinkRequestCount;
 
     [CascadingParameter]
     private HttpContext? HttpContext { get; set; }
@@ -356,11 +370,39 @@
                     .Where(u => u.Id == userId)
                     .Select(u => u.ProfileImagePath)
                     .FirstOrDefaultAsync();
+
+                await LoadPendingLinkRequestCountAsync(db, userId);
             }
 
             var activeRole = HttpContext.Request.Cookies["ActiveRole"];
             _isClubAdminActive = string.Equals(activeRole, "ClubAdmin", StringComparison.OrdinalIgnoreCase)
                                  && HttpContext.User.IsInRole("ClubAdmin");
+        }
+    }
+
+    private async Task LoadPendingLinkRequestCountAsync(MyDbContext db, string userId)
+    {
+        try
+        {
+            if (HttpContext!.User.IsInRole("Admin") || HttpContext.User.IsInRole("SuperAdmin"))
+            {
+                _pendingLinkRequestCount = await db.ClubLinkRequests
+                    .CountAsync(r => r.Status == ClubLinkRequestStatus.Pending);
+            }
+            else if (HttpContext.User.IsInRole("ClubAdmin"))
+            {
+                var adminClubIds = await db.ClubAdministrators
+                    .Where(ca => ca.UserId == userId)
+                    .Select(ca => ca.ClubId)
+                    .ToListAsync();
+                _pendingLinkRequestCount = await db.ClubLinkRequests
+                    .CountAsync(r => r.Status == ClubLinkRequestStatus.Pending
+                                     && adminClubIds.Contains(r.ClubId));
+            }
+        }
+        catch
+        {
+            // Non-critical — badge simply won't show on transient DB error
         }
     }
 

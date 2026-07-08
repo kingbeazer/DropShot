@@ -1,0 +1,210 @@
+@using DropShot.Shared.Dtos
+@inject IDialogService DialogService
+
+<MudPaper id="section-scheduled-reminder-emails" Class="pa-4 setup-section frosted-card mb-4" Elevation="0"
+          Style="color: white;">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
+        <MudText Typo="Typo.h6">Scheduled reminder emails</MudText>
+        <MudSpacer />
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   Disabled="_sweeping"
+                   OnClick="RunSweepAsync">
+            @(_sweeping ? "Running…" : "Run sweep now")
+        </MudButton>
+    </MudStack>
+    <MudText Typo="Typo.caption" Style="opacity:0.75" Class="d-block mb-3">
+        All pending and sent reminder emails for scheduled fixtures in this competition.
+    </MudText>
+    @if (_sweepMessage is not null)
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">@_sweepMessage</MudAlert>
+    }
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_emails.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Style="opacity:0.6">
+            No scheduled reminder emails — either no fixtures are scheduled or no reminders are configured.
+        </MudText>
+    }
+    else
+    {
+        <MudSimpleTable Dense="true">
+            <thead>
+                <tr>
+                    <th>Fixture</th>
+                    <th>Match time</th>
+                    <th>Hours before</th>
+                    <th>Send at</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in _emails)
+                {
+                    var email = e;
+                    <tr>
+                        <td>@email.FixtureLabel</td>
+                        <td>@email.ScheduledAt.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@email.HoursBefore h</td>
+                        <td style="white-space:nowrap">@email.SendAt.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@email.Subject</td>
+                        <td>
+                            @if (email.AlreadySent)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Sent</MudChip>
+                            }
+                            else if (email.SendAtUtc <= DateTime.UtcNow)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Overdue</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Pending</MudChip>
+                            }
+                        </td>
+                        <td>
+                            <MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small"
+                                           OnClick="@(() => ShowDetails(email))" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    }
+</MudPaper>
+
+@if (_detailEmail is not null)
+{
+    <MudDialog @bind-Visible="_showDetails" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+        <TitleContent>
+            <MudText Typo="Typo.h6">@_detailEmail.FixtureLabel</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSimpleTable Dense="true" Class="mb-3">
+                <tbody>
+                    <tr><td><strong>Match time</strong></td><td>@_detailEmail.ScheduledAt.ToString("dd MMM yyyy HH:mm")</td></tr>
+                    <tr><td><strong>Send at</strong></td><td>@_detailEmail.SendAt.ToString("dd MMM yyyy HH:mm")</td></tr>
+                    <tr><td><strong>Subject</strong></td><td>@_detailEmail.Subject</td></tr>
+                </tbody>
+            </MudSimpleTable>
+
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Recipients (@_detailEmail.Recipients.Count)</MudText>
+            @if (_detailEmail.Recipients.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Style="opacity:0.6">No recipients found — players may not have email addresses set.</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Class="mb-3">
+                    <thead>
+                        <tr><th>Name</th><th>Email</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _detailEmail.Recipients)
+                        {
+                            <tr>
+                                <td>
+                                    @r.Name
+                                    @if (r.ReceivesScoreLink)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-1">Score link</MudChip>
+                                    }
+                                </td>
+                                <td>@(r.Email ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_detailEmail.Body))
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Email body</MudText>
+                <MudPaper Elevation="0" Class="pa-2" Style="background:rgba(0,0,0,0.2);border-radius:4px;white-space:pre-wrap;font-size:0.8rem;opacity:0.85">@_detailEmail.Body</MudPaper>
+            }
+        </DialogContent>
+        <DialogActions>
+            @if (_detailEmail!.AlreadySent)
+            {
+                <MudButton Color="Color.Warning" Variant="Variant.Filled"
+                           Disabled="_resending"
+                           OnClick="ConfirmResend">
+                    @(_resending ? "Sending…" : "Resend")
+                </MudButton>
+            }
+            <MudButton OnClick="@(() => _showDetails = false)">Close</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@code {
+    [Parameter, EditorRequired] public int CompetitionId { get; set; }
+    [Parameter, EditorRequired] public Func<int, Task<List<ScheduledReminderEmailDto>>> LoadEmails { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<Task<int>> RunSweep { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<int, int, Task> Resend { get; set; } = default!;
+
+    private List<ScheduledReminderEmailDto> _emails = [];
+    private bool _loading = true;
+    private bool _sweeping;
+    private string? _sweepMessage;
+    private bool _showDetails;
+    private ScheduledReminderEmailDto? _detailEmail;
+    private bool _resending;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _emails = await LoadEmails(CompetitionId);
+        _loading = false;
+    }
+
+    private void ShowDetails(ScheduledReminderEmailDto email)
+    {
+        _detailEmail = email;
+        _showDetails = true;
+    }
+
+    private async Task ConfirmResend()
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Resend reminder",
+            $"Resend \"{_detailEmail!.Subject}\" to {_detailEmail.Recipients.Count} recipient(s) for {_detailEmail.FixtureLabel}?",
+            yesText: "Resend", cancelText: "Cancel");
+
+        if (confirm != true) return;
+
+        _resending = true;
+        try
+        {
+            await Resend(_detailEmail!.CompetitionFixtureId, _detailEmail.CompetitionFixtureReminderId);
+            _showDetails = false;
+            _emails = await LoadEmails(CompetitionId);
+        }
+        finally
+        {
+            _resending = false;
+        }
+    }
+
+    private async Task RunSweepAsync()
+    {
+        _sweeping = true;
+        _sweepMessage = null;
+        try
+        {
+            var sent = await RunSweep();
+            _sweepMessage = sent == 0 ? "Sweep complete — no emails were due." : $"Sweep complete — {sent} email(s) sent.";
+            _emails = await LoadEmails(CompetitionId);
+        }
+        finally
+        {
+            _sweeping = false;
+        }
+    }
+}
