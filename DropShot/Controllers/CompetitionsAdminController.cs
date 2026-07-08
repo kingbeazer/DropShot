@@ -1,8 +1,11 @@
+using DropShot.Data;
+using DropShot.Services;
 using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace DropShot.Controllers;
 
@@ -16,7 +19,9 @@ namespace DropShot.Controllers;
 [Route("api/competitions/admin")]
 [Authorize(AuthenticationSchemes = "Bearer")]
 public class CompetitionsAdminController(
-    ICompetitionAdminService admin) : ControllerBase
+    ICompetitionAdminService admin,
+    IDbContextFactory<MyDbContext> dbFactory,
+    AdminEmailService emailService) : ControllerBase
 {
     // ── Read ─────────────────────────────────────────────────────────────────
 
@@ -683,5 +688,14 @@ public class CompetitionsAdminController(
         try { await admin.SendFixtureReminderManualAsync(id, fixtureId, reminderId, ct); return NoContent(); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("run-reminder-sweep")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<int>> RunReminderSweep(CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var result = await FixtureReminderService.RunSweepAsync(db, DateTime.UtcNow, emailService, ct);
+        return Ok(result.RemindersSent);
     }
 }

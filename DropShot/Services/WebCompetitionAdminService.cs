@@ -2764,6 +2764,13 @@ public sealed class WebCompetitionAdminService(
         return result.OrderBy(r => r.SendAt).ToList();
     }
 
+    public async Task<int> RunReminderSweepAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var result = await FixtureReminderService.RunSweepAsync(db, DateTime.UtcNow, adminEmailService, ct);
+        return result.RemindersSent;
+    }
+
     public async Task<int> SaveFixtureReminderAsync(
         int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default)
     {

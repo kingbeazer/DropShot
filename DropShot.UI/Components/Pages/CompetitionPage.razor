@@ -601,7 +601,8 @@ else
             @if (_isSuperAdmin)
             {
                 <ScheduledReminderEmailsSection CompetitionId="Id"
-                    LoadEmails="@(id => Admin.GetScheduledReminderEmailsAsync(id))" />
+                    LoadEmails="@(id => Admin.GetScheduledReminderEmailsAsync(id))"
+                    RunSweep="@(() => Admin.RunReminderSweepAsync())" />
             }
         }
 

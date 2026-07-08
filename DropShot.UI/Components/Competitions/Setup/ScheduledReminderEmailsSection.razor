@@ -2,10 +2,23 @@
 
 <MudPaper id="section-scheduled-reminder-emails" Class="pa-4 setup-section frosted-card mb-4" Elevation="0"
           Style="color: white;">
-    <MudText Typo="Typo.h6" Class="mb-1">Scheduled reminder emails</MudText>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
+        <MudText Typo="Typo.h6">Scheduled reminder emails</MudText>
+        <MudSpacer />
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   Disabled="_sweeping"
+                   OnClick="RunSweepAsync">
+            @(_sweeping ? "Running…" : "Run sweep now")
+        </MudButton>
+    </MudStack>
     <MudText Typo="Typo.caption" Style="opacity:0.75" Class="d-block mb-3">
         All pending and sent reminder emails for scheduled fixtures in this competition.
     </MudText>
+    @if (_sweepMessage is not null)
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">@_sweepMessage</MudAlert>
+    }
 
     @if (_loading)
     {
@@ -63,13 +76,32 @@
 @code {
     [Parameter, EditorRequired] public int CompetitionId { get; set; }
     [Parameter, EditorRequired] public Func<int, Task<List<ScheduledReminderEmailDto>>> LoadEmails { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<Task<int>> RunSweep { get; set; } = default!;
 
     private List<ScheduledReminderEmailDto> _emails = [];
     private bool _loading = true;
+    private bool _sweeping;
+    private string? _sweepMessage;
 
     protected override async Task OnInitializedAsync()
     {
         _emails = await LoadEmails(CompetitionId);
         _loading = false;
+    }
+
+    private async Task RunSweepAsync()
+    {
+        _sweeping = true;
+        _sweepMessage = null;
+        try
+        {
+            var sent = await RunSweep();
+            _sweepMessage = sent == 0 ? "Sweep complete — no emails were due." : $"Sweep complete — {sent} email(s) sent.";
+            _emails = await LoadEmails(CompetitionId);
+        }
+        finally
+        {
+            _sweeping = false;
+        }
     }
 }

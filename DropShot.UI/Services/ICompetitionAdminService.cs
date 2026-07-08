@@ -400,6 +400,8 @@ public interface ICompetitionAdminService
 
     Task<List<ScheduledReminderEmailDto>> GetScheduledReminderEmailsAsync(int competitionId, CancellationToken ct = default);
 
+    Task<int> RunReminderSweepAsync(CancellationToken ct = default);
+
     Task<int> SaveFixtureReminderAsync(
         int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default);
 
