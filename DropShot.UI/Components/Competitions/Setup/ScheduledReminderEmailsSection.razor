@@ -127,6 +127,14 @@
             }
         </DialogContent>
         <DialogActions>
+            @if (_detailEmail!.AlreadySent)
+            {
+                <MudButton Color="Color.Warning" Variant="Variant.Filled"
+                           Disabled="_resending"
+                           OnClick="ConfirmResend">
+                    @(_resending ? "Sending…" : "Resend")
+                </MudButton>
+            }
             <MudButton OnClick="@(() => _showDetails = false)">Close</MudButton>
         </DialogActions>
     </MudDialog>
@@ -136,6 +144,7 @@
     [Parameter, EditorRequired] public int CompetitionId { get; set; }
     [Parameter, EditorRequired] public Func<int, Task<List<ScheduledReminderEmailDto>>> LoadEmails { get; set; } = default!;
     [Parameter, EditorRequired] public Func<Task<int>> RunSweep { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<int, int, Task> Resend { get; set; } = default!;
 
     private List<ScheduledReminderEmailDto> _emails = [];
     private bool _loading = true;
@@ -143,6 +152,7 @@
     private string? _sweepMessage;
     private bool _showDetails;
     private ScheduledReminderEmailDto? _detailEmail;
+    private bool _resending;
 
     protected override async Task OnInitializedAsync()
     {
@@ -154,6 +164,28 @@
     {
         _detailEmail = email;
         _showDetails = true;
+    }
+
+    private async Task ConfirmResend()
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Resend reminder",
+            $"Resend \"{_detailEmail!.Subject}\" to {_detailEmail.Recipients.Count} recipient(s) for {_detailEmail.FixtureLabel}?",
+            yesText: "Resend", cancelText: "Cancel");
+
+        if (confirm != true) return;
+
+        _resending = true;
+        try
+        {
+            await Resend(_detailEmail!.CompetitionFixtureId, _detailEmail.CompetitionFixtureReminderId);
+            _showDetails = false;
+            _emails = await LoadEmails(CompetitionId);
+        }
+        finally
+        {
+            _resending = false;
+        }
     }
 
     private async Task RunSweepAsync()

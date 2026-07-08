@@ -2759,6 +2759,7 @@ public sealed class WebCompetitionAdminService(
                 var recipients = GetReminderRecipients(fixture, reminder);
                 result.Add(new ScheduledReminderEmailDto(
                     fixture.CompetitionFixtureId,
+                    reminder.CompetitionFixtureReminderId,
                     fixture.FixtureLabel ?? $"Fixture #{fixture.CompetitionFixtureId}",
                     fixture.ScheduledAt!.Value,
                     reminder.HoursBefore,

@@ -415,6 +415,7 @@ public record ScheduledReminderEmailRecipientDto(string Name, string? Email);
 
 public record ScheduledReminderEmailDto(
     int CompetitionFixtureId,
+    int CompetitionFixtureReminderId,
     string FixtureLabel,
     DateTime ScheduledAt,
     int HoursBefore,
