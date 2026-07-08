@@ -2726,6 +2726,12 @@ public sealed class WebCompetitionAdminService(
 
         var fixtures = await db.CompetitionFixtures
             .AsNoTracking()
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
             .Where(f => f.CompetitionId == competitionId
                      && f.ScheduledAt != null
                      && f.Status == FixtureStatus.Scheduled)
@@ -2750,6 +2756,7 @@ public sealed class WebCompetitionAdminService(
             {
                 var sendAt = fixture.ScheduledAt!.Value.AddHours(-reminder.HoursBefore);
                 var alreadySent = sentSet.Contains((reminder.CompetitionFixtureReminderId, fixture.CompetitionFixtureId));
+                var recipients = GetReminderRecipients(fixture, reminder);
                 result.Add(new ScheduledReminderEmailDto(
                     fixture.CompetitionFixtureId,
                     fixture.FixtureLabel ?? $"Fixture #{fixture.CompetitionFixtureId}",
@@ -2758,11 +2765,49 @@ public sealed class WebCompetitionAdminService(
                     sendAt,
                     FixtureReminderService.UkLocalToUtc(sendAt),
                     reminder.Subject,
-                    alreadySent));
+                    reminder.Body,
+                    reminder.SendToCaptainsOnly,
+                    reminder.IncludeResultLink,
+                    alreadySent,
+                    recipients));
             }
         }
 
         return result.OrderBy(r => r.SendAt).ToList();
+    }
+
+    private static List<ScheduledReminderEmailRecipientDto> GetReminderRecipients(
+        CompetitionFixture fixture, CompetitionFixtureReminder reminder)
+    {
+        var result = new List<ScheduledReminderEmailRecipientDto>();
+
+        if (fixture.HomeTeam is not null || fixture.AwayTeam is not null)
+        {
+            if (reminder.SendToCaptainsOnly)
+            {
+                if (fixture.HomeTeam?.Captain is not null)
+                    result.Add(new(fixture.HomeTeam.Captain.DisplayName ?? fixture.HomeTeam.Captain.Email ?? "Unknown", fixture.HomeTeam.Captain.Email));
+                if (fixture.AwayTeam?.Captain is not null)
+                    result.Add(new(fixture.AwayTeam.Captain.DisplayName ?? fixture.AwayTeam.Captain.Email ?? "Unknown", fixture.AwayTeam.Captain.Email));
+            }
+            else
+            {
+                foreach (var p in fixture.HomeTeam?.Participants ?? [])
+                    if (p.Player is not null)
+                        result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email));
+                foreach (var p in fixture.AwayTeam?.Participants ?? [])
+                    if (p.Player is not null)
+                        result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email));
+            }
+        }
+        else
+        {
+            foreach (var player in new[] { fixture.Player1, fixture.Player2, fixture.Player3, fixture.Player4 })
+                if (player is not null)
+                    result.Add(new(player.DisplayName ?? player.Email ?? "Unknown", player.Email));
+        }
+
+        return result;
     }
 
     public async Task<int> RunReminderSweepAsync(CancellationToken ct = default)

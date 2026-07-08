@@ -1,4 +1,5 @@
 @using DropShot.Shared.Dtos
+@inject IDialogService DialogService
 
 <MudPaper id="section-scheduled-reminder-emails" Class="pa-4 setup-section frosted-card mb-4" Elevation="0"
           Style="color: white;">
@@ -41,23 +42,25 @@
                     <th>Send at</th>
                     <th>Subject</th>
                     <th>Status</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var e in _emails)
                 {
+                    var email = e;
                     <tr>
-                        <td>@e.FixtureLabel</td>
-                        <td>@e.ScheduledAt.ToString("dd MMM yyyy HH:mm")</td>
-                        <td>@e.HoursBefore h</td>
-                        <td style="white-space:nowrap">@e.SendAt.ToString("dd MMM yyyy HH:mm")</td>
-                        <td>@e.Subject</td>
+                        <td>@email.FixtureLabel</td>
+                        <td>@email.ScheduledAt.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@email.HoursBefore h</td>
+                        <td style="white-space:nowrap">@email.SendAt.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@email.Subject</td>
                         <td>
-                            @if (e.AlreadySent)
+                            @if (email.AlreadySent)
                             {
                                 <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Sent</MudChip>
                             }
-                            else if (e.SendAtUtc <= DateTime.UtcNow)
+                            else if (email.SendAtUtc <= DateTime.UtcNow)
                             {
                                 <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Overdue</MudChip>
                             }
@@ -66,12 +69,68 @@
                                 <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Pending</MudChip>
                             }
                         </td>
+                        <td>
+                            <MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small"
+                                           OnClick="@(() => ShowDetails(email))" />
+                        </td>
                     </tr>
                 }
             </tbody>
         </MudSimpleTable>
     }
 </MudPaper>
+
+@if (_detailEmail is not null)
+{
+    <MudDialog @bind-Visible="_showDetails" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+        <TitleContent>
+            <MudText Typo="Typo.h6">@_detailEmail.FixtureLabel</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSimpleTable Dense="true" Class="mb-3">
+                <tbody>
+                    <tr><td><strong>Match time</strong></td><td>@_detailEmail.ScheduledAt.ToString("dd MMM yyyy HH:mm")</td></tr>
+                    <tr><td><strong>Send at</strong></td><td>@_detailEmail.SendAt.ToString("dd MMM yyyy HH:mm")</td></tr>
+                    <tr><td><strong>Subject</strong></td><td>@_detailEmail.Subject</td></tr>
+                    <tr><td><strong>Score entry link</strong></td><td>@(_detailEmail.IncludeResultLink ? "Yes" : "No")</td></tr>
+                    <tr><td><strong>Recipients</strong></td><td>@(_detailEmail.SendToCaptainsOnly ? "Captains only" : "All participants")</td></tr>
+                </tbody>
+            </MudSimpleTable>
+
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Recipients (@_detailEmail.Recipients.Count)</MudText>
+            @if (_detailEmail.Recipients.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Style="opacity:0.6">No recipients found — players may not have email addresses set.</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Class="mb-3">
+                    <thead>
+                        <tr><th>Name</th><th>Email</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _detailEmail.Recipients)
+                        {
+                            <tr>
+                                <td>@r.Name</td>
+                                <td>@(r.Email ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_detailEmail.Body))
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Email body</MudText>
+                <MudPaper Elevation="0" Class="pa-2" Style="background:rgba(0,0,0,0.2);border-radius:4px;white-space:pre-wrap;font-size:0.8rem;opacity:0.85">@_detailEmail.Body</MudPaper>
+            }
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="@(() => _showDetails = false)">Close</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
 
 @code {
     [Parameter, EditorRequired] public int CompetitionId { get; set; }
@@ -82,11 +141,19 @@
     private bool _loading = true;
     private bool _sweeping;
     private string? _sweepMessage;
+    private bool _showDetails;
+    private ScheduledReminderEmailDto? _detailEmail;
 
     protected override async Task OnInitializedAsync()
     {
         _emails = await LoadEmails(CompetitionId);
         _loading = false;
+    }
+
+    private void ShowDetails(ScheduledReminderEmailDto email)
+    {
+        _detailEmail = email;
+        _showDetails = true;
     }
 
     private async Task RunSweepAsync()

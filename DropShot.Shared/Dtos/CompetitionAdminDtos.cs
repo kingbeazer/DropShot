@@ -411,6 +411,8 @@ public record SaveFixtureReminderRequest(
 
 public record SendFixtureReminderManualRequest(int CompetitionFixtureReminderId);
 
+public record ScheduledReminderEmailRecipientDto(string Name, string? Email);
+
 public record ScheduledReminderEmailDto(
     int CompetitionFixtureId,
     string FixtureLabel,
@@ -419,4 +421,8 @@ public record ScheduledReminderEmailDto(
     DateTime SendAt,
     DateTime SendAtUtc,
     string Subject,
-    bool AlreadySent);
+    string Body,
+    bool SendToCaptainsOnly,
+    bool IncludeResultLink,
+    bool AlreadySent,
+    List<ScheduledReminderEmailRecipientDto> Recipients);
