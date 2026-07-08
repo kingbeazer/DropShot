@@ -1,3 +1,5 @@
+using DropShot.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,7 +7,6 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DropShot.Data.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    [Migration("20260709000000_RemoveReminderBoolColumns")]
     public partial class RemoveReminderBoolColumns : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
