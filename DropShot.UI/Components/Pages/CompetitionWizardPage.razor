@@ -863,8 +863,8 @@ else
             {
                 <MudPaper Class="pa-4 wizard-step frosted-card" Elevation="0">
                     <FixtureRemindersSection Reminders="_wizardReminders"
-                        OnAddReminder="@(req => { _wizardReminders.Add(new CompetitionFixtureReminderDto(_nextReminderId--, 0, req.HoursBefore, req.Subject, req.Body, req.IncludeResultLink, req.SendToCaptainsOnly)); })"
-                        OnUpdateReminder="@(args => { var idx = _wizardReminders.FindIndex(r => r.CompetitionFixtureReminderId == args.ReminderId); if (idx >= 0) _wizardReminders[idx] = _wizardReminders[idx] with { HoursBefore = args.Request.HoursBefore, Subject = args.Request.Subject, Body = args.Request.Body, IncludeResultLink = args.Request.IncludeResultLink, SendToCaptainsOnly = args.Request.SendToCaptainsOnly }; })"
+                        OnAddReminder="@(req => { _wizardReminders.Add(new CompetitionFixtureReminderDto(_nextReminderId--, 0, req.HoursBefore, req.Subject, req.Body)); })"
+                        OnUpdateReminder="@(args => { var idx = _wizardReminders.FindIndex(r => r.CompetitionFixtureReminderId == args.ReminderId); if (idx >= 0) _wizardReminders[idx] = _wizardReminders[idx] with { HoursBefore = args.Request.HoursBefore, Subject = args.Request.Subject, Body = args.Request.Body }; })"
                         OnDeleteReminder="@(id => _wizardReminders.RemoveAll(r => r.CompetitionFixtureReminderId == id))" />
 
                     @StepActions(canBack: true, advance: TryAdvance)
@@ -1535,7 +1535,7 @@ else
 
             foreach (var rem in _wizardReminders)
             {
-                try { await Admin.SaveFixtureReminderAsync(savedId, null, new SaveFixtureReminderRequest(rem.HoursBefore, rem.Subject, rem.Body, rem.IncludeResultLink, rem.SendToCaptainsOnly)); }
+                try { await Admin.SaveFixtureReminderAsync(savedId, null, new SaveFixtureReminderRequest(rem.HoursBefore, rem.Subject, rem.Body)); }
                 catch (Exception ex) { Logger.LogWarning(ex, "Wizard add fixture reminder failed for {Id}.", savedId); }
             }
 
