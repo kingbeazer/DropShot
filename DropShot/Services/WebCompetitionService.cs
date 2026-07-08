@@ -1165,6 +1165,16 @@ public sealed class WebCompetitionService(
         var fixtures = await db.CompetitionFixtures
             .Where(f => f.CompetitionId == competitionId)
             .ToListAsync(ct);
+        var fixtureIds = fixtures.Select(f => f.CompetitionFixtureId).ToList();
+
+        // CompetitionFixtureReminderLog.CompetitionFixtureId uses OnDelete(NoAction)
+        // (SQL Server disallows a second cascade path to the same table), so these
+        // rows must be cleared before the fixtures themselves are removed.
+        var reminderLogs = await db.CompetitionFixtureReminderLogs
+            .Where(l => fixtureIds.Contains(l.CompetitionFixtureId))
+            .ToListAsync(ct);
+        db.CompetitionFixtureReminderLogs.RemoveRange(reminderLogs);
+
         db.CompetitionFixtures.RemoveRange(fixtures);
 
         // PlayerRatingSnapshot.CompetitionId uses OnDelete(NoAction) to keep

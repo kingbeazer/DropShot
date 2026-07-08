@@ -2165,6 +2165,7 @@ public sealed class WebCompetitionAdminService(
 
         if (!hasResult)
         {
+            await RemoveReminderLogsAsync(db, [fx.CompetitionFixtureId], ct);
             db.CompetitionFixtures.Remove(fx);
             await db.SaveChangesAsync(ct);
             return;
@@ -2313,8 +2314,27 @@ public sealed class WebCompetitionAdminService(
             if (savedMatches.Count > 0) db.SavedMatch.RemoveRange(savedMatches);
         }
 
+        await RemoveReminderLogsAsync(db, fixtureIds, ct);
+
         db.CompetitionFixtures.RemoveRange(fixtures);
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Deletes any <see cref="CompetitionFixtureReminderLog"/> rows for the given
+    /// fixtures. The FK from log to fixture is NoAction (SQL Server disallows a
+    /// second cascade path to the same table), so callers must clear these rows
+    /// before removing the fixtures themselves or the delete fails with an FK
+    /// violation — this also guarantees no orphaned reminder-log rows can remain.
+    /// </summary>
+    private static async Task RemoveReminderLogsAsync(
+        MyDbContext db, IReadOnlyCollection<int> fixtureIds, CancellationToken ct)
+    {
+        if (fixtureIds.Count == 0) return;
+        var logs = await db.CompetitionFixtureReminderLogs
+            .Where(l => fixtureIds.Contains(l.CompetitionFixtureId))
+            .ToListAsync(ct);
+        if (logs.Count > 0) db.CompetitionFixtureReminderLogs.RemoveRange(logs);
     }
 
     public async Task<CompetitionFixtureDto?> LoadFixtureForDialogAsync(
