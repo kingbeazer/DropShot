@@ -398,20 +398,16 @@ public record CompetitionFixtureReminderDto(
     int CompetitionId,
     int HoursBefore,
     string Subject,
-    string Body,
-    bool IncludeResultLink,
-    bool SendToCaptainsOnly);
+    string Body);
 
 public record SaveFixtureReminderRequest(
     int HoursBefore,
     string Subject,
-    string Body,
-    bool IncludeResultLink,
-    bool SendToCaptainsOnly);
+    string Body);
 
 public record SendFixtureReminderManualRequest(int CompetitionFixtureReminderId);
 
-public record ScheduledReminderEmailRecipientDto(string Name, string? Email);
+public record ScheduledReminderEmailRecipientDto(string Name, string? Email, bool ReceivesScoreLink = false);
 
 public record ScheduledReminderEmailDto(
     int CompetitionFixtureId,
@@ -423,7 +419,5 @@ public record ScheduledReminderEmailDto(
     DateTime SendAtUtc,
     string Subject,
     string Body,
-    bool SendToCaptainsOnly,
-    bool IncludeResultLink,
     bool AlreadySent,
     List<ScheduledReminderEmailRecipientDto> Recipients);

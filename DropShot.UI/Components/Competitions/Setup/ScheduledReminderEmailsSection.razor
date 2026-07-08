@@ -92,8 +92,6 @@
                     <tr><td><strong>Match time</strong></td><td>@_detailEmail.ScheduledAt.ToString("dd MMM yyyy HH:mm")</td></tr>
                     <tr><td><strong>Send at</strong></td><td>@_detailEmail.SendAt.ToString("dd MMM yyyy HH:mm")</td></tr>
                     <tr><td><strong>Subject</strong></td><td>@_detailEmail.Subject</td></tr>
-                    <tr><td><strong>Score entry link</strong></td><td>@(_detailEmail.IncludeResultLink ? "Yes" : "No")</td></tr>
-                    <tr><td><strong>Recipients</strong></td><td>@(_detailEmail.SendToCaptainsOnly ? "Captains only" : "All participants")</td></tr>
                 </tbody>
             </MudSimpleTable>
 
@@ -112,7 +110,13 @@
                         @foreach (var r in _detailEmail.Recipients)
                         {
                             <tr>
-                                <td>@r.Name</td>
+                                <td>
+                                    @r.Name
+                                    @if (r.ReceivesScoreLink)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-1">Score link</MudChip>
+                                    }
+                                </td>
                                 <td>@(r.Email ?? "—")</td>
                             </tr>
                         }

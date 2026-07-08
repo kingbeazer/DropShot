@@ -96,7 +96,8 @@ public class AdminEmailService(
         var matchDate = fixture.ScheduledAt?.ToString("dddd dd MMMM yyyy 'at' HH:mm") ?? "";
         var matchLink = $"{BaseUrl}/competition/{fixture.CompetitionId}/view";
 
-        var resultLink = reminder.IncludeResultLink && fixture.ResultSubmissionToken.HasValue
+        // Score submission URL used for singles/doubles and for captains in team fixtures.
+        var scoreLink = fixture.ResultSubmissionToken.HasValue
             ? $"{BaseUrl}/match/submit/{fixture.ResultSubmissionToken.Value}"
             : matchLink;
 
@@ -109,46 +110,46 @@ public class AdminEmailService(
             (Player: fixture.Player4, OpponentName: SideName(fixture.Player1, fixture.Player3)),
         };
 
-        // For team matches, send to captains or all participants depending on the reminder setting.
+        // For team fixtures: always email all participants. Captains get the score submission link;
+        // other participants get the match overview link as {ResultLink}.
         if (fixture.HomeTeam is not null || fixture.AwayTeam is not null)
         {
-            var recipients = new List<(Player player, string opponentLabel)>();
+            var captainIds = new HashSet<int?> {
+                fixture.HomeTeam?.CaptainPlayerId,
+                fixture.AwayTeam?.CaptainPlayerId
+            };
 
-            if (reminder.SendToCaptainsOnly)
-            {
-                if (fixture.HomeTeam?.Captain?.Email != null)
-                    recipients.Add((fixture.HomeTeam.Captain, fixture.AwayTeam?.Name ?? "Away team"));
-                if (fixture.AwayTeam?.Captain?.Email != null)
-                    recipients.Add((fixture.AwayTeam.Captain, fixture.HomeTeam?.Name ?? "Home team"));
-            }
-            else
-            {
-                var homeOpponent = fixture.AwayTeam?.Name ?? "Away team";
-                var awayOpponent = fixture.HomeTeam?.Name ?? "Home team";
-                if (fixture.HomeTeam?.Participants != null)
-                    foreach (var p in fixture.HomeTeam.Participants.Where(p => p.Player?.Email != null))
-                        recipients.Add((p.Player!, homeOpponent));
-                if (fixture.AwayTeam?.Participants != null)
-                    foreach (var p in fixture.AwayTeam.Participants.Where(p => p.Player?.Email != null))
-                        recipients.Add((p.Player!, awayOpponent));
-            }
+            var recipients = new List<(Player player, string opponentLabel, string resultLink)>();
+            var homeOpponent = fixture.AwayTeam?.Name ?? "Away team";
+            var awayOpponent = fixture.HomeTeam?.Name ?? "Home team";
+
+            if (fixture.HomeTeam?.Participants != null)
+                foreach (var p in fixture.HomeTeam.Participants.Where(p => p.Player?.Email != null))
+                    recipients.Add((p.Player!, homeOpponent,
+                        captainIds.Contains(p.PlayerId) ? scoreLink : matchLink));
+
+            if (fixture.AwayTeam?.Participants != null)
+                foreach (var p in fixture.AwayTeam.Participants.Where(p => p.Player?.Email != null))
+                    recipients.Add((p.Player!, awayOpponent,
+                        captainIds.Contains(p.PlayerId) ? scoreLink : matchLink));
 
             await Task.WhenAll(recipients.Select(c =>
             {
-                var subject = SubstituteReminderVars(reminder.Subject, c.player.DisplayName, c.opponentLabel, competitionName, matchDate, matchLink, resultLink);
-                var body = SubstituteReminderVars(reminder.Body, c.player.DisplayName, c.opponentLabel, competitionName, matchDate, matchLink, resultLink);
+                var subject = SubstituteReminderVars(reminder.Subject, c.player.DisplayName, c.opponentLabel, competitionName, matchDate, matchLink, c.resultLink);
+                var body = SubstituteReminderVars(reminder.Body, c.player.DisplayName, c.opponentLabel, competitionName, matchDate, matchLink, c.resultLink);
                 var html = emailTemplateService.AdminCustomEmail(body);
                 return SendSafe(c.player.Email!, subject, html, "fixture reminder", isHtml: true);
             }));
             return;
         }
 
+        // Singles/doubles: all players get the score submission link.
         await Task.WhenAll(sides
             .Where(s => s.Player?.Email != null)
             .Select(s =>
             {
-                var subject = SubstituteReminderVars(reminder.Subject, s.Player!.DisplayName, s.OpponentName, competitionName, matchDate, matchLink, resultLink);
-                var body = SubstituteReminderVars(reminder.Body, s.Player.DisplayName, s.OpponentName, competitionName, matchDate, matchLink, resultLink);
+                var subject = SubstituteReminderVars(reminder.Subject, s.Player!.DisplayName, s.OpponentName, competitionName, matchDate, matchLink, scoreLink);
+                var body = SubstituteReminderVars(reminder.Body, s.Player.DisplayName, s.OpponentName, competitionName, matchDate, matchLink, scoreLink);
                 var html = emailTemplateService.AdminCustomEmail(body);
                 return SendSafe(s.Player.Email!, subject, html, "fixture reminder", isHtml: true);
             }));

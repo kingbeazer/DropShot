@@ -856,12 +856,6 @@ namespace DropShot.Migrations
                     b.Property<int>("HoursBefore")
                         .HasColumnType("int");
 
-                    b.Property<bool>("IncludeResultLink")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("SendToCaptainsOnly")
-                        .HasColumnType("bit");
-
                     b.Property<string>("Subject")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

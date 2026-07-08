@@ -308,7 +308,7 @@ public sealed class WebCompetitionAdminService(
                 .OrderBy(r => r.HoursBefore)
                 .Select(r => new CompetitionFixtureReminderDto(
                     r.CompetitionFixtureReminderId, r.CompetitionId,
-                    r.HoursBefore, r.Subject, r.Body, r.IncludeResultLink, r.SendToCaptainsOnly))
+                    r.HoursBefore, r.Subject, r.Body))
                 .ToListAsync(ct));
     }
 
@@ -2706,9 +2706,7 @@ public sealed class WebCompetitionAdminService(
                 r.CompetitionId,
                 r.HoursBefore,
                 r.Subject,
-                r.Body,
-                r.IncludeResultLink,
-                r.SendToCaptainsOnly))
+                r.Body))
             .ToListAsync(ct);
     }
 
@@ -2767,8 +2765,6 @@ public sealed class WebCompetitionAdminService(
                     FixtureReminderService.UkLocalToUtc(sendAt),
                     reminder.Subject,
                     reminder.Body,
-                    reminder.SendToCaptainsOnly,
-                    reminder.IncludeResultLink,
                     alreadySent,
                     recipients));
             }
@@ -2784,28 +2780,24 @@ public sealed class WebCompetitionAdminService(
 
         if (fixture.HomeTeam is not null || fixture.AwayTeam is not null)
         {
-            if (reminder.SendToCaptainsOnly)
-            {
-                if (fixture.HomeTeam?.Captain is not null)
-                    result.Add(new(fixture.HomeTeam.Captain.DisplayName ?? fixture.HomeTeam.Captain.Email ?? "Unknown", fixture.HomeTeam.Captain.Email));
-                if (fixture.AwayTeam?.Captain is not null)
-                    result.Add(new(fixture.AwayTeam.Captain.DisplayName ?? fixture.AwayTeam.Captain.Email ?? "Unknown", fixture.AwayTeam.Captain.Email));
-            }
-            else
-            {
-                foreach (var p in fixture.HomeTeam?.Participants ?? [])
-                    if (p.Player is not null)
-                        result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email));
-                foreach (var p in fixture.AwayTeam?.Participants ?? [])
-                    if (p.Player is not null)
-                        result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email));
-            }
+            var captainIds = new HashSet<int?> {
+                fixture.HomeTeam?.CaptainPlayerId,
+                fixture.AwayTeam?.CaptainPlayerId
+            };
+            foreach (var p in fixture.HomeTeam?.Participants ?? [])
+                if (p.Player is not null)
+                    result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email,
+                        ReceivesScoreLink: captainIds.Contains(p.PlayerId)));
+            foreach (var p in fixture.AwayTeam?.Participants ?? [])
+                if (p.Player is not null)
+                    result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email,
+                        ReceivesScoreLink: captainIds.Contains(p.PlayerId)));
         }
         else
         {
             foreach (var player in new[] { fixture.Player1, fixture.Player2, fixture.Player3, fixture.Player4 })
                 if (player is not null)
-                    result.Add(new(player.DisplayName ?? player.Email ?? "Unknown", player.Email));
+                    result.Add(new(player.DisplayName ?? player.Email ?? "Unknown", player.Email, ReceivesScoreLink: true));
         }
 
         return result;
@@ -2841,8 +2833,6 @@ public sealed class WebCompetitionAdminService(
         reminder.HoursBefore = request.HoursBefore;
         reminder.Subject = request.Subject;
         reminder.Body = request.Body;
-        reminder.IncludeResultLink = request.IncludeResultLink;
-        reminder.SendToCaptainsOnly = request.SendToCaptainsOnly;
 
         await db.SaveChangesAsync(ct);
         return reminder.CompetitionFixtureReminderId;

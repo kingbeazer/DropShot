@@ -6,9 +6,6 @@ namespace DropShot.Shared;
 /// </summary>
 public static class FixtureReminderDefaults
 {
-    public static readonly bool IncludeResultLink = true;
-    public static readonly bool SendToCaptainsOnly = true;
-
     public const string Subject = "Reminder: your {CompetitionName} fixture";
 
     public const string Body =
