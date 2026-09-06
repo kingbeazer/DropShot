@@ -14,7 +14,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MudBlazor.Services;
@@ -74,22 +73,6 @@ var authBuilder = builder.Services.AddAuthentication()
             ValidAudience = jwtCfg["Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtCfg["Key"]!))
-        };
-        // SignalR can't set an Authorization header (WebSockets), so the JWT
-        // has to travel as an "access_token" query param for hub requests —
-        // only honored for /messaginghub, not the whole JWT scheme.
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = ctx =>
-            {
-                var accessToken = ctx.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) &&
-                    ctx.HttpContext.Request.Path.StartsWithSegments("/messaginghub"))
-                {
-                    ctx.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
         };
     });
 
@@ -161,11 +144,6 @@ builder.Services.AddScoped<IScoreboardService, WebScoreboardService>();
 builder.Services.AddScoped<IUserService, WebUserService>();
 builder.Services.AddScoped<IScoreboardHubFactory, WebScoreboardHubFactory>();
 builder.Services.AddScoped<IPaymentService, WebPaymentService>();
-builder.Services.AddScoped<IFriendService, WebFriendService>();
-builder.Services.AddScoped<INotificationService, WebNotificationService>();
-builder.Services.AddScoped<IMessagingService, WebMessagingService>();
-builder.Services.AddScoped<IMessagingHubFactory, WebMessagingHubFactory>();
-builder.Services.AddSingleton<IUserIdProvider, AppUserIdProvider>();
 builder.Services.AddSingleton<BackgroundTaskQueue>();
 builder.Services.AddScoped<ResultVerificationService>();
 builder.Services.AddScoped<AdminEmailService>();
@@ -253,7 +231,6 @@ app.MapRazorComponents<App>()
 app.MapAdditionalIdentityEndpoints();
 app.MapHub<ChatHub>("/chathub");
 app.MapHub<QrAuthHub>("/qrauthub");
-app.MapHub<MessagingHub>("/messaginghub");
 
 // ── QR code login callback (sets identity cookie, redirects desktop) ─────────
 app.MapGet("/Account/QrLogin", async (

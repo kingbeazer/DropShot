@@ -101,22 +101,3 @@ public enum RubberTieBreakMode : byte
     /// <summary>Try MostGamesWon first; if still tied, fall back to HeadToHeadRoundRobin.</summary>
     MostGamesThenHeadToHead = 3,
 }
-
-public enum ConversationStatus : byte
-{
-    PendingApproval = 1,
-    Active = 2,
-    Denied = 3
-}
-
-/// <summary>
-/// Byte-backed and stored in the database — never renumber or reuse an
-/// existing value, only append new ones.
-/// </summary>
-public enum NotificationType : byte
-{
-    MessageRequestReceived = 1,
-    MessageReceived = 2,
-    MessageRequestApproved = 3,
-    MessageRequestDenied = 4,
-}

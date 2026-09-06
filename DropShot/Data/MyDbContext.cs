@@ -51,9 +51,6 @@ namespace DropShot.Data
         public DbSet<CompetitionCalendarException> CompetitionCalendarExceptions { get; set; }
         public DbSet<CompetitionFixtureReminder> CompetitionFixtureReminders { get; set; }
         public DbSet<CompetitionFixtureReminderLog> CompetitionFixtureReminderLogs { get; set; }
-        public DbSet<Conversation> Conversations { get; set; }
-        public DbSet<Message> Messages { get; set; }
-        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -800,71 +797,6 @@ namespace DropShot.Data
                       .HasForeignKey(l => l.CompetitionFixtureReminderId)
                       .IsRequired(false)
                       .OnDelete(DeleteBehavior.Cascade);
-            });
-
-            // ── Conversation ──────────────────────────────────────────────────────
-            builder.Entity<Conversation>(entity =>
-            {
-                entity.Property(c => c.UserAId).HasMaxLength(450).IsRequired();
-                entity.Property(c => c.UserBId).HasMaxLength(450).IsRequired();
-                entity.Property(c => c.RequestedByUserId).HasMaxLength(450).IsRequired();
-                entity.Property(c => c.Status).HasConversion<byte>();
-
-                // At most one conversation per user pair.
-                entity.HasIndex(c => new { c.UserAId, c.UserBId }).IsUnique();
-
-                entity.HasOne(c => c.UserA)
-                      .WithMany()
-                      .HasForeignKey(c => c.UserAId)
-                      .OnDelete(DeleteBehavior.Restrict);
-
-                entity.HasOne(c => c.UserB)
-                      .WithMany()
-                      .HasForeignKey(c => c.UserBId)
-                      .OnDelete(DeleteBehavior.Restrict);
-
-                entity.HasOne(c => c.RequestedByUser)
-                      .WithMany()
-                      .HasForeignKey(c => c.RequestedByUserId)
-                      .OnDelete(DeleteBehavior.Restrict);
-            });
-
-            // ── Message ───────────────────────────────────────────────────────────
-            builder.Entity<Message>(entity =>
-            {
-                entity.Property(m => m.SenderUserId).HasMaxLength(450).IsRequired();
-                entity.Property(m => m.Body).HasMaxLength(4000).IsRequired();
-
-                entity.HasIndex(m => new { m.ConversationId, m.SentAt });
-
-                entity.HasOne(m => m.Conversation)
-                      .WithMany(c => c.Messages)
-                      .HasForeignKey(m => m.ConversationId)
-                      .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasOne(m => m.Sender)
-                      .WithMany()
-                      .HasForeignKey(m => m.SenderUserId)
-                      .OnDelete(DeleteBehavior.Restrict);
-            });
-
-            // ── Notification ──────────────────────────────────────────────────────
-            builder.Entity<Notification>(entity =>
-            {
-                entity.Property(n => n.UserId).HasMaxLength(450).IsRequired();
-                entity.Property(n => n.Type).HasConversion<byte>();
-                entity.Property(n => n.Title).HasMaxLength(200).IsRequired();
-                entity.Property(n => n.Body).HasMaxLength(500);
-                entity.Property(n => n.LinkUrl).HasMaxLength(300);
-                entity.Property(n => n.PayloadJson).HasMaxLength(2000);
-
-                entity.HasIndex(n => new { n.UserId, n.ReadAt });
-                entity.HasIndex(n => new { n.UserId, n.CreatedAt });
-
-                entity.HasOne(n => n.User)
-                      .WithMany()
-                      .HasForeignKey(n => n.UserId)
-                      .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }
