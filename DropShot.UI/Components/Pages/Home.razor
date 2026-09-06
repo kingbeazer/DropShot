@@ -78,9 +78,15 @@
 
 <div class="home-bleed">
     <MudCarousel Class="mud-width-full" Style="height:400px; touch-action:pan-y;" ShowArrows="false" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" AutoCycleTime="@autocycleTime" TData="object">
-        <MudCarouselItem Transition="transition" Color="@Color.Primary">
-            <div class="d-flex" style="height:100%">
-                <MudImage Class="mx-auto my-auto" Src="_content/DropShot.UI/images/Logo.png" Style="height: 300px;"></MudImage>
+        <MudCarouselItem Transition="transition">
+            <div class="d-flex align-center justify-center" style="height:100%; position:relative; overflow:hidden; background: linear-gradient(135deg, rgb(5, 39, 103) 0%, rgb(5, 98, 103) 100%);">
+                <div style="position:absolute; inset:0; background-image:url('_content/DropShot.UI/images/background.png'); background-repeat:repeat; opacity:0.25;"></div>
+                <div style="position:relative; text-align:center;">
+                    <MudImage Src="_content/DropShot.UI/images/Logo-transparent.png" Style="height: 190px;"></MudImage>
+                    <MudText Typo="Typo.h6" Style="color:rgba(255,255,255,0.9); font-weight:400; letter-spacing:0.5px; margin-top:12px;">
+                        Real-time scoring. Effortless competition management.
+                    </MudText>
+                </div>
             </div>
         </MudCarouselItem>
         <MudCarouselItem Transition="transition">
