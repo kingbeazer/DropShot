@@ -40,38 +40,40 @@
 
 @if (_pendingReviews.Count > 0)
 {
-    <MudCard Class="mb-4" Elevation="2">
-        <MudCardHeader>
-            <CardHeaderContent>
-                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                    <MudIcon Icon="@Icons.Material.Filled.RateReview" Color="Color.Warning" />
-                    <MudText Typo="Typo.h6">Pending Result Reviews (@_pendingReviews.Count)</MudText>
-                </MudStack>
-            </CardHeaderContent>
-        </MudCardHeader>
-        <MudCardContent>
-            <MudGrid>
-                @foreach (var fixture in _pendingReviews)
-                {
-                    <MudItem xs="12" sm="6" md="4">
-                        <FixtureResultCard Fixture="fixture" />
-                        <MudStack Row="true" Spacing="1" Class="mt-2" Justify="Justify.Center">
-                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                                       StartIcon="@Icons.Material.Filled.CheckCircle"
-                                       OnClick="@(() => QuickApproveReviewAsync(fixture))">
-                                Approve
-                            </MudButton>
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
-                                       StartIcon="@Icons.Material.Filled.Edit"
-                                       OnClick="@(() => OpenReviewDialogAsync(fixture))">
-                                Review
-                            </MudButton>
-                        </MudStack>
-                    </MudItem>
-                }
-            </MudGrid>
-        </MudCardContent>
-    </MudCard>
+    <div class="home-bleed home-bleed-glass mb-4">
+        <MudCard Class="home-bleed-inner py-4" Elevation="0">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.RateReview" Color="Color.Warning" />
+                        <MudText Typo="Typo.h6">Pending Result Reviews (@_pendingReviews.Count)</MudText>
+                    </MudStack>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    @foreach (var fixture in _pendingReviews)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <FixtureResultCard Fixture="fixture" />
+                            <MudStack Row="true" Spacing="1" Class="mt-2" Justify="Justify.Center">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                           StartIcon="@Icons.Material.Filled.CheckCircle"
+                                           OnClick="@(() => QuickApproveReviewAsync(fixture))">
+                                    Approve
+                                </MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                           StartIcon="@Icons.Material.Filled.Edit"
+                                           OnClick="@(() => OpenReviewDialogAsync(fixture))">
+                                    Review
+                                </MudButton>
+                            </MudStack>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </div>
 }
 
 <MudCarousel Class="mud-width-full" Style="height:400px; touch-action:pan-y;" ShowArrows="@arrows" ShowBullets="@bullets" EnableSwipeGesture="@enableSwipeGesture" AutoCycle="@autocycle" AutoCycleTime="@autocycleTime" TData="object">
@@ -99,74 +101,77 @@
     </MudCarouselItem>
 </MudCarousel>
 
-<MudCard Class="mt-4 mb-8 frosted-card" Elevation="0">
-    <MudCardContent>
-        @if (!_isAuthenticated)
-        {
-            <MudGrid>
-                <MudItem xs="12" md="6">
-                    <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+<div class="home-bleed home-bleed-glass mt-4 mb-8">
+    <MudCard Class="home-bleed-inner py-4" Elevation="0">
+        <MudCardContent>
+            @if (!_isAuthenticated)
+            {
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+                        @if (AnonymousQrPanel is not null)
+                        {
+                            <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
+                                Scan the QR code with your phone to log in, or
+                                <MudLink Href="@LoginUrl">use email and password</MudLink>.
+                            </MudText>
+                            <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
+                                <MudLink Href="@LoginUrl">Log in with email and password</MudLink> to get started.
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body1" Class="mt-2">
+                                <MudLink Href="@LoginUrl">Log in with email and password</MudLink> to get started.
+                            </MudText>
+                        }
+                        @if (!string.IsNullOrEmpty(MagicLinkUrl))
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-3"
+                                       StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                       Href="@MagicLinkUrl">
+                                Sign in with magic link
+                            </MudButton>
+                        }
+                    </MudItem>
                     @if (AnonymousQrPanel is not null)
                     {
-                        <MudText Typo="Typo.body1" Class="mt-2 d-none d-md-block">
-                            Scan the QR code with your phone to log in, or
-                            <MudLink Href="@LoginUrl">use email and password</MudLink>.
-                        </MudText>
-                        <MudText Typo="Typo.body1" Class="mt-2 d-md-none">
-                            <MudLink Href="@LoginUrl">Log in with email and password</MudLink> to get started.
-                        </MudText>
+                        <MudItem xs="12" md="6" Class="d-none d-md-block">
+                            @AnonymousQrPanel
+                        </MudItem>
                     }
-                    else
-                    {
-                        <MudText Typo="Typo.body1" Class="mt-2">
-                            <MudLink Href="@LoginUrl">Log in with email and password</MudLink> to get started.
-                        </MudText>
-                    }
-                    @if (!string.IsNullOrEmpty(MagicLinkUrl))
-                    {
-                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-3"
-                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
-                                   Href="@MagicLinkUrl">
-                            Sign in with magic link
-                        </MudButton>
-                    }
-                </MudItem>
-                @if (AnonymousQrPanel is not null)
-                {
-                    <MudItem xs="12" md="6" Class="d-none d-md-block">
-                        @AnonymousQrPanel
-                    </MudItem>
-                }
-            </MudGrid>
-        }
-        else
-        {
-            <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
-            <MudText Typo="Typo.body1" Class="mt-2">
-                Your home for managing competitions, tracking results, and staying on top of your game.
-            </MudText>
-        }
-    </MudCardContent>
-</MudCard>
+                </MudGrid>
+            }
+            else
+            {
+                <MudText Typo="Typo.h5">Welcome to DropShot</MudText>
+                <MudText Typo="Typo.body1" Class="mt-2">
+                    Your home for managing competitions, tracking results, and staying on top of your game.
+                </MudText>
+            }
+        </MudCardContent>
+    </MudCard>
+</div>
 
 @if (_isAuthenticated && CurrentUser.CanScoreMatch)
 {
-    <MudPaper Class="mt-4 pa-5" Elevation="0"
-              Style="background: linear-gradient(135deg, #004d40 0%, #00897b 60%, #4db6ac 100%); border-radius: 16px; text-align: center;">
-        <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Style="font-size: 48px; color: rgba(255,255,255,0.85);" />
-        <MudText Typo="Typo.h5" Style="color: white; font-weight: 700; margin-top: 8px;">
-            Ready to play?
-        </MudText>
-        <MudText Typo="Typo.body1" Style="color: rgba(255,255,255,0.85); margin-top: 4px;">
-            Start a casual match and track your score live.
-        </MudText>
-        <MudButton Variant="Variant.Filled" Color="Color.Dark" Size="Size.Large"
-                   StartIcon="@Icons.Material.Filled.PlayArrow"
-                   OnClick="StartCasualMatchAsync" Class="mt-3"
-                   Style="font-weight: 600; border-radius: 24px; padding: 10px 32px;">
-            Start a Match
-        </MudButton>
-    </MudPaper>
+    <div class="home-bleed mt-4" style="background: linear-gradient(135deg, #004d40 0%, #00897b 60%, #4db6ac 100%);">
+        <MudPaper Class="home-bleed-inner py-5" Elevation="0" Style="text-align: center;">
+            <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Style="font-size: 48px; color: rgba(255,255,255,0.85);" />
+            <MudText Typo="Typo.h5" Style="color: white; font-weight: 700; margin-top: 8px;">
+                Ready to play?
+            </MudText>
+            <MudText Typo="Typo.body1" Style="color: rgba(255,255,255,0.85); margin-top: 4px;">
+                Start a casual match and track your score live.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Dark" Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                       OnClick="StartCasualMatchAsync" Class="mt-3"
+                       Style="font-weight: 600; border-radius: 24px; padding: 10px 32px;">
+                Start a Match
+            </MudButton>
+        </MudPaper>
+    </div>
 }
 
 @if (_upcomingFixtures.Any() || _recentItems.Any())
@@ -175,7 +180,7 @@
         @if (_upcomingFixtures.Any())
         {
             <MudItem xs="12" md="@(_recentItems.Any() ? 7 : 12)">
-                <MudCard Class="frosted-card" Elevation="0">
+                <MudCard Class="home-panel" Elevation="0">
                     <MudCardHeader>
                         <CardHeaderContent>
                             <MudText Typo="Typo.h6">Your Upcoming Matches</MudText>
@@ -232,7 +237,7 @@
         @if (_recentItems.Any())
         {
             <MudItem xs="12" md="@(_upcomingFixtures.Any() ? 5 : 12)">
-                <MudCard Class="frosted-card" Elevation="0">
+                <MudCard Class="home-panel" Elevation="0">
                     <MudCardHeader>
                         <CardHeaderContent>
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
