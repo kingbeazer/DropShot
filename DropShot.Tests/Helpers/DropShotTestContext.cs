@@ -5,6 +5,7 @@ using DropShot.Services;
 using DropShot.Shared;
 using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using MudBlazor;
 using MudBlazor.Services;
 using NSubstitute;
 
@@ -177,6 +179,21 @@ public class DropShotTestContext : BunitContext
         // Tests don't exercise the consent paths, so a substitute is enough.
         Services.AddScoped(_ => Substitute.For<IPhoneVisibilityService>());
 
+        // Messaging / Friends / Notification Centre — real Web* impls so bUnit
+        // exercises the same EF queries production does. WebMessagingService
+        // and WebNotificationService both take IHubContext<MessagingHub>; no
+        // real hub runs in tests, so FakeHubContext stubs Clients.User/.Group
+        // to a proxy whose SendAsync no-ops. IMessagingHubFactory is left
+        // unconfigured — nothing in the planned bUnit coverage renders a
+        // component that opens a live HubConnection (ConversationPage/
+        // NotificationBell aren't rendered here for that reason).
+        Services.AddSingleton(FakeHubContext.Create());
+
+        Services.AddScoped<IFriendService, WebFriendService>();
+        Services.AddScoped<INotificationService, WebNotificationService>();
+        Services.AddScoped<IMessagingService, WebMessagingService>();
+        Services.AddScoped(_ => Substitute.For<IMessagingHubFactory>());
+
         // Logging
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
     }
@@ -185,4 +202,24 @@ public class DropShotTestContext : BunitContext
     /// Returns a DbContext for seeding test data before rendering.
     /// </summary>
     public MyDbContext SeedDatabase() => DbFactory.CreateDbContext();
+
+    /// <summary>
+    /// Renders <typeparamref name="TComponent"/> alongside a MudPopoverProvider
+    /// sibling, for pages that use MudTooltip/MudMenu/MudDialog — those need a
+    /// live popover host, which the real app gets from each page's
+    /// &lt;MudProviders /&gt; host shell but plain Render&lt;TComponent&gt;() doesn't
+    /// supply. Assert against the returned fragment's Markup (it includes both
+    /// components' output).
+    /// </summary>
+    public string RenderWithPopoverProvider<TComponent>() where TComponent : IComponent
+    {
+        var cut = Render(builder =>
+        {
+            builder.OpenComponent<MudPopoverProvider>(0);
+            builder.CloseComponent();
+            builder.OpenComponent<TComponent>(1);
+            builder.CloseComponent();
+        });
+        return cut.Markup;
+    }
 }

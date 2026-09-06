@@ -1,0 +1,94 @@
+@using Microsoft.AspNetCore.SignalR.Client
+@inject INotificationService NotificationService
+@inject IMessagingHubFactory HubFactory
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+@if (CurrentUser.IsAuthenticated)
+{
+    <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+        <ActivatorContent>
+            <MudBadge Content="@_unreadCount" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)">
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+            </MudBadge>
+        </ActivatorContent>
+        <ChildContent>
+            <div style="min-width:320px; max-width:400px;">
+                @if (_notifications.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">No notifications yet.</MudText>
+                }
+                else
+                {
+                    @foreach (var n in _notifications)
+                    {
+                        <MudMenuItem OnClick="@(() => OpenNotification(n))">
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.body2" Style="@(n.ReadAt is null ? "font-weight:600;" : "")">@n.Title</MudText>
+                                @if (!string.IsNullOrEmpty(n.Body))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@n.Body</MudText>
+                                }
+                            </MudStack>
+                        </MudMenuItem>
+                    }
+                }
+            </div>
+        </ChildContent>
+    </MudMenu>
+}
+
+@code {
+    private int _unreadCount;
+    private List<NotificationDto> _notifications = [];
+    private HubConnection? _hub;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentUser.Changed += OnCurrentUserChanged;
+        if (CurrentUser.IsAuthenticated)
+            await LoadAndConnect();
+    }
+
+    private async void OnCurrentUserChanged()
+    {
+        if (CurrentUser.IsAuthenticated && _hub is null)
+            await InvokeAsync(LoadAndConnect);
+    }
+
+    private async Task LoadAndConnect()
+    {
+        _unreadCount = await NotificationService.GetUnreadCountAsync();
+        _notifications = await NotificationService.GetRecentAsync();
+        StateHasChanged();
+
+        _hub = HubFactory.Create();
+        _hub.On<NotificationDto, int>("NotificationReceived", (notification, unreadCount) =>
+        {
+            _notifications.Insert(0, notification);
+            _unreadCount = unreadCount;
+            InvokeAsync(StateHasChanged);
+        });
+        await _hub.StartAsync();
+    }
+
+    private async Task OpenNotification(NotificationDto n)
+    {
+        if (n.ReadAt is null)
+        {
+            await NotificationService.MarkAsReadAsync(n.NotificationId);
+            _unreadCount = await NotificationService.GetUnreadCountAsync();
+        }
+
+        if (!string.IsNullOrEmpty(n.LinkUrl))
+            Navigation.NavigateTo(n.LinkUrl);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        CurrentUser.Changed -= OnCurrentUserChanged;
+        if (_hub is not null)
+            await _hub.DisposeAsync();
+    }
+}

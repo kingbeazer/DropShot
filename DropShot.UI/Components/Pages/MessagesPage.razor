@@ -1,0 +1,267 @@
+@inject IMessagingService MessagingService
+@inject IFriendService FriendService
+@inject ISiteAlertService SiteAlerts
+@inject NavigationManager Navigation
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <MudText Typo="Typo.h4">Messages</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenComposeDialog">New Message</MudButton>
+</MudStack>
+
+<MudTabs Elevation="0" ApplyEffectsToContainer="true">
+    <MudTabPanel Text="Conversations" Icon="@Icons.Material.Filled.Chat">
+        @if (_loadingConversations)
+        {
+            <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+        }
+        else if (_conversations.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No conversations yet. Start one with "New Message".</MudText>
+        }
+        else
+        {
+            <MudList T="ConversationSummaryDto">
+                @foreach (var conv in _conversations)
+                {
+                    <MudListItem T="ConversationSummaryDto" OnClick="@(() => OpenConversation(conv.ConversationId))">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                @if (!string.IsNullOrEmpty(conv.OtherUserProfileImagePath))
+                                {
+                                    <MudAvatar Size="Size.Small">
+                                        <MudImage Src="@conv.OtherUserProfileImagePath" />
+                                    </MudAvatar>
+                                }
+                                else
+                                {
+                                    <MudAvatar Size="Size.Small" Style="background: var(--mud-palette-primary);">
+                                        <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" />
+                                    </MudAvatar>
+                                }
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.body1">@conv.OtherUserDisplayName</MudText>
+                                    @if (!string.IsNullOrEmpty(conv.LastMessagePreview))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@conv.LastMessagePreview</MudText>
+                                    }
+                                </MudStack>
+                            </MudStack>
+                            @if (conv.UnreadCount > 0)
+                            {
+                                <MudBadge Content="@conv.UnreadCount" Color="Color.Primary" Overlap="false" />
+                            }
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="@($"Requests{(_requests.Count > 0 ? $" ({_requests.Count})" : "")}")" Icon="@Icons.Material.Filled.MarkEmailUnread">
+        @if (_loadingRequests)
+        {
+            <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+        }
+        else if (_requests.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No pending message requests.</MudText>
+        }
+        else
+        {
+            <MudList T="ConversationSummaryDto">
+                @foreach (var req in _requests)
+                {
+                    <MudListItem T="ConversationSummaryDto">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                @if (!string.IsNullOrEmpty(req.OtherUserProfileImagePath))
+                                {
+                                    <MudAvatar Size="Size.Small">
+                                        <MudImage Src="@req.OtherUserProfileImagePath" />
+                                    </MudAvatar>
+                                }
+                                else
+                                {
+                                    <MudAvatar Size="Size.Small" Style="background: var(--mud-palette-primary);">
+                                        <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" />
+                                    </MudAvatar>
+                                }
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.body1">@req.OtherUserDisplayName</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">This DropShot user wants to send you a message.</MudText>
+                                </MudStack>
+                            </MudStack>
+                            <MudStack Row="true" Spacing="1">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                           OnClick="@(() => Allow(req))">Allow</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                           OnClick="@(() => Deny(req))">Deny</MudButton>
+                            </MudStack>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </MudTabPanel>
+</MudTabs>
+
+<MudDialog @bind-Visible="_showComposeDialog">
+    <TitleContent>New Message</TitleContent>
+    <DialogContent>
+        @if (_composeTarget is null)
+        {
+            <MudTextField @bind-Value="_composeSearch" Label="Search players" Variant="Variant.Outlined"
+                          Immediate="true" TextChanged="OnComposeSearchChanged"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-2" />
+
+            @if (_composeResults.Count > 0)
+            {
+                <MudList T="FriendSearchResultDto">
+                    @foreach (var result in _composeResults)
+                    {
+                        <MudListItem T="FriendSearchResultDto" OnClick="@(() => _composeTarget = result)">
+                            <MudText>@result.DisplayName</MudText>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+            else if (!string.IsNullOrWhiteSpace(_composeSearch))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">No matching players found.</MudText>
+            }
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="mb-2">To: @_composeTarget.DisplayName</MudText>
+            @if (!_composeTarget.IsFriend)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                    You're not friends yet — they'll need to approve your first message before you can chat freely.
+                </MudText>
+            }
+            <MudTextField @bind-Value="_composeBody" Label="Message" Variant="Variant.Outlined"
+                          Lines="3" Immediate="true" AutoFocus="true" />
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_composeTarget is not null)
+        {
+            <MudButton OnClick="@(() => _composeTarget = null)">Back</MudButton>
+        }
+        <MudButton OnClick="CloseComposeDialog">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_composeTarget is null || string.IsNullOrWhiteSpace(_composeBody) || _sending)"
+                   OnClick="SendCompose">Send</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [SupplyParameterFromQuery] public string? StartWith { get; set; }
+    [SupplyParameterFromQuery] public string? StartWithName { get; set; }
+
+    private bool _loadingConversations = true;
+    private bool _loadingRequests = true;
+    private List<ConversationSummaryDto> _conversations = [];
+    private List<ConversationSummaryDto> _requests = [];
+
+    private bool _showComposeDialog;
+    private string _composeSearch = "";
+    private List<FriendSearchResultDto> _composeResults = [];
+    private FriendSearchResultDto? _composeTarget;
+    private string _composeBody = "";
+    private bool _sending;
+    private CancellationTokenSource? _composeDebounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConversations();
+        await LoadRequests();
+
+        if (!string.IsNullOrEmpty(StartWith))
+        {
+            _composeTarget = new FriendSearchResultDto(0, StartWithName ?? "this player", null, StartWith, true, false);
+            _showComposeDialog = true;
+        }
+    }
+
+    private async Task LoadConversations()
+    {
+        _loadingConversations = true;
+        _conversations = await MessagingService.GetActiveConversationsAsync();
+        _loadingConversations = false;
+    }
+
+    private async Task LoadRequests()
+    {
+        _loadingRequests = true;
+        _requests = await MessagingService.GetIncomingMessageRequestsAsync();
+        _loadingRequests = false;
+    }
+
+    private void OpenConversation(int conversationId) => Navigation.NavigateTo($"/messages/{conversationId}");
+
+    private async Task Allow(ConversationSummaryDto req)
+    {
+        await MessagingService.ApproveRequestAsync(req.ConversationId);
+        SiteAlerts.Add($"You can now message {req.OtherUserDisplayName}.", Severity.Success);
+        await LoadRequests();
+        Navigation.NavigateTo($"/messages/{req.ConversationId}");
+    }
+
+    private async Task Deny(ConversationSummaryDto req)
+    {
+        await MessagingService.DenyRequestAsync(req.ConversationId);
+        SiteAlerts.Add("Message request denied.", Severity.Info);
+        await LoadRequests();
+    }
+
+    private void OpenComposeDialog()
+    {
+        _composeTarget = null;
+        _composeSearch = "";
+        _composeResults = [];
+        _composeBody = "";
+        _showComposeDialog = true;
+    }
+
+    private void CloseComposeDialog() => _showComposeDialog = false;
+
+    private async Task OnComposeSearchChanged(string value)
+    {
+        _composeSearch = value;
+
+        _composeDebounce?.Cancel();
+        _composeDebounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, _composeDebounce.Token);
+            _composeResults = string.IsNullOrWhiteSpace(value)
+                ? []
+                : await FriendService.SearchPlayersAsync(value);
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task SendCompose()
+    {
+        if (_composeTarget?.UserId is null || string.IsNullOrWhiteSpace(_composeBody)) return;
+
+        _sending = true;
+        try
+        {
+            var result = await MessagingService.StartOrSendAsync(_composeTarget.UserId, _composeBody);
+            _showComposeDialog = false;
+            Navigation.NavigateTo($"/messages/{result.ConversationId}");
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+}
