@@ -16,8 +16,7 @@ namespace DropShot.Services;
 /// </summary>
 public sealed class WebMatchScoringService(
     IDbContextFactory<MyDbContext> dbFactory,
-    ICurrentUser currentUser,
-    IFriendService friendService) : IMatchScoringService
+    ICurrentUser currentUser) : IMatchScoringService
 {
     public async Task<TennisScoreBootstrapDto> GetBootstrapAsync(CancellationToken ct = default)
     {
@@ -172,8 +171,33 @@ public sealed class WebMatchScoringService(
         await db.SaveChangesAsync(ct);
     }
 
-    public Task SendFriendRequestAsync(int targetPlayerId, CancellationToken ct = default) =>
-        friendService.SendFriendRequestAsync(targetPlayerId, ct);
+    public async Task SendFriendRequestAsync(int targetPlayerId, CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId;
+        if (string.IsNullOrEmpty(userId)) return;
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var myPlayerId = await db.Players
+            .Where(p => p.UserId == userId)
+            .Select(p => (int?)p.PlayerId)
+            .FirstOrDefaultAsync(ct);
+        if (myPlayerId is null) return;
+        if (myPlayerId.Value == targetPlayerId) return;
+
+        var exists = await db.PlayerFriends.AnyAsync(pf =>
+            (pf.PlayerId == myPlayerId.Value && pf.FriendPlayerId == targetPlayerId)
+            || (pf.PlayerId == targetPlayerId && pf.FriendPlayerId == myPlayerId.Value), ct);
+        if (exists) return;
+
+        db.PlayerFriends.Add(new PlayerFriend
+        {
+            PlayerId = myPlayerId.Value,
+            FriendPlayerId = targetPlayerId,
+            Status = FriendStatus.Pending,
+            RequestedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+    }
 
     public async Task<int> UpsertLiveMatchAsync(
         UpsertLiveMatchRequest request, CancellationToken ct = default)

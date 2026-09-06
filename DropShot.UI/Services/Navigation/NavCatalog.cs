@@ -69,14 +69,6 @@ public static class NavCatalog
 
     public static readonly IReadOnlyList<NavLinkEntry> Secondary =
     [
-        new("friends", "Friends",
-            Icons.Material.Filled.PeopleAlt,
-            "Manage friends"),
-
-        new("messages", "Messages",
-            Icons.Material.Filled.Chat,
-            "Direct messages"),
-
         new("rulessets", "Rules Sets",
             Icons.Material.Filled.Gavel,
             "Match rules templates",

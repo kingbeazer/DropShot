@@ -1129,53 +1129,6 @@ namespace DropShot.Migrations
                     b.ToTable("CompetitionTemplateWindows");
                 });
 
-            modelBuilder.Entity("DropShot.Models.Conversation", b =>
-                {
-                    b.Property<int>("ConversationId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ConversationId"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("LastMessageAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RequestedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime?>("RespondedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<byte>("Status")
-                        .HasColumnType("tinyint");
-
-                    b.Property<string>("UserAId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("UserBId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("ConversationId");
-
-                    b.HasIndex("RequestedByUserId");
-
-                    b.HasIndex("UserBId");
-
-                    b.HasIndex("UserAId", "UserBId")
-                        .IsUnique();
-
-                    b.ToTable("Conversations");
-                });
-
             modelBuilder.Entity("DropShot.Models.Court", b =>
                 {
                     b.Property<int>("CourtId")
@@ -1340,93 +1293,6 @@ namespace DropShot.Migrations
                     b.HasIndex("CompetitionId", "AppliedAt");
 
                     b.ToTable("LadderInactivityDecays");
-                });
-
-            modelBuilder.Entity("DropShot.Models.Message", b =>
-                {
-                    b.Property<int>("MessageId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MessageId"));
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ReadAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("SenderUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("SentAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("MessageId");
-
-                    b.HasIndex("SenderUserId");
-
-                    b.HasIndex("ConversationId", "SentAt");
-
-                    b.ToTable("Messages");
-                });
-
-            modelBuilder.Entity("DropShot.Models.Notification", b =>
-                {
-                    b.Property<int>("NotificationId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("NotificationId"));
-
-                    b.Property<string>("Body")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("LinkUrl")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("PayloadJson")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTime?>("ReadAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ReferenceId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<byte>("Type")
-                        .HasColumnType("tinyint");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("NotificationId");
-
-                    b.HasIndex("UserId", "CreatedAt");
-
-                    b.HasIndex("UserId", "ReadAt");
-
-                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("DropShot.Models.Player", b =>
@@ -2633,33 +2499,6 @@ namespace DropShot.Migrations
                     b.Navigation("Template");
                 });
 
-            modelBuilder.Entity("DropShot.Models.Conversation", b =>
-                {
-                    b.HasOne("DropShot.Data.ApplicationUser", "RequestedByUser")
-                        .WithMany()
-                        .HasForeignKey("RequestedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Data.ApplicationUser", "UserA")
-                        .WithMany()
-                        .HasForeignKey("UserAId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Data.ApplicationUser", "UserB")
-                        .WithMany()
-                        .HasForeignKey("UserBId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("RequestedByUser");
-
-                    b.Navigation("UserA");
-
-                    b.Navigation("UserB");
-                });
-
             modelBuilder.Entity("DropShot.Models.Court", b =>
                 {
                     b.HasOne("DropShot.Models.Club", "Club")
@@ -2744,36 +2583,6 @@ namespace DropShot.Migrations
                     b.Navigation("Competition");
 
                     b.Navigation("Player");
-                });
-
-            modelBuilder.Entity("DropShot.Models.Message", b =>
-                {
-                    b.HasOne("DropShot.Models.Conversation", "Conversation")
-                        .WithMany("Messages")
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DropShot.Data.ApplicationUser", "Sender")
-                        .WithMany()
-                        .HasForeignKey("SenderUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Conversation");
-
-                    b.Navigation("Sender");
-                });
-
-            modelBuilder.Entity("DropShot.Models.Notification", b =>
-                {
-                    b.HasOne("DropShot.Data.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("DropShot.Models.Player", b =>
@@ -3154,11 +2963,6 @@ namespace DropShot.Migrations
             modelBuilder.Entity("DropShot.Models.CompetitionTemplate", b =>
                 {
                     b.Navigation("Windows");
-                });
-
-            modelBuilder.Entity("DropShot.Models.Conversation", b =>
-                {
-                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("DropShot.Models.Court", b =>
