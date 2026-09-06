@@ -7,6 +7,11 @@ html, body {
         url('_content/DropShot.UI/images/background.png');
     background-repeat: repeat;
     color: #e0e0e0;
+    /* Full-bleed sections (e.g. Home) use 100vw + negative margins to span
+       edge-to-edge; 100vw includes the scrollbar's width, which otherwise
+       leaks a few pixels of horizontal scroll on pages with a vertical
+       scrollbar. */
+    overflow-x: hidden;
 }
 
 /* MudBlazor's .mud-swipearea sets touch-action:none which blocks page scrolling on mobile */

@@ -1,0 +1,275 @@
+@inject IFriendService FriendService
+@inject ISiteAlertService SiteAlerts
+@inject IDialogService DialogService
+
+<MudText Typo="Typo.h4" Class="mb-4">Friends</MudText>
+
+<MudTabs Elevation="0" ApplyEffectsToContainer="true" Class="mb-4">
+    <MudTabPanel Text="My Friends" Icon="@Icons.Material.Filled.People">
+        <MudTable Items="@_friends" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loadingFriends"
+                  Class="frosted-card" Elevation="0">
+            <HeaderContent>
+                <MudTh>Player</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Player">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        @if (!string.IsNullOrEmpty(context.ProfileImagePath))
+                        {
+                            <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                <MudImage Src="@context.ProfileImagePath" />
+                            </MudAvatar>
+                        }
+                        else
+                        {
+                            <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                            </MudAvatar>
+                        }
+                        <MudText>@context.DisplayName</MudText>
+                    </MudStack>
+                </MudTd>
+                <MudTd DataLabel="Actions">
+                    @if (!string.IsNullOrEmpty(context.UserId))
+                    {
+                        <MudTooltip Text="Message">
+                            <MudIconButton Icon="@Icons.Material.Filled.Chat" Size="Size.Small" Color="Color.Primary"
+                                           Href="@($"messages?StartWith={Uri.EscapeDataString(context.UserId)}&StartWithName={Uri.EscapeDataString(context.DisplayName)}")" />
+                        </MudTooltip>
+                    }
+                    <MudTooltip Text="Remove friend">
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => RemoveFriend(context))" />
+                    </MudTooltip>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText>No friends yet — find players below and send a request.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudTabPanel>
+
+    <MudTabPanel Text="@($"Requests{(_incoming.Count > 0 ? $" ({_incoming.Count})" : "")}")" Icon="@Icons.Material.Filled.PersonAddAlt1">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Incoming</MudText>
+        @if (_loadingRequests)
+        {
+            <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+        }
+        else if (_incoming.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">No incoming friend requests.</MudText>
+        }
+        else
+        {
+            <MudList T="FriendRequestDto" Class="mb-4">
+                @foreach (var req in _incoming)
+                {
+                    <MudListItem T="FriendRequestDto">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                @if (!string.IsNullOrEmpty(req.ProfileImagePath))
+                                {
+                                    <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                        <MudImage Src="@req.ProfileImagePath" />
+                                    </MudAvatar>
+                                }
+                                else
+                                {
+                                    <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                        <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                                    </MudAvatar>
+                                }
+                                <MudText>@req.DisplayName</MudText>
+                            </MudStack>
+                            <MudStack Row="true" Spacing="1">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                           OnClick="@(() => AcceptRequest(req))">Accept</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                           OnClick="@(() => RejectRequest(req))">Reject</MudButton>
+                            </MudStack>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Sent</MudText>
+        @if (_outgoing.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No pending sent requests.</MudText>
+        }
+        else
+        {
+            <MudList T="FriendRequestDto">
+                @foreach (var req in _outgoing)
+                {
+                    <MudListItem T="FriendRequestDto">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            @if (!string.IsNullOrEmpty(req.ProfileImagePath))
+                            {
+                                <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                    <MudImage Src="@req.ProfileImagePath" />
+                                </MudAvatar>
+                            }
+                            else
+                            {
+                                <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                    <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                                </MudAvatar>
+                            }
+                            <MudText>@req.DisplayName</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Pending</MudText>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Find Players" Icon="@Icons.Material.Filled.Search">
+        <MudTextField @bind-Value="_searchText" Placeholder="Search players by name..."
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" TextChanged="OnSearchChanged" Class="mb-4" />
+
+        @if (_searchResults.Count > 0)
+        {
+            <MudList T="FriendSearchResultDto">
+                @foreach (var result in _searchResults)
+                {
+                    <MudListItem T="FriendSearchResultDto">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                @if (!string.IsNullOrEmpty(result.ProfileImagePath))
+                                {
+                                    <MudAvatar Size="Size.Small" Style="width:24px; height:24px;">
+                                        <MudImage Src="@result.ProfileImagePath" />
+                                    </MudAvatar>
+                                }
+                                else
+                                {
+                                    <MudAvatar Size="Size.Small" Style="width:24px; height:24px; background: var(--mud-palette-primary);">
+                                        <MudIcon Icon="@Icons.Material.Filled.Face" Size="Size.Small" Style="font-size:16px;" />
+                                    </MudAvatar>
+                                }
+                                <MudText>@result.DisplayName</MudText>
+                            </MudStack>
+                            @if (result.IsFriend)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Success">Friend</MudText>
+                            }
+                            else if (result.RequestPending)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Pending</MudText>
+                            }
+                            else
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.PersonAdd"
+                                           OnClick="@(() => SendRequest(result))">Add Friend</MudButton>
+                            }
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        else if (!string.IsNullOrWhiteSpace(_searchText))
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No matching players found.</MudText>
+        }
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private bool _loadingFriends = true;
+    private bool _loadingRequests = true;
+    private List<FriendDto> _friends = [];
+    private List<FriendRequestDto> _incoming = [];
+    private List<FriendRequestDto> _outgoing = [];
+
+    private string _searchText = "";
+    private List<FriendSearchResultDto> _searchResults = [];
+    private CancellationTokenSource? _debounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFriends();
+        await LoadRequests();
+    }
+
+    private async Task LoadFriends()
+    {
+        _loadingFriends = true;
+        _friends = await FriendService.GetFriendsAsync();
+        _loadingFriends = false;
+    }
+
+    private async Task LoadRequests()
+    {
+        _loadingRequests = true;
+        _incoming = await FriendService.GetIncomingRequestsAsync();
+        _outgoing = await FriendService.GetOutgoingRequestsAsync();
+        _loadingRequests = false;
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _searchText = value;
+
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, _debounce.Token);
+            _searchResults = string.IsNullOrWhiteSpace(value)
+                ? []
+                : await FriendService.SearchPlayersAsync(value);
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task SendRequest(FriendSearchResultDto result)
+    {
+        try
+        {
+            await FriendService.SendFriendRequestAsync(result.PlayerId);
+            SiteAlerts.Add($"Friend request sent to {result.DisplayName}.", Severity.Success);
+            await OnSearchChanged(_searchText);
+            await LoadRequests();
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task AcceptRequest(FriendRequestDto req)
+    {
+        await FriendService.AcceptFriendRequestAsync(req.PlayerId);
+        SiteAlerts.Add($"You are now friends with {req.DisplayName}.", Severity.Success);
+        await LoadFriends();
+        await LoadRequests();
+    }
+
+    private async Task RejectRequest(FriendRequestDto req)
+    {
+        await FriendService.RejectFriendRequestAsync(req.PlayerId);
+        SiteAlerts.Add($"Friend request from {req.DisplayName} rejected.", Severity.Info);
+        await LoadRequests();
+    }
+
+    private async Task RemoveFriend(FriendDto friend)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Remove Friend?",
+            $"Are you sure you want to remove \"{friend.DisplayName}\" from your friends?",
+            yesText: "Remove", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        await FriendService.RemoveFriendAsync(friend.PlayerId);
+        SiteAlerts.Add($"Removed {friend.DisplayName} from friends.", Severity.Warning);
+        await LoadFriends();
+    }
+}
