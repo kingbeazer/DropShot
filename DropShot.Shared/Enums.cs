@@ -6,7 +6,8 @@ public enum CompetitionFormat : byte
     Doubles = 2,
     Team = 3,
     MixedDoubles = 4,
-    TeamMatch = 5
+    TeamMatch = 5,
+    SinglesLadder = 6
 }
 
 public enum PlayerSex : byte
@@ -76,6 +77,12 @@ public enum SetWinMode : byte
 {
     WinBy2 = 0,
     FirstTo = 1
+}
+
+public enum PlayerRatingSnapshotKind : byte
+{
+    SeasonStart = 1,
+    SeasonEnd   = 2
 }
 
 /// <summary>

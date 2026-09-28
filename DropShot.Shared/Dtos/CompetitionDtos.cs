@@ -20,7 +20,8 @@ public record CompetitionDto(
     bool IsStarted = false,
     string? CreatorUserId = null,
     bool IsRestricted = false,
-    DateTime? RegisterByDate = null);
+    DateTime? RegisterByDate = null,
+    int? WizardStep = null);
 
 public record CompetitionDetailDto(
     int CompetitionId,
@@ -51,7 +52,38 @@ public record CompetitionDetailDto(
     List<CompetitionTeamDto>? Teams = null,
     List<CourtPairDto>? CourtPairs = null,
     LeagueScoringMode LeagueScoring = LeagueScoringMode.WinPoints,
-    int? MyPlayerId = null);
+    int? MyPlayerId = null,
+    string? Description = null,
+    double LadderKFactor = 20.0,
+    double LadderStartingRating = 1000.0,
+    int LadderProvisionalMatches = 10,
+    bool LadderUseMarginOfVictory = true,
+    List<LadderInactivityDecayDto>? LadderDecayEvents = null,
+    // The current user's own MobileNumber (or null if they have no Player
+    // record / no number on file). Used by the entry consent dialog to
+    // render the masked number and decide whether to block entry until a
+    // number is added. Always populated for the caller themselves regardless
+    // of peer visibility — viewing your own number doesn't require consent.
+    string? MyMobileNumber = null);
+
+public record LadderInactivityDecayDto(
+    int PlayerId,
+    string PlayerName,
+    DateTime AppliedAt,
+    double RatingBefore,
+    double RatingAfter,
+    int DaysInactive);
+
+/// <summary>
+/// Result of the SuperAdmin "simulate N weeks" tool — counts of synthetic
+/// fixtures and decay events produced.
+/// </summary>
+public record LadderSimulationResultDto(
+    int Participants,
+    int ActivePlayers,
+    int IdlePlayers,
+    int FixturesGenerated,
+    int DecayEventsGenerated);
 
 public record CompetitionStageDto(
     int CompetitionStageId,
@@ -70,7 +102,27 @@ public record CompetitionParticipantDto(
     string? Role = null,
     PlayerSex? Sex = null,
     int? CompetitionDivisionId = null,
-    string? DivisionName = null);
+    string? DivisionName = null,
+    PlayerRatingDto? Rating = null,
+    PlayerRatingSuggestionDto? RatingSuggestion = null,
+    PlacementSuggestionDto? PlacementSuggestion = null,
+    double LadderEloRating = 1000.0,
+    int LadderMatchesPlayed = 0,
+    bool LadderIsProvisional = true,
+    DateTime? LadderLastMatchAt = null);
+
+public record PlayerRatingDto(double CurrentRating, bool IsProvisional);
+
+public record PlayerRatingSuggestionDto(
+    double PreviousRating,
+    double SuggestedRating,
+    double Delta,
+    int RubbersPlayed);
+
+public record PlacementSuggestionDto(
+    int? SuggestedDivisionId,
+    string? SuggestedDivisionName,
+    string? SuggestedRole);
 
 public record CompetitionFixtureDto(
     int CompetitionFixtureId,
@@ -104,7 +156,14 @@ public record CompetitionFixtureDto(
     DateTime? CompletedAt = null,
     string? OriginalResultSummary = null,
     bool ResultModifiedByAdmin = false,
-    string? CompetitionName = null);
+    string? CompetitionName = null,
+    double? Player1RatingBefore = null,
+    double? Player1RatingAfter = null,
+    double? Player2RatingBefore = null,
+    double? Player2RatingAfter = null,
+    int? HomeGamesTotal = null,
+    int? AwayGamesTotal = null,
+    Guid? ResultSubmissionToken = null);
 
 public record CompetitionTeamDto(
     int CompetitionTeamId,
@@ -132,7 +191,11 @@ public record LeagueTableEntryDto(
 public record MyCompetitionsViewDto(
     bool HasPlayer,
     List<CompetitionDto> Entered,
-    List<CompetitionDto> Available);
+    List<CompetitionDto> Available,
+    // Caller's own MobileNumber (null when no Player record / no number on
+    // file). Used by the per-competition entry consent dialog to render the
+    // masked number and to gate the Enter button until a number is added.
+    string? MyMobileNumber = null);
 
 public record SaveCompetitionRequest(
     string CompetitionName,
@@ -149,11 +212,35 @@ public record SaveCompetitionRequest(
     bool IsRestricted = false,
     List<int>? AllowedPlayerIds = null,
     bool HasDivisions = false,
-    int? SeededFromCompetitionId = null);
+    int? SeededFromCompetitionId = null,
+    double LadderKFactor = 20.0,
+    double LadderStartingRating = 1000.0,
+    int LadderProvisionalMatches = 10,
+    bool LadderUseMarginOfVictory = true);
 
 public record AddStageRequest(StageType StageType, string? Name = null, int? StageOrder = null);
 
-public record AddParticipantRequest(int PlayerId, bool Force = false);
+/// <summary>
+/// Admin attestation that the data subject (the player being added) has
+/// consented to their mobile number being shared with other competitors —
+/// typically because they emailed the admin asking to enter. Materially
+/// weaker than self-asserted consent (the player didn't click anything
+/// themselves), so the recorded ConsentVersion is distinct ("v1-2026-05-admin")
+/// and <see cref="Source"/> captures the admin's evidence (subject line,
+/// date, channel) for audit. Players retain self-service withdrawal via
+/// Leave competition.
+/// </summary>
+public record AdminRecordedPhoneShareConsent(
+    bool Attested,
+    string Source);
+
+public record AddParticipantRequest(
+    int PlayerId,
+    bool Force = false,
+    // Null = no peer-share consent recorded (e.g. test data, simulated
+    // rosters). Server will not throw — the visibility service simply
+    // keeps the number hidden from peers until the player self-consents.
+    AdminRecordedPhoneShareConsent? AttestedConsent = null);
 
 /// <summary>
 /// Approve an awaiting-verification fixture result, optionally overriding the
@@ -173,12 +260,13 @@ public record FixtureScoreOverride(
     int AwayGamesTotal);
 
 /// <summary>
-/// Submit a fixture score for the first time. Used by SubmitScoreDialog.
-/// The dialog validates set scores client-side; the request carries the
-/// already-validated, summarised result. <c>WinnerPlayerId</c> may be null
-/// in fixed-set mode when the match was tied. <c>AdminOverride</c> bypasses
-/// "RequireVerification" — admin submissions go straight to Completed and
-/// preserve any prior result for audit.
+/// Submit a fixture score for the first time. Used by the SubmitScorePage
+/// (/match/submit/{fixtureId}). The page validates set scores client-side;
+/// the request carries the already-validated, summarised result.
+/// <c>WinnerPlayerId</c> may be null in fixed-set mode when the match was
+/// tied. <c>AdminOverride</c> bypasses "RequireVerification" — admin
+/// submissions go straight to Completed and preserve any prior result for
+/// audit.
 /// </summary>
 public record SubmitFixtureScoreRequest(
     string ResultSummary,
@@ -188,6 +276,25 @@ public record SubmitFixtureScoreRequest(
     int HomeGamesTotal,
     int AwayGamesTotal,
     bool AdminOverride);
+
+/// <summary>
+/// Bundled payload the SubmitScorePage loads to render itself: the fixture
+/// it's scoring plus the competition's match-config knobs (so the chip rows,
+/// set count, and validation match the competition's actual rules rather
+/// than falling back to defaults). <c>CanAdminOverride</c> is true when the
+/// authenticated caller is a competition admin — the page uses it to honour
+/// (or quietly ignore) the <c>?admin=1</c> query flag.
+/// </summary>
+public record FixtureScoreContextDto(
+    CompetitionFixtureDto Fixture,
+    MatchFormatType MatchFormat,
+    int NumberOfSets,
+    int BestOf,
+    int GamesPerSet,
+    SetWinMode SetWinMode,
+    bool CanAdminOverride,
+    int FinalSetTieBreakGames = 10,
+    SetWinMode FinalSetTieBreakWinMode = SetWinMode.WinBy2);
 
 /// <summary>
 /// Response body returned with HTTP 409 when an admin action would violate a
@@ -200,6 +307,36 @@ public record EligibilityWarning(string Code, string Message);
 public record EligibilityWarningsResponse(string Message, List<EligibilityWarning> Warnings);
 
 public record UpdateParticipantStatusRequest(ParticipantStatus Status);
+
+/// <summary>
+/// Per-competition consent payload submitted when a player enters a competition.
+/// <c>WordingShown</c> is the exact text the user saw (so it can be recorded
+/// verbatim for audit) and <c>Version</c> matches the server's
+/// <c>PhoneVisibilityService.CurrentConsentVersion</c> — mismatches are
+/// rejected so a stale client reloads.
+/// </summary>
+public record PhoneShareConsent(
+    bool Granted,
+    string WordingShown,
+    string Version);
+
+/// <summary>
+/// Self-register / confirm-participation request body. Carries the chosen
+/// participation status plus the per-competition phone-share consent the user
+/// gave in the dialog.
+/// </summary>
+public record SelfRegisterRequest(
+    ParticipantStatus Status,
+    PhoneShareConsent Consent);
+
+/// <summary>
+/// Enter-competition request body. Carries the per-competition phone-share
+/// consent and the participation status the user chose (FullPlayer or
+/// Substitute). The server rejects any other status value.
+/// </summary>
+public record EnterCompetitionRequest(
+    PhoneShareConsent Consent,
+    ParticipantStatus Status = ParticipantStatus.FullPlayer);
 
 public record SaveFixtureRequest(
     int? CompetitionStageId,
@@ -297,7 +434,8 @@ public record RubberDto(
     int? HomeSetsWon = null,
     int? AwaySetsWon = null,
     int? HomeGamesTotal = null,
-    int? AwayGamesTotal = null);
+    int? AwayGamesTotal = null,
+    IReadOnlyList<RubberSetScoreDto>? SetScores = null);
 
 public record TeamLeagueTableEntryDto(
     int TeamId,
@@ -318,15 +456,22 @@ public record SaveCourtPairRequest(int Court1Id, int Court2Id, string Name);
 
 public record SetParticipantRoleRequest(string? Role);
 
+public record SetParticipantInitialRatingRequest(double Rating);
+
+public record ApplyDivisionPlacementRequest(int CompetitionDivisionId);
+
+public record ApplyRolePlacementRequest(string Role);
+
 // ── Divisions (multi-tier within a competition) ──────────────────────────────
 
 public record CompetitionDivisionDto(
     int CompetitionDivisionId,
     int CompetitionId,
     byte Rank,
-    string Name);
+    string Name,
+    bool UseSharedMatchWindows = true);
 
-public record SaveDivisionRequest(string Name, byte Rank);
+public record SaveDivisionRequest(string Name, byte Rank, bool UseSharedMatchWindows = true);
 
 public record SetParticipantDivisionRequest(int? CompetitionDivisionId);
 
@@ -393,7 +538,12 @@ public record FixtureRubberContextDto(
     bool IsAlreadyFinalised,
     IReadOnlyList<RubberDialogDto> Rubbers,
     LeagueScoringMode LeagueScoring = LeagueScoringMode.WinPoints,
-    int? HostClubId = null);
+    int? HostClubId = null,
+    // True when the calling user is allowed to score this fixture — i.e.
+    // they're a competition admin OR a participant on one of the two
+    // teams. Pages that exist solely for score entry redirect home when
+    // this is false so non-participants can't open them by URL.
+    bool CanUserScore = false);
 
 public record RubberDialogDto(
     int RubberId,

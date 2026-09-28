@@ -1,6 +1,6 @@
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 
 @* Routing + auth + MudProviders supplied by host shims. *@
 
@@ -36,12 +36,19 @@ else
             <MudTd DataLabel="Email">@(context.UserEmail ?? "—")</MudTd>
             <MudTd DataLabel="Requested">@context.RequestedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</MudTd>
             <MudTd>
-                <MudStack Row="true" Spacing="1">
-                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                               OnClick="@(() => Approve(context))">Approve</MudButton>
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
-                               OnClick="@(() => Reject(context))">Reject</MudButton>
-                </MudStack>
+                @if (_busyRequestId == context.ClubLinkRequestId)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                   OnClick="@(() => Approve(context))">Approve</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                   OnClick="@(() => Reject(context))">Reject</MudButton>
+                    </MudStack>
+                }
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -50,43 +57,55 @@ else
 @code {
     private bool _loading = true;
     private List<ClubLinkRequestDto> _requests = [];
+    private int? _busyRequestId;
 
     protected override async Task OnInitializedAsync() => await LoadRequests();
 
     private async Task LoadRequests()
     {
         _loading = true;
+        await CurrentUser.EnsureLoadedAsync();
         _requests = await ClubService.GetPendingLinkRequestsForAdminAsync();
         _loading = false;
     }
 
     private async Task Approve(ClubLinkRequestDto request)
     {
+        _busyRequestId = request.ClubLinkRequestId;
         try
         {
             await ClubService.ApproveLinkRequestAsync(request.ClubLinkRequestId);
             _requests.Remove(request);
             var who = string.IsNullOrEmpty(request.UserDisplayName) ? request.UserName : request.UserDisplayName;
-            Snackbar.Add($"Approved {who} → {request.ClubName}.", Severity.Success);
+            SiteAlerts.Add($"Approved {who} → {request.ClubName}.", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busyRequestId = null;
         }
     }
 
     private async Task Reject(ClubLinkRequestDto request)
     {
+        _busyRequestId = request.ClubLinkRequestId;
         try
         {
             await ClubService.RejectLinkRequestAsync(request.ClubLinkRequestId);
             _requests.Remove(request);
             var who = string.IsNullOrEmpty(request.UserDisplayName) ? request.UserName : request.UserDisplayName;
-            Snackbar.Add($"Rejected {who}.", Severity.Warning);
+            SiteAlerts.Add($"Rejected {who}.", Severity.Warning);
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            SiteAlerts.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busyRequestId = null;
         }
     }
 }

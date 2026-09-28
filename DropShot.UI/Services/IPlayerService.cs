@@ -50,6 +50,12 @@ public interface IPlayerService
     /// <summary>Add an existing (non-light) player to the club's roster.</summary>
     Task LinkExistingPlayerToClubAsync(int clubId, int playerId, CancellationToken ct = default);
 
+    /// <summary>Set <c>ClubPlayer.IsActive = false</c>, hiding the player from the active roster.</summary>
+    Task ArchivePlayerFromClubAsync(int clubId, int playerId, CancellationToken ct = default);
+
+    /// <summary>Restore an archived player to the active roster (<c>IsActive = true</c>).</summary>
+    Task UnarchivePlayerFromClubAsync(int clubId, int playerId, CancellationToken ct = default);
+
     // ── My Players (phase 5 — user-owned light players + bookmarked verified) ──
 
     /// <summary>Light players the current user created plus verified players they've bookmarked.</summary>

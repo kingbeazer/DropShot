@@ -1,4 +1,4 @@
-namespace DropShot.Shared.Dtos;
+﻿namespace DropShot.Shared.Dtos;
 
 // ── Phase 7L–7U: CompetitionPage admin/edit surface ────────────────────────────
 //
@@ -45,6 +45,8 @@ public record CompetitionEditDto(
     int NumberOfSets,
     int GamesPerSet,
     SetWinMode SetWinMode,
+    int FinalSetTieBreakGames,
+    SetWinMode FinalSetTieBreakWinMode,
     LeagueScoringMode LeagueScoring,
     RubberTieBreakMode RubberTieBreak,
     int? MinDaysBetweenPlayerMatches,
@@ -68,8 +70,20 @@ public record CompetitionEditDto(
     IReadOnlyList<RulesSetDto> RulesSets,
     IReadOnlyList<EventDto> Events,
     IReadOnlyList<int> AllowedPlayerIds,
+    IReadOnlyList<CompetitionCalendarExceptionDto> CalendarExceptions,
     bool CanEdit,
-    bool IsSuperAdmin);
+    bool IsSuperAdmin,
+    string? Description = null,
+    int? WizardStep = null,
+    IReadOnlyList<CompetitionFixtureReminderDto>? FixtureReminders = null);
+
+public record CompetitionCalendarExceptionDto(
+    int CompetitionCalendarExceptionId,
+    int CompetitionId,
+    int? CompetitionDivisionId,
+    string? DivisionName,
+    DateOnly ExceptionDate,
+    string? Note);
 
 public record CompetitionMatchWindowDto(
     int CompetitionMatchWindowId,
@@ -199,8 +213,16 @@ public record SaveCompetitionEditRequest(
     int? MinDaysBetweenPlayerMatches,
     bool HasDivisions,
     int? SeededFromCompetitionId,
+    int FinalSetTieBreakGames = 10,
+    SetWinMode FinalSetTieBreakWinMode = SetWinMode.WinBy2,
     bool IsRestricted = false,
-    IReadOnlyList<int>? AllowedPlayerIds = null);
+    IReadOnlyList<int>? AllowedPlayerIds = null,
+    string? Description = null,
+    double LadderKFactor = 20.0,
+    double LadderStartingRating = 1000.0,
+    int LadderProvisionalMatches = 10,
+    bool LadderUseMarginOfVictory = true,
+    int? WizardStep = null);
 
 public record ApplyStageFollowUpRequest(IReadOnlyList<StageType> StageTypes);
 
@@ -290,6 +312,23 @@ public record SearchPlayersForAddRequest(
     int? HostClubId,
     int? MaxResults = 20);
 
+/// <summary>
+/// Bulk-add multiple players to a competition in one round-trip. Each player is
+/// enrolled with <see cref="Status"/>; players already in the competition or
+/// who don't exist are silently skipped (counted via the result DTO).
+/// Eligibility violations are bypassed because the calling UI shows only
+/// eligible candidates in the picker.
+/// </summary>
+public record BulkAddParticipantsRequest(
+    IReadOnlyList<int> PlayerIds,
+    ParticipantStatus Status = ParticipantStatus.Registered,
+    // Single attestation covers every player in the batch — the admin is
+    // asserting they have consent from all of them under the same Source.
+    // Null = no peer-share consent (e.g. simulated-roster test data).
+    AdminRecordedPhoneShareConsent? AttestedConsent = null);
+
+public record BulkAddParticipantsResultDto(int Added, int Skipped);
+
 // ── Phase 7O additions: roster / divisions / teams / fixtures / match windows ──
 //
 // Several admin requests reuse DTOs already defined in CompetitionDtos.cs
@@ -347,4 +386,38 @@ public record ConfirmFixtureAssignmentResultDto(
     bool IsValid,
     IReadOnlyList<string> Violations);
 
+public record SaveCalendarExceptionRequest(
+    DateOnly ExceptionDate,
+    string? Note,
+    int? CompetitionDivisionId);
 
+// ── Fixture reminder emails ───────────────────────────────────────────────────
+
+public record CompetitionFixtureReminderDto(
+    int CompetitionFixtureReminderId,
+    int CompetitionId,
+    int HoursBefore,
+    string Subject,
+    string Body);
+
+public record SaveFixtureReminderRequest(
+    int HoursBefore,
+    string Subject,
+    string Body);
+
+public record SendFixtureReminderManualRequest(int CompetitionFixtureReminderId);
+
+public record ScheduledReminderEmailRecipientDto(string Name, string? Email, bool ReceivesScoreLink = false);
+
+public record ScheduledReminderEmailDto(
+    int CompetitionFixtureId,
+    int CompetitionFixtureReminderId,
+    string FixtureLabel,
+    DateTime ScheduledAt,
+    int HoursBefore,
+    DateTime SendAt,
+    DateTime SendAtUtc,
+    string Subject,
+    string Body,
+    bool AlreadySent,
+    List<ScheduledReminderEmailRecipientDto> Recipients);

@@ -17,15 +17,21 @@ public interface ICompetitionService
     /// Register the authenticated user as a participant in the competition.
     /// Server resolves the player from the authenticated user's <c>UserId</c>;
     /// returns a 400-equivalent on web (KeyNotFoundException) when no player
-    /// record exists for the user, or already-registered.
+    /// record exists for the user, or already-registered. The <paramref name="consent"/>
+    /// payload carries the per-competition phone-share consent collected in
+    /// the EnterCompetitionConsentDialog and is recorded against the player.
     /// </summary>
-    Task SelfRegisterAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default);
+    Task SelfRegisterAsync(
+        int competitionId, ParticipantStatus status, PhoneShareConsent consent, CancellationToken ct = default);
 
     /// <summary>
     /// Upgrade the authenticated user's participation status (typically from
-    /// Registered → FullPlayer or Substitute).
+    /// Registered → FullPlayer or Substitute). Requires a fresh consent
+    /// payload — the user re-acknowledges phone-share visibility each time
+    /// they (re-)commit to participating.
     /// </summary>
-    Task ConfirmParticipationAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default);
+    Task ConfirmParticipationAsync(
+        int competitionId, ParticipantStatus status, PhoneShareConsent consent, CancellationToken ct = default);
 
     /// <summary>
     /// Approve a fixture's awaiting-verification result. Without
@@ -36,6 +42,14 @@ public interface ICompetitionService
     Task ApproveFixtureResultAsync(int fixtureId, ApproveFixtureResultRequest request, CancellationToken ct = default);
 
     /// <summary>
+    /// SuperAdmin-only: generate synthetic activity for a SinglesLadder
+    /// competition. Destructive — wipes prior fixtures + decay events and
+    /// resets every participant before simulating. See
+    /// <c>LadderSimulationService</c> for behaviour.
+    /// </summary>
+    Task<LadderSimulationResultDto> SimulateLadderAsync(int competitionId, int weeks, int? seed = null, CancellationToken ct = default);
+
+    /// <summary>
     /// Submit a fixture score for the first time (or override an existing one
     /// when the caller is an admin). Server enforces RequireVerification
     /// (sets Status = AwaitingVerification + a VerificationToken when needed)
@@ -44,6 +58,27 @@ public interface ICompetitionService
     /// background so the caller returns immediately.
     /// </summary>
     Task SubmitFixtureScoreAsync(int fixtureId, SubmitFixtureScoreRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Loads the singles/doubles scoring context for the SubmitScorePage:
+    /// the fixture DTO plus the competition's match-config knobs (MatchFormat,
+    /// NumberOfSets, BestOf, GamesPerSet, SetWinMode) and a <c>CanAdminOverride</c>
+    /// flag derived from the caller's permissions. Returns <c>null</c> when
+    /// the fixture doesn't exist; throws <see cref="UnauthorizedAccessException"/>
+    /// when the caller can neither view the competition nor is a participant
+    /// in the fixture.
+    /// </summary>
+    Task<FixtureScoreContextDto?> GetFixtureScoreContextAsync(int fixtureId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Token-based (no-auth) version: loads a fixture score context using the
+    /// <see cref="CompetitionFixture.ResultSubmissionToken"/> GUID. Returns null
+    /// when the token is invalid or the fixture isn't in a scorable state.
+    /// </summary>
+    Task<FixtureScoreContextDto?> GetFixtureScoreContextByTokenAsync(Guid token, CancellationToken ct = default);
+
+    /// <summary>Token-based score submission — no auth required.</summary>
+    Task SubmitFixtureScoreByTokenAsync(Guid token, SubmitFixtureScoreRequest request, CancellationToken ct = default);
 
     /// <summary>
     /// Returns the user-view payload for the "/competitions" page: the list of
@@ -91,12 +126,29 @@ public interface ICompetitionService
     Task DeleteCompetitionAsync(int competitionId, CancellationToken ct = default);
 
     /// <summary>
-    /// Self-enter the authenticated user's player into the competition.
-    /// Server enforces date/eligibility/capacity/duplicate-entry guards and
-    /// throws <see cref="InvalidOperationException"/> with a user-facing
-    /// message when any of them fail.
+    /// Self-enter the authenticated user's player into the competition with
+    /// the chosen participation status (FullPlayer or Substitute). Server
+    /// enforces date/eligibility/capacity/duplicate-entry guards and throws
+    /// <see cref="InvalidOperationException"/> with a user-facing message
+    /// when any of them fail, or when <paramref name="status"/> is not one
+    /// of the two allowed values. The <paramref name="consent"/> payload is
+    /// recorded against the player at the same time the participant row is
+    /// created (single transaction).
     /// </summary>
-    Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default);
+    Task EnterCompetitionAsync(
+        int competitionId,
+        PhoneShareConsent consent,
+        ParticipantStatus status = ParticipantStatus.FullPlayer,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Leave a competition. Sets the participant's status to
+    /// <see cref="ParticipantStatus.Withdrawn"/> and stamps the active
+    /// CompetitionEntryConsent row's WithdrawnUtc, dropping the player's
+    /// number from peer views. One-click action — matches the GDPR
+    /// principle that withdrawal must be as easy as consent.
+    /// </summary>
+    Task LeaveCompetitionAsync(int competitionId, CancellationToken ct = default);
 
     /// <summary>
     /// Loads the rubber-scoring context for a team-match fixture: per-rubber
@@ -129,6 +181,17 @@ public interface ICompetitionService
     /// emails.
     /// </summary>
     Task SubmitRubberScoresAsync(int fixtureId, SubmitRubberScoresRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Clears the saved score for a single rubber on a team-match fixture and
+    /// un-finalises the parent fixture: rubber.IsComplete=false with all sets/
+    /// games/winner cleared, plus fixture.Status reset to Scheduled with all
+    /// aggregates, ResultSummary, CompletedAt and VerificationToken cleared.
+    /// Used by the team-match landing page when a participant or admin needs
+    /// to redo a rubber's score. Authorisation matches SubmitRubberScores —
+    /// non-admins must be on one of the two teams.
+    /// </summary>
+    Task ClearRubberScoreAsync(int fixtureId, int rubberId, CancellationToken ct = default);
 
     /// <summary>
     /// Anonymous lookup for the <c>/verify-result/{token}</c> page.

@@ -25,7 +25,8 @@ public record ClubDto(
     string? Phone,
     string? Email,
     string? Website,
-    int CourtCount);
+    int CourtCount,
+    bool IsEnabled = false);
 
 public record ClubWithLinkStatusDto(
     int ClubId,
@@ -38,7 +39,8 @@ public record ClubWithLinkStatusDto(
     string? Email,
     string? Website,
     int CourtCount,
-    ClubLinkStatus LinkStatus);
+    ClubLinkStatus LinkStatus,
+    bool IsEnabled = false);
 
 public record ClubLinkRequestDto(
     int ClubLinkRequestId,
@@ -79,7 +81,8 @@ public record SaveClubRequest(
     string? Postcode,
     string? Phone,
     string? Email,
-    string? Website);
+    string? Website,
+    bool? IsEnabled = null);
 
 public record AddCourtRequest(string Name, CourtSurface Surface, bool IsIndoor);
 public record UpdateCourtRequest(string Name, CourtSurface Surface, bool IsIndoor);
@@ -93,4 +96,17 @@ public record UpdateCourtRequest(string Name, CourtSurface Surface, bool IsIndoo
 public record UserClubLinksDto(
     IReadOnlyList<int> AdminClubIds,
     IReadOnlyList<int> LinkedClubIds,
-    IReadOnlyList<int> PendingClubIds);
+    IReadOnlyList<int> PendingClubIds,
+    IReadOnlyList<int> PendingAdminRequestClubIds);
+
+public record ClubAdminRequestDto(
+    int ClubAdminRequestId,
+    int ClubId,
+    string ClubName,
+    string UserId,
+    string UserName,
+    string? UserEmail,
+    string? UserDisplayName,
+    string Status,
+    DateTime RequestedAt,
+    DateTime? ResolvedAt);

@@ -1,10 +1,16 @@
 @using DropShot.Shared
 @using DropShot.Shared.Dtos
+@using DropShot.UI.Services.Auth
+@inject ICurrentUser CurrentUser
+@inject IDialogService DialogService
 
 <MudPaper id="section-fixtures" Class="pa-4 setup-section frosted-card" Elevation="0"
      Style="color: white;">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
-        <MudText Typo="Typo.h6" Style="flex:1">Fixtures</MudText>
+    @* Title sits on its own row and each action button drops onto its own
+       line below it. AlignItems.Start keeps each button at its natural
+       content width so they don't stretch the full row width. *@
+    <MudStack Spacing="2" AlignItems="AlignItems.Start" Class="mb-3">
+        <MudText Typo="Typo.h6">Fixtures</MudText>
         @if (IsSuperAdmin && Stages.Any(s => s.StageType == StageType.RoundRobin))
         {
             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary"
@@ -104,7 +110,13 @@
                 }
                 @if (!string.IsNullOrEmpty(fixtureResult))
                 {
-                    <MudText Typo="Typo.body2">@fixtureResult</MudText>
+                    <MudTooltip Text="Click for set-by-set scores">
+                        <MudLink Typo="Typo.body2" Underline="Underline.Hover" Color="Color.Default"
+                                 Style="cursor:pointer"
+                                 OnClick="@(() => OnShowSetScores.InvokeAsync(context))">
+                            @fixtureResult
+                        </MudLink>
+                    </MudTooltip>
                     @if (context.ResultModifiedByAdmin)
                     {
                         <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
@@ -124,7 +136,8 @@
             </MudTd>
             <MudTd>
                 @if (context.HomeTeamId.HasValue && context.AwayTeamId.HasValue
-                     && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification))
+                     && context.Status is not (FixtureStatus.Completed or FixtureStatus.Cancelled or FixtureStatus.Walkover or FixtureStatus.AwaitingVerification)
+                     && CurrentUser.CanScoreMatch)
                 {
                     <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small"
                                    Color="Color.Success" aria-label="Play Team Match"
@@ -148,6 +161,20 @@
                     <MudIconButton Icon="@Icons.Material.Filled.QrCode2" Size="Size.Small"
                                    Color="Color.Info" aria-label="QR Code"
                                    OnClick="@(() => OnShowQr.InvokeAsync(context))" />
+                }
+                @if (CanEdit && Reminders.Count > 0)
+                {
+                    <MudMenu Icon="@Icons.Material.Filled.Email" Size="Size.Small"
+                             Color="Color.Secondary" Dense="true"
+                             title="Send reminder email">
+                        @foreach (var rem in Reminders)
+                        {
+                            var reminder = rem;
+                            <MudMenuItem OnClick="@(() => OnSendReminder.InvokeAsync((context, reminder.CompetitionFixtureReminderId)))">
+                                Send: @rem.Subject (@rem.HoursBefore h before)
+                            </MudMenuItem>
+                        }
+                    </MudMenu>
                 }
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => OnOpenEditDialog.InvokeAsync(context))" />
@@ -191,4 +218,7 @@
     [Parameter] public EventCallback<CompetitionFixtureDto> OnShowQr { get; set; }
     [Parameter] public EventCallback<CompetitionFixtureDto> OnOpenEditDialog { get; set; }
     [Parameter] public EventCallback<CompetitionFixtureDto> OnDeleteFixture { get; set; }
+    [Parameter] public EventCallback<CompetitionFixtureDto> OnShowSetScores { get; set; }
+    [Parameter] public IReadOnlyList<CompetitionFixtureReminderDto> Reminders { get; set; } = [];
+    [Parameter] public EventCallback<(CompetitionFixtureDto Fixture, int ReminderId)> OnSendReminder { get; set; }
 }

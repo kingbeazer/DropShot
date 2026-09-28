@@ -152,9 +152,7 @@
     public enum FormatUi { Singles, Doubles, Team }
 
     private static IEnumerable<FormatUi> AllowedFormats(CategoryUi category) =>
-        category == CategoryUi.Mixed
-            ? new[] { FormatUi.Doubles, FormatUi.Team }
-            : new[] { FormatUi.Singles, FormatUi.Doubles, FormatUi.Team };
+        new[] { FormatUi.Singles, FormatUi.Doubles, FormatUi.Team };
 
     private static (CompetitionFormat Format, PlayerSex? EligibleSex) MapToPersisted(
         CategoryUi category, FormatUi format) => (category, format) switch
@@ -195,10 +193,6 @@
 
     private string BuildAutoName()
     {
-        // Clamp an incompatible Format (e.g. user picked Mixed then Singles is no longer listed).
-        if (!AllowedFormats(_buildCategory).Contains(_buildFormatUi))
-            _buildFormatUi = AllowedFormats(_buildCategory).First();
-
         var parts = new List<string>();
         if (_buildAgeBracket.Label != "Open") parts.Add(_buildAgeBracket.Label);
 

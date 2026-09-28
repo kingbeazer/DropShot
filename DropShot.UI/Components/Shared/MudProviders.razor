@@ -1,7 +1,11 @@
 @* Place this component at the top of every @rendermode InteractiveServer page.
    It brings MudBlazor's providers into the same circuit scope as the page so
    that Snackbar, Dialog and Popover services share the circuit's DI scope and
-   can update the UI in response to events raised by the page. *@
+   can update the UI in response to events raised by the page.
+
+   <SiteAlertHost /> renders the in-flow site-wide alert banner (pushes content
+   down) — keep it adjacent to the providers so every interactive page gets it. *@
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
+<SiteAlertHost />

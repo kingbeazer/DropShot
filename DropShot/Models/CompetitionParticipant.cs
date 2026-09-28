@@ -12,6 +12,23 @@ public class CompetitionParticipant
     public int? CompetitionDivisionId { get; set; }
     public string? Role { get; set; }
 
+    // ── Singles Elo Ladder per-player state ─────────────────────────────────
+    // Live rating maintained by LadderRatingService on fixture finalisation.
+    // Only meaningful when Competition.CompetitionFormat == SinglesLadder;
+    // defaults are inert for other formats.
+    public double EloRating { get; set; } = 1000.0;
+    public int MatchesPlayed { get; set; } = 0;
+    public bool IsProvisional { get; set; } = true;
+    public DateTime? LastMatchAt { get; set; }
+
+    // ── Inactivity-decay bookkeeping (LadderInactivityHostedService) ────────
+    // LastInactivityWarningAt: timestamp of the most recent "your rating will
+    // start decaying soon" warning email so the sweep doesn't spam.
+    // LastDecayAppliedAt: anchor for the next weekly decay step; reset
+    // implicitly by LastMatchAt overriding it via the reference-date max.
+    public DateTime? LastInactivityWarningAt { get; set; }
+    public DateTime? LastDecayAppliedAt { get; set; }
+
     public Competition Competition { get; set; } = null!;
     public Player Player { get; set; } = null!;
     public CompetitionTeam? Team { get; set; }

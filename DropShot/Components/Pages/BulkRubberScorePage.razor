@@ -1,0 +1,19 @@
+@page "/score-all-rubbers"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@* Prerender disabled — see RubberScorePage shim for rationale. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject NavigationManager Navigation
+
+<MudProviders />
+<DropShot.UI.Components.Pages.BulkRubberScorePage FixtureId="@_fixtureId" />
+
+@code {
+    private int _fixtureId;
+
+    protected override void OnParametersSet()
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
+        if (int.TryParse(query["fixtureId"], out var f)) _fixtureId = f;
+    }
+}

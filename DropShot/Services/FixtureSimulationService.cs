@@ -81,16 +81,23 @@ public class FixtureSimulationService(RubberResolutionService rubberResolver)
 
         if (!RubberResolutionService.AllComplete(allRubbers)) return;
 
-        var (homeScore, awayScore) = RubberResolutionService.ComputeScore(
+        var (homeRubbers, awayRubbers) = RubberResolutionService.ComputeScore(
             allRubbers, fx.HomeTeamId!.Value, fx.AwayTeamId!.Value);
+
+        // ResultSummary uses the LeagueScoring metric so SetsWon / GamesWon
+        // competitions display the actual scoring count, not rubber count.
+        var scoringMode = fx.Competition?.LeagueScoring ?? LeagueScoringMode.WinPoints;
+        var (homeScore, awayScore, _) = RubberResolutionService.ComputeLeagueScore(
+            allRubbers, fx.HomeTeamId.Value, fx.AwayTeamId.Value, scoringMode);
 
         // Simulation is a super-admin test tool — always completes immediately,
         // bypassing RequireVerification regardless of the competition setting.
         fx.Status = FixtureStatus.Completed;
         fx.CompletedAt = DateTime.UtcNow;
         fx.ResultSummary = $"{homeScore}-{awayScore}";
-        fx.WinnerTeamId = homeScore > awayScore ? fx.HomeTeamId
-                         : awayScore > homeScore ? fx.AwayTeamId
+        // Winner determined by RUBBER count (matches team league table W/D/L).
+        fx.WinnerTeamId = homeRubbers > awayRubbers ? fx.HomeTeamId
+                         : awayRubbers > homeRubbers ? fx.AwayTeamId
                          : null;
         fx.HomeSetsWon = allRubbers.Sum(r => r.HomeSetsWon ?? 0);
         fx.AwaySetsWon = allRubbers.Sum(r => r.AwaySetsWon ?? 0);

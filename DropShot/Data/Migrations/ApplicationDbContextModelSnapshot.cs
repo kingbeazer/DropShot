@@ -17,7 +17,7 @@ namespace DropShot.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.7")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -154,6 +154,9 @@ namespace DropShot.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -178,6 +181,48 @@ namespace DropShot.Migrations
                     b.HasKey("ClubId");
 
                     b.ToTable("Clubs");
+                });
+
+            modelBuilder.Entity("DropShot.Models.ClubAdminRequest", b =>
+                {
+                    b.Property<int>("ClubAdminRequestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClubAdminRequestId"));
+
+                    b.Property<int>("ClubId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ResolvedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("ClubAdminRequestId");
+
+                    b.HasIndex("ResolvedByUserId");
+
+                    b.HasIndex("ClubId", "Status");
+
+                    b.HasIndex("UserId", "ClubId")
+                        .IsUnique()
+                        .HasFilter("[Status] = 1");
+
+                    b.ToTable("ClubAdminRequests");
                 });
 
             modelBuilder.Entity("DropShot.Models.ClubAdministrator", b =>
@@ -406,6 +451,9 @@ namespace DropShot.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<byte?>("EligibleSex")
                         .HasColumnType("tinyint");
 
@@ -414,6 +462,12 @@ namespace DropShot.Migrations
 
                     b.Property<int?>("EventId")
                         .HasColumnType("int");
+
+                    b.Property<int>("FinalSetTieBreakGames")
+                        .HasColumnType("int");
+
+                    b.Property<byte>("FinalSetTieBreakWinMode")
+                        .HasColumnType("tinyint");
 
                     b.Property<int>("GamesPerSet")
                         .HasColumnType("int");
@@ -431,6 +485,18 @@ namespace DropShot.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsStarted")
+                        .HasColumnType("bit");
+
+                    b.Property<double>("LadderKFactor")
+                        .HasColumnType("float");
+
+                    b.Property<int>("LadderProvisionalMatches")
+                        .HasColumnType("int");
+
+                    b.Property<double>("LadderStartingRating")
+                        .HasColumnType("float");
+
+                    b.Property<bool>("LadderUseMarginOfVictory")
                         .HasColumnType("bit");
 
                     b.Property<byte>("LeagueScoring")
@@ -480,6 +546,9 @@ namespace DropShot.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("TeamSize")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WizardStep")
                         .HasColumnType("int");
 
                     b.HasKey("CompetitionID");
@@ -533,6 +602,38 @@ namespace DropShot.Migrations
                     b.ToTable("CompetitionAllowedPlayers");
                 });
 
+            modelBuilder.Entity("DropShot.Models.CompetitionCalendarException", b =>
+                {
+                    b.Property<int>("CompetitionCalendarExceptionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CompetitionCalendarExceptionId"));
+
+                    b.Property<int?>("CompetitionDivisionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompetitionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("ExceptionDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("CompetitionCalendarExceptionId");
+
+                    b.HasIndex("CompetitionDivisionId");
+
+                    b.HasIndex("CompetitionId", "CompetitionDivisionId", "ExceptionDate")
+                        .IsUnique()
+                        .HasFilter("[CompetitionDivisionId] IS NOT NULL");
+
+                    b.ToTable("CompetitionCalendarExceptions");
+                });
+
             modelBuilder.Entity("DropShot.Models.CompetitionDivision", b =>
                 {
                     b.Property<int>("CompetitionDivisionId")
@@ -552,12 +653,53 @@ namespace DropShot.Migrations
                     b.Property<byte>("Rank")
                         .HasColumnType("tinyint");
 
+                    b.Property<bool>("UseSharedMatchWindows")
+                        .HasColumnType("bit");
+
                     b.HasKey("CompetitionDivisionId");
 
                     b.HasIndex("CompetitionId", "Rank")
                         .IsUnique();
 
                     b.ToTable("CompetitionDivisions");
+                });
+
+            modelBuilder.Entity("DropShot.Models.CompetitionEntryConsent", b =>
+                {
+                    b.Property<int>("CompetitionEntryConsentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CompetitionEntryConsentId"));
+
+                    b.Property<int>("CompetitionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ConsentGivenUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ConsentVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ConsentWordingShown")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("WithdrawnUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("CompetitionEntryConsentId");
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("CompetitionId", "PlayerId", "WithdrawnUtc");
+
+                    b.ToTable("CompetitionEntryConsents");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionFixture", b =>
@@ -615,8 +757,20 @@ namespace DropShot.Migrations
                     b.Property<int?>("Player1Id")
                         .HasColumnType("int");
 
+                    b.Property<double?>("Player1RatingAfter")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Player1RatingBefore")
+                        .HasColumnType("float");
+
                     b.Property<int?>("Player2Id")
                         .HasColumnType("int");
+
+                    b.Property<double?>("Player2RatingAfter")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Player2RatingBefore")
+                        .HasColumnType("float");
 
                     b.Property<int?>("Player3Id")
                         .HasColumnType("int");
@@ -626,6 +780,9 @@ namespace DropShot.Migrations
 
                     b.Property<bool>("ResultModifiedByAdmin")
                         .HasColumnType("bit");
+
+                    b.Property<Guid?>("ResultSubmissionToken")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ResultSummary")
                         .HasMaxLength(200)
@@ -681,6 +838,61 @@ namespace DropShot.Migrations
                     b.ToTable("CompetitionFixtures");
                 });
 
+            modelBuilder.Entity("DropShot.Models.CompetitionFixtureReminder", b =>
+                {
+                    b.Property<int>("CompetitionFixtureReminderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CompetitionFixtureReminderId"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("CompetitionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("HoursBefore")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("CompetitionFixtureReminderId");
+
+                    b.HasIndex("CompetitionId");
+
+                    b.ToTable("CompetitionFixtureReminders");
+                });
+
+            modelBuilder.Entity("DropShot.Models.CompetitionFixtureReminderLog", b =>
+                {
+                    b.Property<int>("CompetitionFixtureReminderLogId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CompetitionFixtureReminderLogId"));
+
+                    b.Property<int>("CompetitionFixtureId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CompetitionFixtureReminderId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("CompetitionFixtureReminderLogId");
+
+                    b.HasIndex("CompetitionFixtureId");
+
+                    b.HasIndex("CompetitionFixtureReminderId");
+
+                    b.ToTable("CompetitionFixtureReminderLogs");
+                });
+
             modelBuilder.Entity("DropShot.Models.CompetitionMatchWindow", b =>
                 {
                     b.Property<int>("CompetitionMatchWindowId")
@@ -727,6 +939,24 @@ namespace DropShot.Migrations
                         .HasColumnType("int");
 
                     b.Property<int?>("CompetitionDivisionId")
+                        .HasColumnType("int");
+
+                    b.Property<double>("EloRating")
+                        .HasColumnType("float");
+
+                    b.Property<bool>("IsProvisional")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastDecayAppliedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastInactivityWarningAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastMatchAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MatchesPlayed")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("RegisteredAt")
@@ -1030,6 +1260,41 @@ namespace DropShot.Migrations
                     b.ToTable("LadderEntries");
                 });
 
+            modelBuilder.Entity("DropShot.Models.LadderInactivityDecay", b =>
+                {
+                    b.Property<int>("LadderInactivityDecayId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("LadderInactivityDecayId"));
+
+                    b.Property<DateTime>("AppliedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CompetitionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DaysInactive")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("int");
+
+                    b.Property<double>("RatingAfter")
+                        .HasColumnType("float");
+
+                    b.Property<double>("RatingBefore")
+                        .HasColumnType("float");
+
+                    b.HasKey("LadderInactivityDecayId");
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("CompetitionId", "AppliedAt");
+
+                    b.ToTable("LadderInactivityDecays");
+                });
+
             modelBuilder.Entity("DropShot.Models.Player", b =>
                 {
                     b.Property<int>("PlayerId")
@@ -1169,6 +1434,49 @@ namespace DropShot.Migrations
                         .IsUnique();
 
                     b.ToTable("PlayerInvitations");
+                });
+
+            modelBuilder.Entity("DropShot.Models.PlayerRatingSnapshot", b =>
+                {
+                    b.Property<int>("PlayerRatingSnapshotId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PlayerRatingSnapshotId"));
+
+                    b.Property<string>("AcceptedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("CompetitionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ComputedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsProvisional")
+                        .HasColumnType("bit");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("tinyint");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("int");
+
+                    b.Property<double>("Rating")
+                        .HasColumnType("float");
+
+                    b.Property<int>("RubbersPlayed")
+                        .HasColumnType("int");
+
+                    b.HasKey("PlayerRatingSnapshotId");
+
+                    b.HasIndex("CompetitionId");
+
+                    b.HasIndex("PlayerId", "CompetitionId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("PlayerRatingSnapshots");
                 });
 
             modelBuilder.Entity("DropShot.Models.RoleSwitchLog", b =>
@@ -1682,6 +1990,32 @@ namespace DropShot.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("DropShot.Models.ClubAdminRequest", b =>
+                {
+                    b.HasOne("DropShot.Models.Club", "Club")
+                        .WithMany()
+                        .HasForeignKey("ClubId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DropShot.Data.ApplicationUser", "ResolvedByUser")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DropShot.Data.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Club");
+
+                    b.Navigation("ResolvedByUser");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("DropShot.Models.ClubAdministrator", b =>
                 {
                     b.HasOne("DropShot.Models.Club", "Club")
@@ -1873,6 +2207,24 @@ namespace DropShot.Migrations
                     b.Navigation("Player");
                 });
 
+            modelBuilder.Entity("DropShot.Models.CompetitionCalendarException", b =>
+                {
+                    b.HasOne("DropShot.Models.CompetitionDivision", "Division")
+                        .WithMany("CalendarExceptions")
+                        .HasForeignKey("CompetitionDivisionId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("DropShot.Models.Competition", "Competition")
+                        .WithMany("CalendarExceptions")
+                        .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Competition");
+
+                    b.Navigation("Division");
+                });
+
             modelBuilder.Entity("DropShot.Models.CompetitionDivision", b =>
                 {
                     b.HasOne("DropShot.Models.Competition", "Competition")
@@ -1882,6 +2234,25 @@ namespace DropShot.Migrations
                         .IsRequired();
 
                     b.Navigation("Competition");
+                });
+
+            modelBuilder.Entity("DropShot.Models.CompetitionEntryConsent", b =>
+                {
+                    b.HasOne("DropShot.Models.Competition", "Competition")
+                        .WithMany()
+                        .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DropShot.Models.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Competition");
+
+                    b.Navigation("Player");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionFixture", b =>
@@ -1970,6 +2341,35 @@ namespace DropShot.Migrations
                     b.Navigation("Stage");
 
                     b.Navigation("WinnerTeam");
+                });
+
+            modelBuilder.Entity("DropShot.Models.CompetitionFixtureReminder", b =>
+                {
+                    b.HasOne("DropShot.Models.Competition", "Competition")
+                        .WithMany()
+                        .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Competition");
+                });
+
+            modelBuilder.Entity("DropShot.Models.CompetitionFixtureReminderLog", b =>
+                {
+                    b.HasOne("DropShot.Models.CompetitionFixture", "Fixture")
+                        .WithMany("ReminderLogs")
+                        .HasForeignKey("CompetitionFixtureId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("DropShot.Models.CompetitionFixtureReminder", "Reminder")
+                        .WithMany("Logs")
+                        .HasForeignKey("CompetitionFixtureReminderId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Fixture");
+
+                    b.Navigation("Reminder");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionMatchWindow", b =>
@@ -2166,6 +2566,25 @@ namespace DropShot.Migrations
                     b.Navigation("Player");
                 });
 
+            modelBuilder.Entity("DropShot.Models.LadderInactivityDecay", b =>
+                {
+                    b.HasOne("DropShot.Models.Competition", "Competition")
+                        .WithMany()
+                        .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DropShot.Models.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Competition");
+
+                    b.Navigation("Player");
+                });
+
             modelBuilder.Entity("DropShot.Models.Player", b =>
                 {
                     b.HasOne("DropShot.Models.Club", "CreatedByClub")
@@ -2226,6 +2645,25 @@ namespace DropShot.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("LightPlayer");
+                });
+
+            modelBuilder.Entity("DropShot.Models.PlayerRatingSnapshot", b =>
+                {
+                    b.HasOne("DropShot.Models.Competition", "Competition")
+                        .WithMany()
+                        .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("DropShot.Models.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Competition");
+
+                    b.Navigation("Player");
                 });
 
             modelBuilder.Entity("DropShot.Models.Rubber", b =>
@@ -2467,6 +2905,8 @@ namespace DropShot.Migrations
 
                     b.Navigation("AllowedPlayers");
 
+                    b.Navigation("CalendarExceptions");
+
                     b.Navigation("CourtPairs");
 
                     b.Navigation("Divisions");
@@ -2486,6 +2926,8 @@ namespace DropShot.Migrations
 
             modelBuilder.Entity("DropShot.Models.CompetitionDivision", b =>
                 {
+                    b.Navigation("CalendarExceptions");
+
                     b.Navigation("Participants");
 
                     b.Navigation("Teams");
@@ -2493,7 +2935,14 @@ namespace DropShot.Migrations
 
             modelBuilder.Entity("DropShot.Models.CompetitionFixture", b =>
                 {
+                    b.Navigation("ReminderLogs");
+
                     b.Navigation("Rubbers");
+                });
+
+            modelBuilder.Entity("DropShot.Models.CompetitionFixtureReminder", b =>
+                {
+                    b.Navigation("Logs");
                 });
 
             modelBuilder.Entity("DropShot.Models.CompetitionRubberTemplate", b =>

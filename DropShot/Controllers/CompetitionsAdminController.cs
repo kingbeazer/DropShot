@@ -1,8 +1,11 @@
+using DropShot.Data;
+using DropShot.Services;
 using DropShot.Shared;
 using DropShot.Shared.Dtos;
 using DropShot.UI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace DropShot.Controllers;
 
@@ -16,7 +19,9 @@ namespace DropShot.Controllers;
 [Route("api/competitions/admin")]
 [Authorize(AuthenticationSchemes = "Bearer")]
 public class CompetitionsAdminController(
-    ICompetitionAdminService admin) : ControllerBase
+    ICompetitionAdminService admin,
+    IDbContextFactory<MyDbContext> dbFactory,
+    AdminEmailService emailService) : ControllerBase
 {
     // ── Read ─────────────────────────────────────────────────────────────────
 
@@ -231,6 +236,16 @@ public class CompetitionsAdminController(
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    [HttpPost("{id:int}/participants/bulk-add")]
+    public async Task<ActionResult<BulkAddParticipantsResultDto>> BulkAddParticipants(
+        int id, [FromBody] BulkAddParticipantsRequest req, CancellationToken ct)
+    {
+        try { return await admin.BulkAddParticipantsAsync(id, req, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpDelete("{id:int}/participants/{playerId:int}")]
     public async Task<IActionResult> RemoveParticipant(int id, int playerId, CancellationToken ct)
     {
@@ -255,6 +270,7 @@ public class CompetitionsAdminController(
         try { await admin.AssignParticipantTeamAsync(id, playerId, req, ct); return NoContent(); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpPut("{id:int}/participants/{playerId:int}/role")]
@@ -264,6 +280,7 @@ public class CompetitionsAdminController(
         try { await admin.AssignParticipantRoleAsync(id, playerId, req, ct); return NoContent(); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpPut("{id:int}/participants/{playerId:int}/division")]
@@ -271,6 +288,63 @@ public class CompetitionsAdminController(
         int id, int playerId, [FromBody] SetParticipantDivisionRequest req, CancellationToken ct)
     {
         try { await admin.AssignParticipantDivisionAsync(id, playerId, req, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPut("{id:int}/participants/{playerId:int}/initial-rating")]
+    public async Task<IActionResult> SetParticipantInitialRating(
+        int id, int playerId, [FromBody] SetParticipantInitialRatingRequest req, CancellationToken ct)
+    {
+        try { await admin.SetParticipantInitialRatingAsync(id, playerId, req, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("{id:int}/participants/{playerId:int}/accept-rating")]
+    public async Task<ActionResult<PlayerRatingSuggestionDto>> AcceptParticipantRating(
+        int id, int playerId, CancellationToken ct)
+    {
+        try
+        {
+            var s = await admin.AcceptParticipantRatingAsync(id, playerId, ct);
+            return s is null ? NoContent() : Ok(s);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("{id:int}/ratings/apply-all")]
+    public async Task<ActionResult<List<PlayerRatingSuggestionDto>>> AcceptAllParticipantRatings(
+        int id, CancellationToken ct)
+    {
+        try { return await admin.AcceptAllParticipantRatingsAsync(id, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPut("{id:int}/participants/{playerId:int}/division-placement")]
+    public async Task<IActionResult> ApplyDivisionPlacement(
+        int id, int playerId, [FromBody] ApplyDivisionPlacementRequest req, CancellationToken ct)
+    {
+        try { await admin.ApplyDivisionPlacementAsync(id, playerId, req, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPut("{id:int}/participants/{playerId:int}/role-placement")]
+    public async Task<IActionResult> ApplyRolePlacement(
+        int id, int playerId, [FromBody] ApplyRolePlacementRequest req, CancellationToken ct)
+    {
+        try { await admin.ApplyRolePlacementAsync(id, playerId, req, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("{id:int}/placements/apply-all")]
+    public async Task<ActionResult<int>> ApplyAllPlacements(int id, CancellationToken ct)
+    {
+        try { return await admin.ApplyAllPlacementsAsync(id, ct); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }
@@ -548,5 +622,80 @@ public class CompetitionsAdminController(
         try { return await admin.ImportMatchWindowsFromTemplateAsync(id, req, ct); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    [HttpPost("{id:int}/calendar-exceptions")]
+    public async Task<ActionResult<int>> AddCalendarException(
+        int id, [FromBody] SaveCalendarExceptionRequest req, CancellationToken ct)
+    {
+        try { return await admin.AddCalendarExceptionAsync(id, req, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpDelete("{id:int}/calendar-exceptions/{exceptionId:int}")]
+    public async Task<IActionResult> DeleteCalendarException(int id, int exceptionId, CancellationToken ct)
+    {
+        try { await admin.DeleteCalendarExceptionAsync(id, exceptionId, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    // ── Fixture reminder emails ───────────────────────────────────────────────
+
+    [HttpGet("{id:int}/fixture-reminders")]
+    public async Task<ActionResult<List<CompetitionFixtureReminderDto>>> GetFixtureReminders(
+        int id, CancellationToken ct)
+        => await admin.GetFixtureRemindersAsync(id, ct);
+
+    [HttpGet("{id:int}/scheduled-reminder-emails")]
+    public async Task<ActionResult<List<ScheduledReminderEmailDto>>> GetScheduledReminderEmails(
+        int id, CancellationToken ct)
+        => await admin.GetScheduledReminderEmailsAsync(id, ct);
+
+    [HttpPost("{id:int}/fixture-reminders")]
+    public async Task<ActionResult<int>> AddFixtureReminder(
+        int id, [FromBody] SaveFixtureReminderRequest req, CancellationToken ct)
+    {
+        try { return await admin.SaveFixtureReminderAsync(id, null, req, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
+    [HttpPut("{id:int}/fixture-reminders/{reminderId:int}")]
+    public async Task<ActionResult<int>> UpdateFixtureReminder(
+        int id, int reminderId, [FromBody] SaveFixtureReminderRequest req, CancellationToken ct)
+    {
+        try { return await admin.SaveFixtureReminderAsync(id, reminderId, req, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpDelete("{id:int}/fixture-reminders/{reminderId:int}")]
+    public async Task<IActionResult> DeleteFixtureReminder(int id, int reminderId, CancellationToken ct)
+    {
+        try { await admin.DeleteFixtureReminderAsync(id, reminderId, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("{id:int}/fixtures/{fixtureId:int}/send-reminder/{reminderId:int}")]
+    public async Task<IActionResult> SendFixtureReminderManual(
+        int id, int fixtureId, int reminderId, CancellationToken ct)
+    {
+        try { await admin.SendFixtureReminderManualAsync(id, fixtureId, reminderId, ct); return NoContent(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("run-reminder-sweep")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<int>> RunReminderSweep(CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var result = await FixtureReminderService.RunSweepAsync(db, DateTime.UtcNow, emailService, ct);
+        return Ok(result.RemindersSent);
     }
 }

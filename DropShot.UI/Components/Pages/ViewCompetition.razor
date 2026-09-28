@@ -1,9 +1,15 @@
 @inject ICompetitionService CompetitionService
 @inject IRulesSetService RulesSetService
+@inject IMatchScoringService MatchScoring
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @using DropShot.Shared.Extensions
 @using DropShot.Shared.Helpers
+@using DropShot.Shared.Dtos
+@using DropShot.UI.Components.Shared
+@using DropShot.UI.Services
 
 @* Routing + auth + MudProviders supplied by host shims. *@
 
@@ -65,6 +71,14 @@ else
         }
     </MudStack>
 
+    @if (!string.IsNullOrWhiteSpace(_competition.Description))
+    {
+        <MudPaper Class="pa-4 mb-4 markdown-body" Elevation="0"
+                  Style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px;">
+            @((MarkupString)DropShot.UI.Services.MarkdownRenderer.ToHtml(_competition.Description))
+        </MudPaper>
+    }
+
     <MudGrid Spacing="3" Class="mb-4">
         <MudItem xs="6" sm="3">
             <MudText Typo="Typo.caption" Color="Color.Secondary">Format</MudText>
@@ -102,6 +116,86 @@ else
         }
     </MudGrid>
 
+    @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder
+         && CurrentUser.IsSuperAdmin)
+    {
+        <MudPaper Class="pa-3 mb-4" Elevation="0" Style="background: rgba(255,193,7,0.10); border: 1px dashed rgba(255,193,7,0.4);">
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                <MudIcon Icon="@Icons.Material.Filled.Science" Color="Color.Warning" />
+                <MudStack Spacing="0" Style="flex:1 1 auto;">
+                    <MudText Typo="Typo.body2"><b>SuperAdmin: simulate ladder activity</b></MudText>
+                    <MudText Typo="Typo.caption" Style="opacity:0.85">
+                        Replaces all fixtures and resets every participant's rating, then generates synthetic matches across the chosen window. Some players are designated idle so the inactivity decay fires too.
+                    </MudText>
+                </MudStack>
+                <MudNumericField T="int" @bind-Value="_simulateWeeks"
+                                 Label="Weeks" Min="1" Max="26"
+                                 Style="max-width:90px;" Margin="Margin.Dense" />
+                <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                           Disabled="@_simulating"
+                           OnClick="@(() => _showSimulateConfirmDialog = true)">
+                    Simulate
+                </MudButton>
+            </MudStack>
+            @if (!string.IsNullOrEmpty(_simulateMessage))
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">@_simulateMessage</MudAlert>
+            }
+        </MudPaper>
+
+        <MudDialog @bind-Visible="_showSimulateConfirmDialog"
+                   Options="@(new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
+            <TitleContent>Simulate @_simulateWeeks week(s) of activity?</TitleContent>
+            <DialogContent>
+                <MudText Typo="Typo.body2">
+                    This will <b>delete all existing fixtures</b> and <b>reset every participant's rating</b>
+                    for this ladder before generating synthetic activity. Continue?
+                </MudText>
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="@(() => _showSimulateConfirmDialog = false)">Cancel</MudButton>
+                <MudButton Color="Color.Warning" Variant="Variant.Filled"
+                           Disabled="@_simulating"
+                           OnClick="RunLadderSimulationAsync">
+                    Yes, simulate
+                </MudButton>
+            </DialogActions>
+        </MudDialog>
+    }
+
+    @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder
+         && _myParticipant?.Status == ParticipantStatus.FullPlayer
+         && CurrentUser.CanScoreMatch)
+    {
+        <MudPaper Class="pa-3 mb-4" Elevation="0" Style="background: rgba(0,180,216,0.08);">
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Color="Color.Info" />
+                <MudText Typo="Typo.body2" Style="flex:1 1 auto;">
+                    Record a singles match against another participant — ratings update on the spot.
+                </MudText>
+                <MudSelect T="int?" @bind-Value="_ladderOpponentId" Variant="Variant.Outlined"
+                           Dense="true" Label="Opponent" Style="min-width:220px;">
+                    @foreach (var opp in _participants
+                                 .Where(p => p.Status == ParticipantStatus.FullPlayer
+                                             && p.PlayerId != _myParticipant.PlayerId)
+                                 .OrderBy(p => p.DisplayName))
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)opp.PlayerId)">@opp.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="@(!_ladderOpponentId.HasValue || _ladderCreating)"
+                           OnClick="StartLadderMatchAsync">
+                    Record match
+                </MudButton>
+            </MudStack>
+            @if (!string.IsNullOrEmpty(_ladderError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_ladderError</MudAlert>
+            }
+        </MudPaper>
+    }
+
     @if (!_canEdit && _myParticipant?.Status == ParticipantStatus.Registered)
     {
         <MudAlert Severity="Severity.Info" Class="mb-4">
@@ -130,6 +224,26 @@ else
         </MudAlert>
     }
 
+    @* "Leave competition" — visible to any active participant of the
+       competition. One-click action (no extra confirmation) so withdrawing
+       consent is as easy as giving it, per GDPR. Sets ParticipantStatus to
+       Withdrawn and stamps the active CompetitionEntryConsent row's
+       WithdrawnUtc — peer views drop the number on reload. *@
+    @if (!_canEdit
+         && _myParticipant is not null
+         && _myParticipant.Status != ParticipantStatus.Withdrawn
+         && _myParticipant.Status != ParticipantStatus.Disqualified)
+    {
+        <MudStack Row="true" Class="mb-4">
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                       StartIcon="@Icons.Material.Filled.ExitToApp"
+                       Disabled="_leaveSaving"
+                       OnClick="LeaveCompetitionAsync">
+                Leave competition
+            </MudButton>
+        </MudStack>
+    }
+
     <MudDivider Class="mb-4" />
 
     @* mb-2 on each individual panel below puts a visible gap between
@@ -139,157 +253,210 @@ else
        spacing — easy thing to mistake. *@
     <MudExpansionPanels MultiExpansion="true" Class="mb-4">
 
-    @if (!(_canEdit && _competition.HasDivisions))
-    {
-    var visibleDivisionCount = _fixturesByDivision.Count(g => g.StageGroups.Count > 0);
-    var showDivisionHeadings = _competition.HasDivisions && visibleDivisionCount > 1;
-
-    <MudExpansionPanel Class="mb-2" Text="Scheduled Matches">
-    @if (!_fixtures.Any())
-    {
-        <MudAlert Severity="Severity.Info" Class="mb-4">No matches scheduled yet.</MudAlert>
-    }
-    else
-    {
-        @foreach (var divGroup in _fixturesByDivision.Where(g => g.StageGroups.Count > 0))
-        {
-            @if (showDivisionHeadings)
-            {
-                <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(divGroup.Division?.Name ?? "Unassigned")</MudText>
-            }
-            @foreach (var stageGroup in divGroup.StageGroups)
-            {
-                <MudText Typo="@(showDivisionHeadings ? Typo.subtitle1 : Typo.h6)"
-                         Class="@(showDivisionHeadings ? "mt-2 mb-1 ms-3" : "mt-3 mb-2")">
-                    @(stageGroup.StageName ?? "Unassigned")
-                </MudText>
-                @RenderFixturesTable(stageGroup.Fixtures)
-            }
-        }
-    }
-    </MudExpansionPanel>
+    @{
+        var isTeamFormat = _competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch && _teams.Any();
     }
 
-    @if (_canEdit && _competition.HasDivisions)
+    @if (_competition.HasDivisions)
     {
-        @foreach (var divGroup in _fixturesByDivision)
+        var (leagueForHeader, leagueAgainstHeader, leagueForTooltip, leagueAgainstTooltip) = LeagueHeaders();
+
+        @* One expander per division. Inside each, Fixtures / Teams / Contact
+           info / League table get their own nested expander so users can
+           collapse the parts they don't need. Rules remain shared at the
+           page level. *@
+        @foreach (var division in _divisions.OrderBy(d => d.Rank))
         {
-            var divKey = divGroup.Division?.CompetitionDivisionId;
+            var divId = (int?)division.CompetitionDivisionId;
+            var divFixtures = _fixturesByDivision
+                .FirstOrDefault(g => g.Division?.CompetitionDivisionId == divId)?.StageGroups
+                ?? new List<(string? StageName, List<CompetitionFixtureDto> Fixtures)>();
             var divTeams = _teamsByDivision
-                .FirstOrDefault(g => g.Division?.CompetitionDivisionId == divKey).Teams
+                .FirstOrDefault(g => g.Division?.CompetitionDivisionId == divId).Teams
                 ?? new List<CompetitionTeamDto>();
-            var stageGroups = divGroup.StageGroups;
-            var fxCount = stageGroups.Sum(sg => sg.Fixtures.Count);
-            var panelTitle = $"{divGroup.Division?.Name ?? "Unassigned"} — {divTeams.Count} team{(divTeams.Count == 1 ? "" : "s")}, {fxCount} match{(fxCount == 1 ? "" : "es")}";
+            var divLeagueRows = _teamLeagueTablesByDivision
+                .FirstOrDefault(g => g.Division?.CompetitionDivisionId == divId).Rows
+                ?? new List<TeamLeagueRow>();
+            var divFxCount = divFixtures.Sum(sg => sg.Fixtures.Count);
+            var panelTitle = $"{division.Name} — {divTeams.Count} team{(divTeams.Count == 1 ? "" : "s")}, {divFxCount} match{(divFxCount == 1 ? "" : "es")}";
+            var showContact = isTeamFormat && CanSeeContactForDivision(divId);
 
             <MudExpansionPanel Class="mb-2" Text="@panelTitle">
-                <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Scheduled Matches</MudText>
-                @if (stageGroups.Count == 0)
-                {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">No matches scheduled.</MudText>
-                }
-                else
-                {
-                    @foreach (var stageGroup in stageGroups)
+                <MudExpansionPanels MultiExpansion="true">
+
+                    <MudExpansionPanel Class="mb-1" Text="@($"Fixtures ({divFxCount})")">
+                        @if (divFxCount == 0)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">No matches scheduled for this division yet.</MudText>
+                        }
+                        else
+                        {
+                            @foreach (var stageGroup in divFixtures)
+                            {
+                                <MudText Typo="Typo.subtitle1" Class="mt-2 mb-1">@(stageGroup.StageName ?? "Unassigned")</MudText>
+                                @RenderFixturesTable(stageGroup.Fixtures)
+                            }
+                        }
+                    </MudExpansionPanel>
+
+                    @if (isTeamFormat)
                     {
-                        <MudText Typo="Typo.body1" Class="mt-2 mb-1">@(stageGroup.StageName ?? "Unassigned")</MudText>
-                        @RenderFixturesTable(stageGroup.Fixtures)
+                        <MudExpansionPanel Class="mb-1" Text="@($"Teams ({divTeams.Count})")">
+                            @if (divTeams.Count == 0)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">No teams assigned to this division.</MudText>
+                            }
+                            else
+                            {
+                                @foreach (var team in divTeams)
+                                {
+                                    var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
+                                    <MudText Typo="Typo.subtitle1" Class="mt-3 mb-1" Style="font-weight:600">
+                                        @team.Name <MudText Inline="true" Typo="Typo.caption" Color="Color.Secondary">(@members.Count player@(members.Count == 1 ? "" : "s"))</MudText>
+                                    </MudText>
+                                    <MudTable Items="@members" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table team-members-table">
+                                        <HeaderContent>
+                                            <MudTh Style="width:auto">Player</MudTh>
+                                            <MudTh Style="width:140px">Role</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd DataLabel="Player">
+                                                @context.DisplayName
+                                                @if (team.CaptainPlayerId == context.PlayerId)
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Class="ml-2">Captain</MudChip>
+                                                }
+                                            </MudTd>
+                                            <MudTd DataLabel="Role">
+                                                <MudChip T="string" Size="Size.Small" Color="@RoleColor(context.Role)">@(string.IsNullOrEmpty(context.Role) ? "—" : context.Role)</MudChip>
+                                            </MudTd>
+                                        </RowTemplate>
+                                        <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
+                                    </MudTable>
+                                }
+                            }
+                        </MudExpansionPanel>
                     }
-                }
 
-                <MudDivider Class="my-3" />
-
-                <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Teams</MudText>
-                @if (divTeams.Count == 0)
-                {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">No teams assigned.</MudText>
-                }
-                else
-                {
-                    @foreach (var team in divTeams)
+                    @if (showContact)
                     {
-                        var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
-                        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1" Style="font-weight:600">
-                            @team.Name <MudText Inline="true" Typo="Typo.caption" Color="Color.Secondary">(@members.Count player@(members.Count == 1 ? "" : "s"))</MudText>
-                        </MudText>
-                        <MudTable Items="@members" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table team-members-table">
-                            <HeaderContent>
-                                <MudTh Style="width:auto">Player</MudTh>
-                                <MudTh Style="width:180px">Mobile</MudTh>
-                                <MudTh Style="width:140px">Status</MudTh>
-                            </HeaderContent>
-                            <RowTemplate>
-                                <MudTd DataLabel="Player">@context.DisplayName</MudTd>
-                                <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
-                                <MudTd DataLabel="Status">
-                                    <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                                        @ParticipantStatusLabel(context.Status)
-                                    </MudChip>
-                                </MudTd>
-                            </RowTemplate>
-                            <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
-                        </MudTable>
-                    }
-                }
+                        <MudExpansionPanel Class="mb-1" Text="Contact information">
+                            @if (divTeams.Count == 0)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">No teams to list contact details for.</MudText>
+                            }
+                            else
+                            {
+                                @foreach (var team in divTeams)
+                                {
+                                    var members = _participants
+                                        .Where(p => p.TeamId == team.CompetitionTeamId)
+                                        .OrderBy(p => p.DisplayName)
+                                        .ToList();
+                                    <MudText Typo="Typo.subtitle1" Class="mt-3 mb-1" Style="font-weight:600">@team.Name</MudText>
+                                    <MudTable Items="@members" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table team-members-table">
+                                        <HeaderContent>
+                                            <MudTh Style="width:auto">Player</MudTh>
+                                            <MudTh Style="width:180px">Mobile</MudTh>
+                                            <MudTh Style="width:140px">Role</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd DataLabel="Player">
+                                                @context.DisplayName
+                                                @if (team.CaptainPlayerId == context.PlayerId)
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Class="ml-2">Captain</MudChip>
+                                                }
+                                            </MudTd>
+                                            <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                                            <MudTd DataLabel="Role">
+                                                <MudChip T="string" Size="Size.Small" Color="@RoleColor(context.Role)">@(string.IsNullOrEmpty(context.Role) ? "—" : context.Role)</MudChip>
+                                            </MudTd>
+                                        </RowTemplate>
+                                        <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
+                                    </MudTable>
+                                }
+                            }
 
-                @{
-                    var divSubs = _participants
-                        .Where(p => p.Status == ParticipantStatus.Substitute
-                            && (p.CompetitionDivisionId == divKey
-                                || (p.TeamId.HasValue && divTeams.Any(t => t.CompetitionTeamId == p.TeamId.Value))))
-                        .OrderBy(p => p.DisplayName)
-                        .ToList();
-                }
-                @if (divSubs.Count > 0)
-                {
-                    <MudDivider Class="my-3" />
-                    <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Substitutes</MudText>
-                    <MudTable Items="@divSubs" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table">
-                        <HeaderContent>
-                            <MudTh Style="width:auto">Player</MudTh>
-                            <MudTh Style="width:180px">Mobile</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="Player">@context.DisplayName</MudTd>
-                            <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
-                        </RowTemplate>
-                        <NoRecordsContent><MudText Typo="Typo.caption">No substitutes.</MudText></NoRecordsContent>
-                    </MudTable>
-                }
+                            @{
+                                var divSubs = _participants
+                                    .Where(p => p.Status == ParticipantStatus.Substitute
+                                        && (p.CompetitionDivisionId == divId
+                                            || (p.TeamId.HasValue && divTeams.Any(t => t.CompetitionTeamId == p.TeamId.Value))))
+                                    .OrderBy(p => p.DisplayName)
+                                    .ToList();
+                            }
+                            @if (divSubs.Count > 0)
+                            {
+                                <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Substitutes</MudText>
+                                <MudTable Items="@divSubs" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table team-members-table">
+                                    <HeaderContent>
+                                        <MudTh Style="width:auto">Player</MudTh>
+                                        <MudTh Style="width:180px">Mobile</MudTh>
+                                        <MudTh Style="width:140px">Role</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                                        <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                                        <MudTd DataLabel="Role">
+                                            <MudChip T="string" Size="Size.Small" Color="@RoleColor(context.Role)">@(string.IsNullOrEmpty(context.Role) ? "—" : context.Role)</MudChip>
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            }
+                        </MudExpansionPanel>
+                    }
+
+                    @if (divLeagueRows.Any())
+                    {
+                        <MudExpansionPanel Class="mb-1" Text="League table">
+                            @RenderTeamLeagueTable(divLeagueRows, leagueForHeader, leagueAgainstHeader, leagueForTooltip, leagueAgainstTooltip)
+                        </MudExpansionPanel>
+                    }
+
+                </MudExpansionPanels>
             </MudExpansionPanel>
         }
     }
-
-    @if (_teamLeagueTablesByDivision.Any(g => g.Rows.Any()))
+    else if (_competition.CompetitionFormat != CompetitionFormat.SinglesLadder)
     {
-        var (forHeader, againstHeader, forTooltip, againstTooltip) = LeagueHeaders();
-        var visibleLeagueGroups = _teamLeagueTablesByDivision.Where(g => g.Rows.Any()).ToList();
-        var showLeagueHeadings = visibleLeagueGroups.Count > 1;
-        var leagueTitle = showLeagueHeadings ? "Division League Tables" : "League Table";
-
-        <MudExpansionPanel Class="mb-2" Text="@leagueTitle">
-            @foreach (var group in visibleLeagueGroups)
+        @* Non-divisional competitions keep the flat Fixtures + Teams panels.
+           SinglesLadder uses the Recent Activity feed instead — fixture rows
+           are ad-hoc and already rendered there alongside decay events. *@
+        <MudExpansionPanel Class="mb-2" Text="Fixtures">
+        @if (!_fixtures.Any())
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-4">No matches scheduled yet.</MudAlert>
+        }
+        else
+        {
+            @foreach (var divGroup in _fixturesByDivision.Where(g => g.StageGroups.Count > 0))
             {
-                var rows = group.Rows;
-                var heading = group.Division?.Name ?? "Unassigned";
-                @if (showLeagueHeadings)
+                @foreach (var stageGroup in divGroup.StageGroups)
                 {
-                    <MudText Typo="Typo.h6" Class="mt-3 mb-2">@heading</MudText>
+                    <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(stageGroup.StageName ?? "Unassigned")</MudText>
+                    @RenderFixturesTable(stageGroup.Fixtures)
                 }
-                @RenderTeamLeagueTable(rows, forHeader, againstHeader, forTooltip, againstTooltip)
             }
+        }
         </MudExpansionPanel>
     }
-    else if (_teamLeagueTable.Any())
+
+    @* Page-level league table for non-divisional competitions only. Divisional
+       competitions render their league tables inside each division expander. *@
+    @if (!_competition.HasDivisions && _teamLeagueTable.Any())
     {
         var (forHeader, againstHeader, forTooltip, againstTooltip) = LeagueHeaders();
         <MudExpansionPanel Class="mb-2" Text="Team League Table">
             @RenderTeamLeagueTable(_teamLeagueTable, forHeader, againstHeader, forTooltip, againstTooltip)
         </MudExpansionPanel>
     }
-    else if (_leagueTable.Any())
+    else if (!_competition.HasDivisions && _leagueTable.Any())
     {
-        <MudExpansionPanel Class="mb-2" Text="League Table">
+        var isLadder = _competition.CompetitionFormat == CompetitionFormat.SinglesLadder;
+        var pointsHeader = isLadder ? "Rating" : "Pts";
+        var panelTitle = isLadder ? "Ladder Standings" : "League Table";
+        <MudExpansionPanel Class="mb-2" Text="@panelTitle">
             <MudTable Items="@_leagueTable" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:600px">
                 <HeaderContent>
                     <MudTh>Pos</MudTh>
@@ -297,60 +464,124 @@ else
                     <MudTh>P</MudTh>
                     <MudTh>W</MudTh>
                     <MudTh>L</MudTh>
-                    <MudTh>Pts</MudTh>
+                    <MudTh>@pointsHeader</MudTh>
+                    @if (isLadder)
+                    {
+                        <MudTh>Last played</MudTh>
+                    }
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Pos">@(_leagueTable.IndexOf(context) + 1)</MudTd>
-                    <MudTd DataLabel="Player" Style="font-weight:500">@context.PlayerName</MudTd>
+                    <MudTd DataLabel="Player" Style="font-weight:500">
+                        @context.PlayerName
+                        @if (isLadder && _participants.FirstOrDefault(p => p.PlayerId == context.PlayerId)?.LadderIsProvisional == true)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined" Class="ml-2">prov</MudChip>
+                        }
+                    </MudTd>
                     <MudTd DataLabel="P">@context.Played</MudTd>
                     <MudTd DataLabel="W">@context.Won</MudTd>
                     <MudTd DataLabel="L">@context.Lost</MudTd>
-                    <MudTd DataLabel="Pts" Style="font-weight:bold">@context.Points</MudTd>
+                    <MudTd DataLabel="@pointsHeader" Style="font-weight:bold">@context.Points</MudTd>
+                    @if (isLadder)
+                    {
+                        <MudTd DataLabel="Last played">@LastPlayedLabel(context.PlayerId)</MudTd>
+                    }
                 </RowTemplate>
             </MudTable>
         </MudExpansionPanel>
     }
 
-    @if (_canEdit && _competition.HasDivisions)
+    @* Recent activity feed for SinglesLadder — completed fixtures and decay
+       events merged chronologically. Only renders when there's something to
+       show; non-ladder formats fall through to the existing fixtures panels. *@
+    @if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder && _ladderActivity.Count > 0)
     {
-        @if (_participants.Any(p => p.TeamId == null))
-        {
-            <MudExpansionPanel Class="mb-2" Text="Unassigned Participants">
-                <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table">
-                    <HeaderContent>
-                        <MudTh>Player</MudTh>
-                        <MudTh>Mobile</MudTh>
-                        <MudTh>Status</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="Player">@context.DisplayName</MudTd>
-                        <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
-                        <MudTd DataLabel="Status">
-                            <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                                @ParticipantStatusLabel(context.Status)
-                            </MudChip>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudExpansionPanel>
-        }
+        <MudExpansionPanel Class="mb-2" Text="Recent activity">
+            <MudTable Items="@_ladderActivity" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:760px">
+                <HeaderContent>
+                    <MudTh>When</MudTh>
+                    <MudTh>Event</MudTh>
+                    <MudTh>Detail</MudTh>
+                    <MudTh Style="text-align:right">Δ Rating</MudTh>
+                    <MudTh Style="width:40px"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="When">@context.At.ToLocalTime().ToString("dd MMM HH:mm")</MudTd>
+                    <MudTd DataLabel="Event">
+                        @if (context.Kind == "Decay")
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Inactivity</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Match</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Detail">@context.Description</MudTd>
+                    <MudTd DataLabel="Δ Rating" Style="text-align:right; font-variant-numeric:tabular-nums">
+                        @if (context.Delta.HasValue)
+                        {
+                            var d = context.Delta.Value;
+                            var color = d >= 0 ? Color.Success : Color.Error;
+                            <MudText Inline="true" Color="@color">@(d >= 0 ? "+" : "")@d.ToString("0")</MudText>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        @if (context.Detail is not null)
+                        {
+                            <MudTooltip Text="Explain this rating change">
+                                <MudIconButton Icon="@Icons.Material.Filled.Info"
+                                               Size="Size.Small"
+                                               OnClick="@(() => OpenExplanation(context.Detail))" />
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudExpansionPanel>
+
+        <MudDialog @bind-Visible="_showExplanationDialog"
+                   Options="@(new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
+            <TitleContent>Rating change explained</TitleContent>
+            <DialogContent>
+                @if (_selectedExplanation is { } x)
+                {
+                    var (line1, line2, blocks) = BuildExplanation(x);
+                    <MudText Typo="Typo.body2"><b>@line1</b></MudText>
+                    <MudText Typo="Typo.caption" Class="mb-3" Style="opacity:0.85">@line2</MudText>
+                    <MudSimpleTable Dense="true" Hover="false" Elevation="0">
+                        <tbody>
+                            @foreach (var (label, value) in blocks)
+                            {
+                                <tr>
+                                    <td style="opacity:0.75; padding:4px 8px;">@label</td>
+                                    <td style="font-variant-numeric:tabular-nums; padding:4px 8px;">@value</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                    <MudText Typo="Typo.caption" Class="mt-3" Style="opacity:0.75">
+                        Elo math: <em>delta = K × MoV × (score − expected)</em>. Score is 1 for a win, 0 for a loss. Expected is the chance of winning given the rating gap. K is the base K-factor (doubled while a player is provisional). MoV is the optional margin-of-victory multiplier.
+                    </MudText>
+                }
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="@(() => _showExplanationDialog = false)">Close</MudButton>
+            </DialogActions>
+        </MudDialog>
     }
-    else
+
+    @* Non-divisional: keep the flat Teams / Competitors panel below the
+       per-division panels' siblings. Divisional team formats render team
+       rosters inside each division expander above. *@
+    @if (!_competition.HasDivisions || !isTeamFormat)
     {
-        var isTeamFormat = _competition.CompetitionFormat is CompetitionFormat.Team or CompetitionFormat.TeamMatch && _teams.Any();
-        var competitorsPanelText = isTeamFormat ? "Teams" : "Competitors";
+    var competitorsPanelText = isTeamFormat ? "Teams" : "Competitors";
     <MudExpansionPanel Class="mb-2" Text="@competitorsPanelText">
-    @if (isTeamFormat)
-    {
-        var visibleTeamGroups = _teamsByDivision.Where(g => g.Teams.Count > 0).ToList();
-        var showTeamsDivisionHeadings = _competition.HasDivisions && visibleTeamGroups.Count > 1;
-        @foreach (var teamsGroup in visibleTeamGroups)
+        @if (isTeamFormat)
         {
-            @if (showTeamsDivisionHeadings)
-            {
-                <MudText Typo="Typo.h6" Class="mt-3 mb-2">@(teamsGroup.Division?.Name ?? "Unassigned")</MudText>
-            }
-            @foreach (var team in teamsGroup.Teams)
+            @foreach (var team in _teams)
             {
                 var members = _participants.Where(p => p.TeamId == team.CompetitionTeamId).ToList();
                 <MudText Typo="Typo.subtitle1" Class="mt-3 mb-1" Style="font-weight:600">
@@ -359,67 +590,93 @@ else
                 <MudTable Items="@members" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table team-members-table">
                     <HeaderContent>
                         <MudTh Style="width:auto">Player</MudTh>
-                        <MudTh Style="width:180px">Mobile</MudTh>
-                        <MudTh Style="width:140px">Status</MudTh>
+                        <MudTh Style="width:140px">Role</MudTh>
                     </HeaderContent>
                     <RowTemplate>
-                        <MudTd DataLabel="Player">@context.DisplayName</MudTd>
-                        <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
-                        <MudTd DataLabel="Status">
-                            <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                                @ParticipantStatusLabel(context.Status)
-                            </MudChip>
+                        <MudTd DataLabel="Player">
+                            @context.DisplayName
+                            @if (team.CaptainPlayerId == context.PlayerId)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Class="ml-2">Captain</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Role">
+                            <MudChip T="string" Size="Size.Small" Color="@RoleColor(context.Role)">@(string.IsNullOrEmpty(context.Role) ? "—" : context.Role)</MudChip>
                         </MudTd>
                     </RowTemplate>
                     <NoRecordsContent><MudText Typo="Typo.caption">No players in this team.</MudText></NoRecordsContent>
                 </MudTable>
             }
-        }
 
-        @if (_participants.Any(p => p.TeamId == null))
+            var subs = _participants
+                .Where(p => p.Status == ParticipantStatus.Substitute)
+                .OrderBy(p => p.DisplayName)
+                .ToList();
+            @if (subs.Count > 0)
+            {
+                <MudDivider Class="my-3" />
+                <MudText Typo="Typo.subtitle1" Class="mt-1 mb-2">Substitutes</MudText>
+                <MudTable Items="@subs" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-2 mobile-stack-table team-members-table">
+                    <HeaderContent>
+                        <MudTh Style="width:auto">Player</MudTh>
+                        <MudTh Style="width:140px">Role</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                        <MudTd DataLabel="Role">
+                            <MudChip T="string" Size="Size.Small" Color="@RoleColor(context.Role)">@(string.IsNullOrEmpty(context.Role) ? "—" : context.Role)</MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        }
+        else
         {
-            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Unassigned</MudText>
-            <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table team-members-table">
+            <MudTable Items="@_participants" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:700px">
                 <HeaderContent>
-                    <MudTh Style="width:auto">Player</MudTh>
-                    <MudTh Style="width:180px">Mobile</MudTh>
-                    <MudTh Style="width:140px">Status</MudTh>
+                    <MudTh>Player</MudTh>
+                    <MudTh>Mobile</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Registered</MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                    <MudTd DataLabel="Player" Style="font-weight:500">@context.DisplayName</MudTd>
                     <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
                     <MudTd DataLabel="Status">
                         <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
                             @context.Status
                         </MudChip>
                     </MudTd>
+                    <MudTd DataLabel="Registered">@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
                 </RowTemplate>
+                <NoRecordsContent><MudText Typo="Typo.caption">No competitors registered.</MudText></NoRecordsContent>
             </MudTable>
         }
-    }
-    else
-    {
-        <MudTable Items="@_participants" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mb-4 mobile-stack-table" Style="max-width:700px">
-            <HeaderContent>
-                <MudTh>Player</MudTh>
-                <MudTh>Mobile</MudTh>
-                <MudTh>Status</MudTh>
-                <MudTh>Registered</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Player" Style="font-weight:500">@context.DisplayName</MudTd>
-                <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
-                <MudTd DataLabel="Status">
-                    <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
-                        @context.Status
-                    </MudChip>
-                </MudTd>
-                <MudTd DataLabel="Registered">@context.RegisteredAt.ToString("dd MMM yyyy")</MudTd>
-            </RowTemplate>
-            <NoRecordsContent><MudText Typo="Typo.caption">No competitors registered.</MudText></NoRecordsContent>
-        </MudTable>
-    }
     </MudExpansionPanel>
+    }
+
+    @* Editor-only: surface participants who haven't been placed in a team yet,
+       so the admin can see what's missing without hunting through the Teams panel. *@
+    @if (_canEdit && _competition.HasDivisions && isTeamFormat && _participants.Any(p => p.TeamId == null))
+    {
+        <MudExpansionPanel Class="mb-2" Text="Unassigned Participants">
+            <MudTable Items="@_participants.Where(p => p.TeamId == null).ToList()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mobile-stack-table">
+                <HeaderContent>
+                    <MudTh>Player</MudTh>
+                    <MudTh>Mobile</MudTh>
+                    <MudTh>Status</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Player">@context.DisplayName</MudTd>
+                    <MudTd DataLabel="Mobile">@(context.MobileNumber ?? "—")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@ParticipantColor(context.Status)">
+                            @ParticipantStatusLabel(context.Status)
+                        </MudChip>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudExpansionPanel>
     }
 
     @* Rules panel comes last — competitors-and-fixtures content is what
@@ -452,6 +709,13 @@ else
     }
 
     </MudExpansionPanels>
+
+    <GoogleAd />
+
+    <DropShot.UI.Components.Shared.MatchSetScoresDialog
+        Visible="_showSetScoresDialog"
+        VisibleChanged="@(v => _showSetScoresDialog = v)"
+        Fixture="_setScoresFixture" />
 }
 
 @code {
@@ -460,7 +724,15 @@ else
     private bool _loading = true;
     private bool _canEdit;
     private bool _canView;
+    private bool _showSetScoresDialog;
+    private CompetitionFixtureDto? _setScoresFixture;
     private CompetitionDetailDto? _competition;
+
+    private void OpenSetScoresDialog(CompetitionFixtureDto f)
+    {
+        _setScoresFixture = f;
+        _showSetScoresDialog = true;
+    }
     private List<CompetitionFixtureDto> _fixtures = [];
     private List<CompetitionParticipantDto> _participants = [];
     private List<CompetitionTeamDto> _teams = [];
@@ -471,6 +743,91 @@ else
 
     private record LeagueRow(int PlayerId, string PlayerName, int Played, int Won, int Lost, int Points);
     private List<LeagueRow> _leagueTable = [];
+
+    // Recent-activity row for SinglesLadder — completed fixture results and
+    // inactivity-decay events merged into one chronological feed. Match rows
+    // carry enough of the raw fixture data to reconstruct the Elo math on
+    // demand (expected score, K·MoV multiplier, deltas) for the explanation
+    // dialog.
+    private record MatchEloDetail(
+        string Player1Name, double Player1Before, double Player1After,
+        string Player2Name, double Player2Before, double Player2After,
+        int? HomeGames, int? AwayGames, bool Player1Won, string ScoreSummary,
+        double LadderKFactor, int LadderProvisionalMatches, bool UseMov);
+    private record ActivityRow(DateTime At, string Kind, string Description, double? Delta, MatchEloDetail? Detail);
+    private List<ActivityRow> _ladderActivity = [];
+
+    private MatchEloDetail? _selectedExplanation;
+    private bool _showExplanationDialog;
+
+    private void OpenExplanation(MatchEloDetail detail)
+    {
+        _selectedExplanation = detail;
+        _showExplanationDialog = true;
+    }
+
+    // Reconstructs the Elo math from the values stored on the fixture so the
+    // dialog can show the user *why* the rating moved the way it did. Returns
+    // a short header line, a sub-line summarising the result, and a list of
+    // labelled value rows.
+    private static (string Line1, string Line2, List<(string Label, string Value)> Blocks)
+        BuildExplanation(MatchEloDetail x)
+    {
+        // Expected scores from pre-match ratings (standard 400-scale).
+        double expected1 = 1.0 / (1.0 + Math.Pow(10, (x.Player2Before - x.Player1Before) / 400.0));
+        double expected2 = 1.0 - expected1;
+
+        double delta1 = x.Player1After - x.Player1Before;
+        double delta2 = x.Player2After - x.Player2Before;
+
+        double score1 = x.Player1Won ? 1.0 : 0.0;
+        double score2 = 1.0 - score1;
+
+        // The fixture stores the *result* of K × MoV × (score − expected). We
+        // invert to recover the effective multiplier (K × MoV combined).
+        double divisor1 = score1 - expected1;
+        double effective1 = Math.Abs(divisor1) > 0.0001 ? delta1 / divisor1 : 0.0;
+
+        // MoV is recomputable from games (we know the formula). K is then
+        // effective / mov when MoV is enabled, else effective on its own.
+        double? mov = null;
+        if (x.UseMov && x.HomeGames.HasValue && x.AwayGames.HasValue
+            && x.HomeGames.Value != x.AwayGames.Value)
+        {
+            double pd = Math.Abs(x.HomeGames.Value - x.AwayGames.Value);
+            double rd = Math.Abs(x.Player1Before - x.Player2Before);
+            double factor = 2.2 / (rd * 0.001 + 2.2);
+            mov = Math.Log(pd + 1) * factor;
+        }
+        double kEstimate = mov is double m && m > 0.01 ? effective1 / m : effective1;
+
+        var line1 = $"{x.Player1Name} ({x.Player1Before:0}) vs {x.Player2Name} ({x.Player2Before:0})";
+        var line2 = x.Player1Won
+            ? $"{x.Player1Name} won  {x.ScoreSummary}"
+            : $"{x.Player2Name} won  {x.ScoreSummary}";
+
+        var blocks = new List<(string, string)>
+        {
+            ($"Expected {x.Player1Name}",  $"{expected1 * 100:0}% chance of winning"),
+            ($"Expected {x.Player2Name}",  $"{expected2 * 100:0}% chance of winning"),
+            ($"Result",                    x.Player1Won ? $"{x.Player1Name} +1, {x.Player2Name} 0" : $"{x.Player1Name} 0, {x.Player2Name} +1"),
+            ($"K-factor (effective)",      $"{kEstimate:0.0}"),
+        };
+        if (mov is double mv) blocks.Add(("Margin-of-victory ×", $"{mv:0.00}"));
+
+        blocks.Add(($"Δ {x.Player1Name}", $"{(delta1 >= 0 ? "+" : "")}{delta1:0.0}  →  {x.Player1After:0}"));
+        blocks.Add(($"Δ {x.Player2Name}", $"{(delta2 >= 0 ? "+" : "")}{delta2:0.0}  →  {x.Player2After:0}"));
+
+        return (line1, line2, blocks);
+    }
+
+    private string LastPlayedLabel(int playerId)
+    {
+        var p = _participants.FirstOrDefault(x => x.PlayerId == playerId);
+        if (p?.LadderLastMatchAt is not DateTime when) return "—";
+        var days = (int)(DateTime.UtcNow - when).TotalDays;
+        return days <= 0 ? "today" : $"{days}d ago";
+    }
 
     private record TeamLeagueRow(int TeamId, string TeamName, string? CaptainName, int Played, int Won, int Drawn, int Lost, int ScoringFor, int ScoringAgainst, int Points);
     private List<TeamLeagueRow> _teamLeagueTable = [];
@@ -489,6 +846,66 @@ else
     private CompetitionParticipantDto? _myParticipant;
     private bool _selfRegisterSaving;
     private string? _selfRegisterError;
+
+    private int? _ladderOpponentId;
+    private bool _ladderCreating;
+    private string? _ladderError;
+
+    private int _simulateWeeks = 8;
+    private bool _simulating;
+    private bool _showSimulateConfirmDialog;
+    private string? _simulateMessage;
+
+    private async Task RunLadderSimulationAsync()
+    {
+        if (_competition is null) return;
+        _showSimulateConfirmDialog = false;
+        _simulating = true;
+        _simulateMessage = null;
+        try
+        {
+            var result = await CompetitionService.SimulateLadderAsync(_competition.CompetitionId, _simulateWeeks);
+            _simulateMessage =
+                $"Generated {result.FixturesGenerated} fixtures and {result.DecayEventsGenerated} decay events " +
+                $"across {_simulateWeeks} week(s) for {result.ActivePlayers} active + {result.IdlePlayers} idle players.";
+            Snackbar.Add("Ladder simulation complete.", Severity.Success);
+            // Reload competition data so the standings / activity panels refresh.
+            await OnParametersSetAsync();
+        }
+        catch (Exception ex)
+        {
+            _simulateMessage = ex.Message;
+            Snackbar.Add("Simulation failed.", Severity.Error);
+        }
+        finally
+        {
+            _simulating = false;
+        }
+    }
+
+    private async Task StartLadderMatchAsync()
+    {
+        if (_competition is null || _myParticipant is null) return;
+        if (_ladderOpponentId is not int opp) return;
+
+        _ladderCreating = true;
+        _ladderError = null;
+        try
+        {
+            var fxId = await MatchScoring.CreateLadderFixtureAsync(
+                new CreateLadderFixtureRequest(_competition.CompetitionId, opp));
+            Nav.NavigateTo($"/tennisscore?fixtureId={fxId}");
+        }
+        catch (Exception ex)
+        {
+            _ladderError = ex.Message;
+            Snackbar.Add("Could not start the match.", Severity.Error);
+        }
+        finally
+        {
+            _ladderCreating = false;
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -643,6 +1060,96 @@ else
             {
                 _fixturesByDivision = [new DivisionFixtureGroup(null, BuildStageGroups(_fixtures))];
                 _teamsByDivision = [(null, _teams)];
+            }
+
+            // SinglesLadder: standings come from the live per-participant Elo
+            // rating; played/won/lost rolled up from completed ad-hoc fixtures.
+            if (_competition.CompetitionFormat == CompetitionFormat.SinglesLadder)
+            {
+                var played = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+                var won = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+                var lost = _participants.ToDictionary(p => p.PlayerId, _ => 0);
+
+                foreach (var f in _fixtures.Where(f =>
+                    f.Status == FixtureStatus.Completed && f.WinnerPlayerId.HasValue))
+                {
+                    if (f.Player1Id is int p1 && played.ContainsKey(p1))
+                    {
+                        played[p1]++;
+                        if (f.WinnerPlayerId == p1) won[p1]++; else lost[p1]++;
+                    }
+                    if (f.Player2Id is int p2 && played.ContainsKey(p2))
+                    {
+                        played[p2]++;
+                        if (f.WinnerPlayerId == p2) won[p2]++; else lost[p2]++;
+                    }
+                }
+
+                _leagueTable = _participants
+                    .Select(p => new LeagueRow(
+                        p.PlayerId,
+                        p.DisplayName,
+                        played[p.PlayerId],
+                        won[p.PlayerId],
+                        lost[p.PlayerId],
+                        (int)Math.Round(p.LadderEloRating)))
+                    .OrderByDescending(r => r.Points)
+                    .ThenByDescending(r => r.Won)
+                    .ThenBy(r => r.PlayerName)
+                    .ToList();
+
+                // Recent-activity feed: union of completed fixtures and decay
+                // events, sorted newest-first, capped to 25 rows.
+                var nameById = _participants.ToDictionary(p => p.PlayerId, p => p.DisplayName);
+                var fixtureRows = _fixtures
+                    .Where(f => f.Status == FixtureStatus.Completed
+                                && f.CompletedAt.HasValue
+                                && f.Player1Id.HasValue && f.Player2Id.HasValue)
+                    .Select(f =>
+                    {
+                        var p1 = nameById.GetValueOrDefault(f.Player1Id!.Value, "?");
+                        var p2 = nameById.GetValueOrDefault(f.Player2Id!.Value, "?");
+                        var winner = f.WinnerPlayerId == f.Player1Id ? p1
+                                   : f.WinnerPlayerId == f.Player2Id ? p2 : "—";
+                        var score = string.IsNullOrEmpty(f.ResultSummary)
+                            ? $"{p1} vs {p2}"
+                            : $"{p1} vs {p2} ({f.ResultSummary})";
+                        double? delta = null;
+                        MatchEloDetail? detail = null;
+                        if (f.Player1RatingBefore.HasValue && f.Player1RatingAfter.HasValue
+                            && f.Player2RatingBefore.HasValue && f.Player2RatingAfter.HasValue)
+                        {
+                            delta = f.Player1RatingAfter.Value - f.Player1RatingBefore.Value;
+                            detail = new MatchEloDetail(
+                                p1, f.Player1RatingBefore.Value, f.Player1RatingAfter.Value,
+                                p2, f.Player2RatingBefore.Value, f.Player2RatingAfter.Value,
+                                f.HomeGamesTotal, f.AwayGamesTotal,
+                                f.WinnerPlayerId == f.Player1Id,
+                                f.ResultSummary ?? "",
+                                _competition.LadderKFactor,
+                                _competition.LadderProvisionalMatches,
+                                _competition.LadderUseMarginOfVictory);
+                        }
+                        return new ActivityRow(
+                            f.CompletedAt!.Value,
+                            "Match",
+                            $"{winner} beat {(winner == p1 ? p2 : p1)} — {score}",
+                            delta,
+                            detail);
+                    });
+
+                var decayRows = (_competition.LadderDecayEvents ?? new())
+                    .Select(d => new ActivityRow(
+                        d.AppliedAt,
+                        "Decay",
+                        $"{d.PlayerName} — {d.DaysInactive}d inactive",
+                        d.RatingAfter - d.RatingBefore,
+                        null));
+
+                _ladderActivity = fixtureRows.Concat(decayRows)
+                    .OrderByDescending(r => r.At)
+                    .Take(25)
+                    .ToList();
             }
 
             var rrStageIds = _competition.Stages
@@ -875,24 +1382,28 @@ else
                     }
                     @if (hasResult && isTeamFixtureRow && rubbers.Any(r => r.IsComplete))
                     {
-                        <MudStack Spacing="0" Style="min-width:160px">
-                            <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
-                                <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
-                                    @(context.HomeTeamName ?? "Home")
-                                </MudText>
-                                <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
-                                    @teamResult.homeFor
-                                </MudText>
-                            </MudStack>
-                            <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
-                                <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
-                                    @(context.AwayTeamName ?? "Away")
-                                </MudText>
-                                <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
-                                    @teamResult.awayFor
-                                </MudText>
-                            </MudStack>
-                        </MudStack>
+                        <MudTooltip Text="Click for set-by-set scores">
+                            <div style="cursor:pointer; min-width:160px" @onclick="@(() => OpenSetScoresDialog(context))">
+                                <MudStack Spacing="0">
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                        <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                            @(context.HomeTeamName ?? "Home")
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="@(homeWon ? "font-weight:700" : "opacity:0.85")">
+                                            @teamResult.homeFor
+                                        </MudText>
+                                    </MudStack>
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" Spacing="2">
+                                        <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                            @(context.AwayTeamName ?? "Away")
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="@(awayWon ? "font-weight:700" : "opacity:0.85")">
+                                            @teamResult.awayFor
+                                        </MudText>
+                                    </MudStack>
+                                </MudStack>
+                            </div>
+                        </MudTooltip>
                         @if (context.Status == FixtureStatus.AwaitingVerification)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">Pending</MudChip>
@@ -900,7 +1411,11 @@ else
                     }
                     else if (hasResult && !isTeamFixtureRow && !string.IsNullOrEmpty(context.ResultSummary))
                     {
-                        <FixtureResultCard Fixture="context" Compact="true" />
+                        <MudTooltip Text="Click for set-by-set scores">
+                            <div style="cursor:pointer" @onclick="@(() => OpenSetScoresDialog(context))">
+                                <FixtureResultCard Fixture="context" Compact="true" />
+                            </div>
+                        </MudTooltip>
                         @if (context.ResultModifiedByAdmin)
                         {
                             <MudTooltip Text="@($"Original: {context.OriginalResultSummary}")">
@@ -989,6 +1504,27 @@ else
         _ => s.ToString()
     };
 
+    // Colour the role chip by first letter (M/F → blue/pink) so men/women team
+    // make-up reads at a glance. Unknown / null role → grey.
+    private static Color RoleColor(string? role) =>
+        string.IsNullOrEmpty(role)
+            ? Color.Default
+            : role.StartsWith("M", StringComparison.OrdinalIgnoreCase)
+                ? Color.Info
+                : role.StartsWith("F", StringComparison.OrdinalIgnoreCase)
+                    ? Color.Secondary
+                    : Color.Default;
+
+    // Contact info (which includes phone numbers) is gated to admins and to
+    // players in that specific division — never to outsiders or to players in
+    // other divisions.
+    private bool CanSeeContactForDivision(int? divisionId)
+    {
+        if (_canEdit) return true;
+        if (_userDivision is null) return false;
+        return _userDivision.CompetitionDivisionId == divisionId;
+    }
+
     // Sort key for the competitors list — Full Players first, then
     // Registered, Substitutes, Withdrawn, Disqualified. The byte values
     // on ParticipantStatus aren't in display order so map explicitly.
@@ -1005,12 +1541,16 @@ else
     private async Task SelfRegisterAsync(ParticipantStatus status)
     {
         if (_competition is null) return;
+
+        var consent = await TryGetEntryConsentAsync();
+        if (consent is null) return;
+
         _selfRegisterSaving = true;
         _selfRegisterError = null;
         StateHasChanged();
         try
         {
-            await CompetitionService.SelfRegisterAsync(_competition.CompetitionId, status);
+            await CompetitionService.SelfRegisterAsync(_competition.CompetitionId, status, consent);
             Nav.NavigateTo(Nav.Uri, forceLoad: true);
         }
         catch (Exception ex)
@@ -1027,12 +1567,16 @@ else
     private async Task ConfirmParticipationAsync(ParticipantStatus status)
     {
         if (_competition is null) return;
+
+        var consent = await TryGetEntryConsentAsync();
+        if (consent is null) return;
+
         _selfRegisterSaving = true;
         _selfRegisterError = null;
         StateHasChanged();
         try
         {
-            await CompetitionService.ConfirmParticipationAsync(_competition.CompetitionId, status);
+            await CompetitionService.ConfirmParticipationAsync(_competition.CompetitionId, status, consent);
             await OnParametersSetAsync();
         }
         catch (Exception ex)
@@ -1042,6 +1586,59 @@ else
         finally
         {
             _selfRegisterSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    /// Open the EnterCompetitionConsentDialog and return the user's consent.
+    /// Returns null if they cancelled, OR if their profile has no mobile
+    /// number (in which case the inline alert prompts them to add one
+    /// before retrying — server-side guard would reject anyway).
+    private async Task<PhoneShareConsent?> TryGetEntryConsentAsync()
+    {
+        if (_competition is null) return null;
+
+        if (string.IsNullOrWhiteSpace(_competition.MyMobileNumber))
+        {
+            _selfRegisterError =
+                "Add a mobile number to your profile before entering competitions. " +
+                "It will be visible to other competitors so you can coordinate matches.";
+            StateHasChanged();
+            return null;
+        }
+
+        var parameters = new DialogParameters
+        {
+            [nameof(EnterCompetitionConsentDialog.CompetitionName)] = _competition.CompetitionName,
+            [nameof(EnterCompetitionConsentDialog.MobileNumber)] = _competition.MyMobileNumber,
+        };
+        var dialog = await DialogService.ShowAsync<EnterCompetitionConsentDialog>(
+            "Share your mobile number with competitors", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return null;
+        return result.Data as PhoneShareConsent;
+    }
+
+    private bool _leaveSaving;
+
+    private async Task LeaveCompetitionAsync()
+    {
+        if (_competition is null) return;
+        _leaveSaving = true;
+        StateHasChanged();
+        try
+        {
+            await CompetitionService.LeaveCompetitionAsync(_competition.CompetitionId);
+            Snackbar.Add("You have left the competition. Your mobile number is no longer shared.", Severity.Info);
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to leave: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _leaveSaving = false;
             StateHasChanged();
         }
     }

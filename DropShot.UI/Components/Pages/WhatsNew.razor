@@ -1,14 +1,65 @@
 @page "/whats-new"
 
-<HeadContent>
-    <meta name="robots" content="noindex" />
-</HeadContent>
-
 <PageTitle>What's New - DropShot</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
     <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">What's New</MudText>
-    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary">
-        Coming Soon
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary" Class="mb-6" Style="max-width: 640px; margin: 0 auto;">
+        Recent improvements and new features in DropShot. We ship updates regularly — here's what's changed.
     </MudText>
+
+    <MudTimeline TimelinePosition="TimelinePosition.Start">
+
+        <MudTimelineItem Color="Color.Primary" Size="Size.Small">
+            <MudText Typo="Typo.h6">Team match &amp; rubber scoring</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">29 May 2026</MudText>
+            <ul class="mud-typography mud-typography-body2 mt-2" style="padding-left:1.25rem;">
+                <li>New dedicated rubber-scoring pages, including a bulk-entry view with a sticky on-screen keypad that follows the rubber you're scoring.</li>
+                <li>Team-match scoring now lets participants and admins re-enter or clear a completed rubber.</li>
+                <li>Larger, clearer scaling for scoring pages on desktop and extra-large displays.</li>
+                <li>You're now prompted to confirm before discarding unsaved scores when you cancel.</li>
+            </ul>
+        </MudTimelineItem>
+
+        <MudTimelineItem Color="Color.Secondary" Size="Size.Small">
+            <MudText Typo="Typo.h6">Rosters &amp; competition entry</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">26 May 2026</MudText>
+            <ul class="mud-typography mud-typography-body2 mt-2" style="padding-left:1.25rem;">
+                <li>Entering a competition can now link to your account and stay in sync with the mobile app.</li>
+                <li>Roster management deduplicates teams, blocks duplicate team names and roles, and surfaces clearer assignment errors.</li>
+                <li>The same team name is now allowed across different divisions, with disambiguated dropdown labels.</li>
+            </ul>
+        </MudTimelineItem>
+
+        <MudTimelineItem Color="Color.Info" Size="Size.Small">
+            <MudText Typo="Typo.h6">Score submission &amp; themes</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">23 May 2026</MudText>
+            <ul class="mud-typography mud-typography-body2 mt-2" style="padding-left:1.25rem;">
+                <li>Refined score-submission keypad with inline validation and clearer active-set rows.</li>
+                <li>Final-set tiebreaks are now optional per match, and win-by-2 rules are tighter to reject impossible scores.</li>
+                <li>A new tie-break picker highlights the relevant side's score.</li>
+                <li>Light-mode polish: an inverted tennis background and fixes for hard-to-read controls.</li>
+            </ul>
+        </MudTimelineItem>
+
+        <MudTimelineItem Color="Color.Success" Size="Size.Small">
+            <MudText Typo="Typo.h6">Redesigned match scoring</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">22 May 2026</MudText>
+            <ul class="mud-typography mud-typography-body2 mt-2" style="padding-left:1.25rem;">
+                <li>A new full-page score-submission screen with a numeric keypad and a read-only winner, replacing the old dialog.</li>
+                <li>Slimmer main toolbar focused on Competitions, My Players, and Match.</li>
+            </ul>
+        </MudTimelineItem>
+
+        <MudTimelineItem Color="Color.Warning" Size="Size.Small">
+            <MudText Typo="Typo.h6">Competition management</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">20 May 2026</MudText>
+            <ul class="mud-typography mud-typography-body2 mt-2" style="padding-left:1.25rem;">
+                <li>Clearer error detail when a competition can't be deleted, and tidier cleanup of related player-rating data.</li>
+            </ul>
+        </MudTimelineItem>
+
+    </MudTimeline>
+
+    <GoogleAd />
 </MudContainer>

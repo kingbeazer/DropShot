@@ -3,13 +3,7 @@
 
 @if (CurrentUser.IsAuthenticated)
 {
-    <span class="current-user-badge" style="display:inline-flex;align-items:center;gap:0.5rem;">
-        <span>@CurrentUser.UserName</span>
-        @if (!string.IsNullOrEmpty(CurrentUser.ActiveRole))
-        {
-            <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ma-0">@CurrentUser.ActiveRole</MudChip>
-        }
-    </span>
+    <span class="current-user-badge">@CurrentUser.UserName</span>
 }
 
 @code {

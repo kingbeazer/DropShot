@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using DropShot.Data;
 using DropShot.Models;
 using DropShot.Shared;
@@ -20,7 +20,8 @@ public sealed class WebCompetitionAdminService(
     ICompetitionRubberTemplateProvider rubberTemplateProvider,
     AdminEmailService adminEmailService,
     CompetitionSchedulerService scheduler,
-    FixtureSimulationService fixtureSimulator) : ICompetitionAdminService
+    FixtureSimulationService fixtureSimulator,
+    PlayerRatingService playerRatings) : ICompetitionAdminService
 {
     // IHttpContextAccessor.HttpContext is null in interactive Blazor Server mode (SignalR
     // circuit). Fall back to AuthenticationStateProvider, which works in both SSR and
@@ -63,8 +64,26 @@ public sealed class WebCompetitionAdminService(
         if (!competitionId.HasValue || competitionId.Value <= 0)
         {
             // Create-mode payload: lookups + authz flags, no entity data.
+            var principal = await GetCurrentPrincipalAsync();
             var canCreate = await CanEditCompetitionAsync(null, ct);
-            var isSuperAdminCreate = authzService.IsSuperAdmin(await GetCurrentPrincipalAsync());
+            var isSuperAdminCreate = authzService.IsSuperAdmin(principal);
+
+            // ClubAdmins (not full Admin/SuperAdmin) must create competitions under
+            // their own club. Pre-seed HostClubId and restrict the clubs list so the
+            // wizard can lock the field to a read-only display.
+            int? seedHostClubId = null;
+            string? seedHostClubName = null;
+            if (!authzService.IsAdmin(principal))
+            {
+                var adminClubIds = await authzService.GetAdminClubIdsAsync(principal);
+                if (adminClubIds.Count > 0)
+                {
+                    seedHostClubId = adminClubIds[0];
+                    clubs = clubs.Where(c => adminClubIds.Contains(c.ClubId)).ToList();
+                    seedHostClubName = clubs.FirstOrDefault()?.Name;
+                }
+            }
+
             return new CompetitionEditDto(
                 CompetitionId: null,
                 CompetitionName: "",
@@ -72,13 +91,15 @@ public sealed class WebCompetitionAdminService(
                 MaxParticipants: null,
                 StartDate: null, EndDate: null, RegisterByDate: null,
                 MaxAge: null, MinAge: null, EligibleSex: null,
-                RulesSetId: null, HostClubId: null, HostClubName: null,
+                RulesSetId: null, HostClubId: seedHostClubId, HostClubName: seedHostClubName,
                 EventId: null, EventName: null,
                 BestOf: 3, RequireVerification: false, IsArchived: false, IsStarted: false,
                 CreatorUserId: null, IsRestricted: false,
                 TeamSize: null, RubberTemplateKey: null,
                 MatchFormat: MatchFormatType.BestOf, NumberOfSets: 3, GamesPerSet: 6,
-                SetWinMode: SetWinMode.WinBy2, LeagueScoring: LeagueScoringMode.WinPoints,
+                SetWinMode: SetWinMode.WinBy2,
+                FinalSetTieBreakGames: 10, FinalSetTieBreakWinMode: SetWinMode.WinBy2,
+                LeagueScoring: LeagueScoringMode.WinPoints,
                 RubberTieBreak: RubberTieBreakMode.AdminDecides,
                 MinDaysBetweenPlayerMatches: null, HasDivisions: false,
                 SeededFromCompetitionId: null,
@@ -90,6 +111,7 @@ public sealed class WebCompetitionAdminService(
                 HostClubCourts: [],
                 Clubs: clubs, RulesSets: rulesSets, Events: events,
                 AllowedPlayerIds: [],
+                CalendarExceptions: [],
                 CanEdit: canCreate,
                 IsSuperAdmin: isSuperAdminCreate);
         }
@@ -113,11 +135,16 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Fixtures).ThenInclude(f => f.AwayTeam)
             .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court1)
             .Include(c => c.Fixtures).ThenInclude(f => f.CourtPair).ThenInclude(cp => cp!.Court2)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.HomePlayer1)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.HomePlayer2)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.AwayPlayer1)
+            .Include(c => c.Fixtures).ThenInclude(f => f.Rubbers).ThenInclude(r => r.AwayPlayer2)
             .Include(c => c.Teams).ThenInclude(t => t.Captain)
             .Include(c => c.MatchWindows).ThenInclude(w => w.Court)
             .Include(c => c.MatchWindows).ThenInclude(w => w.Division)
             .Include(c => c.Divisions)
             .Include(c => c.AllowedPlayers)
+            .Include(c => c.CalendarExceptions).ThenInclude(e => e.Division)
             .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == id, ct);
@@ -194,6 +221,18 @@ public sealed class WebCompetitionAdminService(
         var admins = await GetCompetitionAdminsInternalAsync(db, id, ct);
         var rubberTemplate = await LoadRubberTemplateStateInternalAsync(db, comp, ct);
 
+        // Roster decoration: ratings, post-season rating suggestions, and
+        // division+role placement suggestions. Mirrors the wiring in
+        // WebCompetitionService.GetCompetitionAsync so the admin edit page
+        // sees the same fields as the player-facing detail page.
+        var ratingsByPlayer = await playerRatings.GetRosterRatingsAsync(id, ct);
+        var ratingSuggestions = (await playerRatings.GetVisibleSuggestionsAsync(id, ct))
+            .ToDictionary(s => s.PlayerId);
+        var divisionPlacements = (await playerRatings.SuggestDivisionPlacementsAsync(id, ct))
+            .ToDictionary(p => p.PlayerId);
+        var rolePlacements = (await playerRatings.SuggestRolePlacementsAsync(id, ct))
+            .ToDictionary(p => p.PlayerId);
+
         return new CompetitionEditDto(
             CompetitionId: comp.CompetitionID,
             CompetitionName: comp.CompetitionName,
@@ -208,15 +247,35 @@ public sealed class WebCompetitionAdminService(
             CreatorUserId: comp.CreatorUserId, IsRestricted: comp.IsRestricted,
             TeamSize: comp.TeamSize, RubberTemplateKey: comp.RubberTemplateKey,
             MatchFormat: comp.MatchFormat, NumberOfSets: comp.NumberOfSets, GamesPerSet: comp.GamesPerSet,
-            SetWinMode: comp.SetWinMode, LeagueScoring: comp.LeagueScoring,
+            SetWinMode: comp.SetWinMode,
+            FinalSetTieBreakGames: comp.FinalSetTieBreakGames,
+            FinalSetTieBreakWinMode: comp.FinalSetTieBreakWinMode,
+            LeagueScoring: comp.LeagueScoring,
             RubberTieBreak: comp.RubberTieBreak,
             MinDaysBetweenPlayerMatches: comp.MinDaysBetweenPlayerMatches,
             HasDivisions: comp.HasDivisions,
             SeededFromCompetitionId: comp.SeededFromCompetitionId,
             Stages: comp.Stages.Select(ToStageDto).ToList(),
-            Participants: comp.Participants.Select(ToParticipantDto).ToList(),
+            Participants: comp.Participants.Select(p => new CompetitionParticipantDto(
+                p.PlayerId, p.Player?.DisplayName ?? "", p.Status, p.RegisteredAt,
+                p.TeamId, p.Team?.Name, p.Player?.MobileNumber, p.Role, p.Player?.Sex,
+                p.CompetitionDivisionId, p.Division?.Name,
+                ratingsByPlayer.TryGetValue(p.PlayerId, out var r)
+                    ? new PlayerRatingDto(r.Value, r.IsProvisional)
+                    : null,
+                ratingSuggestions.TryGetValue(p.PlayerId, out var rs)
+                    ? new PlayerRatingSuggestionDto(rs.PreviousRating, rs.SuggestedRating, rs.Delta, rs.RubbersPlayed)
+                    : null,
+                BuildPlacementSuggestion(p.PlayerId, divisionPlacements, rolePlacements))).ToList(),
             Divisions: comp.Divisions.OrderBy(d => d.Rank).Select(ToDivisionDto).ToList(),
-            Teams: comp.Teams.OrderBy(t => t.Name).Select(ToTeamDto).ToList(),
+            // DistinctBy guards against the rare cases where the in-memory
+            // Teams navigation ends up with the same row referenced twice
+            // (historically caused by repeated SaveTeamAsync clicks before
+            // the unique-name guard landed). The roster's team dropdown
+            // iterates this list directly, so any duplicates render as
+            // visible repeated entries.
+            Teams: comp.Teams.DistinctBy(t => t.CompetitionTeamId)
+                .OrderBy(t => t.Name).Select(ToTeamDto).ToList(),
             Fixtures: comp.Fixtures
                 .OrderBy(f => f.RoundNumber).ThenBy(f => f.ScheduledAt)
                 .Select(ToFixtureDto).ToList(),
@@ -233,8 +292,24 @@ public sealed class WebCompetitionAdminService(
             HostClubCourts: hostClubCourts,
             Clubs: clubs, RulesSets: rulesSets, Events: events,
             AllowedPlayerIds: comp.AllowedPlayers.Select(ap => ap.PlayerId).ToList(),
+            CalendarExceptions: comp.CalendarExceptions
+                .OrderBy(e => e.ExceptionDate)
+                .Select(e => new CompetitionCalendarExceptionDto(
+                    e.CompetitionCalendarExceptionId, e.CompetitionId, e.CompetitionDivisionId,
+                    e.Division?.Name, e.ExceptionDate, e.Note))
+                .ToList(),
             CanEdit: canEdit,
-            IsSuperAdmin: isSuperAdmin);
+            IsSuperAdmin: isSuperAdmin,
+            Description: comp.Description,
+            WizardStep: comp.WizardStep,
+            FixtureReminders: await db.CompetitionFixtureReminders
+                .AsNoTracking()
+                .Where(r => r.CompetitionId == comp.CompetitionID)
+                .OrderBy(r => r.HoursBefore)
+                .Select(r => new CompetitionFixtureReminderDto(
+                    r.CompetitionFixtureReminderId, r.CompetitionId,
+                    r.HoursBefore, r.Subject, r.Body))
+                .ToListAsync(ct));
     }
 
     public async Task<List<CompetitionSeedSourceDto>> GetSeedSourceCandidatesAsync(
@@ -381,12 +456,20 @@ public sealed class WebCompetitionAdminService(
         comp.NumberOfSets = req.NumberOfSets;
         comp.GamesPerSet = req.GamesPerSet;
         comp.SetWinMode = req.SetWinMode;
+        comp.FinalSetTieBreakGames = req.FinalSetTieBreakGames;
+        comp.FinalSetTieBreakWinMode = req.FinalSetTieBreakWinMode;
         comp.LeagueScoring = req.LeagueScoring;
         comp.RubberTieBreak = req.RubberTieBreak;
         comp.MinDaysBetweenPlayerMatches = req.MinDaysBetweenPlayerMatches;
         comp.HasDivisions = req.HasDivisions;
         comp.SeededFromCompetitionId = req.SeededFromCompetitionId;
         comp.IsRestricted = req.IsRestricted;
+        comp.Description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description;
+        comp.LadderKFactor = req.LadderKFactor;
+        comp.LadderStartingRating = req.LadderStartingRating;
+        comp.LadderProvisionalMatches = req.LadderProvisionalMatches;
+        comp.LadderUseMarginOfVictory = req.LadderUseMarginOfVictory;
+        comp.WizardStep = req.WizardStep;
     }
 
     public async Task<CloneCompetitionResultDto> CloneCompetitionAsync(
@@ -420,6 +503,8 @@ public sealed class WebCompetitionAdminService(
             NumberOfSets                = source.NumberOfSets,
             GamesPerSet                 = source.GamesPerSet,
             SetWinMode                  = source.SetWinMode,
+            FinalSetTieBreakGames       = source.FinalSetTieBreakGames,
+            FinalSetTieBreakWinMode     = source.FinalSetTieBreakWinMode,
             LeagueScoring               = source.LeagueScoring,
             RubberTieBreak              = source.RubberTieBreak,
             MinDaysBetweenPlayerMatches = source.MinDaysBetweenPlayerMatches,
@@ -806,13 +891,22 @@ public sealed class WebCompetitionAdminService(
     private static CompetitionStageDto ToStageDto(CompetitionStage s) =>
         new(s.CompetitionStageId, s.Name, s.StageOrder, s.StageType);
 
-    private static CompetitionParticipantDto ToParticipantDto(CompetitionParticipant p) =>
-        new(p.PlayerId, p.Player?.DisplayName ?? "", p.Status, p.RegisteredAt,
-            p.TeamId, p.Team?.Name, p.Player?.MobileNumber, p.Role, p.Player?.Sex,
-            p.CompetitionDivisionId, p.Division?.Name);
+    private static PlacementSuggestionDto? BuildPlacementSuggestion(
+        int playerId,
+        Dictionary<int, PlayerRatingService.DivisionPlacement> divisions,
+        Dictionary<int, PlayerRatingService.RolePlacement> roles)
+    {
+        var hasDivision = divisions.TryGetValue(playerId, out var d);
+        var hasRole = roles.TryGetValue(playerId, out var r);
+        if (!hasDivision && !hasRole) return null;
+        return new PlacementSuggestionDto(
+            SuggestedDivisionId: hasDivision ? d!.SuggestedDivisionId : null,
+            SuggestedDivisionName: hasDivision ? d!.SuggestedDivisionName : null,
+            SuggestedRole: hasRole ? r!.SuggestedRole : null);
+    }
 
     private static CompetitionDivisionDto ToDivisionDto(CompetitionDivision d) =>
-        new(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name);
+        new(d.CompetitionDivisionId, d.CompetitionId, d.Rank, d.Name, d.UseSharedMatchWindows);
 
     private static CompetitionTeamDto ToTeamDto(CompetitionTeam t) =>
         new(t.CompetitionTeamId, t.CompetitionId, t.Name,
@@ -840,11 +934,25 @@ public sealed class WebCompetitionAdminService(
             f.CourtPair != null
                 ? (f.CourtPair.Name ?? $"{f.CourtPair.Court1?.Name} + {f.CourtPair.Court2?.Name}")
                 : null,
-            null, // Rubbers — admin view doesn't need them at this granularity
+            f.Rubbers?
+                .OrderBy(r => r.Order)
+                .Select(r => new RubberDto(
+                    r.RubberId, r.CompetitionFixtureId, r.Order, r.Name, r.CourtNumber,
+                    r.HomeRoles, r.AwayRoles,
+                    r.HomePlayer1Id, r.HomePlayer1?.DisplayName,
+                    r.HomePlayer2Id, r.HomePlayer2?.DisplayName,
+                    r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
+                    r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
+                    r.HomeGames, r.AwayGames, r.WinnerTeamId,
+                    r.IsComplete, r.SavedMatchId,
+                    r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal,
+                    r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList()))
+                .ToList(),
             f.CompletedAt,
             f.OriginalResultSummary,
             f.ResultModifiedByAdmin,
-            f.Competition?.CompetitionName);
+            f.Competition?.CompetitionName,
+            ResultSubmissionToken: f.ResultSubmissionToken);
 
     private static string StageDisplayName(StageType type) => type switch
     {
@@ -963,7 +1071,8 @@ public sealed class WebCompetitionAdminService(
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
             ?? throw new KeyNotFoundException("Competition not found.");
-        if (!await authzService.CanEditCompetitionAsync(await GetCurrentPrincipalAsync(), comp.HostClubId, competitionId))
+        var principal = await GetCurrentPrincipalAsync();
+        if (!await authzService.CanEditCompetitionAsync(principal, comp.HostClubId, competitionId))
             throw new UnauthorizedAccessException("You can't edit this competition.");
 
         if (comp.Participants.Any(p => p.PlayerId == request.PlayerId))
@@ -985,7 +1094,83 @@ public sealed class WebCompetitionAdminService(
             RegisteredAt  = DateTime.UtcNow,
             Status        = ParticipantStatus.Registered,
         });
+
+        if (request.AttestedConsent is { } att)
+            db.CompetitionEntryConsents.Add(BuildAdminAttestedConsent(competitionId, request.PlayerId, att, principal));
+
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Build a CompetitionEntryConsent row from an admin's attestation. The
+    /// version is distinct from the self-asserted version, and the wording
+    /// captures who attested, when, and the admin-supplied evidence source —
+    /// so audits can trace any peer-visible number back to its lawful basis.
+    /// </summary>
+    private static CompetitionEntryConsent BuildAdminAttestedConsent(
+        int competitionId, int playerId, AdminRecordedPhoneShareConsent att, ClaimsPrincipal principal)
+    {
+        if (!att.Attested)
+            throw new InvalidOperationException(
+                "Admin attestation checkbox must be ticked to record consent on the player's behalf.");
+        if (string.IsNullOrWhiteSpace(att.Source))
+            throw new InvalidOperationException(
+                "Source of consent (e.g. email subject and date) is required when recording consent on the player's behalf.");
+
+        var adminLabel = principal.Identity?.Name ?? "unknown-admin";
+        return new CompetitionEntryConsent
+        {
+            CompetitionId = competitionId,
+            PlayerId = playerId,
+            ConsentGivenUtc = DateTime.UtcNow,
+            ConsentVersion = PhoneVisibilityService.AdminRecordedConsentVersion,
+            ConsentWordingShown =
+                $"Admin-recorded consent by {adminLabel} on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC. " +
+                $"Source: {att.Source.Trim()}",
+        };
+    }
+
+    public async Task<BulkAddParticipantsResultDto> BulkAddParticipantsAsync(
+        int competitionId, BulkAddParticipantsRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var comp = await db.Competition
+            .Include(c => c.Participants)
+            .FirstOrDefaultAsync(c => c.CompetitionID == competitionId, ct)
+            ?? throw new KeyNotFoundException("Competition not found.");
+        var principal = await GetCurrentPrincipalAsync();
+        if (!await authzService.CanEditCompetitionAsync(principal, comp.HostClubId, competitionId))
+            throw new UnauthorizedAccessException("You can't edit this competition.");
+
+        if (request.PlayerIds.Count == 0)
+            return new BulkAddParticipantsResultDto(0, 0);
+
+        var existingIds = comp.Participants.Select(p => p.PlayerId).ToHashSet();
+        int remainingCapacity = comp.MaxParticipants.HasValue
+            ? Math.Max(0, comp.MaxParticipants.Value - comp.Participants.Count)
+            : int.MaxValue;
+
+        int added = 0;
+        int skipped = 0;
+        var now = DateTime.UtcNow;
+        foreach (var playerId in request.PlayerIds.Distinct())
+        {
+            if (existingIds.Contains(playerId)) { skipped++; continue; }
+            if (added >= remainingCapacity) { skipped++; continue; }
+
+            db.CompetitionParticipants.Add(new CompetitionParticipant
+            {
+                CompetitionId = competitionId,
+                PlayerId      = playerId,
+                RegisteredAt  = now,
+                Status        = request.Status,
+            });
+            if (request.AttestedConsent is { } att)
+                db.CompetitionEntryConsents.Add(BuildAdminAttestedConsent(competitionId, playerId, att, principal));
+            added++;
+        }
+        if (added > 0) await db.SaveChangesAsync(ct);
+        return new BulkAddParticipantsResultDto(added, skipped);
     }
 
     public async Task RemoveParticipantAsync(int competitionId, int playerId, CancellationToken ct = default)
@@ -1016,6 +1201,9 @@ public sealed class WebCompetitionAdminService(
         await LoadAndAuthorizeAsync(db, competitionId, ct);
         var row = await db.CompetitionParticipants.FindAsync([competitionId, playerId], ct)
             ?? throw new KeyNotFoundException("Participant not found.");
+
+        await EnsureNoDuplicateRoleOnTeamAsync(db, competitionId, request.TeamId, row.Role, playerId, ct);
+
         row.TeamId = request.TeamId;
         await db.SaveChangesAsync(ct);
     }
@@ -1027,8 +1215,38 @@ public sealed class WebCompetitionAdminService(
         await LoadAndAuthorizeAsync(db, competitionId, ct);
         var row = await db.CompetitionParticipants.FindAsync([competitionId, playerId], ct)
             ?? throw new KeyNotFoundException("Participant not found.");
-        row.Role = string.IsNullOrWhiteSpace(request.Role) ? null : request.Role;
+
+        var newRole = string.IsNullOrWhiteSpace(request.Role) ? null : request.Role;
+        await EnsureNoDuplicateRoleOnTeamAsync(db, competitionId, row.TeamId, newRole, playerId, ct);
+
+        row.Role = newRole;
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Block assignments that would put two players with the same role on the
+    /// same team (e.g. two MA on one team). Roles are unique within a team for
+    /// the rubber template (MA/MB/FA/FB or D1A/D1B/D2A/D2B); allowing duplicates
+    /// breaks fixture generation. Null role or null team can't conflict.
+    /// </summary>
+    private static async Task EnsureNoDuplicateRoleOnTeamAsync(
+        MyDbContext db, int competitionId, int? teamId, string? role, int playerId, CancellationToken ct)
+    {
+        if (teamId is null || string.IsNullOrWhiteSpace(role)) return;
+
+        var clash = await db.CompetitionParticipants
+            .AnyAsync(p => p.CompetitionId == competitionId
+                && p.TeamId == teamId
+                && p.PlayerId != playerId
+                && p.Role == role, ct);
+        if (!clash) return;
+
+        var teamName = await db.CompetitionTeams
+            .Where(t => t.CompetitionTeamId == teamId)
+            .Select(t => t.Name)
+            .FirstOrDefaultAsync(ct) ?? "this team";
+        throw new InvalidOperationException(
+            $"{teamName} already has a player in role '{role}'. Move or re-role the existing player first.");
     }
 
     public async Task AssignParticipantDivisionAsync(
@@ -1040,6 +1258,75 @@ public sealed class WebCompetitionAdminService(
             ?? throw new KeyNotFoundException("Participant not found.");
         row.CompetitionDivisionId = request.CompetitionDivisionId;
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task SetParticipantInitialRatingAsync(
+        int competitionId, int playerId, SetParticipantInitialRatingRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        _ = await db.CompetitionParticipants.FindAsync([competitionId, playerId], ct)
+            ?? throw new KeyNotFoundException("Participant not found.");
+        var userId = userManager.GetUserId(await GetCurrentPrincipalAsync());
+        await playerRatings.SetInitialRatingAsync(competitionId, playerId, request.Rating, userId, ct);
+    }
+
+    public async Task<PlayerRatingSuggestionDto?> AcceptParticipantRatingAsync(
+        int competitionId, int playerId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        var userId = userManager.GetUserId(await GetCurrentPrincipalAsync());
+        var s = await playerRatings.AcceptSuggestionAsync(competitionId, playerId, userId, ct);
+        return s is null ? null : new PlayerRatingSuggestionDto(
+            s.PreviousRating, s.SuggestedRating, s.Delta, s.RubbersPlayed);
+    }
+
+    public async Task<List<PlayerRatingSuggestionDto>> AcceptAllParticipantRatingsAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        var userId = userManager.GetUserId(await GetCurrentPrincipalAsync());
+        var ss = await playerRatings.AcceptAllSuggestionsAsync(competitionId, userId, ct);
+        return ss.Select(s => new PlayerRatingSuggestionDto(
+                s.PreviousRating, s.SuggestedRating, s.Delta, s.RubbersPlayed)).ToList();
+    }
+
+    public async Task ApplyDivisionPlacementAsync(
+        int competitionId, int playerId, ApplyDivisionPlacementRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        await playerRatings.ApplyDivisionPlacementAsync(competitionId, playerId, request.CompetitionDivisionId, ct);
+    }
+
+    public async Task ApplyRolePlacementAsync(
+        int competitionId, int playerId, ApplyRolePlacementRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        await playerRatings.ApplyRolePlacementAsync(competitionId, playerId, request.Role, ct);
+    }
+
+    public async Task<int> ApplyAllPlacementsAsync(int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+        var divs = await playerRatings.SuggestDivisionPlacementsAsync(competitionId, ct);
+        var roles = await playerRatings.SuggestRolePlacementsAsync(competitionId, ct);
+        int applied = 0;
+        foreach (var d in divs)
+        {
+            await playerRatings.ApplyDivisionPlacementAsync(competitionId, d.PlayerId, d.SuggestedDivisionId, ct);
+            applied++;
+        }
+        foreach (var r in roles)
+        {
+            await playerRatings.ApplyRolePlacementAsync(competitionId, r.PlayerId, r.SuggestedRole, ct);
+            applied++;
+        }
+        return applied;
     }
 
     public async Task<int> CreateLightPlayerAsync(
@@ -1122,9 +1409,10 @@ public sealed class WebCompetitionAdminService(
                 throw new InvalidOperationException($"Division rank {request.Rank} already exists.");
             var div = new CompetitionDivision
             {
-                CompetitionId = competitionId,
-                Name          = request.Name.Trim(),
-                Rank          = request.Rank,
+                CompetitionId          = competitionId,
+                Name                   = request.Name.Trim(),
+                Rank                   = request.Rank,
+                UseSharedMatchWindows  = request.UseSharedMatchWindows,
             };
             db.CompetitionDivisions.Add(div);
             if (!comp.HasDivisions) comp.HasDivisions = true;
@@ -1142,8 +1430,9 @@ public sealed class WebCompetitionAdminService(
                     x => x.CompetitionId == competitionId && x.Rank == request.Rank
                          && x.CompetitionDivisionId != row.CompetitionDivisionId, ct))
                 throw new InvalidOperationException($"Division rank {request.Rank} already exists.");
-            row.Name = request.Name.Trim();
-            row.Rank = request.Rank;
+            row.Name                  = request.Name.Trim();
+            row.Rank                  = request.Rank;
+            row.UseSharedMatchWindows = request.UseSharedMatchWindows;
             await db.SaveChangesAsync(ct);
             return row.CompetitionDivisionId;
         }
@@ -1256,6 +1545,8 @@ public sealed class WebCompetitionAdminService(
             ?? throw new KeyNotFoundException("Team not found.");
         if (team.CompetitionId != competitionId)
             throw new InvalidOperationException("Team belongs to a different competition.");
+        await EnsureUniqueTeamNameAsync(db, competitionId, team.Name,
+            request.CompetitionDivisionId, teamId, ct);
         team.CompetitionDivisionId = request.CompetitionDivisionId;
         await db.SaveChangesAsync(ct);
     }
@@ -1271,9 +1562,16 @@ public sealed class WebCompetitionAdminService(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await LoadAndAuthorizeAsync(db, competitionId, ct);
 
+        var trimmed = request.Name.Trim();
+
         if (teamId is null)
         {
-            var team = new CompetitionTeam { CompetitionId = competitionId, Name = request.Name.Trim() };
+            // New team starts unassigned (division is set later via
+            // AssignTeamDivisionAsync, which re-runs the same check). Only
+            // clash with other unassigned teams here — two divisions can
+            // legitimately each have their own "Team A".
+            await EnsureUniqueTeamNameAsync(db, competitionId, trimmed, null, null, ct);
+            var team = new CompetitionTeam { CompetitionId = competitionId, Name = trimmed };
             db.CompetitionTeams.Add(team);
             await db.SaveChangesAsync(ct);
             return team.CompetitionTeamId;
@@ -1284,10 +1582,40 @@ public sealed class WebCompetitionAdminService(
                 ?? throw new KeyNotFoundException("Team not found.");
             if (row.CompetitionId != competitionId)
                 throw new InvalidOperationException("Team belongs to a different competition.");
-            row.Name = request.Name.Trim();
+            await EnsureUniqueTeamNameAsync(db, competitionId, trimmed,
+                row.CompetitionDivisionId, teamId.Value, ct);
+            row.Name = trimmed;
             await db.SaveChangesAsync(ct);
             return row.CompetitionTeamId;
         }
+    }
+
+    /// <summary>
+    /// Team names must be unique within a (competition, division) bucket —
+    /// the same name in two different divisions is fine (e.g. "Team A" in
+    /// Div 1 AND in Div 2) and the dropdown disambiguates by appending the
+    /// division name. <paramref name="excludeTeamId"/> skips the row being
+    /// renamed so a no-op save doesn't flag itself.
+    /// </summary>
+    private static async Task EnsureUniqueTeamNameAsync(
+        MyDbContext db, int competitionId, string name, int? divisionId,
+        int? excludeTeamId, CancellationToken ct)
+    {
+        var clash = await db.CompetitionTeams.AnyAsync(t =>
+            t.CompetitionId == competitionId
+            && t.Name == name
+            && t.CompetitionDivisionId == divisionId
+            && (excludeTeamId == null || t.CompetitionTeamId != excludeTeamId.Value), ct);
+        if (!clash) return;
+
+        var where = divisionId.HasValue
+            ? await db.CompetitionDivisions
+                .Where(d => d.CompetitionDivisionId == divisionId.Value)
+                .Select(d => $"division '{d.Name}'")
+                .FirstOrDefaultAsync(ct) ?? "this division"
+            : "the unassigned bucket";
+        throw new InvalidOperationException(
+            $"A team named '{name}' already exists in {where}.");
     }
 
     public async Task DeleteTeamAsync(int competitionId, int teamId, CancellationToken ct = default)
@@ -1423,14 +1751,24 @@ public sealed class WebCompetitionAdminService(
         // For TeamMatch, derive role assigner from the persisted preset key (or
         // the format default). The page also looks at the in-memory rubber
         // template state; here we use the source-of-truth columns on Competition.
+        // When the resolved preset is plain MTT, swap to the rating-aware
+        // variant — AssignMttByRating degrades to alphabetical ordering when
+        // no players have ratings, so the output is unchanged in that case,
+        // but the A slot goes to the higher-rated player when ratings exist.
         RubberTemplateRegistry.RoleAssigner? assigner = null;
         if (isTeamMatch)
         {
             var presetKey = !string.IsNullOrEmpty(comp.RubberTemplateKey)
                 ? comp.RubberTemplateKey
                 : RubberTemplateRegistry.GetFormatDefaultKey(format);
+            if (presetKey == RubberTemplateRegistry.MttKey)
+                presetKey = RubberTemplateRegistry.MttRatedKey;
             assigner = RubberTemplateRegistry.GetRoleAssigner(presetKey);
         }
+
+        var ratingsByPlayer = isTeamMatch
+            ? await playerRatings.GetRosterRatingsAsync(competitionId, ct)
+            : new Dictionary<int, PlayerRatingService.Rating>();
 
         var useMttSplit = isTeamMatch
             && (comp.RubberTemplateKey == RubberTemplateRegistry.MttKey
@@ -1469,7 +1807,7 @@ public sealed class WebCompetitionAdminService(
         {
             GenerateBucket(bucketMembers, divId, divName, format,
                 useMttSplit || (request.BalanceByGender && format == CompetitionFormat.MixedDoubles),
-                teamSize, itemLabel, assigner, rng, preview, warnings);
+                teamSize, itemLabel, assigner, ratingsByPlayer, rng, preview, warnings);
         }
         return new GenerateTeamsResultDto(preview, warnings);
     }
@@ -1479,7 +1817,9 @@ public sealed class WebCompetitionAdminService(
         int? divisionId, string? divisionName,
         CompetitionFormat? format, bool splitByGender,
         int teamSize, string itemLabel,
-        RubberTemplateRegistry.RoleAssigner? assigner, Random rng,
+        RubberTemplateRegistry.RoleAssigner? assigner,
+        IReadOnlyDictionary<int, PlayerRatingService.Rating> ratingsByPlayer,
+        Random rng,
         List<GeneratedTeamPreviewDto> preview, List<string> warnings)
     {
         string TeamName(int idx) => $"{itemLabel} {(char)('A' + idx)}";
@@ -1487,29 +1827,82 @@ public sealed class WebCompetitionAdminService(
 
         if (splitByGender)
         {
-            var males   = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Male).OrderBy(_ => rng.Next()).ToList();
-            var females = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Female).OrderBy(_ => rng.Next()).ToList();
-            var noSex   = bucketMembers.Where(p => p.Player?.Sex is null or PlayerSex.Other).ToList();
+            var malesAll   = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Male).ToList();
+            var femalesAll = bucketMembers.Where(p => p.Player?.Sex == PlayerSex.Female).ToList();
+            var noSex      = bucketMembers.Where(p => p.Player?.Sex is null or PlayerSex.Other).ToList();
 
             if (noSex.Count > 0)
                 warnings.Add($"{BucketPrefix()}{noSex.Count} player(s) have no gender set and will be skipped.");
+
+            // Pre-assigned-roles path: when every M/F player already has a
+            // valid MTT role, form teams by drawing one of each role rather
+            // than shuffling and re-assigning. Preserves the admin's role
+            // placements (typically set via SuggestRolePlacementsAsync) so
+            // the act of generating teams doesn't undo a deliberate balance.
+            bool isMtt = format == CompetitionFormat.TeamMatch && teamSize == 4;
+            string MA = RubberTemplateRegistry.Roles.MA;
+            string MB = RubberTemplateRegistry.Roles.MB;
+            string FA = RubberTemplateRegistry.Roles.FA;
+            string FB = RubberTemplateRegistry.Roles.FB;
+            bool allRolesSet = isMtt
+                && malesAll.Count > 0 && femalesAll.Count > 0
+                && malesAll.All(m => m.Role == MA || m.Role == MB)
+                && femalesAll.All(f => f.Role == FA || f.Role == FB);
+
+            if (allRolesSet)
+            {
+                var maPool = malesAll.Where(m => m.Role == MA).OrderBy(_ => rng.Next()).ToList();
+                var mbPool = malesAll.Where(m => m.Role == MB).OrderBy(_ => rng.Next()).ToList();
+                var faPool = femalesAll.Where(f => f.Role == FA).OrderBy(_ => rng.Next()).ToList();
+                var fbPool = femalesAll.Where(f => f.Role == FB).OrderBy(_ => rng.Next()).ToList();
+
+                int teamCount = new[] { maPool.Count, mbPool.Count, faPool.Count, fbPool.Count }.Min();
+                if (teamCount == 0)
+                {
+                    warnings.Add($"{BucketPrefix()}Not enough role coverage to form teams (MA:{maPool.Count} MB:{mbPool.Count} FA:{faPool.Count} FB:{fbPool.Count}).");
+                    return;
+                }
+                int leftover = maPool.Count + mbPool.Count + faPool.Count + fbPool.Count - 4 * teamCount;
+                if (leftover > 0)
+                    warnings.Add($"{BucketPrefix()}{leftover} player(s) will be unassigned due to uneven role counts.");
+
+                for (int i = 0; i < teamCount; i++)
+                {
+                    var memberIds = new[] { maPool[i].PlayerId, mbPool[i].PlayerId, faPool[i].PlayerId, fbPool[i].PlayerId };
+                    var roles = new Dictionary<int, string>
+                    {
+                        [maPool[i].PlayerId] = MA,
+                        [mbPool[i].PlayerId] = MB,
+                        [faPool[i].PlayerId] = FA,
+                        [fbPool[i].PlayerId] = FB,
+                    };
+                    preview.Add(new GeneratedTeamPreviewDto(
+                        TeamName(i), memberIds.ToList(), roles, divisionId, divisionName));
+                }
+                return;
+            }
+
+            // Legacy path: roles not pre-set (or not MTT) — shuffle and let
+            // the assigner pick roles after team formation.
+            var males   = malesAll.OrderBy(_ => rng.Next()).ToList();
+            var females = femalesAll.OrderBy(_ => rng.Next()).ToList();
 
             var perGender = teamSize / 2;
             if (teamSize % 2 != 0)
                 warnings.Add($"{BucketPrefix()}Team size {teamSize} is odd — using {perGender} of each gender.");
 
-            var teamCount = Math.Min(males.Count / perGender, females.Count / perGender);
-            if (teamCount == 0)
+            var legacyTeamCount = Math.Min(males.Count / perGender, females.Count / perGender);
+            if (legacyTeamCount == 0)
             {
                 warnings.Add($"{BucketPrefix()}Not enough players: {males.Count} male(s), {females.Count} female(s) for teams of {teamSize}.");
                 return;
             }
-            var leftoverM = males.Count - (teamCount * perGender);
-            var leftoverF = females.Count - (teamCount * perGender);
+            var leftoverM = males.Count - (legacyTeamCount * perGender);
+            var leftoverF = females.Count - (legacyTeamCount * perGender);
             if (leftoverM > 0 || leftoverF > 0)
                 warnings.Add($"{BucketPrefix()}{leftoverM + leftoverF} player(s) will be unassigned ({leftoverM} male, {leftoverF} female).");
 
-            for (int i = 0; i < teamCount; i++)
+            for (int i = 0; i < legacyTeamCount; i++)
             {
                 var members = new List<CompetitionParticipant>();
                 members.AddRange(males.Skip(i * perGender).Take(perGender));
@@ -1517,7 +1910,7 @@ public sealed class WebCompetitionAdminService(
                 preview.Add(new GeneratedTeamPreviewDto(
                     TeamName(i),
                     members.Select(m => m.PlayerId).ToList(),
-                    AssignRoles(assigner, members),
+                    AssignRoles(assigner, members, ratingsByPlayer),
                     divisionId, divisionName));
             }
         }
@@ -1539,19 +1932,22 @@ public sealed class WebCompetitionAdminService(
                 preview.Add(new GeneratedTeamPreviewDto(
                     TeamName(i),
                     members.Select(m => m.PlayerId).ToList(),
-                    AssignRoles(assigner, members),
+                    AssignRoles(assigner, members, ratingsByPlayer),
                     divisionId, divisionName));
             }
         }
     }
 
     private static IReadOnlyDictionary<int, string> AssignRoles(
-        RubberTemplateRegistry.RoleAssigner? assigner, List<CompetitionParticipant> members)
+        RubberTemplateRegistry.RoleAssigner? assigner,
+        List<CompetitionParticipant> members,
+        IReadOnlyDictionary<int, PlayerRatingService.Rating> ratingsByPlayer)
     {
         if (assigner is null) return new Dictionary<int, string>();
         var candidates = members
             .Select(m => new RubberTemplateRegistry.AssignmentCandidate(
-                m.PlayerId, m.Player?.DisplayName ?? "", m.Player?.Sex))
+                m.PlayerId, m.Player?.DisplayName ?? "", m.Player?.Sex,
+                ratingsByPlayer.TryGetValue(m.PlayerId, out var r) ? r.Value : (double?)null))
             .ToList();
         return assigner(candidates).ToDictionary(kv => kv.Key, kv => kv.Value);
     }
@@ -1568,6 +1964,46 @@ public sealed class WebCompetitionAdminService(
         var existingTeams = await db.CompetitionTeams.Where(t => t.CompetitionId == competitionId).ToListAsync(ct);
         if (existingTeams.Count > 0)
         {
+            // Fixtures hold FK references (HomeTeamId / AwayTeamId / WinnerTeamId)
+            // to the teams we're about to delete, so a straight RemoveRange on
+            // CompetitionTeams trips a "DELETE conflicted with REFERENCE constraint
+            // FK_CompetitionFixtures_CompetitionTeams_HomeTeamId". Regenerating the
+            // team pool invalidates any fixtures based on the previous teams, so
+            // delete the team-referencing fixtures (and their rubbers + saved
+            // matches) here using the same cleanup pattern as DeleteAllFixturesAsync.
+            // Fixtures unrelated to teams (e.g. singles/doubles with only PlayerN
+            // refs) are left in place.
+            var teamFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == competitionId
+                            && (f.HomeTeamId != null || f.AwayTeamId != null))
+                .ToListAsync(ct);
+            if (teamFixtures.Count > 0)
+            {
+                var fixtureIds = teamFixtures.Select(f => f.CompetitionFixtureId).ToList();
+                var rubbers = await db.Rubbers
+                    .Where(r => fixtureIds.Contains(r.CompetitionFixtureId))
+                    .ToListAsync(ct);
+                var rubberSavedMatchIds = rubbers
+                    .Where(r => r.SavedMatchId.HasValue)
+                    .Select(r => r.SavedMatchId!.Value);
+                if (rubbers.Count > 0) db.Rubbers.RemoveRange(rubbers);
+
+                var directSavedMatchIds = teamFixtures
+                    .Where(f => f.SavedMatchId.HasValue)
+                    .Select(f => f.SavedMatchId!.Value);
+                var savedMatchIds = directSavedMatchIds.Concat(rubberSavedMatchIds).Distinct().ToList();
+                if (savedMatchIds.Count > 0)
+                {
+                    var savedMatches = await db.SavedMatch
+                        .Where(m => savedMatchIds.Contains(m.SavedMatchId))
+                        .ToListAsync(ct);
+                    if (savedMatches.Count > 0) db.SavedMatch.RemoveRange(savedMatches);
+                }
+
+                db.CompetitionFixtures.RemoveRange(teamFixtures);
+                await db.SaveChangesAsync(ct);
+            }
+
             var existingMembers = await db.CompetitionParticipants
                 .Where(cp => cp.CompetitionId == competitionId && cp.TeamId != null)
                 .ToListAsync(ct);
@@ -1667,7 +2103,11 @@ public sealed class WebCompetitionAdminService(
 
         if (fixtureId is null)
         {
-            var f = new CompetitionFixture { CompetitionId = competitionId };
+            var f = new CompetitionFixture
+            {
+                CompetitionId = competitionId,
+                ResultSubmissionToken = Guid.NewGuid(),
+            };
             ApplyFixtureRequest(f, request, isTeamMatch);
             db.CompetitionFixtures.Add(f);
             await db.SaveChangesAsync(ct);
@@ -1725,6 +2165,7 @@ public sealed class WebCompetitionAdminService(
 
         if (!hasResult)
         {
+            await RemoveReminderLogsAsync(db, [fx.CompetitionFixtureId], ct);
             db.CompetitionFixtures.Remove(fx);
             await db.SaveChangesAsync(ct);
             return;
@@ -1873,8 +2314,27 @@ public sealed class WebCompetitionAdminService(
             if (savedMatches.Count > 0) db.SavedMatch.RemoveRange(savedMatches);
         }
 
+        await RemoveReminderLogsAsync(db, fixtureIds, ct);
+
         db.CompetitionFixtures.RemoveRange(fixtures);
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Deletes any <see cref="CompetitionFixtureReminderLog"/> rows for the given
+    /// fixtures. The FK from log to fixture is NoAction (SQL Server disallows a
+    /// second cascade path to the same table), so callers must clear these rows
+    /// before removing the fixtures themselves or the delete fails with an FK
+    /// violation — this also guarantees no orphaned reminder-log rows can remain.
+    /// </summary>
+    private static async Task RemoveReminderLogsAsync(
+        MyDbContext db, IReadOnlyCollection<int> fixtureIds, CancellationToken ct)
+    {
+        if (fixtureIds.Count == 0) return;
+        var logs = await db.CompetitionFixtureReminderLogs
+            .Where(l => fixtureIds.Contains(l.CompetitionFixtureId))
+            .ToListAsync(ct);
+        if (logs.Count > 0) db.CompetitionFixtureReminderLogs.RemoveRange(logs);
     }
 
     public async Task<CompetitionFixtureDto?> LoadFixtureForDialogAsync(
@@ -1899,6 +2359,10 @@ public sealed class WebCompetitionAdminService(
             .Include(f => f.HomeTeam)
             .Include(f => f.AwayTeam)
             .Include(f => f.Competition)
+            .Include(f => f.Rubbers).ThenInclude(r => r.HomePlayer1)
+            .Include(f => f.Rubbers).ThenInclude(r => r.HomePlayer2)
+            .Include(f => f.Rubbers).ThenInclude(r => r.AwayPlayer1)
+            .Include(f => f.Rubbers).ThenInclude(r => r.AwayPlayer2)
             .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId && f.CompetitionId == competitionId, ct);
         return f is null ? null : ToFixtureDto(f);
     }
@@ -2191,5 +2655,229 @@ public sealed class WebCompetitionAdminService(
         db.CompetitionMatchWindows.AddRange(toAdd);
         await db.SaveChangesAsync(ct);
         return toAdd.Count;
+    }
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    public async Task<int> AddCalendarExceptionAsync(
+        int competitionId, SaveCalendarExceptionRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        var entry = new CompetitionCalendarException
+        {
+            CompetitionId        = competitionId,
+            CompetitionDivisionId = request.CompetitionDivisionId,
+            ExceptionDate        = request.ExceptionDate,
+            Note                 = request.Note?.Trim(),
+        };
+        db.CompetitionCalendarExceptions.Add(entry);
+        await db.SaveChangesAsync(ct);
+        return entry.CompetitionCalendarExceptionId;
+    }
+
+    public async Task DeleteCalendarExceptionAsync(int competitionId, int exceptionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        var entry = await db.CompetitionCalendarExceptions
+            .FirstOrDefaultAsync(e => e.CompetitionCalendarExceptionId == exceptionId
+                                      && e.CompetitionId == competitionId, ct)
+            ?? throw new KeyNotFoundException("Calendar exception not found.");
+
+        db.CompetitionCalendarExceptions.Remove(entry);
+        await db.SaveChangesAsync(ct);
+    }
+
+    // ── Fixture reminder emails ──────────────────────────────────────────────
+
+    public async Task<List<CompetitionFixtureReminderDto>> GetFixtureRemindersAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.CompetitionFixtureReminders
+            .AsNoTracking()
+            .Where(r => r.CompetitionId == competitionId)
+            .OrderBy(r => r.HoursBefore)
+            .Select(r => new CompetitionFixtureReminderDto(
+                r.CompetitionFixtureReminderId,
+                r.CompetitionId,
+                r.HoursBefore,
+                r.Subject,
+                r.Body))
+            .ToListAsync(ct);
+    }
+
+    public async Task<List<ScheduledReminderEmailDto>> GetScheduledReminderEmailsAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var reminders = await db.CompetitionFixtureReminders
+            .AsNoTracking()
+            .Where(r => r.CompetitionId == competitionId)
+            .ToListAsync(ct);
+
+        if (reminders.Count == 0) return [];
+
+        var fixtures = await db.CompetitionFixtures
+            .AsNoTracking()
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
+            .Where(f => f.CompetitionId == competitionId
+                     && f.ScheduledAt != null
+                     && f.Status == FixtureStatus.Scheduled)
+            .OrderBy(f => f.ScheduledAt)
+            .ToListAsync(ct);
+
+        if (fixtures.Count == 0) return [];
+
+        var fixtureIds = fixtures.Select(f => f.CompetitionFixtureId).ToHashSet();
+        var sentSet = (await db.CompetitionFixtureReminderLogs
+            .Where(l => fixtureIds.Contains(l.CompetitionFixtureId)
+                     && l.CompetitionFixtureReminderId != null)
+            .Select(l => new { l.CompetitionFixtureReminderId, l.CompetitionFixtureId })
+            .ToListAsync(ct))
+            .Select(l => (l.CompetitionFixtureReminderId!.Value, l.CompetitionFixtureId))
+            .ToHashSet();
+
+        var result = new List<ScheduledReminderEmailDto>();
+        foreach (var reminder in reminders)
+        {
+            foreach (var fixture in fixtures)
+            {
+                var sendAt = fixture.ScheduledAt!.Value.AddHours(-reminder.HoursBefore);
+                var alreadySent = sentSet.Contains((reminder.CompetitionFixtureReminderId, fixture.CompetitionFixtureId));
+                var recipients = GetReminderRecipients(fixture, reminder);
+                result.Add(new ScheduledReminderEmailDto(
+                    fixture.CompetitionFixtureId,
+                    reminder.CompetitionFixtureReminderId,
+                    fixture.FixtureLabel ?? $"Fixture #{fixture.CompetitionFixtureId}",
+                    fixture.ScheduledAt!.Value,
+                    reminder.HoursBefore,
+                    sendAt,
+                    FixtureReminderService.UkLocalToUtc(sendAt),
+                    reminder.Subject,
+                    reminder.Body,
+                    alreadySent,
+                    recipients));
+            }
+        }
+
+        return result.OrderBy(r => r.SendAt).ToList();
+    }
+
+    private static List<ScheduledReminderEmailRecipientDto> GetReminderRecipients(
+        CompetitionFixture fixture, CompetitionFixtureReminder reminder)
+    {
+        var result = new List<ScheduledReminderEmailRecipientDto>();
+
+        if (fixture.HomeTeam is not null || fixture.AwayTeam is not null)
+        {
+            var captainIds = new HashSet<int?> {
+                fixture.HomeTeam?.CaptainPlayerId,
+                fixture.AwayTeam?.CaptainPlayerId
+            };
+            foreach (var p in fixture.HomeTeam?.Participants ?? [])
+                if (p.Player is not null)
+                    result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email,
+                        ReceivesScoreLink: captainIds.Contains(p.PlayerId)));
+            foreach (var p in fixture.AwayTeam?.Participants ?? [])
+                if (p.Player is not null)
+                    result.Add(new(p.Player.DisplayName ?? p.Player.Email ?? "Unknown", p.Player.Email,
+                        ReceivesScoreLink: captainIds.Contains(p.PlayerId)));
+        }
+        else
+        {
+            foreach (var player in new[] { fixture.Player1, fixture.Player2, fixture.Player3, fixture.Player4 })
+                if (player is not null)
+                    result.Add(new(player.DisplayName ?? player.Email ?? "Unknown", player.Email, ReceivesScoreLink: true));
+        }
+
+        return result;
+    }
+
+    public async Task<int> RunReminderSweepAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var result = await FixtureReminderService.RunSweepAsync(db, DateTime.UtcNow, adminEmailService, ct);
+        return result.RemindersSent;
+    }
+
+    public async Task<int> SaveFixtureReminderAsync(
+        int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        CompetitionFixtureReminder reminder;
+        if (reminderId.HasValue)
+        {
+            reminder = await db.CompetitionFixtureReminders
+                .FirstOrDefaultAsync(r => r.CompetitionFixtureReminderId == reminderId.Value
+                                          && r.CompetitionId == competitionId, ct)
+                ?? throw new KeyNotFoundException("Reminder not found.");
+        }
+        else
+        {
+            reminder = new CompetitionFixtureReminder { CompetitionId = competitionId };
+            db.CompetitionFixtureReminders.Add(reminder);
+        }
+
+        reminder.HoursBefore = request.HoursBefore;
+        reminder.Subject = request.Subject;
+        reminder.Body = request.Body;
+
+        await db.SaveChangesAsync(ct);
+        return reminder.CompetitionFixtureReminderId;
+    }
+
+    public async Task DeleteFixtureReminderAsync(int competitionId, int reminderId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        var reminder = await db.CompetitionFixtureReminders
+            .FirstOrDefaultAsync(r => r.CompetitionFixtureReminderId == reminderId
+                                      && r.CompetitionId == competitionId, ct)
+            ?? throw new KeyNotFoundException("Reminder not found.");
+
+        db.CompetitionFixtureReminders.Remove(reminder);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task SendFixtureReminderManualAsync(
+        int competitionId, int fixtureId, int reminderId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await LoadAndAuthorizeAsync(db, competitionId, ct);
+
+        var reminder = await db.CompetitionFixtureReminders
+            .Include(r => r.Competition)
+            .FirstOrDefaultAsync(r => r.CompetitionFixtureReminderId == reminderId
+                                      && r.CompetitionId == competitionId, ct)
+            ?? throw new KeyNotFoundException("Reminder not found.");
+
+        var fixture = await db.CompetitionFixtures
+            .Include(f => f.Player1)
+            .Include(f => f.Player2)
+            .Include(f => f.Player3)
+            .Include(f => f.Player4)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Captain)
+            .Include(f => f.HomeTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Captain)
+            .Include(f => f.AwayTeam).ThenInclude(t => t!.Participants).ThenInclude(p => p.Player)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId
+                                      && f.CompetitionId == competitionId, ct)
+            ?? throw new KeyNotFoundException("Fixture not found.");
+
+        fixture.Competition = reminder.Competition;
+        await adminEmailService.SendFixtureReminderAsync(fixture, reminder, ct);
     }
 }

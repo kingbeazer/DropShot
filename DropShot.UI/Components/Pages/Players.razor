@@ -1,5 +1,5 @@
 @inject IPlayerService PlayerService
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 
 @* Routing + auth + MudProviders supplied by host shims (web:
    DropShot/Components/Pages/Players.razor; MAUI:
@@ -97,8 +97,12 @@
                               InputType="InputType.Email" />
             </MudItem>
             <MudItem xs="6">
-                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number (optional)" Variant="Variant.Outlined"
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number" Variant="Variant.Outlined"
                               InputType="InputType.Telephone" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Required to enter competitions. When entering, this number will be visible to
+                    other competitors in that competition (with consent each time).
+                </MudText>
             </MudItem>
             <MudItem xs="6">
                 <MudDatePicker @bind-Date="_form.DateOfBirthDt" Label="Date of Birth" Variant="Variant.Outlined"
@@ -144,8 +148,12 @@
                               InputType="InputType.Email" />
             </MudItem>
             <MudItem xs="6">
-                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number (optional)" Variant="Variant.Outlined"
+                <MudTextField @bind-Value="_form.MobileNumber" Label="Mobile Number" Variant="Variant.Outlined"
                               InputType="InputType.Telephone" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Required to enter competitions. When entering, this number will be visible to
+                    other competitors in that competition (with consent each time).
+                </MudText>
             </MudItem>
             <MudItem xs="6">
                 <MudDatePicker @bind-Date="_form.DateOfBirthDt" Label="Date of Birth" Variant="Variant.Outlined"
@@ -259,7 +267,7 @@
             IsLight: true));
 
         _showAddDialog = false;
-        Snackbar.Add("Player added.", Severity.Success);
+        SiteAlerts.Add("Player added.", Severity.Success);
         await LoadPlayers();
     }
 
@@ -291,14 +299,14 @@
             _form.ContactPreferences, _form.MobileNumber));
 
         _showEditDialog = false;
-        Snackbar.Add("Player updated.", Severity.Success);
+        SiteAlerts.Add("Player updated.", Severity.Success);
         await LoadPlayers();
     }
 
     private async Task DeletePlayer(PlayerWithClubsDto player)
     {
         await PlayerService.DeletePlayerAsync(player.PlayerId);
-        Snackbar.Add("Player deleted.", Severity.Warning);
+        SiteAlerts.Add("Player deleted.", Severity.Warning);
         await LoadPlayers();
     }
 
@@ -315,7 +323,7 @@
         if (_linkingPlayer is null) return;
         await PlayerService.LinkPlayerAccountAsync(_linkingPlayer.PlayerId, _selectedUserId);
         _showLinkDialog = false;
-        Snackbar.Add("Account link updated.", Severity.Success);
+        SiteAlerts.Add("Account link updated.", Severity.Success);
         await LoadPlayers();
     }
 }

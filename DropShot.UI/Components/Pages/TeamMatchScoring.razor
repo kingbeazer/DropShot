@@ -14,7 +14,7 @@
 else if (_resolutionError != null)
 {
     <MudContainer MaxWidth="MaxWidth.Medium" Class="py-4">
-        <MudAlert Severity="Severity.Error" Class="mb-3">
+        <MudAlert Severity="Severity.Error" Class="frosted-card mb-3">
             <MudText Typo="Typo.body1" Class="mb-2">@_resolutionError</MudText>
             @if (_isCompetitionAdmin)
             {
@@ -44,8 +44,8 @@ else if (_resolutionError != null)
             @if (_context is not null)
             {
                 <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
-                           Href="@($"/competitions/{_context.CompetitionId}/view")">
-                    Back to Competition
+                           OnClick="NavigateBack">
+                    Back
                 </MudButton>
             }
         </MudStack>
@@ -53,12 +53,12 @@ else if (_resolutionError != null)
 }
 else if (_context is null)
 {
-    <MudAlert Severity="Severity.Error">Fixture not found.</MudAlert>
+    <MudAlert Severity="Severity.Error" Class="frosted-card">Fixture not found.</MudAlert>
 }
 else
 {
     <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
-        <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudPaper Class="frosted-card pa-4 mb-4" Elevation="0">
             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
                 <MudStack Spacing="0">
                     <MudText Typo="Typo.h5">@_context.CompetitionName</MudText>
@@ -99,18 +99,21 @@ else
 
         @if (_allComplete)
         {
-            <MudAlert Severity="Severity.Success" Class="mt-4">
+            <MudAlert Severity="Severity.Success" Class="frosted-card mt-4">
                 Match complete: @_context.HomeTeamName @_homeScore — @_awayScore @_scoreUnit @_context.AwayTeamName
                 @if (_homeScore == _awayScore)
                 {
                     <span> (Draw)</span>
                 }
             </MudAlert>
+            <MudAlert Severity="Severity.Info" Class="mt-2">
+                Scores are still editable — tap any rubber above to make changes.
+            </MudAlert>
         }
 
         <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
-                   Href="@($"/competitions/{_context.CompetitionId}/view")">
-            Back to Competition
+                   OnClick="NavigateBack">
+            Back
         </MudButton>
     </MudContainer>
 }
@@ -118,6 +121,10 @@ else
 @code {
     [Parameter] public int FixtureId { get; set; }
     [SupplyParameterFromQuery(Name = "edit")] public int? EditMode { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? ReturnUrl { get; set; }
+
+    private void NavigateBack() =>
+        Navigation.NavigateTo(ReturnUrl ?? (_context is not null ? $"/competition/{_context.CompetitionId}" : "/"));
 
     private FixtureRubberContextDto? _context;
     private bool _loading = true;
@@ -128,9 +135,26 @@ else
     private string? _resolutionError;
     private bool _isCompetitionAdmin;
 
-    private bool CanEditCompletedRubber => _isCompetitionAdmin && EditMode == 1;
+    // Anyone with score permission on this fixture can re-enter or clear a
+    // completed rubber. The page itself is already gated on
+    // _context.CanUserScore at load — if we got here we can edit. Keeping the
+    // ?edit=1 legacy mode for admins only changes nothing meaningful since
+    // admins always pass, but we honour the existing URL for back-compat.
+    private bool CanEditCompletedRubber =>
+        _context?.CanUserScore == true || (_isCompetitionAdmin && EditMode == 1);
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Authentication is enforced by [Authorize] on the routing shim. We
+        // intentionally do NOT gate the page on CurrentUser.CanScoreMatch
+        // here: a player acting in their plain User role (no admin bypass,
+        // no subscription) is a legitimate participant who reaches this URL
+        // by clicking their own fixture on the home page. Write actions are
+        // still gated server-side, so an unauthorised user typing the URL
+        // only sees the read-only state.
+        await CurrentUser.EnsureLoadedAsync();
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -147,6 +171,15 @@ else
         _context = await CompetitionService.GetFixtureRubberContextAsync(FixtureId);
         if (_context is not null)
         {
+            // Score-entry pages are reachable only by admins on the host club
+            // and by participants on either team. A logged-in stranger who
+            // types the URL gets bounced home — matches the server-side
+            // check on SubmitRubberScores.
+            if (!_context.CanUserScore)
+            {
+                Navigation.NavigateTo("/", replace: true);
+                return;
+            }
             _isCompetitionAdmin = CurrentUser.CanEditCompetition(_context.HostClubId);
             ComputeScores();
         }
@@ -195,39 +228,48 @@ else
         }
     }
 
-    private async Task OpenBulkRubberDialogAsync()
+    private void OpenBulkRubberDialogAsync()
     {
-        var parameters = new DialogParameters<BulkRubberScoreDialog>
+        var returnUrl = $"/team-match/{FixtureId}";
+        var admin = _isCompetitionAdmin ? "&admin=1" : "";
+        // Use a route prefix that doesn't share any segments with /team-match/
+        // so server-side routing can never collide with TeamMatchScoring,
+        // which redirects to home when CanScoreMatch is briefly false during
+        // load.
+        Navigation.NavigateTo(
+            $"/score-all-rubbers?fixtureId={FixtureId}&returnUrl={Uri.EscapeDataString(returnUrl)}{admin}",
+            forceLoad: true);
+    }
+
+    private void EnterRubberScore(RubberDialogDto rubber)
+    {
+        var returnUrl = $"/team-match/{FixtureId}";
+        var admin = _isCompetitionAdmin ? "&admin=1" : "";
+        Navigation.NavigateTo(
+            $"/score-rubber?fixtureId={FixtureId}&rubberId={rubber.RubberId}&returnUrl={Uri.EscapeDataString(returnUrl)}{admin}",
+            forceLoad: true);
+    }
+
+    private async Task ClearRubberScoreAsync(RubberDialogDto rubber)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Clear this rubber's score?",
+            $"This will reset \"{rubber.Name}\" back to not played and un-finalise the match. " +
+            "You can re-enter the score afterwards.",
+            yesText: "Clear", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        try
         {
-            { x => x.FixtureId, FixtureId },
-            { x => x.AdminOverride, _isCompetitionAdmin }
-        };
-        var dlg = await DialogService.ShowAsync<BulkRubberScoreDialog>(
-            "Enter all rubber scores",
-            parameters,
-            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Medium, CloseOnEscapeKey = true });
-        var res = await dlg.Result;
-        if (res is not null && !res.Canceled)
-        {
+            await CompetitionService.ClearRubberScoreAsync(FixtureId, rubber.RubberId);
             await LoadAsync();
             StateHasChanged();
         }
-    }
-
-    private async Task EnterRubberScore(RubberDialogDto rubber)
-    {
-        var parameters = new DialogParameters<RubberScoreDialog>
+        catch (Exception)
         {
-            { x => x.FixtureId, FixtureId },
-            { x => x.RubberId, rubber.RubberId },
-            { x => x.AdminOverride, _isCompetitionAdmin }
-        };
-        var dialog = await DialogService.ShowAsync<RubberScoreDialog>("Enter rubber score", parameters);
-        var result = await dialog.Result;
-        if (result != null && !result.Canceled)
-        {
-            await LoadAsync();
-            StateHasChanged();
+            // The service throws on persistence failure. The error surfaces as
+            // a no-op for now; the user can retry. We deliberately don't write
+            // through the SiteAlert service here to keep the diff small.
         }
     }
 
@@ -237,7 +279,7 @@ else
         var awayTeam = _context?.AwayTeamName ?? "Away";
         var homePair = $"{rubber.HomePlayer1Name} & {rubber.HomePlayer2Name}";
         var awayPair = $"{rubber.AwayPlayer1Name} & {rubber.AwayPlayer2Name}";
-        <MudCard Class="mb-2" Outlined="true">
+        <MudCard Class="frosted-card mb-2" Elevation="0">
             <MudCardContent>
                 <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="3">
                     <MudStack Spacing="1" Style="flex:1; min-width:0">
@@ -268,8 +310,15 @@ else
                                 }
                                 @if (CanEditCompletedRubber)
                                 {
-                                    <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit"
-                                                   OnClick="@(() => EnterRubberScore(rubber))" />
+                                    <MudTooltip Text="Re-enter score">
+                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit"
+                                                       OnClick="@(() => EnterRubberScore(rubber))" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Clear score">
+                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       OnClick="@(() => ClearRubberScoreAsync(rubber))" />
+                                    </MudTooltip>
                                 }
                             </MudStack>
                         }

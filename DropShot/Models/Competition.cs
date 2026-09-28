@@ -8,6 +8,14 @@ namespace DropShot.Models
         public string CompetitionName { get; set; } = "";
         public CompetitionFormat CompetitionFormat { get; set; }
 
+        /// <summary>
+        /// Free-form general information about the competition, written in
+        /// Markdown. Rendered to HTML for display by both the edit-mode
+        /// preview and the player-facing view page. Null/empty hides the
+        /// "About" panel entirely.
+        /// </summary>
+        public string? Description { get; set; }
+
         public int? MaxParticipants { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
@@ -51,6 +59,17 @@ namespace DropShot.Models
         public int NumberOfSets { get; set; } = 3;
         public int GamesPerSet { get; set; } = 6;
         public SetWinMode SetWinMode { get; set; } = SetWinMode.WinBy2;
+
+        /// <summary>
+        /// Scoring rules for the optional final-set tie break. A tie break is
+        /// not mandatory — players may decide on the day depending on time
+        /// available. When the final set IS played as a tie break, the score
+        /// is validated against these settings instead of the regular
+        /// <see cref="GamesPerSet"/> / <see cref="SetWinMode"/>.
+        /// </summary>
+        public int FinalSetTieBreakGames { get; set; } = 10;
+        public SetWinMode FinalSetTieBreakWinMode { get; set; } = SetWinMode.WinBy2;
+
         public LeagueScoringMode LeagueScoring { get; set; } = LeagueScoringMode.WinPoints;
 
         /// <summary>
@@ -79,6 +98,23 @@ namespace DropShot.Models
         /// </summary>
         public int? SeededFromCompetitionId { get; set; }
 
+        // ── Singles Elo Ladder config ───────────────────────────────────────
+        // Only meaningful when CompetitionFormat == SinglesLadder. Defaults
+        // are inert for other formats. K is doubled while a participant's
+        // MatchesPlayed < LadderProvisionalMatches (mirrors PlayerRatingService
+        // 40/20 convention).
+        public double LadderKFactor { get; set; } = 20.0;
+        public double LadderStartingRating { get; set; } = 1000.0;
+        public int LadderProvisionalMatches { get; set; } = 10;
+        public bool LadderUseMarginOfVictory { get; set; } = true;
+
+        /// <summary>
+        /// When not null, this competition was created through the setup wizard and has not
+        /// yet been fully configured. The value is the wizard step the user last reached.
+        /// Null means the wizard was completed (or the competition was not created via wizard).
+        /// </summary>
+        public int? WizardStep { get; set; }
+
         public RulesSet? Rules { get; set; }
         public Club? HostClub { get; set; }
         public Event? Event { get; set; }
@@ -92,6 +128,7 @@ namespace DropShot.Models
         public ICollection<CompetitionAdmin> Admins { get; set; } = [];
         public ICollection<CourtPair> CourtPairs { get; set; } = [];
         public ICollection<CompetitionAllowedPlayer> AllowedPlayers { get; set; } = [];
+        public ICollection<CompetitionCalendarException> CalendarExceptions { get; set; } = [];
         public CompetitionRubberTemplate? RubberTemplate { get; set; }
     }
 }

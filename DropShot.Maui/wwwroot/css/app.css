@@ -21,10 +21,14 @@ html:not([data-theme="light"]) .mud-appbar {
     color: #fff !important;
 }
 
-/* Pill the hamburger icon to match the web's contrast look. */
+/* Rectangular hamburger to match the web's .navbar-toggler shape. */
 .mud-appbar .appbar-hamburger {
-    background-color: rgba(255, 255, 255, 0.12);
-    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.375rem;
+    width: 3.5rem;
+    height: 2.5rem;
+    padding: 0;
 }
 
 .mud-appbar .appbar-logo {
@@ -69,9 +73,14 @@ html:not([data-theme="light"]) .mud-appbar {
     --overlay-alpha: 0 !important;
 }
 
+/* Light-mode equivalent of the dark tile + overlay above: the inverted
+   (light) tennis image under an 85% near-white overlay keeps the same
+   muted-pattern feel as dark mode. */
 [data-theme="light"] .mud-main-content {
     background-color: #f5f5f5;
-    background-image: none;
+    background-image:
+        linear-gradient(rgba(245, 245, 245, 0.85), rgba(245, 245, 245, 0.85)),
+        url('/_content/DropShot.UI/images/background-light.png');
 }
 
 /* Force dark text + visible link colour on the lightyellow background.

@@ -49,3 +49,134 @@
     background: transparent !important;
     background-color: transparent !important;
 }
+
+/* ── Competition setup sticky header ───────────────────────────────────
+   Pins the title, action buttons + section nav to the top of the viewport
+   so the user can scroll through detail sections below and still navigate
+   between Setup / Roster / Fixtures tabs. The top offset clears the web
+   host's top navbar (3.5rem) and the MAUI MudAppBar (~4rem); a small gap
+   on web is preferable to overlap on MAUI.
+
+   The tennis-theme bg + dark overlay mirrors the page's own backdrop so
+   detail content scrolling behind the sticky band stays hidden. Negative
+   horizontal margins break out of the page-content wrapper's 0.5rem
+   padding so the band spans the full content width. */
+.competition-sticky-header {
+    position: sticky;
+    /* `--site-alert-height` is published by site-alert-host.js (a ResizeObserver
+       on .site-alert-host) and animates in sync with the alert's grid expansion,
+       sliding this band down out of the alert's way and back up on dismiss. */
+    top: calc(var(--ds-navbar-height, 3.5rem) + var(--site-alert-height, 0px));
+    z-index: 5;
+    background-image:
+        linear-gradient(rgba(18, 18, 18, 0.85), rgba(18, 18, 18, 0.85)),
+        url('../images/background.png');
+    background-size: cover, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+    /* Top padding matches Bootstrap mb-3 (1rem) so the gap above the title
+       card equals the gap between the title card and the nav chips below.
+       Horizontal 0.5rem cancels the negative side margins above. */
+    padding: 1rem 0.5rem 0.75rem;
+}
+
+/* Light-mode equivalent: swap to the inverted tile + a near-white overlay
+   so the sticky band keeps mirroring the page backdrop. */
+[data-theme="light"] .competition-sticky-header {
+    background-image:
+        linear-gradient(rgba(245, 245, 245, 0.85), rgba(245, 245, 245, 0.85)),
+        url('../images/background-light.png');
+}
+
+/* On web, multi-role users get a sticky `.role-banner` (~1.6rem tall)
+   below the navbar. Push the competition sticky header down so it
+   parks below the banner instead of underneath it. Hardcoded for the
+   single-line banner case; multi-line wrapping on very narrow viewports
+   will produce a small overlap. */
+body:has(.role-banner) .competition-sticky-header {
+    top: calc(var(--ds-navbar-height, 3.5rem) + 1.6rem + var(--site-alert-height, 0px));
+}
+
+/* ── Competition control bar (action row + section nav) ────────────────
+   Mobile: column flex with a 0.75rem gap so the two stacked frosted
+   cards (action row on top, section nav below) have the same breathing
+   room as the .mb-3 used between the title row and the first content
+   section — keeping every gap in the sticky band visually equal.
+   Desktop (>= 768px): collapse the two MudPapers into a single
+   combined band with nav chips left and action buttons right. The
+   children's own frosted-card chrome is hidden so the band reads as
+   one card. */
+.competition-control-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+    .competition-control-bar {
+        flex-direction: row;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 0.5rem 0.75rem;
+    }
+
+    [data-theme="light"] .competition-control-bar {
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    /* Children drop their own card chrome inside the wrapper. */
+    .competition-control-bar > .competition-action-row,
+    .competition-control-bar > .competition-section-nav {
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Order: nav left, actions right. Markup order is action-then-nav so
+       mobile (block flow) keeps the existing top-to-bottom arrangement;
+       on desktop we flip the visual order with `order` and push the
+       action group to the trailing edge with `margin-left: auto`. */
+    .competition-control-bar > .competition-section-nav { order: 0; }
+    .competition-control-bar > .competition-action-row {
+        order: 1;
+        margin-left: auto !important;
+    }
+}
+
+/* ── Pill-style action buttons ──────────────────────────────────────────
+   Round the Start / Stop / Clone / View buttons to match the section-nav
+   chips so the combined desktop band reads as a single coordinated
+   control surface — and so the buttons keep the same pill look when they
+   wrap onto their own row on mobile. */
+.competition-action-button {
+    border-radius: 9999px !important;
+    text-transform: none !important;
+    min-height: 32px;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+/* ── Section-nav scroll anchors ─────────────────────────────────────────
+   Zero-height marker divs that ScrollToSectionAsync targets. The Y
+   offset is computed in JS from the live .competition-sticky-header
+   bottom rather than via scroll-margin-top, because the band height
+   varies with viewport (mobile stacks action + nav into two cards) and
+   with the role banner. */
+.section-anchor {
+    height: 0;
+}

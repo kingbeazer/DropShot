@@ -1,0 +1,27 @@
+@page "/score-rubber"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@* Skip prerendering — the OnParametersSetAsync fetch otherwise runs twice
+   (once during SSR, once when the interactive circuit takes over) and the
+   loading skeleton briefly re-appears, producing a visible flicker. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject NavigationManager Navigation
+
+<MudProviders />
+<DropShot.UI.Components.Pages.RubberScorePage FixtureId="@_fixtureId" RubberId="@_rubberId" />
+
+@code {
+    private int _fixtureId;
+    private int _rubberId;
+
+    protected override void OnParametersSet()
+    {
+        // Both ids come from the query string. We used to use route parameters
+        // but the /team-match/{int}/... shape was clashing with the existing
+        // TeamMatchScoring route on the server side and intermittently routing
+        // users to the wrong page.
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
+        if (int.TryParse(query["fixtureId"], out var f)) _fixtureId = f;
+        if (int.TryParse(query["rubberId"], out var r)) _rubberId = r;
+    }
+}

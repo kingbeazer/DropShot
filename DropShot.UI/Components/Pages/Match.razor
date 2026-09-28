@@ -49,6 +49,19 @@
     {
         if (firstRender)
         {
+            // Match scoring sits behind the subscription gate. Anyone who can't
+            // score (anonymous, signed-in-but-unsubscribed, role-switched into
+            // plain User without a sub) gets redirected home so the URL can't
+            // be entered directly. Admins/club-admins acting in their admin
+            // role bypass the gate via CanScoreMatch.
+            await CurrentUser.EnsureLoadedAsync();
+            if (!CurrentUser.CanScoreMatch)
+            {
+                _redirecting = true;
+                Navigation.NavigateTo("/", replace: true);
+                return;
+            }
+
             string? deviceToken = null;
             if (!CurrentUser.IsAuthenticated)
             {

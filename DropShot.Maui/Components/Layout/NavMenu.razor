@@ -3,7 +3,7 @@
 @using DropShot.UI.Services.Auth
 @inject AuthService Auth
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject NavigationManager Nav
 @inject ThemeState Theme
 
@@ -30,11 +30,19 @@
         Home
     </MudNavLink>
 
-    @* Primary nav links live in DropShot.UI.Services.Navigation.NavCatalog
-       so the web and MAUI menus stay in sync — adding a link in the catalog
-       lights it up in both hosts automatically. *@
-    @foreach (var link in DropShot.UI.Services.Navigation.NavCatalog.Primary)
+    @* Nav links live in DropShot.UI.Services.Navigation.NavCatalog so the web
+       and MAUI menus stay in sync. MAUI flattens Primary + Secondary into the
+       drawer; the web routes Secondary into its account dropdown instead. *@
+    @foreach (var link in DropShot.UI.Services.Navigation.NavCatalog.Primary
+        .Concat(DropShot.UI.Services.Navigation.NavCatalog.Secondary))
     {
+        @* Subscription gate is layered on top of role auth — skip entries that
+           require a subscription when the active user can't score. *@
+        if (link.RequiresSubscription && !CurrentUser.CanScoreMatch)
+        {
+            continue;
+        }
+
         if (!string.IsNullOrEmpty(link.RequiredRoles))
         {
             <AuthorizeView Roles="@link.RequiredRoles">
@@ -61,7 +69,8 @@
     </AuthorizeView>
     <AuthorizeView>
         <Authorized>
-            @if (CurrentUser.ActiveRole is not ("ClubAdmin" or "Admin" or "SuperAdmin"))
+            @if (CurrentUser.ActiveRole is not ("ClubAdmin" or "Admin" or "SuperAdmin")
+                && CurrentUser.CanScoreMatch)
             {
                 <MudNavLink Href="/players/mine" Icon="@Icons.Material.Filled.RecentActors">
                     My Players
@@ -77,6 +86,7 @@
         </MudNavLink>
     </AuthorizeView>
 
+    @* TODO: re-enable upgrade nav item when Premium ships.
     <AuthorizeView>
         <Authorized Context="upgradeCtx">
             <MudDivider Class="my-2" />
@@ -85,6 +95,7 @@
             </MudNavLink>
         </Authorized>
     </AuthorizeView>
+    *@
 
     <MudDivider Class="my-2" />
     <MudNavLink Icon="@(Theme.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
@@ -112,6 +123,12 @@
                 Logout
             </MudNavLink>
         </Authorized>
+        <NotAuthorized>
+            <MudDivider Class="my-2" />
+            <MudNavLink Href="/login" Icon="@Icons.Material.Filled.Login">
+                Login
+            </MudNavLink>
+        </NotAuthorized>
     </AuthorizeView>
 </MudNavMenu>
 
@@ -129,7 +146,7 @@
     private async Task SwitchRoleAsync(string role)
     {
         var ok = await Auth.SwitchRoleAsync(role);
-        Snackbar.Add(
+        SiteAlerts.Add(
             ok ? $"Switched to {role}." : $"Failed to switch to {role}.",
             ok ? Severity.Success : Severity.Error);
         // Pages that need to react to a role change subscribe to

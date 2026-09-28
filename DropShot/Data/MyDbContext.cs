@@ -43,7 +43,14 @@ namespace DropShot.Data
         public DbSet<CompetitionDivision> CompetitionDivisions { get; set; }
         public DbSet<PlayerInvitation> PlayerInvitations { get; set; }
         public DbSet<ClubLinkRequest> ClubLinkRequests { get; set; }
+        public DbSet<ClubAdminRequest> ClubAdminRequests { get; set; }
         public DbSet<CompetitionAllowedPlayer> CompetitionAllowedPlayers { get; set; }
+        public DbSet<PlayerRatingSnapshot> PlayerRatingSnapshots { get; set; }
+        public DbSet<LadderInactivityDecay> LadderInactivityDecays { get; set; }
+        public DbSet<CompetitionEntryConsent> CompetitionEntryConsents { get; set; }
+        public DbSet<CompetitionCalendarException> CompetitionCalendarExceptions { get; set; }
+        public DbSet<CompetitionFixtureReminder> CompetitionFixtureReminders { get; set; }
+        public DbSet<CompetitionFixtureReminderLog> CompetitionFixtureReminderLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -157,6 +164,36 @@ namespace DropShot.Data
 
             // ── ClubLinkRequest ──────────────────────────────────────────────────
             builder.Entity<ClubLinkRequest>(entity =>
+            {
+                entity.Property(r => r.UserId).HasMaxLength(450).IsRequired();
+                entity.Property(r => r.ResolvedByUserId).HasMaxLength(450);
+                entity.Property(r => r.Status).HasConversion<byte>();
+
+                entity.HasOne(r => r.Club)
+                      .WithMany()
+                      .HasForeignKey(r => r.ClubId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.User)
+                      .WithMany()
+                      .HasForeignKey(r => r.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(r => r.ResolvedByUser)
+                      .WithMany()
+                      .HasForeignKey(r => r.ResolvedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // At most one Pending request per (User, Club).
+                entity.HasIndex(r => new { r.UserId, r.ClubId })
+                      .IsUnique()
+                      .HasFilter("[Status] = 1");
+
+                entity.HasIndex(r => new { r.ClubId, r.Status });
+            });
+
+            // ── ClubAdminRequest ─────────────────────────────────────────────────
+            builder.Entity<ClubAdminRequest>(entity =>
             {
                 entity.Property(r => r.UserId).HasMaxLength(450).IsRequired();
                 entity.Property(r => r.ResolvedByUserId).HasMaxLength(450);
@@ -654,6 +691,84 @@ namespace DropShot.Data
                       .OnDelete(DeleteBehavior.Cascade);
             });
 
+            // ── PlayerRatingSnapshot ────────────────────────────────────────────
+            builder.Entity<PlayerRatingSnapshot>(entity =>
+            {
+                entity.Property(s => s.Kind).HasConversion<byte>();
+                entity.Property(s => s.AcceptedByUserId).HasMaxLength(450);
+                entity.HasIndex(s => new { s.PlayerId, s.CompetitionId, s.Kind }).IsUnique();
+
+                entity.HasOne(s => s.Player)
+                      .WithMany()
+                      .HasForeignKey(s => s.PlayerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(s => s.Competition)
+                      .WithMany()
+                      .HasForeignKey(s => s.CompetitionId)
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // ── LadderInactivityDecay ───────────────────────────────────────────
+            builder.Entity<LadderInactivityDecay>(entity =>
+            {
+                entity.HasIndex(d => new { d.CompetitionId, d.AppliedAt });
+                entity.HasIndex(d => d.PlayerId);
+
+                entity.HasOne(d => d.Player)
+                      .WithMany()
+                      .HasForeignKey(d => d.PlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(d => d.Competition)
+                      .WithMany()
+                      .HasForeignKey(d => d.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── CompetitionEntryConsent ─────────────────────────────────────────
+            // Append-only consent log for the GDPR phone-share-with-competitors
+            // flow. One row per (player, competition) entry; withdrawal sets
+            // WithdrawnUtc on the most-recent row. Re-entry creates a new row.
+            builder.Entity<CompetitionEntryConsent>(entity =>
+            {
+                entity.Property(c => c.ConsentWordingShown).HasColumnType("nvarchar(max)").IsRequired();
+                entity.Property(c => c.ConsentVersion).HasMaxLength(32).IsRequired();
+
+                entity.HasOne(c => c.Competition)
+                      .WithMany()
+                      .HasForeignKey(c => c.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Restrict on Player FK matches the convention used by other
+                // Player references in this DbContext (avoids multi-cascade-path).
+                entity.HasOne(c => c.Player)
+                      .WithMany()
+                      .HasForeignKey(c => c.PlayerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // Hot path: "any active consent row for (competition, player)?"
+                entity.HasIndex(c => new { c.CompetitionId, c.PlayerId, c.WithdrawnUtc });
+            });
+
+            // ── CompetitionCalendarException ────────────────────────────────────
+            builder.Entity<CompetitionCalendarException>(entity =>
+            {
+                entity.Property(e => e.Note).HasMaxLength(200);
+                entity.HasIndex(e => new { e.CompetitionId, e.CompetitionDivisionId, e.ExceptionDate })
+                      .IsUnique();
+
+                entity.HasOne(e => e.Competition)
+                      .WithMany(c => c.CalendarExceptions)
+                      .HasForeignKey(e => e.CompetitionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Division)
+                      .WithMany(d => d.CalendarExceptions)
+                      .HasForeignKey(e => e.CompetitionDivisionId)
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
             // ── RoleSwitchLog ───────────────────────────────────────────────────
             builder.Entity<RoleSwitchLog>(entity =>
             {
@@ -663,6 +778,25 @@ namespace DropShot.Data
                 entity.Property(r => r.IpAddress).HasMaxLength(45);
                 entity.HasIndex(r => r.UserId);
                 entity.HasIndex(r => r.Timestamp);
+            });
+
+            // ── CompetitionFixtureReminderLog ────────────────────────────────────
+            // SQL Server disallows two CASCADE paths to the same table, so the
+            // fixture FK must use NoAction (reminder cascade handles log cleanup).
+            builder.Entity<CompetitionFixtureReminderLog>(entity =>
+            {
+                entity.HasOne(l => l.Fixture)
+                      .WithMany(f => f.ReminderLogs)
+                      .HasForeignKey(l => l.CompetitionFixtureId)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                // Nullable: null means the log entry is for the default template
+                // (competition had no custom reminder configured).
+                entity.HasOne(l => l.Reminder)
+                      .WithMany(r => r.Logs)
+                      .HasForeignKey(l => l.CompetitionFixtureReminderId)
+                      .IsRequired(false)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

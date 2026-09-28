@@ -1,0 +1,69 @@
+/* Full-bleed section wrapper: breaks a section's background out to the
+   full viewport width regardless of the page's centered max-width column.
+   Works because the margin-left percentage resolves against the parent's
+   width, while -50vw is an absolute viewport-relative offset — the two
+   combine to align the box's left/right edges with the viewport edges. */
+.home-bleed {
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+}
+
+.home-bleed-glass {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+[data-theme="light"] .home-bleed-glass {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+/* The actual content sits in an inner block that mirrors the page's own
+   content column (--ds-content-max-width, centered) so text/buttons line
+   up with the rest of the page instead of stretching edge to edge. */
+::deep .home-bleed-inner {
+    max-width: var(--ds-content-max-width, 1280px) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+::deep .home-bleed-inner .mud-card-header,
+::deep .home-bleed-inner .mud-card-content {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Non-bleed panels: the two side-by-side dashboard cards keep their grid
+   column width (they're not full-row sections) but lose the frosted
+   card's border/radius so they read as a flat wash of colour. */
+::deep .home-panel {
+    background: rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+[data-theme="light"] ::deep .home-panel {
+    background: rgba(255, 255, 255, 0.6) !important;
+}
+
+::deep .home-panel .mud-table,
+::deep .home-panel .mud-table-root,
+::deep .home-panel .mud-table-container,
+::deep .home-panel .mud-card-content,
+::deep .home-panel .mud-paper {
+    background: transparent !important;
+    background-color: transparent !important;
+}

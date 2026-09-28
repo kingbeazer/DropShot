@@ -1,3 +1,6 @@
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Sas;
 using DropShot.Components;
 using DropShot.Components.Account;
 using DropShot.Data;
@@ -9,6 +12,7 @@ using DropShot.UI.Services;
 using DropShot.UI.Services.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -127,6 +131,7 @@ builder.Services.AddScoped<IEmailService, WebEmailService>();
 builder.Services.AddScoped<IPlayerService, WebPlayerService>();
 builder.Services.AddScoped<IClubService, WebClubService>();
 builder.Services.AddScoped<IEventService, WebEventService>();
+builder.Services.AddScoped<IPhoneVisibilityService, PhoneVisibilityService>();
 builder.Services.AddScoped<ICompetitionService, WebCompetitionService>();
 builder.Services.AddScoped<ICompetitionAdminService, WebCompetitionAdminService>();
 builder.Services.AddScoped<IRulesSetService, WebRulesSetService>();
@@ -145,17 +150,29 @@ builder.Services.AddScoped<AdminEmailService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ContactRateLimiter>();
 builder.Services.AddScoped<FuzzySearchService>();
+var blobConnectionString = builder.Configuration["AzureBlobStorage:ConnectionString"];
+if (!string.IsNullOrEmpty(blobConnectionString))
+    builder.Services.AddSingleton(new BlobServiceClient(blobConnectionString));
 builder.Services.AddScoped<ICompetitionRubberTemplateProvider, CompetitionRubberTemplateProvider>();
 builder.Services.AddScoped<RubberResolutionService>();
+builder.Services.AddScoped<PlayerRatingService>();
 builder.Services.AddScoped<FixtureSimulationService>();
 builder.Services.AddScoped<CompetitionSchedulerService>();
 builder.Services.AddSingleton<QrLoginService>();
 builder.Services.AddHostedService<QrSessionCleanupService>();
+builder.Services.AddHostedService<LadderInactivityHostedService>();
+builder.Services.AddHostedService<FixtureReminderHostedService>();
 builder.Services.AddMudServices();
+builder.Services.AddScoped<ISiteAlertService, SiteAlertService>();
 
 var app = builder.Build();
 
 // ── HTTP pipeline ─────────────────────────────────────────────────────────────
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
+});
+
 if (app.Environment.IsDevelopment())
     app.UseMigrationsEndPoint();
 else
@@ -351,7 +368,8 @@ app.MapPost("/Account/SwitchClub", async (
 app.MapPost("/Account/Manage/UploadAvatar", async (
     HttpContext httpContext,
     UserManager<ApplicationUser> userManager,
-    IWebHostEnvironment env) =>
+    IConfiguration configuration,
+    BlobServiceClient? blobServiceClient) =>
 {
     var user = await userManager.GetUserAsync(httpContext.User);
     if (user is null) return Results.Redirect("/Account/Login");
@@ -370,18 +388,20 @@ app.MapPost("/Account/Manage/UploadAvatar", async (
     if (file.Length > maxSize)
         return Results.Redirect("/Account/Manage?error=Image+must+be+less+than+2+MB");
 
-    var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "avatars");
-    Directory.CreateDirectory(uploadsDir);
+    if (blobServiceClient is null)
+        return Results.Redirect("/Account/Manage?error=Avatar+storage+is+not+configured");
 
-    foreach (var existing in Directory.GetFiles(uploadsDir, $"{user.Id}.*"))
-        File.Delete(existing);
+    var containerName = configuration["AzureBlobStorage:ContainerName"] ?? "avatars";
+    var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+    await containerClient.CreateIfNotExistsAsync(PublicAccessType.None);
 
-    var fileName = $"{user.Id}{ext}";
-    var filePath = Path.Combine(uploadsDir, fileName);
-    await using var stream = new FileStream(filePath, FileMode.Create);
-    await file.CopyToAsync(stream);
+    var blobName = $"{user.Id}{ext}";
+    var blobClient = containerClient.GetBlobClient(blobName);
+    await using var stream = file.OpenReadStream();
+    await blobClient.UploadAsync(stream, overwrite: true);
 
-    user.ProfileImagePath = $"/uploads/avatars/{fileName}";
+    var sasUri = blobClient.GenerateSasUri(Azure.Storage.Sas.BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddYears(10));
+    user.ProfileImagePath = sasUri.ToString();
     await userManager.UpdateAsync(user);
 
     return Results.Redirect("/Account/Manage");

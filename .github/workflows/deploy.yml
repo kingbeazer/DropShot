@@ -3,7 +3,12 @@ name: Deploy Blazor App to Azure
 on:
   push:
     branches:
-      - main  # or your deployment branch
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: azure-deploy
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
@@ -33,7 +38,7 @@ jobs:
         ConnectionStrings__DefaultConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
 
     - name: Publish
-      run: dotnet publish DropShot/DropShot.csproj -c Release -o ./publish
+      run: dotnet publish DropShot/DropShot.csproj -c Release -o ./publish --self-contained true -r win-x86
 
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2

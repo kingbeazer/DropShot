@@ -1,13 +1,8 @@
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject IDialogService DialogService
-
-@* Routing + auth + MudProviders supplied by host shims. The 14 admin-template /
-   rules-management write paths stay web-only until phase 5 — the page exposes
-   AdminActionsTemplate (per-row admin icons) and AdminDialogs (page-level
-   dialog markup) render-fragment seams so the web shim can layer them on top
-   of the public surface without coupling the RCL to EF or web-only services. *@
+@inject NavigationManager Nav
 
 <MudText Typo="Typo.h4" Class="mb-4">Clubs</MudText>
 
@@ -31,17 +26,31 @@
         <MudTh>Town</MudTh>
         <MudTh>Email</MudTh>
         <MudTh>Courts</MudTh>
-        <MudTh>Link Status</MudTh>
-        @if (CanSeeActionsColumn)
+        @if (CurrentUser.IsSuperAdmin)
         {
-            <MudTh>Actions</MudTh>
+            <MudTh>Status</MudTh>
         }
+        <MudTh>Link Status</MudTh>
+        <MudTh>Actions</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Name">@context.Name</MudTd>
         <MudTd DataLabel="Town">@(context.Town ?? "—")</MudTd>
         <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
         <MudTd DataLabel="Courts">@context.CourtCount</MudTd>
+        @if (CurrentUser.IsSuperAdmin)
+        {
+            <MudTd DataLabel="Status">
+                @if (context.IsEnabled)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Enabled</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">Disabled</MudChip>
+                }
+            </MudTd>
+        }
         <MudTd DataLabel="Link Status">
             @{
                 var status = GetStatus(context.ClubId);
@@ -51,8 +60,22 @@
                 case ClubLinkState.Administered:
                     <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">Admin</MudChip>
                     break;
+                case ClubLinkState.AdminPending:
+                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Admin Request Pending</MudChip>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       aria-label="Cancel admin request"
+                                       OnClick="@(() => CancelAdminRequest(context))" />
+                    </div>
+                    break;
                 case ClubLinkState.Linked:
-                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Linked</MudChip>
+                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Linked</MudChip>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                   OnClick="@(() => RequestAdminRole(context))">
+                            Request Admin
+                        </MudButton>
+                    </div>
                     break;
                 case ClubLinkState.Pending:
                     <div style="display: inline-flex; align-items: center; gap: 4px;">
@@ -63,46 +86,55 @@
                     </div>
                     break;
                 default:
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
-                               OnClick="@(() => RequestLink(context))">
-                        Request to Link
-                    </MudButton>
+                    @if (_busyClubId == context.ClubId)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    }
+                    else
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   OnClick="@(() => RequestLink(context))">
+                            Request to Link
+                        </MudButton>
+                    }
                     break;
             }
         </MudTd>
-        @if (CanSeeActionsColumn)
-        {
-            <MudTd DataLabel="Actions">
-                @{
-                    var canAdminThis = CurrentUser.IsAdmin || _adminClubIds.Contains(context.ClubId);
-                }
-                @if (canAdminThis)
-                {
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                   OnClick="@(() => StartEdit(context))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Info"
-                                   aria-label="Manage courts" OnClick="@(() => OpenCourts(context))" />
-                    @if (AdminActionsTemplate is not null)
-                    {
-                        @AdminActionsTemplate(context)
-                    }
-                }
-                @if (CurrentUser.IsAdmin)
-                {
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                   OnClick="@(() => DeleteClub(context))" />
-                }
-            </MudTd>
-        }
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                           aria-label="View club" Href="@($"/clubs/{context.ClubId}")" />
+            @{
+                var canAdminThis = CurrentUser.IsAdmin || _adminClubIds.Contains(context.ClubId);
+            }
+            @if (canAdminThis)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => Nav.NavigateTo($"/clubs/{context.ClubId}/edit"))" />
+            }
+            @if (CurrentUser.IsSuperAdmin)
+            {
+                <MudTooltip Text="@(context.IsEnabled ? "Disable club" : "Enable club")">
+                    <MudIconButton Icon="@(context.IsEnabled ? Icons.Material.Filled.ToggleOn : Icons.Material.Filled.ToggleOff)"
+                                   Size="Size.Small"
+                                   Color="@(context.IsEnabled ? Color.Success : Color.Default)"
+                                   OnClick="@(() => ToggleEnabled(context))" />
+                </MudTooltip>
+            }
+            @if (CurrentUser.IsAdmin)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeleteClub(context))" />
+            }
+        </MudTd>
     </RowTemplate>
     <NoRecordsContent>
         <MudText>No clubs yet.</MudText>
     </NoRecordsContent>
 </MudTable>
 
-@* ── Add/Edit Club Dialog ──────────────────────────────────── *@
+@* ── Add Club Dialog ──────────────────────────────────── *@
 <MudDialog @bind-Visible="_showClubDialog">
-    <TitleContent>@(_editingClubId is null ? "Add Club" : "Edit Club")</TitleContent>
+    <TitleContent>Add Club</TitleContent>
     <DialogContent>
         <MudGrid Spacing="2">
             <MudItem xs="12">
@@ -140,133 +172,29 @@
     </DialogActions>
 </MudDialog>
 
-@* ── Manage Courts Dialog ──────────────────────────────────── *@
-<MudDialog @bind-Visible="_showCourtsDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
-    <TitleContent>Courts – @(_courtsClub?.Name)</TitleContent>
-    <DialogContent>
-        <MudGrid Spacing="2" Class="mb-3">
-            <MudItem xs="4">
-                <MudTextField @bind-Value="_courtForm.Name" Label="Court Name" Variant="Variant.Outlined"
-                              Placeholder="e.g. Court 1" Margin="Margin.Dense" />
-            </MudItem>
-            <MudItem xs="3">
-                <MudSelect @bind-Value="_courtForm.Surface" T="CourtSurface" Label="Surface" Variant="Variant.Outlined" Margin="Margin.Dense">
-                    @foreach (CourtSurface s in Enum.GetValues<CourtSurface>())
-                    {
-                        <MudSelectItem T="CourtSurface" Value="@s">@s</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="3">
-                <MudCheckBox @bind-Value="_courtForm.IsIndoor" Label="Indoor" />
-            </MudItem>
-            <MudItem xs="2" Class="d-flex align-center">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                           OnClick="AddCourt">Add</MudButton>
-            </MudItem>
-        </MudGrid>
-
-        <MudTable Items="@_courts" Dense="true" Hover="true">
-            <HeaderContent>
-                <MudTh>Name</MudTh>
-                <MudTh>Surface</MudTh>
-                <MudTh>Indoor</MudTh>
-                <MudTh></MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                @if (_editingCourtId == context.CourtId)
-                {
-                    <MudTd>
-                        <MudTextField @bind-Value="_courtEditForm.Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudTd>
-                    <MudTd>
-                        <MudSelect @bind-Value="_courtEditForm.Surface" T="CourtSurface" Variant="Variant.Outlined" Margin="Margin.Dense">
-                            @foreach (CourtSurface s in Enum.GetValues<CourtSurface>())
-                            {
-                                <MudSelectItem T="CourtSurface" Value="@s">@s</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudTd>
-                    <MudTd>
-                        <MudCheckBox @bind-Value="_courtEditForm.IsIndoor" />
-                    </MudTd>
-                    <MudTd>
-                        <MudIconButton Icon="@Icons.Material.Filled.Save" Size="Size.Small" Color="Color.Primary"
-                                       OnClick="SaveEditCourt"
-                                       Disabled="string.IsNullOrWhiteSpace(_courtEditForm.Name)" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small"
-                                       OnClick="@(() => _editingCourtId = null)" />
-                    </MudTd>
-                }
-                else
-                {
-                    <MudTd>@context.Name</MudTd>
-                    <MudTd>@context.Surface</MudTd>
-                    <MudTd><MudIcon Icon="@(context.IsIndoor ? Icons.Material.Filled.CheckBox : Icons.Material.Filled.CheckBoxOutlineBlank)" Size="Size.Small" /></MudTd>
-                    <MudTd>
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                       OnClick="@(() => StartEditCourt(context))"
-                                       Disabled="_editingCourtId is not null" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                       OnClick="@(() => DeleteCourt(context))"
-                                       Disabled="_editingCourtId is not null" />
-                    </MudTd>
-                }
-            </RowTemplate>
-            <NoRecordsContent><MudText Typo="Typo.caption">No courts yet.</MudText></NoRecordsContent>
-        </MudTable>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => _showCourtsDialog = false)">Close</MudButton>
-    </DialogActions>
-</MudDialog>
-
-@* Web-only admin dialogs (Scheduling Templates / Competition Templates / Email
-   Templates / Rules) are rendered here by the host shim. *@
-@AdminDialogs
-
 @code {
-    /// <summary>
-    /// Per-row admin action buttons rendered inside the Actions cell after Edit
-    /// + Courts. Visible only when the caller can administer the row's club.
-    /// Web shim populates this with the four admin-template / rules icons; MAUI
-    /// host doesn't, and those affordances stay web-only until phase 5.
-    /// </summary>
-    [Parameter] public RenderFragment<ClubDto>? AdminActionsTemplate { get; set; }
-
-    /// <summary>Page-level admin dialogs (state owned by the web shim).</summary>
-    [Parameter] public RenderFragment? AdminDialogs { get; set; }
-
     private bool _loading = true;
     private List<ClubDto> _clubs = [];
     private string _searchText = "";
     private List<int> _adminClubIds = [];
     private HashSet<int> _linkedClubIds = [];
     private HashSet<int> _pendingLinkClubIds = [];
+    private HashSet<int> _pendingAdminRequestClubIds = [];
+    private int? _busyClubId;
 
-    private bool CanSeeActionsColumn =>
-        CurrentUser.IsAdmin || _adminClubIds.Count > 0;
-
-    private enum ClubLinkState { None, Pending, Linked, Administered }
+    private enum ClubLinkState { None, Pending, Linked, AdminPending, Administered }
 
     private ClubLinkState GetStatus(int clubId)
     {
         if (_adminClubIds.Contains(clubId)) return ClubLinkState.Administered;
+        if (_pendingAdminRequestClubIds.Contains(clubId)) return ClubLinkState.AdminPending;
         if (_linkedClubIds.Contains(clubId)) return ClubLinkState.Linked;
         if (_pendingLinkClubIds.Contains(clubId)) return ClubLinkState.Pending;
         return ClubLinkState.None;
     }
 
     private bool _showClubDialog;
-    private int? _editingClubId;
     private ClubForm _clubForm = new();
-
-    private bool _showCourtsDialog;
-    private ClubDto? _courtsClub;
-    private List<CourtDto> _courts = [];
-    private CourtForm _courtForm = new();
-    private int? _editingCourtId;
-    private CourtForm _courtEditForm = new();
 
     private sealed class ClubForm
     {
@@ -278,13 +206,6 @@
         public string? Phone { get; set; }
         public string? Email { get; set; }
         public string? Website { get; set; }
-    }
-
-    private sealed class CourtForm
-    {
-        public string Name { get; set; } = "";
-        public CourtSurface Surface { get; set; } = CourtSurface.Hard;
-        public bool IsIndoor { get; set; }
     }
 
     private bool FilterClubs(ClubDto club) =>
@@ -305,6 +226,7 @@
         _adminClubIds = links.AdminClubIds.ToList();
         _linkedClubIds = links.LinkedClubIds.ToHashSet();
         _pendingLinkClubIds = links.PendingClubIds.ToHashSet();
+        _pendingAdminRequestClubIds = links.PendingAdminRequestClubIds.ToHashSet();
     }
 
     private async Task LoadClubs()
@@ -318,7 +240,7 @@
     {
         if (!CurrentUser.IsAuthenticated)
         {
-            Snackbar.Add("You must be signed in to request a link.", Severity.Warning);
+            SiteAlerts.Add("You must be signed in to request a link.", Severity.Warning);
             return;
         }
 
@@ -331,9 +253,17 @@
 
         if (confirmed != true) return;
 
-        await ClubService.RequestClubLinkAsync(club.ClubId);
-        _pendingLinkClubIds.Add(club.ClubId);
-        Snackbar.Add($"Request sent to {club.Name}.", Severity.Success);
+        _busyClubId = club.ClubId;
+        try
+        {
+            await ClubService.RequestClubLinkAsync(club.ClubId);
+            _pendingLinkClubIds.Add(club.ClubId);
+            SiteAlerts.Add($"Request sent to {club.Name}.", Severity.Success);
+        }
+        finally
+        {
+            _busyClubId = null;
+        }
     }
 
     private async Task CancelRequest(ClubDto club)
@@ -347,30 +277,54 @@
 
         await ClubService.CancelMyClubLinkRequestAsync(club.ClubId);
         _pendingLinkClubIds.Remove(club.ClubId);
-        Snackbar.Add($"Request to {club.Name} cancelled.", Severity.Success);
+        SiteAlerts.Add($"Request to {club.Name} cancelled.", Severity.Success);
+    }
+
+    private async Task RequestAdminRole(ClubDto club)
+    {
+        if (!CurrentUser.IsAuthenticated)
+        {
+            SiteAlerts.Add("You must be signed in to request admin access.", Severity.Warning);
+            return;
+        }
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            $"Request admin access to {club.Name}?",
+            $"This will send a request to the site administrators for review. " +
+            "You'll be notified by email when a decision is made.",
+            yesText: "Send request", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await ClubService.RequestClubAdminAsync(club.ClubId);
+            _pendingAdminRequestClubIds.Add(club.ClubId);
+            SiteAlerts.Add($"Admin request sent for {club.Name}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SiteAlerts.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CancelAdminRequest(ClubDto club)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            $"Cancel admin request for {club.Name}?",
+            "Your pending admin request will be deleted.",
+            yesText: "Delete request", cancelText: "Keep request");
+
+        if (confirmed != true) return;
+
+        await ClubService.CancelMyClubAdminRequestAsync(club.ClubId);
+        _pendingAdminRequestClubIds.Remove(club.ClubId);
+        SiteAlerts.Add($"Admin request for {club.Name} cancelled.", Severity.Success);
     }
 
     private void OpenAddDialog()
     {
-        _editingClubId = null;
         _clubForm = new ClubForm();
-        _showClubDialog = true;
-    }
-
-    private void StartEdit(ClubDto club)
-    {
-        _editingClubId = club.ClubId;
-        _clubForm = new ClubForm
-        {
-            Name = club.Name,
-            AddressLine1 = club.AddressLine1,
-            AddressLine2 = club.AddressLine2,
-            Town = club.Town,
-            Postcode = club.Postcode,
-            Phone = club.Phone,
-            Email = club.Email,
-            Website = club.Website
-        };
         _showClubDialog = true;
     }
 
@@ -387,17 +341,8 @@
             NullIfEmpty(_clubForm.Email),
             NullIfEmpty(_clubForm.Website));
 
-        if (_editingClubId is null)
-        {
-            await ClubService.CreateClubAsync(req);
-            Snackbar.Add("Club added.", Severity.Success);
-        }
-        else
-        {
-            await ClubService.UpdateClubAsync(_editingClubId.Value, req);
-            Snackbar.Add("Club updated.", Severity.Success);
-        }
-
+        await ClubService.CreateClubAsync(req);
+        SiteAlerts.Add("Club added.", Severity.Success);
         _showClubDialog = false;
         await LoadClubs();
     }
@@ -405,66 +350,21 @@
     private async Task DeleteClub(ClubDto club)
     {
         await ClubService.DeleteClubAsync(club.ClubId);
-        Snackbar.Add("Club deleted.", Severity.Warning);
+        SiteAlerts.Add("Club deleted.", Severity.Warning);
         await LoadClubs();
     }
 
-    private async Task OpenCourts(ClubDto club)
+    private async Task ToggleEnabled(ClubDto club)
     {
-        _courtsClub = club;
-        _courtForm = new CourtForm();
-        _editingCourtId = null;
-        var detail = await ClubService.GetClubAsync(club.ClubId);
-        _courts = detail?.Courts.OrderBy(c => c.Name).ToList() ?? [];
-        _showCourtsDialog = true;
-    }
-
-    private async Task AddCourt()
-    {
-        if (_courtsClub is null || string.IsNullOrWhiteSpace(_courtForm.Name)) return;
-        await ClubService.AddCourtAsync(_courtsClub.ClubId,
-            new AddCourtRequest(_courtForm.Name.Trim(), _courtForm.Surface, _courtForm.IsIndoor));
-        _courtForm = new CourtForm();
-        await ReloadCourts();
-        Snackbar.Add("Court added.", Severity.Success);
-    }
-
-    private void StartEditCourt(CourtDto court)
-    {
-        _editingCourtId = court.CourtId;
-        _courtEditForm = new CourtForm
-        {
-            Name = court.Name,
-            Surface = court.Surface,
-            IsIndoor = court.IsIndoor
-        };
-    }
-
-    private async Task SaveEditCourt()
-    {
-        if (_courtsClub is null || _editingCourtId is null) return;
-        await ClubService.UpdateCourtAsync(_courtsClub.ClubId, _editingCourtId.Value,
-            new UpdateCourtRequest(_courtEditForm.Name.Trim(), _courtEditForm.Surface, _courtEditForm.IsIndoor));
-        _editingCourtId = null;
-        await ReloadCourts();
-        Snackbar.Add("Court updated.", Severity.Success);
-    }
-
-    private async Task DeleteCourt(CourtDto court)
-    {
-        if (_courtsClub is null) return;
-        await ClubService.DeleteCourtAsync(_courtsClub.ClubId, court.CourtId);
-        await ReloadCourts();
-        Snackbar.Add("Court deleted.", Severity.Info);
-    }
-
-    private async Task ReloadCourts()
-    {
-        if (_courtsClub is null) return;
-        var detail = await ClubService.GetClubAsync(_courtsClub.ClubId);
-        _courts = detail?.Courts.OrderBy(c => c.Name).ToList() ?? [];
-        // Refresh the row's CourtCount in the list.
-        await LoadClubs();
+        var req = new SaveClubRequest(
+            club.Name, club.AddressLine1, club.AddressLine2, club.Town,
+            club.Postcode, club.Phone, club.Email, club.Website,
+            IsEnabled: !club.IsEnabled);
+        await ClubService.UpdateClubAsync(club.ClubId, req);
+        var idx = _clubs.IndexOf(club);
+        if (idx >= 0)
+            _clubs[idx] = club with { IsEnabled = !club.IsEnabled };
+        SiteAlerts.Add(club.IsEnabled ? $"{club.Name} disabled." : $"{club.Name} enabled.", Severity.Info);
     }
 
     private static string? NullIfEmpty(string? s) =>

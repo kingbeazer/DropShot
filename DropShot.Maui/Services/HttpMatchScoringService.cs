@@ -99,4 +99,13 @@ public sealed class HttpMatchScoringService(HttpClient http) : IMatchScoringServ
         var resp = await http.DeleteAsync($"api/match-scoring/live-match/{savedMatchId}{qs}", ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task<int> CreateLadderFixtureAsync(
+        CreateLadderFixtureRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync("api/match-scoring/ladder-fixture", request, ct);
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadFromJsonAsync<CreateLadderFixtureResponse>(cancellationToken: ct);
+        return body?.FixtureId ?? 0;
+    }
 }

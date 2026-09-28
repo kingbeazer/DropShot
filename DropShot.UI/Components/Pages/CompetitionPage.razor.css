@@ -1,5 +1,21 @@
 /* Competition edit page – mobile-specific polish */
 
+/* Allow long competition names to wrap rather than overflow the row. */
+::deep .competition-title {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640.98px) {
+    /* Scale the h4 title down so long names like
+       "Surrey Mixed Doubles Winter League 2024-25" fit on a phone. */
+    ::deep .competition-title,
+    ::deep .competition-title input {
+        font-size: 1.5rem !important;
+        line-height: 1.3 !important;
+    }
+}
+
 @media (max-width: 640.98px) {
     /* Breathing room between the tab strip (Setup / Roster / Fixtures / Email)
        and the active panel's content. MudBlazor renders the tab headers in

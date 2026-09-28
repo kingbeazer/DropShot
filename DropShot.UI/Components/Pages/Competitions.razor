@@ -8,7 +8,7 @@
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
 @inject IDialogService DialogService
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject PersistentComponentState AppState
 
 @if (_isUserView)
@@ -93,10 +93,16 @@
                     <MudTd DataLabel="Dates">@FormatDates(context)</MudTd>
                     <MudTd DataLabel="Register By">@(context.RegisterByDate?.ToString("dd MMM yyyy") ?? "—")</MudTd>
                     <MudTd>
-                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                   OnClick="@(() => EnterCompetitionAsync(context))">
-                            Enter
-                        </MudButton>
+                        <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       OnClick="@(() => EnterCompetitionAsync(context, ParticipantStatus.FullPlayer))">
+                                Enter
+                            </MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                       OnClick="@(() => EnterCompetitionAsync(context, ParticipantStatus.Substitute))">
+                                Enter as Sub
+                            </MudButton>
+                        </MudStack>
                     </MudTd>
                 </RowTemplate>
             </MudTable>
@@ -210,9 +216,13 @@ RenderFragment allCompetitionsGrid =
                         }
                     </CellTemplate>
                 </TemplateColumn>
-                <TemplateColumn CellClass="d-flex justify-end gap-2">
+                <TemplateColumn CellClass="d-flex flex-wrap justify-end align-center gap-1">
                     <CellTemplate>
-                        @if (!context.Item.IsStarted)
+                        @if (context.Item.WizardStep.HasValue)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Setup in progress</MudChip>
+                        }
+                        else if (!context.Item.IsStarted)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Not Started</MudChip>
                         }
@@ -220,39 +230,46 @@ RenderFragment allCompetitionsGrid =
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Archived</MudChip>
                         }
-                        <MudButton Size="@Size.Small"
-                                   Variant="@Variant.Outlined"
-                                   Color="@Color.Info"
-                                   OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionId}/view"))">
-                            View
-                        </MudButton>
+                        <MudTooltip Text="View">
+                            <MudIconButton Size="@Size.Small"
+                                           Icon="@Icons.Material.Filled.Visibility"
+                                           Color="@Color.Info"
+                                           OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionId}/view"))" />
+                        </MudTooltip>
                         @if (CanEdit(context.Item))
                         {
-                            @if (!context.Item.IsArchived)
+                            @if (context.Item.WizardStep.HasValue)
                             {
-                                <MudButton Size="@Size.Small"
-                                           Variant="@Variant.Filled"
-                                           Color="@Color.Primary"
-                                           OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionId}"))">
-                                    Edit
-                                </MudButton>
+                                <MudTooltip Text="Continue setup">
+                                    <MudIconButton Size="@Size.Small"
+                                                   Icon="@Icons.Material.Filled.PlayArrow"
+                                                   Color="@Color.Info"
+                                                   OnClick="@(() => Nav.NavigateTo($"/competition/wizard/{context.Item.CompetitionId}"))" />
+                                </MudTooltip>
                             }
-                            <MudButton Size="@Size.Small"
-                                       Variant="@Variant.Outlined"
-                                       Color="@(context.Item.IsArchived ? Color.Success : Color.Warning)"
-                                       StartIcon="@(context.Item.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
-                                       OnClick="@(() => ToggleArchiveAsync(context.Item))">
-                                @(context.Item.IsArchived ? "Unarchive" : "Archive")
-                            </MudButton>
+                            else if (!context.Item.IsArchived)
+                            {
+                                <MudTooltip Text="Edit">
+                                    <MudIconButton Size="@Size.Small"
+                                                   Icon="@Icons.Material.Filled.Edit"
+                                                   Color="@Color.Primary"
+                                                   OnClick="@(() => Nav.NavigateTo($"/competition/{context.Item.CompetitionId}"))" />
+                                </MudTooltip>
+                            }
+                            <MudTooltip Text="@(context.Item.IsArchived ? "Unarchive" : "Archive")">
+                                <MudIconButton Size="@Size.Small"
+                                               Icon="@(context.Item.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                               Color="@(context.Item.IsArchived ? Color.Success : Color.Warning)"
+                                               OnClick="@(() => ToggleArchiveAsync(context.Item))" />
+                            </MudTooltip>
                             @if (context.Item.IsArchived)
                             {
-                                <MudButton Size="@Size.Small"
-                                           Variant="@Variant.Filled"
-                                           Color="@Color.Error"
-                                           StartIcon="@Icons.Material.Filled.Delete"
-                                           OnClick="@(() => DeleteCompetitionAsync(context.Item))">
-                                    Delete
-                                </MudButton>
+                                <MudTooltip Text="Delete">
+                                    <MudIconButton Size="@Size.Small"
+                                                   Icon="@Icons.Material.Filled.Delete"
+                                                   Color="@Color.Error"
+                                                   OnClick="@(() => DeleteCompetitionAsync(context.Item))" />
+                                </MudTooltip>
                             }
                         }
                     </CellTemplate>
@@ -318,31 +335,32 @@ RenderFragment allCompetitionsGrid =
                                             }
                                         </td>
                                         <td>@comp.CompetitionFormat.ToDisplayName()</td>
-                                        <td class="d-flex justify-end gap-2">
-                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
-                                                       OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}/view"))">
-                                                View
-                                            </MudButton>
+                                        <td class="d-flex flex-wrap justify-end align-center gap-1">
+                                            <MudTooltip Text="View">
+                                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Visibility" Color="Color.Info"
+                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}/view"))" />
+                                            </MudTooltip>
                                             @if (CanEdit(comp))
                                             {
                                                 @if (!comp.IsArchived)
                                                 {
-                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}"))">
-                                                        Edit
-                                                    </MudButton>
+                                                    <MudTooltip Text="Edit">
+                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit" Color="Color.Primary"
+                                                                       OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}"))" />
+                                                    </MudTooltip>
                                                 }
-                                                <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                                                           Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
-                                                           OnClick="@(() => ToggleArchiveAsync(comp))">
-                                                    @(comp.IsArchived ? "Unarchive" : "Archive")
-                                                </MudButton>
+                                                <MudTooltip Text="@(comp.IsArchived ? "Unarchive" : "Archive")">
+                                                    <MudIconButton Size="Size.Small"
+                                                                   Icon="@(comp.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                                                   Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
+                                                                   OnClick="@(() => ToggleArchiveAsync(comp))" />
+                                                </MudTooltip>
                                                 @if (comp.IsArchived)
                                                 {
-                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                                                               OnClick="@(() => DeleteCompetitionAsync(comp))">
-                                                        Delete
-                                                    </MudButton>
+                                                    <MudTooltip Text="Delete">
+                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                                                       OnClick="@(() => DeleteCompetitionAsync(comp))" />
+                                                    </MudTooltip>
                                                 }
                                             }
                                         </td>
@@ -387,31 +405,32 @@ RenderFragment allCompetitionsGrid =
                                             }
                                         </td>
                                         <td>@comp.CompetitionFormat.ToDisplayName()</td>
-                                        <td class="d-flex justify-end gap-2">
-                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
-                                                       OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}/view"))">
-                                                View
-                                            </MudButton>
+                                        <td class="d-flex flex-wrap justify-end align-center gap-1">
+                                            <MudTooltip Text="View">
+                                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Visibility" Color="Color.Info"
+                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}/view"))" />
+                                            </MudTooltip>
                                             @if (CanEdit(comp))
                                             {
                                                 @if (!comp.IsArchived)
                                                 {
-                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                                                               OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}"))">
-                                                        Edit
-                                                    </MudButton>
+                                                    <MudTooltip Text="Edit">
+                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Edit" Color="Color.Primary"
+                                                                       OnClick="@(() => Nav.NavigateTo($"/competition/{comp.CompetitionId}"))" />
+                                                    </MudTooltip>
                                                 }
-                                                <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                                                           Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
-                                                           OnClick="@(() => ToggleArchiveAsync(comp))">
-                                                    @(comp.IsArchived ? "Unarchive" : "Archive")
-                                                </MudButton>
+                                                <MudTooltip Text="@(comp.IsArchived ? "Unarchive" : "Archive")">
+                                                    <MudIconButton Size="Size.Small"
+                                                                   Icon="@(comp.IsArchived ? Icons.Material.Filled.Unarchive : Icons.Material.Filled.Archive)"
+                                                                   Color="@(comp.IsArchived ? Color.Success : Color.Warning)"
+                                                                   OnClick="@(() => ToggleArchiveAsync(comp))" />
+                                                </MudTooltip>
                                                 @if (comp.IsArchived)
                                                 {
-                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                                                               OnClick="@(() => DeleteCompetitionAsync(comp))">
-                                                        Delete
-                                                    </MudButton>
+                                                    <MudTooltip Text="Delete">
+                                                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                                                       OnClick="@(() => DeleteCompetitionAsync(comp))" />
+                                                    </MudTooltip>
                                                 }
                                             }
                                         </td>
@@ -460,6 +479,7 @@ else
     // Standard-user view
     private bool _isUserView;
     private bool _hasPlayer;
+    private string? _myMobileNumber;
     private List<CompetitionDto> _myEnteredComps = [];
     private List<CompetitionDto> _availableComps = [];
 
@@ -489,7 +509,8 @@ else
         Dictionary<int, List<CompetitionDto>> CompsByEventId,
         List<CompetitionDto> MyEnteredComps,
         List<CompetitionDto> AvailableComps,
-        List<CompetitionFixtureDto> PendingFixtures);
+        List<CompetitionFixtureDto> PendingFixtures,
+        string? MyMobileNumber);
 
     private PersistingComponentStateSubscription _persistSubscription;
 
@@ -514,6 +535,10 @@ else
         if (AppState.TryTakeFromJson<PersistedState>(nameof(Competitions), out var snap) && snap is not null)
         {
             ApplySnapshot(snap);
+            // Still ensure CurrentUser is loaded so CanEdit() / CanEditCompetition()
+            // read a populated _adminClubIds on the first render. Without this,
+            // edit buttons are missing until the Changed event fires later.
+            await CurrentUser.EnsureLoadedAsync();
             return;
         }
 
@@ -538,6 +563,7 @@ else
         _myEnteredComps = snap.MyEnteredComps;
         _availableComps = snap.AvailableComps;
         _pendingFixtures = snap.PendingFixtures;
+        _myMobileNumber = snap.MyMobileNumber;
         _events = snap.EventGroups
             .Select(e => new EventGroup
             {
@@ -560,7 +586,8 @@ else
             _events.ToDictionary(g => g.Event.EventId, g => g.Competitions),
             _myEnteredComps,
             _availableComps,
-            _pendingFixtures);
+            _pendingFixtures,
+            _myMobileNumber);
         AppState.PersistAsJson(nameof(Competitions), snap);
         return Task.CompletedTask;
     }
@@ -602,6 +629,7 @@ else
             _hasPlayer = view.HasPlayer;
             _myEnteredComps = view.Entered;
             _availableComps = view.Available;
+            _myMobileNumber = view.MyMobileNumber;
             return;
         }
 
@@ -635,19 +663,48 @@ else
         return c.StartDate == c.EndDate ? start : $"{start} – {end}";
     }
 
-    private async Task EnterCompetitionAsync(CompetitionDto comp)
+    private async Task EnterCompetitionAsync(CompetitionDto comp, ParticipantStatus status)
     {
-        try
+        if (string.IsNullOrWhiteSpace(_myMobileNumber))
         {
-            await CompetitionService.EnterCompetitionAsync(comp.CompetitionId);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Warning);
+            SiteAlerts.Add(
+                "Add a mobile number to your profile before entering competitions.",
+                Severity.Warning,
+                actionLabel: "Open my account",
+                actionCallback: () =>
+                {
+                    Nav.NavigateTo("/Account/Manage", forceLoad: true);
+                    return Task.CompletedTask;
+                });
             return;
         }
 
-        Snackbar.Add($"Entered '{comp.CompetitionName}'.", Severity.Success);
+        var parameters = new DialogParameters
+        {
+            [nameof(DropShot.UI.Components.Shared.EnterCompetitionConsentDialog.CompetitionName)] = comp.CompetitionName,
+            [nameof(DropShot.UI.Components.Shared.EnterCompetitionConsentDialog.MobileNumber)] = _myMobileNumber,
+        };
+        var dialogTitle = status == ParticipantStatus.Substitute
+            ? "Enter as substitute — share your mobile number"
+            : "Share your mobile number with competitors";
+        var dialog = await DialogService.ShowAsync<DropShot.UI.Components.Shared.EnterCompetitionConsentDialog>(
+            dialogTitle, parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return;
+        if (result.Data is not PhoneShareConsent consent) return;
+
+        try
+        {
+            await CompetitionService.EnterCompetitionAsync(comp.CompetitionId, consent, status);
+        }
+        catch (InvalidOperationException ex)
+        {
+            SiteAlerts.Add(ex.Message, Severity.Warning);
+            return;
+        }
+
+        var enteredAs = status == ParticipantStatus.Substitute ? " as substitute" : "";
+        SiteAlerts.Add($"Entered '{comp.CompetitionName}'{enteredAs}.", Severity.Success);
 
         _availableComps.RemoveAll(c => c.CompetitionId == comp.CompetitionId);
         _myEnteredComps.Add(comp);
@@ -686,12 +743,12 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Failed to approve. Please try again.", Severity.Error);
+            SiteAlerts.Add("Failed to approve. Please try again.", Severity.Error);
             return;
         }
 
         _pendingFixtures.Remove(fixture);
-        Snackbar.Add("Result approved.", Severity.Success);
+        SiteAlerts.Add("Result approved.", Severity.Success);
     }
 
     private async Task OpenReviewDialogAsync(CompetitionFixtureDto fixture)
@@ -714,7 +771,7 @@ else
         if (result is not null && !result.Canceled)
         {
             _pendingFixtures.Remove(fixture);
-            Snackbar.Add("Result verified.", Severity.Success);
+            SiteAlerts.Add("Result verified.", Severity.Success);
         }
     }
 
@@ -738,7 +795,7 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Failed to create the event. Please try again.", Severity.Error);
+            SiteAlerts.Add("Failed to create the event. Please try again.", Severity.Error);
             return;
         }
 
@@ -754,7 +811,7 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Event created, but adding the competitions failed.", Severity.Warning);
+            SiteAlerts.Add("Event created, but adding the competitions failed.", Severity.Warning);
             return;
         }
 
@@ -764,7 +821,7 @@ else
         }
         _events.Add(new EventGroup { Event = ev, Competitions = created });
 
-        Snackbar.Add($"Event '{ev.Name}' created with {created.Count} competition(s).", Severity.Success);
+        SiteAlerts.Add($"Event '{ev.Name}' created with {created.Count} competition(s).", Severity.Success);
         _activeTab = 1;
     }
 
@@ -776,7 +833,7 @@ else
         }
         catch (Exception)
         {
-            Snackbar.Add("Failed to update. Please try again.", Severity.Error);
+            SiteAlerts.Add("Failed to update. Please try again.", Severity.Error);
             return;
         }
 
@@ -784,7 +841,7 @@ else
         var updated = comp with { IsArchived = !comp.IsArchived };
         ReplaceCompetition(comp, updated);
 
-        Snackbar.Add(updated.IsArchived
+        SiteAlerts.Add(updated.IsArchived
             ? $"'{updated.CompetitionName}' archived."
             : $"'{updated.CompetitionName}' restored.", Severity.Success);
     }
@@ -807,7 +864,7 @@ else
     {
         var confirm = await DialogService.ShowMessageBoxAsync(
             "Delete Competition",
-            $"Are you sure you want to permanently delete '{comp.CompetitionName}'? This will remove all participants, fixtures, stages, and teams. This action cannot be undone.",
+            $"Are you sure you want to permanently delete '{comp.CompetitionName}'? This will remove all participants, fixtures, stages, teams, and rating snapshots. This action cannot be undone.",
             yesText: "Delete", cancelText: "Cancel");
 
         if (confirm != true) return;
@@ -816,9 +873,9 @@ else
         {
             await CompetitionService.DeleteCompetitionAsync(comp.CompetitionId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            Snackbar.Add("Failed to delete. Please try again.", Severity.Error);
+            SiteAlerts.Add($"Couldn't delete '{comp.CompetitionName}': {ex.Message}", Severity.Error);
             return;
         }
 
@@ -827,6 +884,6 @@ else
             ev.Competitions.RemoveAll(c => c.CompetitionId == comp.CompetitionId);
         _ungroupedCompetitions.Remove(comp);
 
-        Snackbar.Add($"'{comp.CompetitionName}' deleted.", Severity.Success);
+        SiteAlerts.Add($"'{comp.CompetitionName}' deleted.", Severity.Success);
     }
 }

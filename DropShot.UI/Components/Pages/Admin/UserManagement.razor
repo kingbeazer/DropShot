@@ -1,7 +1,7 @@
 @inject IUserService UserService
 @inject IClubService ClubService
 @inject ICurrentUser CurrentUser
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject IDialogService Dialog
 
 @* Routing + auth + MudProviders supplied by host shims. *@
@@ -202,11 +202,11 @@
         {
             await UserService.SetRoleAsync(row.Id, "SuperAdmin", make);
             await LoadAsync();
-            Snackbar.Add(
+            SiteAlerts.Add(
                 $"{row.UserName} {(make ? "granted" : "removed from")} Super Admin role.",
                 make ? Severity.Success : Severity.Warning);
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { SiteAlerts.Add(ex.Message, Severity.Error); }
     }
 
     private async Task ToggleAdmin(UserManagementRowDto row, bool make)
@@ -215,11 +215,11 @@
         {
             await UserService.SetRoleAsync(row.Id, "Admin", make);
             await LoadAsync();
-            Snackbar.Add(
+            SiteAlerts.Add(
                 $"{row.UserName} {(make ? "granted" : "removed from")} Admin role.",
                 make ? Severity.Success : Severity.Warning);
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { SiteAlerts.Add(ex.Message, Severity.Error); }
     }
 
     private async Task TogglePremium(UserManagementRowDto row, bool make)
@@ -228,11 +228,11 @@
         {
             await UserService.SetPremiumAsync(row.Id, make);
             await LoadAsync();
-            Snackbar.Add(
+            SiteAlerts.Add(
                 $"{row.UserName} premium {(make ? "enabled" : "disabled")}.",
                 make ? Severity.Success : Severity.Warning);
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { SiteAlerts.Add(ex.Message, Severity.Error); }
     }
 
     private void OpenAddClubDialog(UserManagementRowDto row)
@@ -249,11 +249,11 @@
         {
             await UserService.AddClubAdminAsync(_targetRow.Id, _selectedClubId.Value);
             var clubName = _allClubs.First(c => c.ClubId == _selectedClubId.Value).Name;
-            Snackbar.Add($"{_targetRow.UserName} is now a Club Admin for {clubName}.", Severity.Success);
+            SiteAlerts.Add($"{_targetRow.UserName} is now a Club Admin for {clubName}.", Severity.Success);
             _showAddClubDialog = false;
             await LoadAsync();
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { SiteAlerts.Add(ex.Message, Severity.Error); }
     }
 
     private void OpenEditDialog(UserManagementRowDto row)
@@ -270,11 +270,11 @@
         try
         {
             await UserService.UpdateAsync(_editRow.Id, new UpdateUserRequest(_editUsername, _editEmail));
-            Snackbar.Add("User updated successfully.", Severity.Success);
+            SiteAlerts.Add("User updated successfully.", Severity.Success);
             _showEditDialog = false;
             await LoadAsync();
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { SiteAlerts.Add(ex.Message, Severity.Error); }
     }
 
     private async Task DeleteUserAsync(UserManagementRowDto row)
@@ -290,9 +290,9 @@
         {
             await UserService.DeleteAsync(row.Id);
             _rows.Remove(row);
-            Snackbar.Add($"User '{row.UserName}' deleted.", Severity.Warning);
+            SiteAlerts.Add($"User '{row.UserName}' deleted.", Severity.Warning);
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { SiteAlerts.Add(ex.Message, Severity.Error); }
     }
 
     private async Task RemoveClubAdmin(UserManagementRowDto row, int clubId)
@@ -301,9 +301,9 @@
         {
             await UserService.RemoveClubAdminAsync(row.Id, clubId);
             var clubName = _allClubs.FirstOrDefault(c => c.ClubId == clubId)?.Name ?? clubId.ToString();
-            Snackbar.Add($"Removed {row.UserName} as Club Admin for {clubName}.", Severity.Warning);
+            SiteAlerts.Add($"Removed {row.UserName} as Club Admin for {clubName}.", Severity.Warning);
             await LoadAsync();
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { SiteAlerts.Add(ex.Message, Severity.Error); }
     }
 }

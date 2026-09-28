@@ -1,0 +1,62 @@
+@using DropShot.Shared.Dtos
+@using DropShot.Shared.Helpers
+
+@* Shared dialog for the three entry paths (SelfRegister, ConfirmParticipation,
+   EnterCompetition). Renders the per-competition phone-share consent wording
+   with a masked version of the player's mobile, requires the user to actively
+   tick the checkbox, and returns the exact rendered text + version so the
+   server records it verbatim. *@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Share your mobile number with competitors</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3" Class="pa-2">
+            <MudText Typo="Typo.body2">@_wording</MudText>
+            <MudCheckBox @bind-Value="_consentGiven" Color="Color.Primary" Dense="true">
+                I agree to share my mobile number with other competitors in this competition.
+            </MudCheckBox>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                You can leave the competition at any time to remove your number from other
+                competitors' views.
+            </MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(!_consentGiven)" OnClick="Confirm">
+            Confirm entry
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    public const string ConsentVersion = "v1-2026-05";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public string CompetitionName { get; set; } = "";
+    [Parameter, EditorRequired] public string? MobileNumber { get; set; }
+
+    private bool _consentGiven;
+    private string _wording = "";
+
+    protected override void OnParametersSet()
+    {
+        var masked = PhoneMasker.Mask(MobileNumber);
+        _wording =
+            $"By entering {CompetitionName}, your mobile number ({masked}) will be visible " +
+            "to other competitors in this competition so you can coordinate matches. " +
+            "You can leave the competition at any time to remove it.";
+    }
+
+    private void Confirm() =>
+        MudDialog.Close(DialogResult.Ok(new PhoneShareConsent(
+            Granted: true,
+            WordingShown: _wording,
+            Version: ConsentVersion)));
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -162,7 +162,8 @@ public sealed class WebPlayerService(
                     p.PlayerId, p.DisplayName, p.FirstName, p.LastName,
                     p.IsLight, p.CreatedByClubId, p.Email, p.MobileNumber,
                     p.Sex, p.ProfileImagePath, p.DateOfBirth,
-                    UserImage = p.User != null ? p.User.ProfileImagePath : null
+                    UserImage = p.User != null ? p.User.ProfileImagePath : null,
+                    cp.IsActive
                 })
             .OrderBy(x => x.DisplayName)
             .ToListAsync(ct);
@@ -171,7 +172,25 @@ public sealed class WebPlayerService(
             x.PlayerId, x.DisplayName, x.FirstName, x.LastName,
             x.Email, x.MobileNumber, (DropShot.Shared.PlayerSex?)x.Sex,
             x.DateOfBirth, x.UserImage ?? x.ProfileImagePath,
-            x.IsLight, x.CreatedByClubId == clubId)).ToList();
+            x.IsLight, x.CreatedByClubId == clubId, x.IsActive)).ToList();
+    }
+
+    public async Task ArchivePlayerFromClubAsync(int clubId, int playerId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var cp = await db.ClubPlayers.FindAsync([clubId, playerId], ct);
+        if (cp is null) return;
+        cp.IsActive = false;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task UnarchivePlayerFromClubAsync(int clubId, int playerId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var cp = await db.ClubPlayers.FindAsync([clubId, playerId], ct);
+        if (cp is null) return;
+        cp.IsActive = true;
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task<List<PlayerDto>> SearchPlayersForClubLinkAsync(int clubId, string term, CancellationToken ct = default)

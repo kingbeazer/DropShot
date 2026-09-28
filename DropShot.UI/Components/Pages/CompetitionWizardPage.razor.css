@@ -1,0 +1,12 @@
+.wizard-step {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    color: white;
+}
+
+.competition-title {
+    font-weight: 600;
+}

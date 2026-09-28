@@ -1,0 +1,286 @@
+@inject IClubService ClubService
+@inject ICompetitionService CompetitionService
+@inject ICurrentUser CurrentUser
+@inject ISiteAlertService SiteAlerts
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Class="mt-8" />
+}
+else if (_club is null)
+{
+    <MudText Typo="Typo.h5" Class="mt-8">Club not found.</MudText>
+    <MudButton Href="/clubs" StartIcon="@Icons.Material.Filled.ArrowBack" Class="mt-2">Back to Clubs</MudButton>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/clubs" aria-label="Back to clubs" />
+        <MudText Typo="Typo.h4">@_club.Name</MudText>
+    </MudStack>
+
+    <MudGrid Class="mt-2">
+        @* ── Club details ── *@
+        <MudItem xs="12" md="5">
+            <MudCard Class="frosted-card" Elevation="0">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.LocationOn" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">Club Details</MudText>
+                        </MudStack>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (!string.IsNullOrEmpty(_club.AddressLine1) || !string.IsNullOrEmpty(_club.Town))
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Address</MudText>
+                        @if (!string.IsNullOrEmpty(_club.AddressLine1))
+                        {
+                            <MudText Typo="Typo.body1">@_club.AddressLine1</MudText>
+                        }
+                        @if (!string.IsNullOrEmpty(_club.AddressLine2))
+                        {
+                            <MudText Typo="Typo.body1">@_club.AddressLine2</MudText>
+                        }
+                        @if (!string.IsNullOrEmpty(_club.Town) || !string.IsNullOrEmpty(_club.Postcode))
+                        {
+                            <MudText Typo="Typo.body1">@string.Join(", ", new[] { _club.Town, _club.Postcode }.Where(s => !string.IsNullOrEmpty(s)))</MudText>
+                        }
+                        <MudDivider Class="my-3" />
+                    }
+
+                    @if (!string.IsNullOrEmpty(_club.Phone))
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.body1">@_club.Phone</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(_club.Email))
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.body1">@_club.Email</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(_club.Website))
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Language" Size="Size.Small" Color="Color.Secondary" />
+                            <MudLink Href="@_club.Website" Target="_blank">@_club.Website</MudLink>
+                        </MudStack>
+                    }
+
+                    @if (_club.Courts.Count > 0)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">Courts (@_club.Courts.Count)</MudText>
+                        @foreach (var court in _club.Courts.OrderBy(c => c.Name))
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-1">
+                                <MudIcon Icon="@Icons.Material.Filled.SportsTennis" Size="Size.Small" Color="Color.Default" />
+                                <MudText Typo="Typo.body2">@court.Name</MudText>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@court.Surface</MudChip>
+                                @if (court.IsIndoor)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Indoor</MudChip>
+                                }
+                            </MudStack>
+                        }
+                    }
+                </MudCardContent>
+                <MudCardActions>
+                    @switch (_linkState)
+                    {
+                        case ClubLinkState.Administered:
+                            <MudChip T="string" Color="Color.Info" Variant="Variant.Filled" Icon="@Icons.Material.Filled.AdminPanelSettings">
+                                You administer this club
+                            </MudChip>
+                            break;
+                        case ClubLinkState.Linked:
+                            <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.CheckCircle">
+                                You are linked to this club
+                            </MudChip>
+                            break;
+                        case ClubLinkState.Pending:
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.HourglassTop">
+                                    Link request pending
+                                </MudChip>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                           OnClick="CancelRequestAsync">
+                                    Cancel Request
+                                </MudButton>
+                            </MudStack>
+                            break;
+                        default:
+                            @if (CurrentUser.IsAuthenticated)
+                            {
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.Link"
+                                           OnClick="RequestLinkAsync">
+                                    Request to Link
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Info" Dense="true">
+                                    <MudLink Href="/Account/Login">Sign in</MudLink> to request to link with this club.
+                                </MudAlert>
+                            }
+                            break;
+                    }
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        @* ── Competitions ── *@
+        <MudItem xs="12" md="7">
+            <MudCard Class="frosted-card" Elevation="0">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">Current Competitions</MudText>
+                        </MudStack>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="pa-0">
+                    @if (_competitions.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">
+                            No active competitions for this club at the moment.
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudTable Items="@_competitions" Dense="true" Hover="true" Elevation="0">
+                            <HeaderContent>
+                                <MudTh>Name</MudTh>
+                                <MudTh>Format</MudTh>
+                                <MudTh>Dates</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Name">
+                                    <MudText Typo="Typo.body2" Style="font-weight:500">@context.CompetitionName</MudText>
+                                    @if (!string.IsNullOrEmpty(context.EventName))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.EventName</MudText>
+                                    }
+                                </MudTd>
+                                <MudTd DataLabel="Format">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.CompetitionFormat</MudChip>
+                                </MudTd>
+                                <MudTd DataLabel="Dates">
+                                    <MudText Typo="Typo.caption">
+                                        @if (context.StartDate.HasValue)
+                                        {
+                                            @context.StartDate.Value.ToString("dd MMM yyyy")
+                                            @if (context.EndDate.HasValue)
+                                            {
+                                                <span> – @context.EndDate.Value.ToString("dd MMM yyyy")</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span>—</span>
+                                        }
+                                    </MudText>
+                                </MudTd>
+                                <MudTd>
+                                    <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                                               Href="@($"/competition/{context.CompetitionId}/view")">
+                                        View
+                                    </MudButton>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public int ClubId { get; set; }
+
+    private bool _loading = true;
+    private ClubDetailDto? _club;
+    private List<CompetitionDto> _competitions = [];
+    private ClubLinkState _linkState = ClubLinkState.None;
+
+    private enum ClubLinkState { None, Pending, Linked, Administered }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var clubTask = ClubService.GetClubAsync(ClubId);
+        var competitionsTask = CompetitionService.GetCompetitionsAsync();
+        UserClubLinksDto? links = null;
+
+        if (CurrentUser.IsAuthenticated)
+        {
+            var linksTask = ClubService.GetMyClubLinksAsync();
+            await Task.WhenAll(clubTask, competitionsTask, linksTask);
+            links = await linksTask;
+        }
+        else
+        {
+            await Task.WhenAll(clubTask, competitionsTask);
+        }
+
+        _club = await clubTask;
+        var allCompetitions = await competitionsTask;
+        _competitions = allCompetitions
+            .Where(c => c.HostClubId == ClubId && !c.IsArchived)
+            .OrderBy(c => c.StartDate)
+            .ToList();
+
+        if (links is not null)
+        {
+            if (links.AdminClubIds.Contains(ClubId)) _linkState = ClubLinkState.Administered;
+            else if (links.LinkedClubIds.Contains(ClubId)) _linkState = ClubLinkState.Linked;
+            else if (links.PendingClubIds.Contains(ClubId)) _linkState = ClubLinkState.Pending;
+        }
+
+        _loading = false;
+    }
+
+    private async Task RequestLinkAsync()
+    {
+        if (_club is null) return;
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            $"Request to link with {_club.Name}?",
+            $"This will send a request to the administrators of {_club.Name}. " +
+            "If they approve it, you will be added as a player on their roster. " +
+            "You can cancel a pending request at any time before it is approved.",
+            yesText: "Send request", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        await ClubService.RequestClubLinkAsync(ClubId);
+        _linkState = ClubLinkState.Pending;
+        SiteAlerts.Add($"Request sent to {_club.Name}.", Severity.Success);
+    }
+
+    private async Task CancelRequestAsync()
+    {
+        if (_club is null) return;
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            $"Cancel link request to {_club.Name}?",
+            "Your pending request will be deleted. You can submit a new one later if you change your mind.",
+            yesText: "Delete request", cancelText: "Keep request");
+
+        if (confirmed != true) return;
+
+        await ClubService.CancelMyClubLinkRequestAsync(ClubId);
+        _linkState = ClubLinkState.None;
+        SiteAlerts.Add($"Request to {_club.Name} cancelled.", Severity.Success);
+    }
+}

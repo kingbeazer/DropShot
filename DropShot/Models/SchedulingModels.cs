@@ -45,6 +45,24 @@ public class ClubSchedulingTemplateWindow
     public ClubSchedulingTemplate Template { get; set; } = null!;
 }
 
+public class CompetitionCalendarException
+{
+    public int CompetitionCalendarExceptionId { get; set; }
+    public int CompetitionId { get; set; }
+
+    /// <summary>
+    /// When set, the exception only blocks scheduling for that division.
+    /// When null, it applies competition-wide (all divisions).
+    /// </summary>
+    public int? CompetitionDivisionId { get; set; }
+
+    public DateOnly ExceptionDate { get; set; }
+    public string? Note { get; set; }
+
+    public Competition Competition { get; set; } = null!;
+    public CompetitionDivision? Division { get; set; }
+}
+
 public class CompetitionTemplate
 {
     public int CompetitionTemplateId { get; set; }

@@ -66,7 +66,7 @@ public static class EligibilityEvaluator
         return violations;
     }
 
-    private static int AgeOn(DateOnly on, DateOnly dob)
+    public static int AgeOn(DateOnly on, DateOnly dob)
     {
         int age = on.Year - dob.Year;
         if (dob > on.AddYears(-age)) age--;

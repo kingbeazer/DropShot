@@ -294,6 +294,7 @@ public sealed class WebMatchScoringService(
         fx.AwayGamesTotal = request.AwayGamesTotal;
 
         await db.SaveChangesAsync(ct);
+        await LadderRatingService.ApplyForFinalisedFixtureAsync(db, fx.CompetitionFixtureId, ct);
         await CompetitionProgressionService.TryAdvanceAsync(db, fx.CompetitionId, fx.CompetitionFixtureId);
     }
 
@@ -346,6 +347,55 @@ public sealed class WebMatchScoringService(
 
         db.SavedMatch.Remove(match);
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<int> CreateLadderFixtureAsync(
+        CreateLadderFixtureRequest request, CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId;
+        if (string.IsNullOrEmpty(userId))
+            throw new UnauthorizedAccessException("Sign-in required to record a ladder match.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var callerPlayerId = await db.Players
+            .Where(p => p.UserId == userId)
+            .Select(p => (int?)p.PlayerId)
+            .FirstOrDefaultAsync(ct);
+        if (callerPlayerId is null)
+            throw new UnauthorizedAccessException("No Player profile linked to the current user.");
+        if (callerPlayerId.Value == request.OpponentPlayerId)
+            throw new InvalidOperationException("Cannot record a match against yourself.");
+
+        var comp = await db.Competition
+            .FirstOrDefaultAsync(c => c.CompetitionID == request.CompetitionId, ct);
+        if (comp is null)
+            throw new InvalidOperationException("Competition not found.");
+        if (comp.CompetitionFormat != CompetitionFormat.SinglesLadder)
+            throw new InvalidOperationException("Ad-hoc fixture creation is only valid for SinglesLadder competitions.");
+
+        var enrolled = await db.CompetitionParticipants
+            .Where(p => p.CompetitionId == request.CompetitionId
+                        && p.Status == ParticipantStatus.FullPlayer
+                        && (p.PlayerId == callerPlayerId.Value || p.PlayerId == request.OpponentPlayerId))
+            .Select(p => p.PlayerId)
+            .ToListAsync(ct);
+        if (!enrolled.Contains(callerPlayerId.Value))
+            throw new UnauthorizedAccessException("You are not an active participant in this ladder.");
+        if (!enrolled.Contains(request.OpponentPlayerId))
+            throw new InvalidOperationException("Opponent is not an active participant in this ladder.");
+
+        var fx = new CompetitionFixture
+        {
+            CompetitionId = request.CompetitionId,
+            Player1Id = callerPlayerId.Value,
+            Player2Id = request.OpponentPlayerId,
+            ScheduledAt = DateTime.UtcNow,
+            Status = FixtureStatus.Scheduled,
+        };
+        db.CompetitionFixtures.Add(fx);
+        await db.SaveChangesAsync(ct);
+        return fx.CompetitionFixtureId;
     }
 
     private static TennisScoreFixtureContextDto ToFixtureContextDto(CompetitionFixture fx)

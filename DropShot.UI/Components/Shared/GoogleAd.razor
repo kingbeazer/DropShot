@@ -1,0 +1,28 @@
+@* Reusable AdSense display unit. The loader script lives once in the web
+   host's App.razor <head>; this component only emits the ad slot and the
+   per-unit push. Suppressed on MAUI (iOS/Android/MacCatalyst), where AdSense
+   rejects the WebView context. *@
+@if (!OperatingSystem.IsIOS() && !OperatingSystem.IsAndroid() && !OperatingSystem.IsMacCatalyst())
+{
+    <div class="@CssClass" style="text-align:center; overflow:hidden;">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-6819827391362636"
+             data-ad-slot="@Slot"
+             data-ad-format="@Format"
+             data-full-width-responsive="true"></ins>
+        <script>
+            (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
+    </div>
+}
+
+@code {
+    /// AdSense ad-unit slot ID. Defaults to the shared display unit.
+    [Parameter] public string Slot { get; set; } = "5137127862";
+
+    [Parameter] public string Format { get; set; } = "auto";
+
+    /// Extra CSS classes for the wrapper (e.g. margin utilities).
+    [Parameter] public string CssClass { get; set; } = "my-6";
+}

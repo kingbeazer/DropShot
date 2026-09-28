@@ -18,19 +18,21 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
     public Task<CompetitionDetailDto?> GetCompetitionAsync(int id, CancellationToken ct = default) =>
         http.GetFromJsonAsync<CompetitionDetailDto>($"api/competitions/{id}", ct);
 
-    public async Task SelfRegisterAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default)
+    public async Task SelfRegisterAsync(
+        int competitionId, ParticipantStatus status, PhoneShareConsent consent, CancellationToken ct = default)
     {
         var resp = await http.PostAsJsonAsync(
             $"api/competitions/{competitionId}/self-register",
-            new UpdateParticipantStatusRequest(status), ct);
+            new SelfRegisterRequest(status, consent), ct);
         resp.EnsureSuccessStatusCode();
     }
 
-    public async Task ConfirmParticipationAsync(int competitionId, ParticipantStatus status, CancellationToken ct = default)
+    public async Task ConfirmParticipationAsync(
+        int competitionId, ParticipantStatus status, PhoneShareConsent consent, CancellationToken ct = default)
     {
         var resp = await http.PostAsJsonAsync(
             $"api/competitions/{competitionId}/confirm-participation",
-            new UpdateParticipantStatusRequest(status), ct);
+            new SelfRegisterRequest(status, consent), ct);
         resp.EnsureSuccessStatusCode();
     }
 
@@ -41,10 +43,44 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task<LadderSimulationResultDto> SimulateLadderAsync(
+        int competitionId, int weeks, int? seed = null, CancellationToken ct = default)
+    {
+        var qs = seed.HasValue ? $"?weeks={weeks}&seed={seed}" : $"?weeks={weeks}";
+        var resp = await http.PostAsync($"api/competitions/{competitionId}/ladder/simulate{qs}", content: null, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<LadderSimulationResultDto>(cancellationToken: ct)
+            ?? throw new InvalidOperationException("Empty simulation response.");
+    }
+
     public async Task SubmitFixtureScoreAsync(int fixtureId, SubmitFixtureScoreRequest request, CancellationToken ct = default)
     {
         var resp = await http.PostAsJsonAsync(
             $"api/competitions/fixtures/{fixtureId}/submit-score", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<FixtureScoreContextDto?> GetFixtureScoreContextAsync(int fixtureId, CancellationToken ct = default)
+    {
+        var resp = await http.GetAsync($"api/competitions/fixtures/{fixtureId}/score-context", ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        if (resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            throw new UnauthorizedAccessException("You can't score this fixture.");
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<FixtureScoreContextDto>(cancellationToken: ct);
+    }
+
+    public async Task<FixtureScoreContextDto?> GetFixtureScoreContextByTokenAsync(Guid token, CancellationToken ct = default)
+    {
+        var resp = await http.GetAsync($"api/competitions/fixtures/by-token/{token}/score-context", ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<FixtureScoreContextDto>(cancellationToken: ct);
+    }
+
+    public async Task SubmitFixtureScoreByTokenAsync(Guid token, SubmitFixtureScoreRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync($"api/competitions/fixtures/by-token/{token}/submit-score", request, ct);
         resp.EnsureSuccessStatusCode();
     }
 
@@ -76,13 +112,29 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
         resp.EnsureSuccessStatusCode();
     }
 
-    public async Task EnterCompetitionAsync(int competitionId, CancellationToken ct = default)
+    public async Task EnterCompetitionAsync(
+        int competitionId,
+        PhoneShareConsent consent,
+        ParticipantStatus status = ParticipantStatus.FullPlayer,
+        CancellationToken ct = default)
     {
-        var resp = await http.PostAsync($"api/competitions/{competitionId}/enter", null, ct);
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/{competitionId}/enter",
+            new EnterCompetitionRequest(consent, status), ct);
         if (!resp.IsSuccessStatusCode)
         {
             var body = await resp.Content.ReadAsStringAsync(ct);
             throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to enter." : body);
+        }
+    }
+
+    public async Task LeaveCompetitionAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/competitions/{competitionId}/leave", null, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to leave." : body);
         }
     }
 
@@ -95,6 +147,13 @@ public sealed class HttpCompetitionService(HttpClient http) : ICompetitionServic
     {
         var resp = await http.PostAsJsonAsync(
             $"api/competitions/fixtures/{fixtureId}/submit-rubber-scores", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task ClearRubberScoreAsync(int fixtureId, int rubberId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/fixtures/{fixtureId}/rubbers/{rubberId}/clear-score", null, ct);
         resp.EnsureSuccessStatusCode();
     }
 

@@ -22,6 +22,7 @@ public class CompetitionsController(
     ICompetitionRubberTemplateProvider rubberTemplateProvider,
     CompetitionSchedulerService scheduler,
     ICompetitionService competitionService,
+    PlayerRatingService ratings,
     ILogger<CompetitionsController> logger) : ControllerBase
 {
     [HttpGet]
@@ -105,6 +106,14 @@ public class CompetitionsController(
             .OrderBy(cp => cp.Name)
             .ToListAsync();
 
+        var ratingsByPlayer = await ratings.GetRosterRatingsAsync(id);
+        var ratingSuggestions = (await ratings.GetVisibleSuggestionsAsync(id))
+            .ToDictionary(s => s.PlayerId);
+        var divisionPlacements = (await ratings.SuggestDivisionPlacementsAsync(id))
+            .ToDictionary(p => p.PlayerId);
+        var rolePlacements = (await ratings.SuggestRolePlacementsAsync(id))
+            .ToDictionary(p => p.PlayerId);
+
         return new CompetitionDetailDto(
             c.CompetitionID, c.CompetitionName,
             c.CompetitionFormat,
@@ -123,7 +132,14 @@ public class CompetitionsController(
                 p.Role,
                 p.Player?.Sex,
                 p.CompetitionDivisionId,
-                p.Division?.Name)).ToList(),
+                p.Division?.Name,
+                ratingsByPlayer.TryGetValue(p.PlayerId, out var r)
+                    ? new PlayerRatingDto(r.Value, r.IsProvisional)
+                    : null,
+                ratingSuggestions.TryGetValue(p.PlayerId, out var rs)
+                    ? new PlayerRatingSuggestionDto(rs.PreviousRating, rs.SuggestedRating, rs.Delta, rs.RubbersPlayed)
+                    : null,
+                BuildPlacementSuggestion(p.PlayerId, divisionPlacements, rolePlacements))).ToList(),
             c.IsArchived,
             c.IsStarted,
             c.CreatorUserId,
@@ -148,7 +164,8 @@ public class CompetitionsController(
                 cp.Court1Id, cp.Court1.Name,
                 cp.Court2Id, cp.Court2.Name,
                 cp.Name)).ToList(),
-            c.LeagueScoring);
+            c.LeagueScoring,
+            Description: c.Description);
     }
 
     [HttpPost]
@@ -389,11 +406,11 @@ public class CompetitionsController(
     /// </summary>
     [HttpPost("{id:int}/self-register")]
     public async Task<IActionResult> SelfRegister(
-        int id, [FromBody] UpdateParticipantStatusRequest req, CancellationToken ct)
+        int id, [FromBody] SelfRegisterRequest req, CancellationToken ct)
     {
         try
         {
-            await competitionService.SelfRegisterAsync(id, req.Status, ct);
+            await competitionService.SelfRegisterAsync(id, req.Status, req.Consent, ct);
             return NoContent();
         }
         catch (KeyNotFoundException ex) { return BadRequest(new { message = ex.Message }); }
@@ -406,11 +423,11 @@ public class CompetitionsController(
     /// </summary>
     [HttpPost("{id:int}/confirm-participation")]
     public async Task<IActionResult> ConfirmParticipation(
-        int id, [FromBody] UpdateParticipantStatusRequest req, CancellationToken ct)
+        int id, [FromBody] SelfRegisterRequest req, CancellationToken ct)
     {
         try
         {
-            await competitionService.ConfirmParticipationAsync(id, req.Status, ct);
+            await competitionService.ConfirmParticipationAsync(id, req.Status, req.Consent, ct);
             return NoContent();
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
@@ -442,10 +459,52 @@ public class CompetitionsController(
     }
 
     /// <summary>
+    /// Bundled load for the SubmitScorePage: fixture DTO + competition
+    /// match-config + a CanAdminOverride flag derived from the caller's
+    /// permissions. Authorised for either competition admins or fixture
+    /// participants.
+    /// </summary>
+    [HttpGet("fixtures/{fixtureId:int}/score-context")]
+    public async Task<ActionResult<FixtureScoreContextDto>> GetFixtureScoreContext(int fixtureId, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await competitionService.GetFixtureScoreContextAsync(fixtureId, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
+    // ── Token-based (no-auth) score submission ────────────────────────────────
+
+    [HttpGet("fixtures/by-token/{token:guid}/score-context")]
+    [AllowAnonymous]
+    public async Task<ActionResult<FixtureScoreContextDto>> GetScoreContextByToken(
+        Guid token, CancellationToken ct)
+    {
+        var dto = await competitionService.GetFixtureScoreContextByTokenAsync(token, ct);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    [HttpPost("fixtures/by-token/{token:guid}/submit-score")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SubmitScoreByToken(
+        Guid token, [FromBody] SubmitFixtureScoreRequest req, CancellationToken ct)
+    {
+        try
+        {
+            await competitionService.SubmitFixtureScoreByTokenAsync(token, req, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    /// <summary>
     /// Submit a fixture score (or admin-override an existing one). Backs
-    /// SubmitScoreDialog (phase 7). Server enforces that only competition
-    /// admins can submit with <c>AdminOverride = true</c>; non-admin requests
-    /// silently coerce <c>AdminOverride</c> back to false.
+    /// the SubmitScorePage (/match/submit/{fixtureId}). Server enforces that
+    /// only competition admins can submit with <c>AdminOverride = true</c>;
+    /// non-admin requests silently coerce <c>AdminOverride</c> back to false.
     /// </summary>
     [HttpPost("fixtures/{fixtureId:int}/submit-score")]
     public async Task<IActionResult> SubmitFixtureScore(
@@ -584,6 +643,47 @@ public class CompetitionsController(
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
     }
 
+    /// <summary>
+    /// Clears a single rubber's recorded score and un-finalises the parent
+    /// fixture. Mirrors the SubmitRubberScores auth model: competition admins,
+    /// or participants on one of the two teams.
+    /// </summary>
+    [HttpPost("fixtures/{fixtureId:int}/rubbers/{rubberId:int}/clear-score")]
+    public async Task<IActionResult> ClearRubberScore(
+        int fixtureId, int rubberId, CancellationToken ct)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        var fx = await db.CompetitionFixtures
+            .Include(f => f.Competition)
+            .FirstOrDefaultAsync(f => f.CompetitionFixtureId == fixtureId, ct);
+        if (fx is null) return NotFound();
+
+        var canEdit = await authzService.CanEditCompetitionAsync(User, fx.Competition?.HostClubId, fx.CompetitionId);
+        if (!canEdit)
+        {
+            var userId = userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId)) return Forbid();
+            var myPlayerId = await db.Players
+                .Where(p => p.UserId == userId)
+                .Select(p => (int?)p.PlayerId)
+                .FirstOrDefaultAsync(ct);
+            if (myPlayerId is null) return Forbid();
+            var onATeam = await db.CompetitionParticipants
+                .AnyAsync(cp => cp.CompetitionId == fx.CompetitionId
+                    && cp.PlayerId == myPlayerId
+                    && cp.TeamId.HasValue
+                    && (cp.TeamId == fx.HomeTeamId || cp.TeamId == fx.AwayTeamId), ct);
+            if (!onATeam) return Forbid();
+        }
+
+        try
+        {
+            await competitionService.ClearRubberScoreAsync(fixtureId, rubberId, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
     /// <summary>Awaiting-verification fixtures the caller is allowed to review.</summary>
     [HttpGet("pending-verification")]
     public async Task<ActionResult<List<CompetitionFixtureDto>>> GetPendingVerificationFixtures(CancellationToken ct)
@@ -613,11 +713,24 @@ public class CompetitionsController(
     }
 
     [HttpPost("{id:int}/enter")]
-    public async Task<IActionResult> EnterCompetition(int id, CancellationToken ct)
+    public async Task<IActionResult> EnterCompetition(
+        int id, [FromBody] EnterCompetitionRequest req, CancellationToken ct)
     {
         try
         {
-            await competitionService.EnterCompetitionAsync(id, ct);
+            await competitionService.EnterCompetitionAsync(id, req.Consent, req.Status, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPost("{id:int}/leave")]
+    public async Task<IActionResult> LeaveCompetition(int id, CancellationToken ct)
+    {
+        try
+        {
+            await competitionService.LeaveCompetitionAsync(id, ct);
             return NoContent();
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
@@ -1105,6 +1218,30 @@ public class CompetitionsController(
         return Ok();
     }
 
+    /// <summary>
+    /// Generate synthetic activity for a SinglesLadder competition so an admin
+    /// can see ratings, decay events, and the activity feed in action without
+    /// waiting for real play. Destructive — wipes all fixtures + decay events
+    /// and resets every participant's rating bookkeeping before simulating.
+    /// SuperAdmin only.
+    /// </summary>
+    [HttpPost("{id:int}/ladder/simulate")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<LadderSimulationResultDto>> SimulateLadder(
+        int id, [FromQuery] int weeks = 8, [FromQuery] int? seed = null, CancellationToken ct = default)
+    {
+        await using var db = dbFactory.CreateDbContext();
+        try
+        {
+            var r = await LadderSimulationService.SimulateAsync(db, id, weeks, seed, ct);
+            return Ok(new LadderSimulationResultDto(
+                r.Participants, r.ActivePlayers, r.IdlePlayers,
+                r.FixturesGenerated, r.DecayEventsGenerated));
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (ArgumentOutOfRangeException ex) { return BadRequest(ex.Message); }
+    }
+
     [HttpPost("{id:int}/fixtures/schedule")]
     public async Task<IActionResult> ScheduleFixtures(int id)
     {
@@ -1130,6 +1267,55 @@ public class CompetitionsController(
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompetitionID == id);
         if (comp is null) return NotFound();
+
+        // SinglesLadder: standings are the live Elo rating order. Played/Won/Lost
+        // counted directly from completed ad-hoc fixtures; "Points" carries the
+        // Elo rating (rounded) so the standard table renderer can show it.
+        if (comp.CompetitionFormat == CompetitionFormat.SinglesLadder)
+        {
+            var ladderParticipants = await db.CompetitionParticipants
+                .Where(cp => cp.CompetitionId == id)
+                .Include(cp => cp.Player)
+                .ToListAsync();
+
+            var ladderFixtures = await db.CompetitionFixtures
+                .Where(f => f.CompetitionId == id
+                            && f.Status == FixtureStatus.Completed
+                            && f.WinnerPlayerId != null)
+                .Select(f => new { f.Player1Id, f.Player2Id, f.WinnerPlayerId })
+                .ToListAsync();
+
+            var ladderPlayed = ladderParticipants.ToDictionary(cp => cp.PlayerId, _ => 0);
+            var ladderWon = ladderParticipants.ToDictionary(cp => cp.PlayerId, _ => 0);
+            var ladderLost = ladderParticipants.ToDictionary(cp => cp.PlayerId, _ => 0);
+            foreach (var f in ladderFixtures)
+            {
+                if (f.Player1Id is int p1 && ladderPlayed.ContainsKey(p1))
+                {
+                    ladderPlayed[p1]++;
+                    if (f.WinnerPlayerId == p1) ladderWon[p1]++; else ladderLost[p1]++;
+                }
+                if (f.Player2Id is int p2 && ladderPlayed.ContainsKey(p2))
+                {
+                    ladderPlayed[p2]++;
+                    if (f.WinnerPlayerId == p2) ladderWon[p2]++; else ladderLost[p2]++;
+                }
+            }
+
+            var ladderEntries = ladderParticipants
+                .Select(cp => new LeagueTableEntryDto(
+                    cp.PlayerId,
+                    cp.Player?.DisplayName ?? "",
+                    ladderPlayed[cp.PlayerId],
+                    ladderWon[cp.PlayerId],
+                    ladderLost[cp.PlayerId],
+                    (int)Math.Round(cp.EloRating)))
+                .OrderByDescending(e => e.Points)
+                .ThenByDescending(e => e.Won)
+                .ThenBy(e => e.PlayerName)
+                .ToList();
+            return Ok(ladderEntries);
+        }
 
         // Find round-robin stage IDs for this competition
         var rrStageIds = await db.CompetitionStages
@@ -1302,6 +1488,20 @@ public class CompetitionsController(
         c.EventId, c.Event?.Name, c.IsArchived, c.IsStarted,
         c.CreatorUserId, c.IsRestricted, c.RegisterByDate);
 
+    private static PlacementSuggestionDto? BuildPlacementSuggestion(
+        int playerId,
+        Dictionary<int, PlayerRatingService.DivisionPlacement> divisions,
+        Dictionary<int, PlayerRatingService.RolePlacement> roles)
+    {
+        var hasDivision = divisions.TryGetValue(playerId, out var d);
+        var hasRole = roles.TryGetValue(playerId, out var r);
+        if (!hasDivision && !hasRole) return null;
+        return new PlacementSuggestionDto(
+            SuggestedDivisionId: hasDivision ? d!.SuggestedDivisionId : null,
+            SuggestedDivisionName: hasDivision ? d!.SuggestedDivisionName : null,
+            SuggestedRole: hasRole ? r!.SuggestedRole : null);
+    }
+
     private static CompetitionFixtureDto ToFixtureDto(CompetitionFixture f) => new(
         f.CompetitionFixtureId, f.CompetitionId,
         f.CompetitionStageId, f.Stage?.Name,
@@ -1315,7 +1515,8 @@ public class CompetitionsController(
         f.ResultSummary, f.WinnerPlayerId,
         f.HomeTeamId, f.HomeTeam?.Name,
         f.AwayTeamId, f.AwayTeam?.Name,
-        f.WinnerTeamId, f.CourtPairId, f.CourtPair?.Name);
+        f.WinnerTeamId, f.CourtPairId, f.CourtPair?.Name,
+        ResultSubmissionToken: f.ResultSubmissionToken);
 
     // ── Team Match Endpoints ─────────────────────────────────────────────────
 
@@ -1605,7 +1806,9 @@ public class CompetitionsController(
             r.AwayPlayer1Id, r.AwayPlayer1?.DisplayName,
             r.AwayPlayer2Id, r.AwayPlayer2?.DisplayName,
             r.HomeGames, r.AwayGames, r.WinnerTeamId,
-            r.IsComplete, r.SavedMatchId)).ToList();
+            r.IsComplete, r.SavedMatchId,
+            r.HomeSetsWon, r.AwaySetsWon, r.HomeGamesTotal, r.AwayGamesTotal,
+            r.SetScores.Select(s => new RubberSetScoreDto(s.Home, s.Away)).ToList())).ToList();
     }
 
     // ── Team League Table ────────────────────────────────────────────────────

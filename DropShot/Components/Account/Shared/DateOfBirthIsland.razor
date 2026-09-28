@@ -1,0 +1,22 @@
+@* Interactive island that renders a MudBlazor date picker inside a static SSR
+   form. The island carries the value back to the SSR form via a hidden <input>
+   named after the form field — Account pages stay SSR (so SignInManager cookie
+   writes still work) while users get the MudBlazor calendar UX. *@
+@rendermode InteractiveServer
+@using MudBlazor
+
+<MudPopoverProvider />
+<MudDatePicker @bind-Date="_date" Label="@Label" Variant="Variant.Outlined"
+               DateFormat="dd/MM/yyyy" Editable="true" MaxDate="DateTime.Today" />
+<input type="hidden" name="@Name" value="@_dateString" />
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = default!;
+    [Parameter] public DateTime? InitialValue { get; set; }
+    [Parameter] public string? Label { get; set; } = "Date of birth";
+
+    private DateTime? _date;
+    private string _dateString => _date?.ToString("yyyy-MM-dd") ?? "";
+
+    protected override void OnInitialized() => _date = InitialValue;
+}

@@ -59,7 +59,7 @@ public sealed class HttpClubService(HttpClient http) : IClubService
 
     public async Task<UserClubLinksDto> GetMyClubLinksAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<UserClubLinksDto>("api/clubs/my-links", ct)
-            ?? new UserClubLinksDto([], [], []);
+            ?? new UserClubLinksDto([], [], [], []);
 
     public async Task RequestClubLinkAsync(int clubId, CancellationToken ct = default)
     {
@@ -86,6 +86,34 @@ public sealed class HttpClubService(HttpClient http) : IClubService
     public async Task RejectLinkRequestAsync(int requestId, CancellationToken ct = default)
     {
         var resp = await http.PostAsync($"api/clubadmin/link-requests/{requestId}/reject", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<ClubAdminRequestDto>> GetPendingAdminRequestsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<ClubAdminRequestDto>>(
+            "api/clubadmin/admin-requests", ct) ?? [];
+
+    public async Task RequestClubAdminAsync(int clubId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/clubs/{clubId}/admin-requests", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task CancelMyClubAdminRequestAsync(int clubId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync($"api/clubs/{clubId}/admin-requests/mine", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task ApproveAdminRequestAsync(int requestId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/clubadmin/admin-requests/{requestId}/approve", null, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task RejectAdminRequestAsync(int requestId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync($"api/clubadmin/admin-requests/{requestId}/reject", null, ct);
         resp.EnsureSuccessStatusCode();
     }
 }

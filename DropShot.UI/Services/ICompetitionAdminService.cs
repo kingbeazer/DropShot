@@ -149,6 +149,15 @@ public interface ICompetitionAdminService
         int competitionId, SearchPlayersForAddRequest request, CancellationToken ct = default);
 
     Task AddParticipantAsync(int competitionId, AddParticipantRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Add a list of players to the competition in one round-trip. Players who
+    /// are already enrolled or who push the roster over <c>MaxParticipants</c>
+    /// are silently skipped; the result DTO reports counts.
+    /// </summary>
+    Task<BulkAddParticipantsResultDto> BulkAddParticipantsAsync(
+        int competitionId, BulkAddParticipantsRequest request, CancellationToken ct = default);
+
     Task RemoveParticipantAsync(int competitionId, int playerId, CancellationToken ct = default);
 
     Task UpdateParticipantStatusAsync(
@@ -162,6 +171,49 @@ public interface ICompetitionAdminService
 
     Task AssignParticipantDivisionAsync(
         int competitionId, int playerId, SetParticipantDivisionRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Set or update a participant's admin-entered initial Elo rating for this
+    /// competition. Writes a <c>SeasonStart</c> snapshot — idempotent on re-call.
+    /// Used to bootstrap a brand-new (non-cloned) competition before any Elo
+    /// replay is possible.
+    /// </summary>
+    Task SetParticipantInitialRatingAsync(
+        int competitionId, int playerId, SetParticipantInitialRatingRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Accept the Elo-replay rating suggestion for one participant. Writes the
+    /// SeasonEnd snapshot on the previous competition and the SeasonStart on
+    /// this one. Returns the suggestion that was applied, or null if there
+    /// wasn't one (e.g. brand-new competition, or player didn't play in parent).
+    /// </summary>
+    Task<PlayerRatingSuggestionDto?> AcceptParticipantRatingAsync(
+        int competitionId, int playerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Accept every visible rating suggestion in a single round. Returns the
+    /// list of applied suggestions for UI confirmation.
+    /// </summary>
+    Task<List<PlayerRatingSuggestionDto>> AcceptAllParticipantRatingsAsync(
+        int competitionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Apply the rating-driven division suggestion for one participant.
+    /// </summary>
+    Task ApplyDivisionPlacementAsync(
+        int competitionId, int playerId, ApplyDivisionPlacementRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Apply the rating-driven role suggestion for one participant (TeamMatch).
+    /// </summary>
+    Task ApplyRolePlacementAsync(
+        int competitionId, int playerId, ApplyRolePlacementRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Apply every pending division + role placement suggestion in one round.
+    /// Returns the count of rows written.
+    /// </summary>
+    Task<int> ApplyAllPlacementsAsync(int competitionId, CancellationToken ct = default);
 
     /// <summary>
     /// Create a "light" Player (no user account) and immediately enrol them as
@@ -328,4 +380,38 @@ public interface ICompetitionAdminService
     /// </summary>
     Task<int> ImportMatchWindowsFromTemplateAsync(
         int competitionId, ImportMatchWindowsFromTemplateRequest request, CancellationToken ct = default);
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Add a calendar exception date to exclude from auto-scheduling. When
+    /// <see cref="SaveCalendarExceptionRequest.CompetitionDivisionId"/> is null
+    /// the exception applies competition-wide; when set it is division-scoped.
+    /// Returns the new exception's id.
+    /// </summary>
+    Task<int> AddCalendarExceptionAsync(
+        int competitionId, SaveCalendarExceptionRequest request, CancellationToken ct = default);
+
+    Task DeleteCalendarExceptionAsync(int competitionId, int exceptionId, CancellationToken ct = default);
+
+    // ── Fixture reminder emails ──────────────────────────────────────────────
+
+    Task<List<CompetitionFixtureReminderDto>> GetFixtureRemindersAsync(int competitionId, CancellationToken ct = default);
+
+    Task<List<ScheduledReminderEmailDto>> GetScheduledReminderEmailsAsync(int competitionId, CancellationToken ct = default);
+
+    Task<int> RunReminderSweepAsync(CancellationToken ct = default);
+
+    Task<int> SaveFixtureReminderAsync(
+        int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default);
+
+    Task DeleteFixtureReminderAsync(int competitionId, int reminderId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Manually send a reminder to all players in a specific fixture, bypassing
+    /// the scheduled sweep timing. Admin-only. Also sends to fixtures that have
+    /// already been sent this reminder.
+    /// </summary>
+    Task SendFixtureReminderManualAsync(
+        int competitionId, int fixtureId, int reminderId, CancellationToken ct = default);
 }

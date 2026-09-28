@@ -51,4 +51,45 @@ public class ClubAdminController(IClubService clubs) : ControllerBase
             return Conflict(new { message = ex.Message });
         }
     }
+
+    // ── Club admin role requests (site admin only) ────────────────────────────
+
+    [HttpGet("admin-requests")]
+    [Authorize(AuthenticationSchemes = "Bearer", Roles = "Admin,SuperAdmin")]
+    public async Task<ActionResult<List<ClubAdminRequestDto>>> GetPendingAdminRequests(CancellationToken ct)
+    {
+        return await clubs.GetPendingAdminRequestsAsync(ct);
+    }
+
+    [HttpPost("admin-requests/{requestId:int}/approve")]
+    [Authorize(AuthenticationSchemes = "Bearer", Roles = "Admin,SuperAdmin")]
+    public async Task<IActionResult> ApproveAdminRequest(int requestId, CancellationToken ct)
+    {
+        try
+        {
+            await clubs.ApproveAdminRequestAsync(requestId, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("admin-requests/{requestId:int}/reject")]
+    [Authorize(AuthenticationSchemes = "Bearer", Roles = "Admin,SuperAdmin")]
+    public async Task<IActionResult> RejectAdminRequest(int requestId, CancellationToken ct)
+    {
+        try
+        {
+            await clubs.RejectAdminRequestAsync(requestId, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
 }

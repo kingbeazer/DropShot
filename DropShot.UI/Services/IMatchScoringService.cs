@@ -102,4 +102,15 @@ public interface IMatchScoringService
     /// <c>DeviceToken</c> matches the row's.
     /// </summary>
     Task DiscardLiveMatchAsync(int savedMatchId, string? deviceToken, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ad-hoc fixture creation for a Singles Ladder competition. Resolves the
+    /// caller's Player from JWT, validates both caller and opponent are
+    /// FullPlayer participants in the competition, creates a Scheduled
+    /// fixture (Player1 = caller, Player2 = opponent), and returns its id so
+    /// the caller can navigate to <c>/tennisscore?fixtureId=…</c>. Throws
+    /// <see cref="UnauthorizedAccessException"/> when caller has no linked
+    /// Player or when either side isn't a FullPlayer participant.
+    /// </summary>
+    Task<int> CreateLadderFixtureAsync(CreateLadderFixtureRequest request, CancellationToken ct = default);
 }

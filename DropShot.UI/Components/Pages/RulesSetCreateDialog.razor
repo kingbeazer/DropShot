@@ -2,7 +2,7 @@
 @using DropShot.UI.Services
 @using Microsoft.AspNetCore.Components.Web
 @inject IRulesSetService RulesSets
-@inject ISnackbar Snackbar
+@inject ISiteAlertService SiteAlerts
 @inject Microsoft.Extensions.Logging.ILogger<RulesSetCreateDialog> Logger
 
 @*
@@ -120,7 +120,7 @@
                     ClubId));
             if (saved is null)
             {
-                Snackbar.Add("Could not create rules set.", Severity.Error);
+                SiteAlerts.Add("Could not create rules set.", Severity.Error);
                 return;
             }
 
@@ -138,11 +138,11 @@
                 {
                     Logger.LogError(itemEx, "Failed to add rule '{RuleText}' to set {RulesSetId}.",
                         ruleText, saved.RulesSetId);
-                    Snackbar.Add($"Saved set but rule \"{ruleText}\" could not be added.", Severity.Warning);
+                    SiteAlerts.Add($"Saved set but rule \"{ruleText}\" could not be added.", Severity.Warning);
                 }
             }
 
-            Snackbar.Add(
+            SiteAlerts.Add(
                 $"Rules set \"{saved.Name}\" saved with {_items.Count} rule(s).",
                 Severity.Success);
 
@@ -152,7 +152,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to create rules set.");
-            Snackbar.Add("Could not create rules set.", Severity.Error);
+            SiteAlerts.Add("Could not create rules set.", Severity.Error);
         }
         finally
         {

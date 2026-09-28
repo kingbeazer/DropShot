@@ -9,6 +9,7 @@
 @using DropShot.Data
 @using DropShot.Models
 @using DropShot.Shared
+@using DropShot.Components.Account.Shared
 @using Microsoft.EntityFrameworkCore
 
 @inject UserManager<ApplicationUser> UserManager
@@ -54,9 +55,8 @@
                 <label for="confirm-password">Confirm Password</label>
                 <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
             </div>
-            <div class="form-floating mb-3">
-                <InputDate @bind-Value="Input.DateOfBirth" class="form-control" aria-required="true" placeholder="Date of Birth" />
-                <label for="date-of-birth">Date of Birth</label>
+            <div class="mb-3">
+                <DateOfBirthIsland Name="Input.DateOfBirth" InitialValue="@Input.DateOfBirth" Label="Date of Birth" />
                 <ValidationMessage For="() => Input.DateOfBirth" class="text-danger" />
             </div>
             <fieldset class="mb-3">

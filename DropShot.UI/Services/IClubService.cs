@@ -45,4 +45,30 @@ public interface IClubService
 
     /// <summary>Reject a link request and notify the requester by email.</summary>
     Task RejectLinkRequestAsync(int requestId, CancellationToken ct = default);
+
+    // ── Club admin role requests (site admin approval only) ───────────────────
+
+    /// <summary>
+    /// Pending admin role requests. Only Admin/SuperAdmin can see these.
+    /// </summary>
+    Task<List<ClubAdminRequestDto>> GetPendingAdminRequestsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Submit a request for the caller to become a club administrator.
+    /// Caller must already be linked to the club as a player.
+    /// </summary>
+    Task RequestClubAdminAsync(int clubId, CancellationToken ct = default);
+
+    /// <summary>Cancel the caller's pending admin role request for a club.</summary>
+    Task CancelMyClubAdminRequestAsync(int clubId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Approve an admin role request: inserts ClubAdministrator, grants the
+    /// ClubAdmin role, marks the request approved, and notifies the requester.
+    /// Site Admin/SuperAdmin only.
+    /// </summary>
+    Task ApproveAdminRequestAsync(int requestId, CancellationToken ct = default);
+
+    /// <summary>Reject an admin role request and notify the requester.</summary>
+    Task RejectAdminRequestAsync(int requestId, CancellationToken ct = default);
 }

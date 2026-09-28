@@ -57,11 +57,29 @@
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
-    // Expose toggle function globally for onclick
-    window.toggleDropShotTheme = function () {
+    // Expose toggle function globally for onclick. Optional `sourceEl` (the
+    // <button> that fired the click) lets us close the containing nav
+    // dropdown so the menu doesn't stay open after the user picks a mode.
+    window.toggleDropShotTheme = function (sourceEl) {
         var current = getPreferred();
         var next = current === 'dark' ? 'light' : 'dark';
         localStorage.setItem(STORAGE_KEY, next);
         applyTheme(next);
+
+        if (sourceEl && typeof sourceEl.blur === 'function') {
+            sourceEl.blur();
+            var dropdown = sourceEl.closest && sourceEl.closest('.nav-dropdown');
+            if (dropdown) {
+                // The dropdown is shown via :hover / :focus-within CSS, so
+                // simply blurring the button isn't enough on desktop where
+                // the cursor still hovers the menu. Briefly mark it as
+                // suppressed so a matching CSS rule force-hides it; the
+                // class self-clears so the dropdown can reopen normally.
+                dropdown.classList.add('nav-dropdown-suppressed');
+                setTimeout(function () {
+                    dropdown.classList.remove('nav-dropdown-suppressed');
+                }, 500);
+            }
+        }
     };
 })();

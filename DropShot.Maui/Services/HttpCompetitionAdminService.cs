@@ -205,6 +205,20 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
         }
     }
 
+    public async Task<BulkAddParticipantsResultDto> BulkAddParticipantsAsync(
+        int competitionId, BulkAddParticipantsRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/bulk-add", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to bulk-add participants." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<BulkAddParticipantsResultDto>(cancellationToken: ct)
+            ?? new BulkAddParticipantsResultDto(0, 0);
+    }
+
     public async Task RemoveParticipantAsync(int competitionId, int playerId, CancellationToken ct = default)
     {
         var resp = await http.DeleteAsync($"api/competitions/admin/{competitionId}/participants/{playerId}", ct);
@@ -224,7 +238,11 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
     {
         var resp = await http.PutAsJsonAsync(
             $"api/competitions/admin/{competitionId}/participants/{playerId}/team", request, ct);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(ExtractErrorMessage(body) ?? resp.ReasonPhrase ?? "Failed to assign team.");
+        }
     }
 
     public async Task AssignParticipantRoleAsync(
@@ -232,7 +250,32 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
     {
         var resp = await http.PutAsJsonAsync(
             $"api/competitions/admin/{competitionId}/participants/{playerId}/role", request, ct);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(ExtractErrorMessage(body) ?? resp.ReasonPhrase ?? "Failed to assign role.");
+        }
+    }
+
+    /// <summary>
+    /// Parse the <c>{ "message": "..." }</c> body the API returns on
+    /// BadRequest/NotFound so the surfaced error is the friendly message,
+    /// not the raw JSON envelope. Returns null when the body isn't that
+    /// shape so callers fall back to ReasonPhrase.
+    /// </summary>
+    private static string? ExtractErrorMessage(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return null;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("message", out var msg)
+                && msg.ValueKind == System.Text.Json.JsonValueKind.String)
+                return msg.GetString();
+        }
+        catch (System.Text.Json.JsonException) { }
+        return body;
     }
 
     public async Task AssignParticipantDivisionAsync(
@@ -241,6 +284,58 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
         var resp = await http.PutAsJsonAsync(
             $"api/competitions/admin/{competitionId}/participants/{playerId}/division", request, ct);
         resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task SetParticipantInitialRatingAsync(
+        int competitionId, int playerId, SetParticipantInitialRatingRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/initial-rating", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<PlayerRatingSuggestionDto?> AcceptParticipantRatingAsync(
+        int competitionId, int playerId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/accept-rating", content: null, ct);
+        resp.EnsureSuccessStatusCode();
+        if (resp.StatusCode == System.Net.HttpStatusCode.NoContent) return null;
+        return await resp.Content.ReadFromJsonAsync<PlayerRatingSuggestionDto>(cancellationToken: ct);
+    }
+
+    public async Task<List<PlayerRatingSuggestionDto>> AcceptAllParticipantRatingsAsync(
+        int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/ratings/apply-all", content: null, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<List<PlayerRatingSuggestionDto>>(cancellationToken: ct)
+            ?? new List<PlayerRatingSuggestionDto>();
+    }
+
+    public async Task ApplyDivisionPlacementAsync(
+        int competitionId, int playerId, ApplyDivisionPlacementRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/division-placement", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task ApplyRolePlacementAsync(
+        int competitionId, int playerId, ApplyRolePlacementRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PutAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/participants/{playerId}/role-placement", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<int> ApplyAllPlacementsAsync(int competitionId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/placements/apply-all", content: null, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
     }
 
     public async Task<int> CreateLightPlayerAsync(
@@ -490,5 +585,75 @@ public sealed class HttpCompetitionAdminService(HttpClient http) : ICompetitionA
             $"api/competitions/admin/{competitionId}/match-windows/import-from-template", request, ct);
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    // ── Calendar exceptions ──────────────────────────────────────────────────
+
+    public async Task<int> AddCalendarExceptionAsync(
+        int competitionId, SaveCalendarExceptionRequest request, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsJsonAsync(
+            $"api/competitions/admin/{competitionId}/calendar-exceptions", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException(string.IsNullOrEmpty(body) ? resp.ReasonPhrase ?? "Failed to add calendar exception." : body);
+        }
+        return await resp.Content.ReadFromJsonAsync<int>(cancellationToken: ct);
+    }
+
+    public async Task DeleteCalendarExceptionAsync(int competitionId, int exceptionId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync(
+            $"api/competitions/admin/{competitionId}/calendar-exceptions/{exceptionId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    // ── Fixture reminder emails ──────────────────────────────────────────────
+
+    public async Task<List<CompetitionFixtureReminderDto>> GetFixtureRemindersAsync(
+        int competitionId, CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<CompetitionFixtureReminderDto>>(
+            $"api/competitions/admin/{competitionId}/fixture-reminders", ct) ?? [];
+
+    public async Task<List<ScheduledReminderEmailDto>> GetScheduledReminderEmailsAsync(
+        int competitionId, CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<ScheduledReminderEmailDto>>(
+            $"api/competitions/admin/{competitionId}/scheduled-reminder-emails", ct) ?? [];
+
+    public async Task<int> RunReminderSweepAsync(CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync("api/competitions/admin/run-reminder-sweep", null, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<int>(ct);
+    }
+
+    public async Task<int> SaveFixtureReminderAsync(
+        int competitionId, int? reminderId, SaveFixtureReminderRequest request, CancellationToken ct = default)
+    {
+        HttpResponseMessage resp;
+        if (reminderId.HasValue)
+            resp = await http.PutAsJsonAsync(
+                $"api/competitions/admin/{competitionId}/fixture-reminders/{reminderId.Value}", request, ct);
+        else
+            resp = await http.PostAsJsonAsync(
+                $"api/competitions/admin/{competitionId}/fixture-reminders", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<int>(ct);
+    }
+
+    public async Task DeleteFixtureReminderAsync(int competitionId, int reminderId, CancellationToken ct = default)
+    {
+        var resp = await http.DeleteAsync(
+            $"api/competitions/admin/{competitionId}/fixture-reminders/{reminderId}", ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task SendFixtureReminderManualAsync(
+        int competitionId, int fixtureId, int reminderId, CancellationToken ct = default)
+    {
+        var resp = await http.PostAsync(
+            $"api/competitions/admin/{competitionId}/fixtures/{fixtureId}/send-reminder/{reminderId}", null, ct);
+        resp.EnsureSuccessStatusCode();
     }
 }

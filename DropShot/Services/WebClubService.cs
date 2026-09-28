@@ -16,14 +16,16 @@ namespace DropShot.Services;
 public sealed class WebClubService(
     IDbContextFactory<MyDbContext> dbFactory,
     ICurrentUser currentUser,
-    AdminEmailService adminEmail) : IClubService
+    AdminEmailService adminEmail,
+    IUserService userService) : IClubService
 {
     public async Task<List<ClubDto>> GetClubsAsync(CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var clubs = await db.Clubs.Include(c => c.Courts)
-            .OrderBy(c => c.Name)
-            .ToListAsync(ct);
+        var q = db.Clubs.Include(c => c.Courts).AsQueryable();
+        if (!currentUser.IsSuperAdmin)
+            q = q.Where(c => c.IsEnabled);
+        var clubs = await q.OrderBy(c => c.Name).ToListAsync(ct);
         return clubs.Select(c => ToDto(c)).ToList();
     }
 
@@ -32,6 +34,7 @@ public sealed class WebClubService(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var c = await db.Clubs.Include(x => x.Courts).FirstOrDefaultAsync(x => x.ClubId == id, ct);
         if (c is null) return null;
+        if (!c.IsEnabled && !currentUser.IsSuperAdmin) return null;
 
         return new ClubDetailDto(
             c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
@@ -112,7 +115,7 @@ public sealed class WebClubService(
     {
         var userId = currentUser.UserId;
         if (string.IsNullOrEmpty(userId))
-            return new UserClubLinksDto([], [], []);
+            return new UserClubLinksDto([], [], [], []);
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
@@ -136,7 +139,12 @@ public sealed class WebClubService(
             .Select(r => r.ClubId)
             .ToListAsync(ct);
 
-        return new UserClubLinksDto(adminIds, linkedIds, pendingIds);
+        var pendingAdminIds = await db.ClubAdminRequests
+            .Where(r => r.UserId == userId && r.Status == ClubAdminRequestStatus.Pending)
+            .Select(r => r.ClubId)
+            .ToListAsync(ct);
+
+        return new UserClubLinksDto(adminIds, linkedIds, pendingIds, pendingAdminIds);
     }
 
     public async Task RequestClubLinkAsync(int clubId, CancellationToken ct = default)
@@ -159,6 +167,17 @@ public sealed class WebClubService(
             RequestedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync(ct);
+
+        var club = await db.Clubs.FindAsync([clubId], ct);
+        var user = await db.Users.FindAsync([userId], ct);
+        if (club is not null && user is not null)
+        {
+            var clubAdmins = await db.ClubAdministrators
+                .Where(ca => ca.ClubId == clubId)
+                .Select(ca => ca.User)
+                .ToListAsync(ct);
+            await adminEmail.SendClubLinkRequestReceivedAsync(club, user, clubAdmins);
+        }
     }
 
     public async Task CancelMyClubLinkRequestAsync(int clubId, CancellationToken ct = default)
@@ -279,7 +298,134 @@ public sealed class WebClubService(
         await adminEmail.SendClubLinkRequestRejectedAsync(fresh.Club, fresh.User);
     }
 
-    private static Club ApplyTo(Club c, SaveClubRequest req)
+    // ── Club admin role requests ────────────────────────────────────────────
+
+    public async Task<List<ClubAdminRequestDto>> GetPendingAdminRequestsAsync(CancellationToken ct = default)
+    {
+        if (!currentUser.IsAdmin)
+            return [];
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var rows = await db.ClubAdminRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .Where(r => r.Status == ClubAdminRequestStatus.Pending)
+            .OrderByDescending(r => r.RequestedAt)
+            .ToListAsync(ct);
+
+        return rows.Select(r => new ClubAdminRequestDto(
+            r.ClubAdminRequestId, r.ClubId, r.Club.Name,
+            r.UserId, r.User.UserName ?? "", r.User.Email,
+            r.User.DisplayName, r.Status.ToString(),
+            r.RequestedAt, r.ResolvedAt)).ToList();
+    }
+
+    public async Task RequestClubAdminAsync(int clubId, CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId;
+        if (string.IsNullOrEmpty(userId))
+            throw new InvalidOperationException("Not authenticated.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        // Must be a linked player on the club.
+        var playerId = await db.Players
+            .Where(p => p.UserId == userId && !p.IsLight)
+            .Select(p => (int?)p.PlayerId)
+            .FirstOrDefaultAsync(ct);
+
+        if (playerId is null)
+            throw new InvalidOperationException("You must be a linked player to request admin access.");
+
+        var isLinked = await db.ClubPlayers
+            .AnyAsync(cp => cp.ClubId == clubId && cp.PlayerId == playerId && cp.IsActive, ct);
+        if (!isLinked)
+            throw new InvalidOperationException("You must be linked to this club to request admin access.");
+
+        var existing = await db.ClubAdminRequests
+            .AnyAsync(r => r.UserId == userId && r.ClubId == clubId
+                && r.Status == ClubAdminRequestStatus.Pending, ct);
+        if (existing) return;
+
+        db.ClubAdminRequests.Add(new ClubAdminRequest
+        {
+            ClubId = clubId,
+            UserId = userId,
+            Status = ClubAdminRequestStatus.Pending,
+            RequestedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        var club = await db.Clubs.FindAsync([clubId], ct);
+        var user = await db.Users.FindAsync([userId], ct);
+        if (club is not null && user is not null)
+            await adminEmail.SendClubAdminRequestReceivedAsync(club, user);
+    }
+
+    public async Task CancelMyClubAdminRequestAsync(int clubId, CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId;
+        if (string.IsNullOrEmpty(userId)) return;
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var pending = await db.ClubAdminRequests
+            .Where(r => r.UserId == userId && r.ClubId == clubId
+                && r.Status == ClubAdminRequestStatus.Pending)
+            .ToListAsync(ct);
+        if (pending.Count == 0) return;
+        db.ClubAdminRequests.RemoveRange(pending);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task ApproveAdminRequestAsync(int requestId, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAdmin)
+            throw new InvalidOperationException("Not authorised.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fresh = await db.ClubAdminRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.ClubAdminRequestId == requestId, ct)
+            ?? throw new KeyNotFoundException($"Admin request {requestId} not found.");
+
+        if (fresh.Status != ClubAdminRequestStatus.Pending)
+            throw new InvalidOperationException("Request already resolved.");
+
+        await userService.AddClubAdminAsync(fresh.UserId, fresh.ClubId, ct);
+
+        fresh.Status = ClubAdminRequestStatus.Approved;
+        fresh.ResolvedAt = DateTime.UtcNow;
+        fresh.ResolvedByUserId = currentUser.UserId;
+        await db.SaveChangesAsync(ct);
+
+        await adminEmail.SendClubAdminRequestApprovedAsync(fresh.Club, fresh.User);
+    }
+
+    public async Task RejectAdminRequestAsync(int requestId, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAdmin)
+            throw new InvalidOperationException("Not authorised.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var fresh = await db.ClubAdminRequests
+            .Include(r => r.Club)
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.ClubAdminRequestId == requestId, ct)
+            ?? throw new KeyNotFoundException($"Admin request {requestId} not found.");
+
+        if (fresh.Status != ClubAdminRequestStatus.Pending)
+            throw new InvalidOperationException("Request already resolved.");
+
+        fresh.Status = ClubAdminRequestStatus.Rejected;
+        fresh.ResolvedAt = DateTime.UtcNow;
+        fresh.ResolvedByUserId = currentUser.UserId;
+        await db.SaveChangesAsync(ct);
+
+        await adminEmail.SendClubAdminRequestRejectedAsync(fresh.Club, fresh.User);
+    }
+
+    private Club ApplyTo(Club c, SaveClubRequest req)
     {
         c.Name = req.Name.Trim();
         c.AddressLine1 = NullIfEmpty(req.AddressLine1);
@@ -289,16 +435,18 @@ public sealed class WebClubService(
         c.Phone = NullIfEmpty(req.Phone);
         c.Email = NullIfEmpty(req.Email);
         c.Website = NullIfEmpty(req.Website);
+        if (currentUser.IsSuperAdmin && req.IsEnabled.HasValue)
+            c.IsEnabled = req.IsEnabled.Value;
         return c;
     }
 
     private static ClubDto ToDto(Club c) => new(
         c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
-        c.Town, c.Postcode, c.Phone, c.Email, c.Website, c.Courts.Count);
+        c.Town, c.Postcode, c.Phone, c.Email, c.Website, c.Courts.Count, c.IsEnabled);
 
     private static ClubDto ToDto(Club c, int courtCount) => new(
         c.ClubId, c.Name, c.AddressLine1, c.AddressLine2,
-        c.Town, c.Postcode, c.Phone, c.Email, c.Website, courtCount);
+        c.Town, c.Postcode, c.Phone, c.Email, c.Website, courtCount, c.IsEnabled);
 
     private static string? NullIfEmpty(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
