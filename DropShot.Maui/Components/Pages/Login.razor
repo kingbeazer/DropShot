@@ -52,6 +52,25 @@
             }
         </MudButton>
     </EditForm>
+
+    <div class="d-flex justify-space-between mt-4">
+        <MudLink Typo="Typo.body2" OnClick="@(() => OpenWebPageAsync("Account/ForgotPassword"))">
+            Forgot your password?
+        </MudLink>
+        <MudLink Typo="Typo.body2" OnClick="@(() => OpenWebPageAsync("Account/Register"))">
+            Register as a new user
+        </MudLink>
+    </div>
+
+    <MudButton Variant="Variant.Text"
+               Color="Color.Default"
+               FullWidth="true"
+               Class="mt-4"
+               StartIcon="@Icons.Material.Filled.ArrowBack"
+               OnClick="@(() => Nav.NavigateTo("/"))"
+               Disabled="_loading">
+        Back to home
+    </MudButton>
 </MudPaper>
 
 @code {
@@ -78,6 +97,14 @@
             Nav.NavigateTo("/", replace: true);
         else
             _error = Auth.LastError ?? "Invalid email or password.";
+    }
+
+    // Password reset and registration are web-only flows (email confirmation,
+    // Identity UI), so hand off to the system browser like the Upgrade page does.
+    private static async Task OpenWebPageAsync(string path)
+    {
+        var baseUrl = MauiProgram.ApiBaseUrl.TrimEnd('/');
+        await Browser.Default.OpenAsync($"{baseUrl}/{path}", BrowserLaunchMode.External);
     }
 
     private class LoginModel
